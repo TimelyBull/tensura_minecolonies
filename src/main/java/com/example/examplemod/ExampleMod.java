@@ -4,9 +4,11 @@ import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
 
+import com.minecolonies.api.IMinecoloniesAPI;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColonyManager;
+import com.minecolonies.api.eventbus.events.colony.citizens.CitizenDiedModEvent;
 import com.minecolonies.api.inventory.InventoryCitizen;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
@@ -51,6 +53,7 @@ import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.registries.DeferredBlock;
@@ -212,6 +215,84 @@ public class ExampleMod {
         event.setCanceled(true);
 
         sendGoblinToColony(target, event.getEntity(), identity, serverLevel, saved);
+    }
+
+    // ------------------------------------------------------------------
+    // Stage D — death hooks
+    //
+    // Swap safety (verified by construction, not by runtime check):
+    //   - Goblin send uses goblin.discard() → Entity.remove(DISCARDED),
+    //     never calls die(), never fires LivingDeathEvent.
+    //   - Summon uses citizenEntity.discard() → EntityCitizen.remove(DISCARDED),
+    //     posts CitizenRemovedModEvent (which we do NOT subscribe to), NOT
+    //     CitizenDiedModEvent.
+    // So a swap cannot reach either of these handlers. No runtime guard needed.
+    // ------------------------------------------------------------------
+
+    /**
+     * Case A — goblin dies while materialized as a subordinate (NeoForge bus).
+     * Look up the dying entity in our reverse map; if it's one of ours, remove
+     * its CitizenData (count drops) and delete the identity record.
+     */
+    @SubscribeEvent
+    public void onLivingDeath(LivingDeathEvent event) {
+        // Server-side only. NeoForge fires LivingDeathEvent on the logical server.
+        if (!(event.getEntity().level() instanceof ServerLevel serverLevel)) return;
+
+        UUID entityUUID = event.getEntity().getUUID();
+        GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(serverLevel);
+        GoblinIdentitySavedData.GoblinIdentity identity = saved.getByGoblinUUID(entityUUID);
+        if (identity == null) return; // not one of our named goblin-citizens
+
+        LOGGER.info("[TM] death(A): goblin {} ('{}') died — removing citizen {} from colony {}",
+                entityUUID, event.getEntity().getName().getString(),
+                identity.citizenId, identity.colonyId);
+
+        IColony colony = IColonyManager.getInstance()
+                .getColonyByWorld(identity.colonyId, serverLevel);
+        if (colony != null) {
+            ICitizenData citizenData = colony.getCitizenManager().getCivilian(identity.citizenId);
+            if (citizenData != null) {
+                // removeCivilian (inherited from IEntityManager): removes from the
+                // citizens map (so getCurrentCitizenCount drops), unassigns from
+                // home/work buildings, clears work orders, and sends the client
+                // view-remove. Full cleanup in one call.
+                colony.getCitizenManager().removeCivilian(citizenData);
+                LOGGER.info("[TM] death(A): citizen {} removed from '{}' — colony now {} citizens",
+                        identity.citizenId, colony.getName(),
+                        colony.getCitizenManager().getCurrentCitizenCount());
+            } else {
+                LOGGER.info("[TM] death(A): citizen {} already gone from colony — skipping removeCivilian",
+                        identity.citizenId);
+            }
+        } else {
+            LOGGER.warn("[TM] death(A): colony {} not found — identity will still be cleaned up",
+                    identity.colonyId);
+        }
+
+        saved.removeIdentity(identity);
+        LOGGER.info("[TM] death(A): identity {} removed from SavedData", identity.identityId);
+    }
+
+    /**
+     * Case B — citizen dies while materialized in the colony (MineColonies bus).
+     * MineColonies has already called removeCivilian inside EntityCitizen.die()
+     * before posting this event — the count is correct without our help. We
+     * only clean up our own SavedData record.
+     */
+    private void onCitizenDied(CitizenDiedModEvent event) {
+        int citizenId = event.getCitizen().getId();
+        IColony colony = event.getColony();
+        if (!(colony.getWorld() instanceof ServerLevel serverLevel)) return;
+
+        GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(serverLevel);
+        GoblinIdentitySavedData.GoblinIdentity identity = saved.getByCitizenId(citizenId);
+        if (identity == null) return; // not one of ours — vanilla MineColonies citizen
+
+        LOGGER.info("[TM] death(B): citizen {} ('{}') died in colony '{}' — cleaning identity record (count already decremented by MineColonies)",
+                citizenId, event.getCitizen().getName(), colony.getName());
+
+        saved.removeIdentity(identity);
     }
 
     // ------------------------------------------------------------------
@@ -656,6 +737,12 @@ public class ExampleMod {
 
     private void commonSetup(FMLCommonSetupEvent event) {
         LOGGER.info("[TM] common setup");
+        // Subscribe to MineColonies' own event bus (separate from NeoForge's).
+        // Case B death cleanup: CitizenDiedModEvent fires AFTER EntityCitizen.die()
+        // has already called removeCivilian — count is correct — we only clean our
+        // SavedData record.
+        event.enqueueWork(() -> IMinecoloniesAPI.getInstance().getEventBus()
+                .subscribe(CitizenDiedModEvent.class, this::onCitizenDied));
     }
 
     private void addCreative(BuildCreativeModeTabContentsEvent event) {

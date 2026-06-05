@@ -145,6 +145,15 @@ public class GoblinIdentitySavedData extends SavedData {
         setDirty();
     }
 
+    /** Remove an identity entirely — called by the death hooks. Permanent. */
+    public void removeIdentity(GoblinIdentity identity) {
+        byIdentityId.remove(identity.identityId);
+        if (identity.goblinEntityUUID != null) {
+            goblinUUIDToIdentityId.remove(identity.goblinEntityUUID);
+        }
+        setDirty();
+    }
+
     public void updateEntitySnapshot(GoblinIdentity identity, CompoundTag snapshot) {
         identity.entitySnapshot = snapshot;
         setDirty();

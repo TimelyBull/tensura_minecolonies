@@ -78,11 +78,22 @@ the player's named entities; selecting one fires summon.
 - [ ] Client `Screen` subclass with selectable list
 - [ ] C2S "summon this identity" packet → server runs summon logic
 
-### Stage D — Identity persistence across swaps and save/reload ⬜ PENDING
+### Stage D — Identity persistence + death hooks 🔄 IN PROGRESS
 The saved identity (name, citizen ID, goblin UUID, current mode) survives world
-save/reload and repeated send/summon cycles.
+save/reload and repeated send/summon cycles. Death cleanup removes the identity
+permanently — no revival, matches the "death reflects in the colony" rule.
 
 - [x] Implement saved data (`GoblinIdentitySavedData` — built in Stage B)
+- [x] Death hook A — goblin dies as subordinate: `LivingDeathEvent` (NeoForge
+      bus) → `colony.getCitizenManager().removeCivilian(citizenData)` drops
+      count, then `saved.removeIdentity` cleans the SavedData record
+- [x] Death hook B — citizen dies in colony: `CitizenDiedModEvent`
+      (MineColonies bus via `IMinecoloniesAPI.getInstance().getEventBus()`).
+      Count is already handled by MineColonies' own `EntityCitizen.die()`;
+      handler only cleans the SavedData record
+- [x] Swap safety verified by construction: `discard()` never fires either
+      death path; `EntityCitizen.discard()` posts `CitizenRemovedModEvent`
+      (which we do not subscribe to), not `CitizenDiedModEvent`
 - [ ] Verify identity survives server restart
 - [ ] Verify citizen count stays correct across swaps
 
