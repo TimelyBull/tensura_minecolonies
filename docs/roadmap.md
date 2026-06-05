@@ -46,15 +46,18 @@ is intentional at this stage.
 **C1 — Core summon mechanic** ✅ COMPLETE
 Placeholder trigger: `/summongoblin <name>` command. Looks up an `IN_COLONY`
 identity by citizen name, discards the `EntityCitizen` (count unchanged),
-re-marks travelling, spawns a fresh Tensura goblin at the player's position
-with `IExistence` restored from snapshot, and updates the reverse map with the
-new goblin UUID.
+re-marks travelling, and reconstructs a complete Tensura goblin from a
+full-entity NBT snapshot.
 
 - [x] Despawn `EntityCitizen` in colony (`discard()`, not `die()`)
 - [x] Re-suppress respawn loop via `startTravellingTo`
-- [x] Spawn fresh goblin at player position
-- [x] Restore `IExistence` via `ExistenceStorage.load(snapshot)` +
-      `setCustomName` for the nameplate
+- [x] Full-entity NBT roundtrip — send-side: `goblin.save(tag)` captures
+      type, position, attributes, inventory, appearance, EvoState, and all
+      Tensura storages (via ManasCore mixin's `"ManasCoreStorage"` subtag).
+      Summon-side: `EntityType.create(tag, level)` reconstructs the entity,
+      then `setUUID(random)` + `moveTo(playerPos)` before `addFreshEntity`.
+      Replaces the earlier `IExistence`-only snapshot which lost evolution,
+      stats, inventory, and appearance.
 - [x] Update reverse map with the new goblin entity UUID
 
 **C2 — Roster keybind menu** ⬜ PENDING

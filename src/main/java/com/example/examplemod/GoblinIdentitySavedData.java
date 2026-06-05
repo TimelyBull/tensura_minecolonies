@@ -38,17 +38,20 @@ public class GoblinIdentitySavedData extends SavedData {
         public final int  colonyId;         // which colony this identity belongs to
         public UUID       goblinEntityUUID; // current goblin entity UUID (null while IN_COLONY)
         public Mode       mode;
-        public CompoundTag existenceSnapshot; // IExistence.save() output
+        public CompoundTag entitySnapshot; // full Entity.save(tag) — captures
+                                           // type, position, attributes, inventory,
+                                           // appearance, EvoState, and ManasCoreStorage
+                                           // (all Tensura storages). Null until first send.
 
         public GoblinIdentity(UUID identityId, int citizenId, int colonyId,
                               UUID goblinEntityUUID, Mode mode,
-                              CompoundTag existenceSnapshot) {
+                              CompoundTag entitySnapshot) {
             this.identityId        = identityId;
             this.citizenId         = citizenId;
             this.colonyId          = colonyId;
             this.goblinEntityUUID  = goblinEntityUUID;
             this.mode              = mode;
-            this.existenceSnapshot = existenceSnapshot;
+            this.entitySnapshot = entitySnapshot;
         }
 
         CompoundTag toNBT() {
@@ -60,8 +63,8 @@ public class GoblinIdentitySavedData extends SavedData {
             if (goblinEntityUUID != null) {
                 tag.putUUID("goblinEntityUUID", goblinEntityUUID);
             }
-            if (existenceSnapshot != null) {
-                tag.put("existence", existenceSnapshot.copy());
+            if (entitySnapshot != null) {
+                tag.put("entity", entitySnapshot.copy());
             }
             return tag;
         }
@@ -73,10 +76,10 @@ public class GoblinIdentitySavedData extends SavedData {
             Mode mode             = Mode.valueOf(tag.getString("mode"));
             UUID goblinEntityUUID = tag.hasUUID("goblinEntityUUID")
                                     ? tag.getUUID("goblinEntityUUID") : null;
-            CompoundTag existence = tag.contains("existence", Tag.TAG_COMPOUND)
-                                    ? tag.getCompound("existence") : null;
+            CompoundTag entity = tag.contains("entity", Tag.TAG_COMPOUND)
+                                 ? tag.getCompound("entity") : null;
             return new GoblinIdentity(identityId, citizenId, colonyId,
-                                      goblinEntityUUID, mode, existence);
+                                      goblinEntityUUID, mode, entity);
         }
     }
 
@@ -142,8 +145,8 @@ public class GoblinIdentitySavedData extends SavedData {
         setDirty();
     }
 
-    public void updateExistenceSnapshot(GoblinIdentity identity, CompoundTag snapshot) {
-        identity.existenceSnapshot = snapshot;
+    public void updateEntitySnapshot(GoblinIdentity identity, CompoundTag snapshot) {
+        identity.entitySnapshot = snapshot;
         setDirty();
     }
 

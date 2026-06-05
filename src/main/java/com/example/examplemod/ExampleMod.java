@@ -11,9 +11,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.architectury.event.EventResult;
-import io.github.manasmods.manascore.storage.api.StorageHolder;
 import io.github.manasmods.tensura.event.TensuraEntityEvents;
-import io.github.manasmods.tensura.storage.ep.ExistenceStorage;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
@@ -54,6 +52,7 @@ import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Mod(ExampleMod.MODID)
@@ -151,8 +150,8 @@ public class ExampleMod {
         LOGGER.info("[TM] citizen {} marked travelling — no body will auto-spawn", citizenData.getId());
 
         // --- Create persistent identity record ---
-
-        CompoundTag existenceSnapshot = snapshotExistence(entity);
+        // No snapshot at naming time — the goblin is alive at the player's side.
+        // The full entity NBT is captured at send time (before discard).
 
         GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(serverLevel);
         GoblinIdentitySavedData.GoblinIdentity identity = new GoblinIdentitySavedData.GoblinIdentity(
@@ -161,7 +160,7 @@ public class ExampleMod {
                 colony.getID(),
                 entity.getUUID(),           // current goblin entity UUID
                 GoblinIdentitySavedData.Mode.SUBORDINATE,
-                existenceSnapshot
+                null                        // entitySnapshot — populated at first send
         );
         saved.addIdentity(identity);
 
@@ -231,10 +230,20 @@ public class ExampleMod {
             return;
         }
 
-        // 1. Snapshot IExistence BEFORE discarding — the data lives on the entity.
-        CompoundTag snapshot = snapshotExistence(goblin);
-        saved.updateExistenceSnapshot(identity, snapshot);
-        LOGGER.info("[TM] send: IExistence snapshotted for citizen {}", identity.citizenId);
+        // 1. Snapshot the FULL entity NBT BEFORE discarding.
+        //    goblin.save(tag) writes "id" (entity type) + position + attributes +
+        //    HandItems/ArmorItems + appearance + EvoState + ManasCoreStorage
+        //    (all Tensura storages: ExistenceStorage, AbilityStorage, SpiritStorage, etc.)
+        //    via the ManasCore MixinEntity injection. Everything needed for a
+        //    perfect summon is in this one tag.
+        CompoundTag snapshot = new CompoundTag();
+        if (!goblin.save(snapshot)) {
+            LOGGER.warn("[TM] send: goblin.save() returned false (entity not saveable) — aborting");
+            return;
+        }
+        saved.updateEntitySnapshot(identity, snapshot);
+        LOGGER.info("[TM] send: full entity snapshot captured for citizen {} ({} top-level NBT keys)",
+                identity.citizenId, snapshot.getAllKeys().size());
 
         // 2. Find the town hall spawn position.
         if (!colony.getServerBuildingManager().hasTownHall()) {
@@ -370,43 +379,40 @@ public class ExampleMod {
         LOGGER.info("[TM] summon: citizen {} re-marked travelling — respawn loop suppressed",
                 identity.citizenId);
 
-        // 3. Spawn a fresh Tensura goblin at the player's position.
-        EntityType<?> goblinType = BuiltInRegistries.ENTITY_TYPE.get(GOBLIN_ID);
-        if (goblinType == null) {
-            LOGGER.warn("[TM] summon: tensura:goblin entity type not registered — aborting");
+        // 3. Reconstruct the entity from the saved NBT.
+        //    EntityType.create(tag, level) reads "id" from the tag and constructs
+        //    the right entity type (handles future cross-species evolutions too).
+        //    The ManasCore MixinEntity load hook will restore every Tensura
+        //    storage from the embedded "ManasCoreStorage" sub-tag, and vanilla
+        //    Minecraft restores attributes, inventory, EvoState, appearance, etc.
+        if (identity.entitySnapshot == null) {
+            LOGGER.warn("[TM] summon: no entity snapshot for citizen {} (was it ever sent?) — aborting",
+                    identity.citizenId);
             return;
         }
-        Entity raw = goblinType.create(level);
-        if (!(raw instanceof LivingEntity goblin)) {
-            LOGGER.warn("[TM] summon: goblin create() returned null or non-LivingEntity — aborting");
+        Optional<Entity> created = EntityType.create(identity.entitySnapshot, level);
+        if (created.isEmpty() || !(created.get() instanceof LivingEntity goblin)) {
+            LOGGER.warn("[TM] summon: EntityType.create() returned empty or non-LivingEntity — aborting");
             return;
         }
+
+        // 4. CRITICAL — regenerate UUID. The tag carries the OLD goblin's UUID;
+        //    if we kept it, the reverse map would still point at a stale identity
+        //    record. setUUID before addFreshEntity ensures the world tracks the
+        //    new UUID from the start.
+        goblin.setUUID(UUID.randomUUID());
+
+        // 5. CRITICAL — override position. The tag carries the OLD position
+        //    (where the goblin was when sent). We want it at the player's feet.
         BlockPos spawnPos = player.blockPosition();
         goblin.moveTo(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5,
                 player.getYRot(), 0f);
 
-        // 4. Restore IExistence state from snapshot BEFORE addFreshEntity so
-        //    the client receives the right data on first sync.
-        if (goblin instanceof StorageHolder holder && identity.existenceSnapshot != null) {
-            ExistenceStorage storage = holder.manasCore$getStorage(ExistenceStorage.getKey());
-            if (storage != null) {
-                storage.load(identity.existenceSnapshot);
-                storage.markDirty();
-                LOGGER.info("[TM] summon: IExistence restored (name='{}', owner={}, ep={})",
-                        storage.getName(), storage.getPermanentOwner(), storage.getEP());
-            } else {
-                LOGGER.warn("[TM] summon: fresh goblin has no ExistenceStorage — IExistence not restored");
-            }
-        }
-
-        // 5. Mirror the IExistence name to vanilla custom-name so the nameplate
-        //    shows. Tensura's naming code does both of these — load() restored
-        //    IExistence.name but NOT the entity's CustomName field.
-        goblin.setCustomName(Component.literal(citizenData.getName()));
-
-        // 6. Add to the world. UUID is already assigned by the Entity ctor.
+        // 6. Add to the world. Custom name, attributes, evolution state,
+        //    inventory, and all ManasCore storages are already restored from NBT.
         level.addFreshEntity(goblin);
-        LOGGER.info("[TM] summon: goblin spawned at {} with UUID {}", spawnPos, goblin.getUUID());
+        LOGGER.info("[TM] summon: goblin reconstructed from NBT at {} with NEW UUID {}",
+                spawnPos, goblin.getUUID());
 
         // 7. Update the reverse map with the NEW goblin's UUID — without this,
         //    the send trigger (and future death hook) won't recognise this entity
@@ -418,29 +424,6 @@ public class ExampleMod {
 
         LOGGER.info("[TM] summon: complete — '{}' is now SUBORDINATE (goblin uuid={})",
                 citizenData.getName(), goblin.getUUID());
-    }
-
-    // ------------------------------------------------------------------
-    // IExistence snapshot helper
-    // ------------------------------------------------------------------
-
-    /**
-     * Serialise the Tensura IExistence storage for an entity into a CompoundTag.
-     * ManasCore mixin-injects StorageHolder onto every Entity, so the cast is
-     * safe at runtime. Returns an empty tag if the storage isn't present.
-     */
-    private static CompoundTag snapshotExistence(LivingEntity entity) {
-        if (entity instanceof StorageHolder holder) {
-            ExistenceStorage storage = holder.manasCore$getStorage(ExistenceStorage.getKey());
-            if (storage != null) {
-                CompoundTag tag = new CompoundTag();
-                storage.save(tag);
-                return tag;
-            }
-        }
-        LOGGER.warn("[TM] snapshotExistence: no ExistenceStorage on {} — returning empty tag",
-                entity.getUUID());
-        return new CompoundTag();
     }
 
     // ------------------------------------------------------------------
