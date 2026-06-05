@@ -786,22 +786,26 @@ public class ExampleMod {
         }
         double playerMagicule = playerExist.getMagicule();
 
-        if (playerMagicule >= cost) {
-            playerExist.setMagicule(playerMagicule - cost);
-            playerExist.markDirty();
-            LOGGER.info("[TM] cost: deducted {} magicule from '{}' (had {}, now {})",
-                    cost, player.getName().getString(), playerMagicule, playerMagicule - cost);
-            return true;
+        // Prompt boundary: spending this cost would leave the player at 0 or
+        // below. Per the investigation, Tensura's handleSleepMode triggers
+        // Sleep Mode entry on `magicule ≤ 0` — so draining to exactly 0
+        // carries the SAME Sleep Mode risk as overspending. Both cases
+        // deserve the warning. Free actions (cost = 0) never prompt.
+        if (cost > 0.0 && playerMagicule <= cost) {
+            String name = resolveDisplayName(player, identity);
+            LOGGER.info("[TM] cost: '{}' has {} magicule, action costs {} for '{}' — would empty or overspend; prompting collapse confirmation",
+                    player.getName().getString(), playerMagicule, cost, name);
+            PacketDistributor.sendToPlayer(player, new Networking.OpenCollapseConfirmPayload(
+                    identity.identityId, name, cost, playerMagicule));
+            return false;
         }
 
-        // Insufficient — send the confirmation prompt. Action does NOT run
-        // until the player accepts (and even then, only after handleConfirmCollapse).
-        String name = resolveDisplayName(player, identity);
-        LOGGER.info("[TM] cost: '{}' has {} magicule, needs {} for '{}' — prompting collapse confirmation",
-                player.getName().getString(), playerMagicule, cost, name);
-        PacketDistributor.sendToPlayer(player, new Networking.OpenCollapseConfirmPayload(
-                identity.identityId, name, cost, playerMagicule));
-        return false;
+        // Safe path: strictly enough magicule (or zero-cost free action).
+        playerExist.setMagicule(playerMagicule - cost);
+        playerExist.markDirty();
+        LOGGER.info("[TM] cost: deducted {} magicule from '{}' (had {}, now {})",
+                cost, player.getName().getString(), playerMagicule, playerMagicule - cost);
+        return true;
     }
 
     /** Run the existing send or summon helper. No cost checking — the gate

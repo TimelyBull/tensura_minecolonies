@@ -88,8 +88,10 @@ public class ConfirmCollapseScreen extends Screen {
         int cx = this.width / 2;
         int cy = this.height / 2;
 
-        // Title — red + bold for emphasis
-        Component title = Component.literal("Not enough magicule.")
+        // Title — red + bold for emphasis. Covers both cases the boundary
+        // catches: spending == magicule (depletes to 0) and spending > magicule
+        // (overspends). Both result in Sleep Mode entry on the next tick.
+        Component title = Component.literal("This would empty your magicule.")
                 .withStyle(ChatFormatting.RED, ChatFormatting.BOLD);
         g.drawCenteredString(this.font, title, cx, cy - 60, 0xFFFFFFFF);
 
