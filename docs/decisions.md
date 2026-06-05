@@ -91,6 +91,24 @@ If the currently-materialized body dies in either state (goblin-as-subordinate
 OR citizen-in-colony), the named identity dies: `CitizenData` is removed and
 the colony count decreases. There is no resurrection.
 
+**Advisory messages gated by Great Sage (future)**
+The mod will surface a range of advisory / explanatory chat text to the player
+— things like "the goblin couldn't carry the excess items, they've been
+returned to you," upcoming flavour text for "the citizen finished a job,"
+"the goblin has reached an evolution threshold," etc. The design intent is
+that these advisory messages should only appear when the player has the
+Tensura **Great Sage** skill (or an equivalent analysis skill that ships in
+Tensura). The Great Sage is a known in-universe analysis ability; reserving
+helpful advisory text for players who have it preserves its identity and
+gives a reason to acquire the skill.
+
+Implementation note: all advisory messages should be routed through a single
+helper (currently `ExampleMod.sendOverflowNotice`) so the gate can be added
+in one place when the skill-check is implemented. Do NOT inline `Component`
+constructions for player-facing advisory text at call sites — go through the
+helper. This is a deliberately deferred feature; the gate is not in place
+yet, and overflow notices currently fire unconditionally.
+
 **Renderer requirement (deferred)**
 The colony citizen MUST ultimately render as a goblin, not a default colonist.
 Reference implementation: the "Colonies Maid Citizen" mod, which overrides

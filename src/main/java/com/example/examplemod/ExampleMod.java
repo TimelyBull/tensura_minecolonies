@@ -13,6 +13,7 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.architectury.event.EventResult;
 import io.github.manasmods.tensura.event.TensuraEntityEvents;
+import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
@@ -301,8 +302,7 @@ public class ExampleMod {
         //    only fires if the citizen inventory was already nearly full.
         if (!sendOverflow.isEmpty()) {
             dropOverflowAtPlayer(serverLevel, triggeringPlayer, sendOverflow);
-            triggeringPlayer.sendSystemMessage(Component.literal(
-                    citizenData.getName() + " cannot carry as much while working for you; the excess items have been returned to you."));
+            sendOverflowNotice(triggeringPlayer, citizenData.getName());
             LOGGER.info("[TM] send: {} overflow stacks dropped at player {}",
                     sendOverflow.size(), triggeringPlayer.getName().getString());
         }
@@ -463,8 +463,7 @@ public class ExampleMod {
         // 9. Drop overflow at the summoning player's position and notify.
         if (!overflow.isEmpty()) {
             dropOverflowAtPlayer(level, player, overflow);
-            player.sendSystemMessage(Component.literal(
-                    citizenData.getName() + " cannot carry as much while working for you; the excess items have been returned to you."));
+            sendOverflowNotice(player, citizenData.getName());
             LOGGER.info("[TM] summon: {} overflow stacks dropped at player {}",
                     overflow.size(), player.getName().getString());
         }
@@ -511,29 +510,31 @@ public class ExampleMod {
             }
         }
 
-        // Main hand: find first empty main-inventory slot, set, point pointer
         ItemStack mainHand = goblin.getMainHandItem();
-        int mainSlot = -1;
-        if (!mainHand.isEmpty()) {
-            mainSlot = findFreeSlot(inv, -1);
-            if (mainSlot >= 0) {
-                inv.setStackInSlot(mainSlot, mainHand.copy());
-                inv.setHeldItem(InteractionHand.MAIN_HAND, mainSlot);
-            } else {
-                overflow.add(mainHand.copy());
-            }
+        ItemStack offHand  = goblin.getOffhandItem();
+
+        // Reserve TWO distinct main-inventory slots for the held-item pointers
+        // BEFORE placing anything. Always call setHeldItem for both hands so
+        // the off-hand pointer can never default-collide with the main-hand
+        // pointer — that collision was the bug: when the goblin had only a
+        // main-hand item, the off-hand pointer kept its default (slot 0),
+        // which then aliased to the main-hand stack. On summon both reads
+        // returned the same stack and the goblin received two real copies.
+        int mainSlot = findFreeSlot(inv, -1);
+        int offSlot  = findFreeSlot(inv, mainSlot);
+
+        if (mainSlot >= 0) {
+            if (!mainHand.isEmpty()) inv.setStackInSlot(mainSlot, mainHand.copy());
+            inv.setHeldItem(InteractionHand.MAIN_HAND, mainSlot);
+        } else if (!mainHand.isEmpty()) {
+            overflow.add(mainHand.copy());
         }
 
-        // Off hand: find next free, skipping the slot we just used
-        ItemStack offHand = goblin.getOffhandItem();
-        if (!offHand.isEmpty()) {
-            int offSlot = findFreeSlot(inv, mainSlot);
-            if (offSlot >= 0) {
-                inv.setStackInSlot(offSlot, offHand.copy());
-                inv.setHeldItem(InteractionHand.OFF_HAND, offSlot);
-            } else {
-                overflow.add(offHand.copy());
-            }
+        if (offSlot >= 0) {
+            if (!offHand.isEmpty()) inv.setStackInSlot(offSlot, offHand.copy());
+            inv.setHeldItem(InteractionHand.OFF_HAND, offSlot);
+        } else if (!offHand.isEmpty()) {
+            overflow.add(offHand.copy());
         }
 
         return overflow;
@@ -558,6 +559,13 @@ public class ExampleMod {
         int mainHeldSlot = inv.getHeldItemSlot(InteractionHand.MAIN_HAND);
         int offHeldSlot  = inv.getHeldItemSlot(InteractionHand.OFF_HAND);
 
+        // Defense in depth: if the off-hand pointer collides with the main-hand
+        // pointer (e.g. a legacy save from before the send-side fix, or an edge
+        // case where send couldn't reserve a distinct slot), treat off as empty.
+        // Without this guard, both reads would return the same stack and the
+        // goblin would receive a duplicate.
+        boolean offValid = offHeldSlot != mainHeldSlot;
+
         // Armor: read from dedicated slots, apply to goblin
         for (EquipmentSlot slot : ARMOR_SLOTS) {
             ItemStack stack = inv.getArmorInSlot(slot);
@@ -566,22 +574,27 @@ public class ExampleMod {
             }
         }
 
-        // Held items: read from main inventory via held-pointer, apply to goblin
+        // Main hand: always read
         ItemStack mainHand = inv.getHeldItem(InteractionHand.MAIN_HAND);
         if (!mainHand.isEmpty()) {
             goblin.setItemSlot(EquipmentSlot.MAINHAND, mainHand.copy());
         }
-        ItemStack offHand = inv.getHeldItem(InteractionHand.OFF_HAND);
-        if (!offHand.isEmpty()) {
-            goblin.setItemSlot(EquipmentSlot.OFFHAND, offHand.copy());
+
+        // Off hand: only read if pointer is distinct from main-hand pointer
+        if (offValid) {
+            ItemStack offHand = inv.getHeldItem(InteractionHand.OFF_HAND);
+            if (!offHand.isEmpty()) {
+                goblin.setItemSlot(EquipmentSlot.OFFHAND, offHand.copy());
+            }
         }
 
         // Overflow: any non-empty main-inventory slot that isn't one of the
-        // two held pointers. The goblin can't carry these — they drop at the
-        // player's feet.
+        // held pointers. If the pointers collide we only exclude main (so we
+        // don't accidentally include or doubly-exclude the same slot).
         List<ItemStack> overflow = new ArrayList<>();
         for (int i = 0; i < inv.getSlots(); i++) {
-            if (i == mainHeldSlot || i == offHeldSlot) continue;
+            if (i == mainHeldSlot) continue;
+            if (offValid && i == offHeldSlot) continue;
             ItemStack stack = inv.getStackInSlot(i);
             if (!stack.isEmpty()) {
                 overflow.add(stack.copy());
@@ -616,6 +629,25 @@ public class ExampleMod {
             ItemEntity ie = new ItemEntity(level, pos.x, pos.y, pos.z, stack);
             level.addFreshEntity(ie);
         }
+    }
+
+    /**
+     * Send the green-italic overflow advisory to the player.
+     *
+     * FUTURE FEATURE — Great Sage gating: this advisory (and others like it
+     * — analytical/explanatory text the mod surfaces to the player) should
+     * eventually only appear when the player has the Tensura "Great Sage"
+     * skill (or equivalent analysis skill). Helpful in-world text is a
+     * reward for that skill, not free for everyone. See
+     * docs/decisions.md → "Advisory messages gated by Great Sage" for the
+     * design intent. Do NOT implement the gating here yet — just route
+     * advisories through this helper so the gate can be added in one place.
+     */
+    private static void sendOverflowNotice(Player player, String goblinName) {
+        Component msg = Component.literal(goblinName +
+                " cannot carry as much while working for you; the excess items have been returned to you.")
+                .withStyle(ChatFormatting.GREEN, ChatFormatting.ITALIC);
+        player.sendSystemMessage(msg);
     }
 
     // ------------------------------------------------------------------
