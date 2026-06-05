@@ -13,16 +13,60 @@ via `libs/` jars in the dev environment.
 
 ## Milestone 3 — Vertical slice: goblin joins colony 🔄 IN PROGRESS
 
-**Option B chosen:** named goblin stays a Tensura subordinate AND becomes a
-MineColonies citizen (not converted or removed).
+**Finalized design: "Two bodies, one identity, one materialized at a time."**
+See `docs/decisions.md` for the full design rationale. Earlier dual-tracking and
+spawn-suppression approaches are abandoned.
 
-- [x] Task 1 — Find Tensura naming event (`TensuraEntityEvents.NAMING_EVENT` confirmed)
-- [x] Task 1.5 — Add Architectury + ManasCore sub-modules to compile classpath
-- [x] Task 2 — Register naming listener, log goblin name; detect colony at goblin's position
-- [ ] Task 3 — Detect colony at goblin's location
-- [ ] Task 4 — Register goblin as citizen while keeping it a Tensura subordinate
-  *(needs investigation: can MineColonies associate citizen data with a
-  non-`EntityCitizen` entity?)*
+### Stage A — Name → CitizenData + count, no body 🔄 IN PROGRESS
+Naming a goblin (server-side, when a colony exists) immediately creates a
+`CitizenData` entry and increases the colony's citizen count. No `EntityCitizen`
+is spawned. The goblin stays alive at the player's side as a Tensura subordinate.
+
+- [x] Find Tensura naming event (`TensuraEntityEvents.NAMING_EVENT`)
+- [x] Add Architectury + ManasCore sub-modules to compile classpath
+- [x] Register naming listener; detect colony at goblin's position
+- [x] Call `createAndRegisterCivilianData()`, set citizen name, log count
+- [ ] Store persistent identity (saved data linking goblin UUID → citizen ID)
+- [ ] Prevent `EntityCitizen` auto-spawn for these citizens (resolved by design:
+      no body at naming time; CitizenData has no entity, spawn loop won't fire
+      until a body is explicitly materialized in Stage B)
+
+### Stage B — Send-to-colony swap (ugly colonist) ⬜ PENDING
+Player triggers send. Goblin dissolves → default `EntityCitizen` materializes in
+colony at a valid spawn point. No goblin renderer yet — default colonist appearance
+is intentional at this stage.
+
+- [ ] Implement send trigger (command or right-click item, TBD)
+- [ ] Despawn goblin entity at player's side
+- [ ] Call `spawnOrCreateCivilian()` to materialize the citizen body
+- [ ] Link the citizen body back to our saved identity data
+
+### Stage C — Summon swap + roster keybind menu ⬜ PENDING
+Keybind opens a roster screen listing the player's named entities. Selecting one
+dissolves the citizen in the colony and materializes the goblin at the player's side.
+
+- [ ] Implement roster screen (basic list of named-entity identities)
+- [ ] Implement summon trigger from roster
+- [ ] Despawn `EntityCitizen` in colony
+- [ ] Materialize goblin entity at player's position
+
+### Stage D — Identity persistence across swaps and save/reload ⬜ PENDING
+The saved identity (name, citizen ID, goblin UUID, current mode) survives world
+save/reload and repeated send/summon cycles.
+
+- [ ] Implement saved data (`SavedData` subclass)
+- [ ] Verify identity survives server restart
+- [ ] Verify citizen count stays correct across swaps
+
+### Stage E — Magic circle visuals ⬜ PENDING
+Add dissolve/materialize visual effects (particles, sound, brief animation) to
+the send and summon transitions.
+
+### Stage F — Goblin renderer (deferred polish) ⬜ PENDING
+Override `EntityCitizen` rendering for goblin-citizens so they appear as goblins
+in the colony, not default colonists. Reference: "Colonies Maid Citizen" mod.
+**This is a firm end-product requirement, deliberately deferred until Stages A–E
+are proven working.**
 
 ---
 

@@ -45,8 +45,60 @@ testing but must be revisited before multi-colony support. Open question: should
 the target colony be the one nearest the goblin, nearest the player, or chosen
 via a UI prompt?
 
-**Option B: goblin stays a Tensura subordinate AND becomes a MineColonies citizen**
-Option A (convert the entity to a citizen, losing Tensura state) was rejected
-because it removes all Tensura functionality. Option B keeps both roles active.
-Possible future addition: a management menu to handle conflicts between the two
-role systems separately.
+**SUPERSEDED — dual-tracking / single-entity approaches abandoned**
+Earlier designs (Option A: convert to citizen, Option B: single entity dual
+tracking, Option B2: paired shadow citizen) are all superseded by the
+"two bodies, one identity" design below. The `ITravellingManager` spawn-
+suppression hack and the full AbstractEntityCitizen hierarchy weld (Option B3)
+are also abandoned.
+
+---
+
+## Core design: "Two bodies, one identity, one materialized at a time"
+
+A named goblin has a **persistent identity** — name, EP, Tensura `IExistence`
+data — stored in our mod's saved data, independent of any in-world body.
+That identity is represented by **either** a Tensura goblin entity (subordinate
+mode, at the player's side) **or** a MineColonies `EntityCitizen` (colony mode),
+but **only one body exists in the world at a time**. Swapping is done via magic
+circles.
+
+This design avoids the entity-hierarchy conflict entirely: each mod always
+operates on a native entity type it fully understands.
+
+**"Citizen" = roster membership only**
+Naming a goblin immediately creates a `CitizenData` entry via
+`createAndRegisterCivilianData()` — permanent count increase, no `EntityCitizen`
+spawned. The goblin stays at the player's side as a Tensura subordinate. The
+earlier "stray EntityCitizen auto-spawn" problem is resolved by design: no body
+should exist at naming time, so there is nothing to suppress.
+
+**Send-to-colony (subordinate → citizen)**
+Triggered explicitly by the player. The goblin dissolves at the player's side
+(magic circle animation) → a goblin-rendered `EntityCitizen` materializes in the
+colony. The `CitizenData` that was already in the roster now has a live body.
+
+**Summon (citizen → subordinate)**
+A keybind opens a roster menu of named entities. Selecting one dissolves the
+`EntityCitizen` in the colony → the Tensura goblin materializes at the player's
+side. `CitizenData` persists; count stays up.
+
+**At all times:** `CitizenData` persists and the population count is unchanged,
+regardless of which body (if any) is currently materialized.
+
+**Death rule**
+If the currently-materialized body dies in either state (goblin-as-subordinate
+OR citizen-in-colony), the named identity dies: `CitizenData` is removed and
+the colony count decreases. There is no resurrection.
+
+**Renderer requirement (deferred)**
+The colony citizen MUST ultimately render as a goblin, not a default colonist.
+Reference implementation: the "Colonies Maid Citizen" mod, which overrides
+`EntityCitizen` rendering to display another mod's model while the real
+`EntityCitizen` handles all colony logic.
+
+Build the mechanic first with the default ugly colonist appearance (Stages A–E),
+prove summon/send/persistence/death all work, then add the goblin renderer as
+an isolated final polish step (Stage F). The goblin appearance is a firm
+end-product requirement but is deliberately deferred so a fragile rendering
+problem cannot block the core mechanic.
