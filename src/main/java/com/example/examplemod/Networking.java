@@ -22,6 +22,7 @@ import org.slf4j.Logger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
  * Stage C2a — networking foundation for the goblin-roster menu.
@@ -54,12 +55,30 @@ public final class Networking {
                 RequestRosterPayload.CODEC,
                 Networking::onRequestRoster
         );
+        registrar.playToServer(
+                ActOnIdentityPayload.TYPE,
+                ActOnIdentityPayload.CODEC,
+                Networking::onActOnIdentity
+        );
         registrar.playToClient(
                 RosterResponsePayload.TYPE,
                 RosterResponsePayload.CODEC,
                 Networking::onRosterResponse
         );
     }
+
+    /**
+     * Client-side delegate for incoming roster responses. Installed by
+     * {@code ClientEvents.init} to point at the Screen-opening logic. Default
+     * implementation logs (server-safe; runs only if the client never installed
+     * a real handler, which shouldn't happen).
+     *
+     * Using a Consumer field rather than a direct method reference keeps this
+     * file loadable on the server JVM — no client-only classes referenced.
+     */
+    public static Consumer<List<RosterEntry>> rosterClientHandler = entries -> {
+        LOGGER.info("[TM] roster (no client handler installed): {} entries", entries.size());
+    };
 
     // ------------------------------------------------------------------
     // Payloads
@@ -87,6 +106,23 @@ public final class Networking {
                         RosterResponsePayload::entries,
                         RosterResponsePayload::new
                 );
+
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /**
+     * C2S: client clicks a row in the roster menu. Server decides whether to
+     * send or summon based on the identity's CURRENT mode (authoritative
+     * server state), not what the client thought it was.
+     */
+    public record ActOnIdentityPayload(UUID identityId) implements CustomPacketPayload {
+        public static final Type<ActOnIdentityPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "act_on_identity"));
+
+        public static final StreamCodec<ByteBuf, ActOnIdentityPayload> CODEC = StreamCodec.composite(
+                UUIDUtil.STREAM_CODEC, ActOnIdentityPayload::identityId,
+                ActOnIdentityPayload::new
+        );
 
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
@@ -119,7 +155,7 @@ public final class Networking {
         context.enqueueWork(() -> sendRosterTo(sp));
     }
 
-    private static void sendRosterTo(ServerPlayer sp) {
+    static void sendRosterTo(ServerPlayer sp) {
         ServerLevel level = sp.serverLevel();
         UUID playerUUID = sp.getUUID();
         GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(level);
@@ -145,15 +181,28 @@ public final class Networking {
     }
 
     // ------------------------------------------------------------------
-    // Client handler — log only for Stage C2a. C2b will route to a Screen.
+    // Server handler — menu action (send or summon by identity UUID)
+    // ------------------------------------------------------------------
+
+    private static void onActOnIdentity(ActOnIdentityPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer sp)) return;
+        context.enqueueWork(() -> {
+            ExampleMod.handleMenuAction(sp, payload.identityId());
+            // Always push a fresh roster after an action so the open Screen
+            // reflects the new state (toggled mode, or unchanged if the action
+            // failed and an advisory was sent).
+            sendRosterTo(sp);
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Client handler — delegate to the installed Consumer (defaults to log).
+    // Wrapping in enqueueWork ensures Screen interactions run on the
+    // client main thread.
     // ------------------------------------------------------------------
 
     private static void onRosterResponse(RosterResponsePayload payload, IPayloadContext context) {
         // Registered as playToClient → only fires on the logical client.
-        // No client-only classes referenced here so this file stays loadable on the server.
-        LOGGER.info("[TM] roster received: {} entries", payload.entries().size());
-        for (RosterEntry e : payload.entries()) {
-            LOGGER.info("[TM]   - {} ({})  id={}", e.name(), e.modeName(), e.identityId());
-        }
+        context.enqueueWork(() -> rosterClientHandler.accept(payload.entries()));
     }
 }

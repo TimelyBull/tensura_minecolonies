@@ -472,6 +472,8 @@ public class ExampleMod {
             // spawnOrCreateCivilian returns the data even if the spawn failed (chunk not loaded).
             // Detect failure by checking whether an entity was actually linked.
             LOGGER.warn("[TM] send: EntityCitizen did not spawn (chunk not loaded?) — re-suppressing respawn");
+            sendAdvisoryNotice(triggeringPlayer, citizenData.getName() +
+                    " couldn't reach the colony — the town hall area may not be loaded. Try again from closer.");
             colony.getTravellingManager().startTravellingTo(citizenData, townHallPos, Integer.MAX_VALUE);
             return;
         }
@@ -675,6 +677,64 @@ public class ExampleMod {
     }
 
     // ------------------------------------------------------------------
+    // Stage C2b — menu action dispatcher
+    //
+    // Called from Networking.onActOnIdentity. Server is the authority:
+    // reads identity.mode and routes to the SAME helpers used by the
+    // sneak-right-click send and the /summongoblin command. No duplication.
+    // ------------------------------------------------------------------
+
+    static void handleMenuAction(ServerPlayer player, java.util.UUID identityId) {
+        ServerLevel level = player.serverLevel();
+        GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(level);
+
+        GoblinIdentitySavedData.GoblinIdentity identity = saved.getById(identityId);
+        if (identity == null) {
+            sendAdvisoryNotice(player, "That goblin no longer exists.");
+            return;
+        }
+
+        // Ownership check — only the namer can act on the identity.
+        if (identity.ownerPlayerUUID == null
+                || !player.getUUID().equals(identity.ownerPlayerUUID)) {
+            sendAdvisoryNotice(player, "That goblin isn't yours.");
+            return;
+        }
+
+        if (identity.mode == GoblinIdentitySavedData.Mode.SUBORDINATE) {
+            // Find the goblin entity to send. The Stage 1b helper searches
+            // every level — covers the case where the player is in one
+            // dimension and the goblin in another.
+            LivingEntity goblin = findLivingEntityAcrossLevels(
+                    player.getServer(), identity.goblinEntityUUID);
+            if (goblin == null) {
+                sendAdvisoryNotice(player,
+                        "Your goblin isn't in any loaded chunk right now — go closer and try again.");
+                return;
+            }
+            if (!(goblin.level() instanceof ServerLevel goblinLevel)) {
+                LOGGER.warn("[TM] menu: goblin {} is not on a ServerLevel — aborting", goblin.getUUID());
+                return;
+            }
+            sendGoblinToColony(goblin, player, identity, goblinLevel, saved);
+        } else {
+            // IN_COLONY: summon back to player.
+            IColony colony = IColonyManager.getInstance()
+                    .getColonyByWorld(identity.colonyId, level);
+            if (colony == null) {
+                sendAdvisoryNotice(player, "That goblin's colony no longer exists.");
+                return;
+            }
+            ICitizenData citizenData = colony.getCitizenManager().getCivilian(identity.citizenId);
+            if (citizenData == null) {
+                sendAdvisoryNotice(player, "That goblin's citizen record is missing — try again later.");
+                return;
+            }
+            summonGoblin(player, level, saved, identity, colony, citizenData);
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Item-transfer helpers (vanilla EquipmentSlot APIs only)
     // ------------------------------------------------------------------
 
@@ -826,22 +886,24 @@ public class ExampleMod {
     }
 
     /**
-     * Send the green-italic overflow advisory to the player.
+     * Single chokepoint for green-italic advisory chat text shown to the player.
      *
-     * FUTURE FEATURE — Great Sage gating: this advisory (and others like it
-     * — analytical/explanatory text the mod surfaces to the player) should
-     * eventually only appear when the player has the Tensura "Great Sage"
-     * skill (or equivalent analysis skill). Helpful in-world text is a
-     * reward for that skill, not free for everyone. See
-     * docs/decisions.md → "Advisory messages gated by Great Sage" for the
-     * design intent. Do NOT implement the gating here yet — just route
-     * advisories through this helper so the gate can be added in one place.
+     * FUTURE FEATURE — Great Sage gating: ALL advisory/analytical text the mod
+     * surfaces to the player should eventually only appear when the player has
+     * the Tensura "Great Sage" skill (or equivalent analysis skill). See
+     * docs/decisions.md → "Advisory messages gated by Great Sage". Every
+     * advisory call site routes through this helper so the gate can be added
+     * in one place when implemented.
      */
-    private static void sendOverflowNotice(Player player, String goblinName) {
-        Component msg = Component.literal(goblinName +
-                " cannot carry as much while working for you; the excess items have been returned to you.")
+    static void sendAdvisoryNotice(Player player, String text) {
+        Component msg = Component.literal(text)
                 .withStyle(ChatFormatting.GREEN, ChatFormatting.ITALIC);
         player.sendSystemMessage(msg);
+    }
+
+    private static void sendOverflowNotice(Player player, String goblinName) {
+        sendAdvisoryNotice(player, goblinName +
+                " cannot carry as much while working for you; the excess items have been returned to you.");
     }
 
     // ------------------------------------------------------------------

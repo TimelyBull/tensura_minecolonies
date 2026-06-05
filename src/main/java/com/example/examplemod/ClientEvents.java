@@ -7,6 +7,7 @@ import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.client.settings.KeyConflictContext;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
@@ -28,6 +29,7 @@ public final class ClientEvents {
 
     public static final KeyMapping OPEN_ROSTER = new KeyMapping(
             "key.tensura_minecolonies.open_roster",
+            KeyConflictContext.IN_GAME,                       // disabled while a Screen is open
             InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_G,                                  // default: G — unbound in vanilla 1.21.1
             "key.categories.tensura_minecolonies"
@@ -39,6 +41,10 @@ public final class ClientEvents {
     public static void init(IEventBus modBus) {
         modBus.addListener(ClientEvents::onRegisterKeys);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onClientTickPost);
+
+        // Stage C2b — install the Screen-opening handler. Replaces the
+        // log-only default in Networking.rosterClientHandler.
+        Networking.rosterClientHandler = ClientRosterHandler::handle;
     }
 
     private static void onRegisterKeys(RegisterKeyMappingsEvent event) {

@@ -102,12 +102,23 @@ full-entity NBT snapshot.
       replies via `PacketDistributor.sendToPlayer`
 - [x] Client handler logs each entry (name + mode) — no Screen yet
 
-*C2b — Roster Screen (two-way toggle)* ⬜ PENDING
-- [ ] `Screen` subclass with selectable list of identities
-- [ ] Per-row mode indicator (SUBORDINATE / IN_COLONY) tells the player
-      which action a click will perform
-- [ ] C2S "act on identity" packet → server routes to the existing send
-      flow (if SUBORDINATE) or summon flow (if IN_COLONY)
+*C2b — Roster Screen (two-way toggle)* ✅ COMPLETE
+- [x] `RosterScreen` (plain `Screen` subclass) with `ObjectSelectionList<RosterRow>`
+- [x] Row layout: name on left, status on right
+      (green "At your side" for SUBORDINATE / gold "In colony" for IN_COLONY)
+- [x] Empty-state: centred italic gray "No named goblins yet."
+- [x] Click → C2S `ActOnIdentityPayload(identityId)` → server reads
+      authoritative mode → routes to existing `sendGoblinToColony` or `summonGoblin`
+- [x] Server re-sends roster after every action; client refreshes the
+      open Screen in place (no reopen)
+- [x] Keybind switched to `KeyConflictContext.IN_GAME` so it doesn't toggle
+      while the Screen is open
+- [x] Failure paths surface via green-italic chat advisory:
+      no-colony, citizen-missing, goblin-not-loaded, not-your-goblin,
+      and the chunk-not-loaded send failure
+- [x] `sendOverflowNotice` now routes through a generic `sendAdvisoryNotice`
+      helper — single chokepoint for the future Great Sage skill gate
+- [x] `/summongoblin` remains as fallback
 
 ### Stage D — Identity persistence + death hooks 🔄 IN PROGRESS
 The saved identity (name, citizen ID, goblin UUID, current mode) survives world

@@ -243,6 +243,11 @@ public class GoblinIdentitySavedData extends SavedData {
     // Lookups
     // -----------------------------------------------------------------
 
+    /** Look up by the stable identity UUID — used by the menu action handler. */
+    public GoblinIdentity getById(UUID identityId) {
+        return byIdentityId.get(identityId);
+    }
+
     /** Look up by the goblin entity's UUID — used in the send/death handlers. */
     public GoblinIdentity getByGoblinUUID(UUID goblinEntityUUID) {
         UUID identityId = goblinUUIDToIdentityId.get(goblinEntityUUID);
