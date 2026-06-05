@@ -59,6 +59,15 @@ full-entity NBT snapshot.
       Replaces the earlier `IExistence`-only snapshot which lost evolution,
       stats, inventory, and appearance.
 - [x] Update reverse map with the new goblin entity UUID
+- [x] Item transfer (Option B — citizen as source-of-truth):
+      send copies goblin armor/hands into `InventoryCitizen`
+      (`forceArmorStackToSlot` + free-slot scan + `setHeldItem`), strips
+      `HandItems`/`ArmorItems` from snapshot; summon reads citizen inventory
+      back onto the goblin via `setItemSlot`. Overflow (citizen's 27 main
+      slots vs goblin's 6 equipment slots) drops at the triggering player's
+      position with a chat notice. Citizen inventory cleared after summon
+      to avoid phantom carryover between swaps. `ItemStack.copy()` preserves
+      full component data (enchants, custom names, durability, Tensura item data).
 
 **C2 — Roster keybind menu** ⬜ PENDING
 Replace the command trigger with a proper UX: keybind opens a screen listing

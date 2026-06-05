@@ -7,6 +7,7 @@ import com.mojang.logging.LogUtils;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColonyManager;
+import com.minecolonies.api.inventory.InventoryCitizen;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -25,7 +26,12 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
@@ -51,6 +57,7 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -203,7 +210,7 @@ public class ExampleMod {
         // Consume the interaction so the goblin's normal right-click logic doesn't also fire.
         event.setCanceled(true);
 
-        sendGoblinToColony(target, identity, serverLevel, saved);
+        sendGoblinToColony(target, event.getEntity(), identity, serverLevel, saved);
     }
 
     // ------------------------------------------------------------------
@@ -211,6 +218,7 @@ public class ExampleMod {
     // ------------------------------------------------------------------
 
     private static void sendGoblinToColony(LivingEntity goblin,
+                                           Player triggeringPlayer,
                                            GoblinIdentitySavedData.GoblinIdentity identity,
                                            ServerLevel serverLevel,
                                            GoblinIdentitySavedData saved) {
@@ -276,7 +284,30 @@ public class ExampleMod {
         LOGGER.info("[TM] send: EntityCitizen spawned near {} for citizen {}",
                 townHallPos, identity.citizenId);
 
-        // 5. Discard the goblin entity — NOT die(), NOT remove(KILLED).
+        // 5. Transfer items from goblin → citizen inventory (Option B: citizen
+        //    is source of truth during colony service). Preserves full ItemStack
+        //    components/NBT — vanilla copy() carries everything.
+        List<ItemStack> sendOverflow = transferGoblinItemsToCitizen(goblin, citizenData.getInventory());
+
+        // 6. Strip HandItems/ArmorItems from the snapshot — the citizen now
+        //    owns the items, the snapshot must not duplicate them. Other entity
+        //    state (EvoState, attributes, ManasCoreStorage) stays in the snapshot.
+        identity.entitySnapshot.remove("HandItems");
+        identity.entitySnapshot.remove("ArmorItems");
+        saved.updateEntitySnapshot(identity, identity.entitySnapshot);
+        LOGGER.info("[TM] send: items transferred to citizen, snapshot stripped of HandItems/ArmorItems");
+
+        // 7. Drop send-overflow at triggering player's position. Rare path —
+        //    only fires if the citizen inventory was already nearly full.
+        if (!sendOverflow.isEmpty()) {
+            dropOverflowAtPlayer(serverLevel, triggeringPlayer, sendOverflow);
+            triggeringPlayer.sendSystemMessage(Component.literal(
+                    citizenData.getName() + " cannot carry as much while working for you; the excess items have been returned to you."));
+            LOGGER.info("[TM] send: {} overflow stacks dropped at player {}",
+                    sendOverflow.size(), triggeringPlayer.getName().getString());
+        }
+
+        // 8. Discard the goblin entity — NOT die(), NOT remove(KILLED).
         //    discard() removes the entity from the world without triggering
         //    LivingDeathEvent or any death logic. This is a swap, not a death.
         goblin.discard();
@@ -408,22 +439,183 @@ public class ExampleMod {
         goblin.moveTo(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5,
                 player.getYRot(), 0f);
 
-        // 6. Add to the world. Custom name, attributes, evolution state,
-        //    inventory, and all ManasCore storages are already restored from NBT.
+        // 6. Apply citizen's CURRENT inventory to the goblin BEFORE addFreshEntity
+        //    so first client sync carries the items. Citizen is the source of
+        //    truth for items — whatever it has now (after any gear it acquired
+        //    or lost during colony service) is what the goblin gets back.
+        //    Equipment slots (2 hand + 4 armor) map 1:1; the rest of the
+        //    27-slot main inventory is overflow.
+        InventoryCitizen citizenInv = citizenData.getInventory();
+        List<ItemStack> overflow = transferCitizenItemsToGoblin(citizenInv, goblin);
+
+        // 7. Add to the world. Custom name, attributes, evolution state,
+        //    and all ManasCore storages are already restored from NBT;
+        //    equipment was just applied in step 6.
         level.addFreshEntity(goblin);
         LOGGER.info("[TM] summon: goblin reconstructed from NBT at {} with NEW UUID {}",
                 spawnPos, goblin.getUUID());
 
-        // 7. Update the reverse map with the NEW goblin's UUID — without this,
-        //    the send trigger (and future death hook) won't recognise this entity
-        //    as belonging to the identity.
+        // 8. Clear citizen inventory now that everything has been transferred
+        //    (equipment → goblin, non-equipment → overflow). Otherwise items
+        //    would persist phantom-style for the next send cycle.
+        clearCitizenInventory(citizenInv);
+
+        // 9. Drop overflow at the summoning player's position and notify.
+        if (!overflow.isEmpty()) {
+            dropOverflowAtPlayer(level, player, overflow);
+            player.sendSystemMessage(Component.literal(
+                    citizenData.getName() + " cannot carry as much while working for you; the excess items have been returned to you."));
+            LOGGER.info("[TM] summon: {} overflow stacks dropped at player {}",
+                    overflow.size(), player.getName().getString());
+        }
+
+        // 10. Update the reverse map with the NEW goblin's UUID — without this,
+        //     the send trigger (and future death hook) won't recognise this entity
+        //     as belonging to the identity.
         saved.updateGoblinUUID(identity, goblin.getUUID());
 
-        // 8. Update mode to SUBORDINATE.
+        // 11. Update mode to SUBORDINATE.
         saved.updateMode(identity, GoblinIdentitySavedData.Mode.SUBORDINATE);
 
         LOGGER.info("[TM] summon: complete — '{}' is now SUBORDINATE (goblin uuid={})",
                 citizenData.getName(), goblin.getUUID());
+    }
+
+    // ------------------------------------------------------------------
+    // Item-transfer helpers (vanilla EquipmentSlot APIs only)
+    // ------------------------------------------------------------------
+
+    private static final EquipmentSlot[] ARMOR_SLOTS = {
+            EquipmentSlot.FEET, EquipmentSlot.LEGS, EquipmentSlot.CHEST, EquipmentSlot.HEAD
+    };
+
+    /**
+     * Send-direction: copy goblin's equipment into the citizen's inventory.
+     * Returns any stacks that didn't fit (rare — only if citizen inventory
+     * was already nearly full).
+     *
+     * Armor → forceArmorStackToSlot (dedicated armor slots).
+     * Hands → first free main-inventory slot + setHeldItem(hand, slotIndex).
+     * ItemStack.copy() preserves full DataComponentPatch (enchants, custom
+     * names, durability, Tensura item data — all of it).
+     */
+    private static List<ItemStack> transferGoblinItemsToCitizen(LivingEntity goblin,
+                                                                InventoryCitizen inv) {
+        List<ItemStack> overflow = new ArrayList<>();
+
+        // Armor: dedicated slots, no overflow possible
+        for (EquipmentSlot slot : ARMOR_SLOTS) {
+            ItemStack stack = goblin.getItemBySlot(slot);
+            if (!stack.isEmpty()) {
+                inv.forceArmorStackToSlot(slot, stack.copy());
+            }
+        }
+
+        // Main hand: find first empty main-inventory slot, set, point pointer
+        ItemStack mainHand = goblin.getMainHandItem();
+        int mainSlot = -1;
+        if (!mainHand.isEmpty()) {
+            mainSlot = findFreeSlot(inv, -1);
+            if (mainSlot >= 0) {
+                inv.setStackInSlot(mainSlot, mainHand.copy());
+                inv.setHeldItem(InteractionHand.MAIN_HAND, mainSlot);
+            } else {
+                overflow.add(mainHand.copy());
+            }
+        }
+
+        // Off hand: find next free, skipping the slot we just used
+        ItemStack offHand = goblin.getOffhandItem();
+        if (!offHand.isEmpty()) {
+            int offSlot = findFreeSlot(inv, mainSlot);
+            if (offSlot >= 0) {
+                inv.setStackInSlot(offSlot, offHand.copy());
+                inv.setHeldItem(InteractionHand.OFF_HAND, offSlot);
+            } else {
+                overflow.add(offHand.copy());
+            }
+        }
+
+        return overflow;
+    }
+
+    /** First empty main-inventory slot, skipping {@code excludeSlot} (or -1 to skip nothing). */
+    private static int findFreeSlot(InventoryCitizen inv, int excludeSlot) {
+        for (int i = 0; i < inv.getSlots(); i++) {
+            if (i == excludeSlot) continue;
+            if (inv.getStackInSlot(i).isEmpty()) return i;
+        }
+        return -1;
+    }
+
+    /**
+     * Summon-direction: apply citizen's current inventory to the freshly
+     * reconstructed goblin. Equipment slots map 1:1; everything else in main
+     * inventory becomes overflow (goblin only has 6 equipment slots).
+     */
+    private static List<ItemStack> transferCitizenItemsToGoblin(InventoryCitizen inv,
+                                                                LivingEntity goblin) {
+        int mainHeldSlot = inv.getHeldItemSlot(InteractionHand.MAIN_HAND);
+        int offHeldSlot  = inv.getHeldItemSlot(InteractionHand.OFF_HAND);
+
+        // Armor: read from dedicated slots, apply to goblin
+        for (EquipmentSlot slot : ARMOR_SLOTS) {
+            ItemStack stack = inv.getArmorInSlot(slot);
+            if (!stack.isEmpty()) {
+                goblin.setItemSlot(slot, stack.copy());
+            }
+        }
+
+        // Held items: read from main inventory via held-pointer, apply to goblin
+        ItemStack mainHand = inv.getHeldItem(InteractionHand.MAIN_HAND);
+        if (!mainHand.isEmpty()) {
+            goblin.setItemSlot(EquipmentSlot.MAINHAND, mainHand.copy());
+        }
+        ItemStack offHand = inv.getHeldItem(InteractionHand.OFF_HAND);
+        if (!offHand.isEmpty()) {
+            goblin.setItemSlot(EquipmentSlot.OFFHAND, offHand.copy());
+        }
+
+        // Overflow: any non-empty main-inventory slot that isn't one of the
+        // two held pointers. The goblin can't carry these — they drop at the
+        // player's feet.
+        List<ItemStack> overflow = new ArrayList<>();
+        for (int i = 0; i < inv.getSlots(); i++) {
+            if (i == mainHeldSlot || i == offHeldSlot) continue;
+            ItemStack stack = inv.getStackInSlot(i);
+            if (!stack.isEmpty()) {
+                overflow.add(stack.copy());
+            }
+        }
+        return overflow;
+    }
+
+    /**
+     * Clear the citizen's entire inventory after summon. Stops items from
+     * persisting between swap cycles. Held-pointers are left as-is — they
+     * now point at empty slots, which is harmless until the next send sets
+     * them again.
+     */
+    private static void clearCitizenInventory(InventoryCitizen inv) {
+        for (EquipmentSlot slot : ARMOR_SLOTS) {
+            inv.forceArmorStackToSlot(slot, ItemStack.EMPTY);
+        }
+        for (int i = 0; i < inv.getSlots(); i++) {
+            inv.setStackInSlot(i, ItemStack.EMPTY);
+        }
+    }
+
+    /**
+     * Spawn ItemEntities at the triggering player's exact position (not the
+     * goblin's or citizen's old position).
+     */
+    private static void dropOverflowAtPlayer(ServerLevel level, Player player,
+                                             List<ItemStack> overflow) {
+        Vec3 pos = player.position();
+        for (ItemStack stack : overflow) {
+            ItemEntity ie = new ItemEntity(level, pos.x, pos.y, pos.z, stack);
+            level.addFreshEntity(ie);
+        }
     }
 
     // ------------------------------------------------------------------
