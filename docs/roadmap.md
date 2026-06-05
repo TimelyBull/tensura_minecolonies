@@ -85,14 +85,29 @@ full-entity NBT snapshot.
       to avoid phantom carryover between swaps. `ItemStack.copy()` preserves
       full component data (enchants, custom names, durability, Tensura item data).
 
-**C2 — Roster keybind menu** ⬜ PENDING
-Replace the command trigger with a proper UX: keybind opens a screen listing
-the player's named entities; selecting one fires summon.
+**C2 — Roster keybind menu** 🔄 IN PROGRESS
 
-- [ ] Client keybind + C2S "request roster" packet
-- [ ] Server handler returns S2C list of player's identities
-- [ ] Client `Screen` subclass with selectable list
-- [ ] C2S "summon this identity" packet → server runs summon logic
+*C2a — Networking round-trip (proves the plumbing before the GUI)* ✅ COMPLETE
+- [x] Add `ownerPlayerUUID` to `GoblinIdentity` and `PendingGoblin`
+      (set from `player.getUUID()` at naming time; matches
+      `IExistence.permanentOwner` set by Tensura's `submitNaming`)
+- [x] Client keybind: default `G` (unbound in vanilla 1.21.1),
+      registered via `RegisterKeyMappingsEvent` in a `@OnlyIn(CLIENT)` class
+      initialised conditionally from the mod constructor
+- [x] C2S `RequestRosterPayload` (empty), S2C `RosterResponsePayload`
+      with `List<RosterEntry(identityId, name, modeByte)>`
+- [x] Registered via `RegisterPayloadHandlersEvent` + `PayloadRegistrar`
+- [x] Server handler filters identities by exact `ownerPlayerUUID` match,
+      resolves citizen names via `colony.getCitizenManager().getCivilian(...).getName()`,
+      replies via `PacketDistributor.sendToPlayer`
+- [x] Client handler logs each entry (name + mode) — no Screen yet
+
+*C2b — Roster Screen (two-way toggle)* ⬜ PENDING
+- [ ] `Screen` subclass with selectable list of identities
+- [ ] Per-row mode indicator (SUBORDINATE / IN_COLONY) tells the player
+      which action a click will perform
+- [ ] C2S "act on identity" packet → server routes to the existing send
+      flow (if SUBORDINATE) or summon flow (if IN_COLONY)
 
 ### Stage D — Identity persistence + death hooks 🔄 IN PROGRESS
 The saved identity (name, citizen ID, goblin UUID, current mode) survives world

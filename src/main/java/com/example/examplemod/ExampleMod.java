@@ -52,6 +52,7 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
@@ -108,6 +109,15 @@ public class ExampleMod {
 
         // Tensura uses Architectury's event system — register via .register(), NOT @SubscribeEvent.
         TensuraEntityEvents.NAMING_EVENT.register(this::onGoblinNamed);
+
+        // Stage C2a — networking foundation. Payload registration is mod-bus.
+        modEventBus.addListener(Networking::register);
+
+        // Client-only setup (keybind + tick listener). Guard prevents the
+        // server JVM from ever loading client-only classes.
+        if (FMLEnvironment.dist.isClient()) {
+            ClientEvents.init(modEventBus);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -148,7 +158,8 @@ public class ExampleMod {
             GoblinIdentitySavedData.PendingGoblin p = new GoblinIdentitySavedData.PendingGoblin(
                     UUID.randomUUID(),
                     name.get(),
-                    entity.getUUID()
+                    entity.getUUID(),
+                    player.getUUID()          // matches IExistence.permanentOwner set by Tensura
             );
             saved.addPending(p);
             LOGGER.info("[TM] no colony yet — '{}' queued as pending (id={}, goblin={})",
@@ -185,7 +196,8 @@ public class ExampleMod {
                 colony.getID(),
                 entity.getUUID(),           // current goblin entity UUID
                 GoblinIdentitySavedData.Mode.SUBORDINATE,
-                null                        // entitySnapshot — populated at first send
+                null,                       // entitySnapshot — populated at first send
+                player.getUUID()            // owner — matches IExistence.permanentOwner
         );
         saved.addIdentity(identity);
 
@@ -286,7 +298,8 @@ public class ExampleMod {
                     colony.getID(),
                     p.goblinEntityUUID,
                     GoblinIdentitySavedData.Mode.SUBORDINATE,
-                    null                                            // entitySnapshot — populated at first send
+                    null,                                           // entitySnapshot — populated at first send
+                    p.ownerPlayerUUID                               // propagate from pending entry
             );
             saved.addIdentity(identity);
             saved.removePending(p);

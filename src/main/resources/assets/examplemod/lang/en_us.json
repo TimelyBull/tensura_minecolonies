@@ -9,5 +9,8 @@
   "examplemod.configuration.items": "Item List",
   "examplemod.configuration.logDirtBlock": "Log Dirt Block",
   "examplemod.configuration.magicNumberIntroduction": "Magic Number Text",
-  "examplemod.configuration.magicNumber": "Magic Number"
+  "examplemod.configuration.magicNumber": "Magic Number",
+
+  "key.categories.tensura_minecolonies": "Tensura MineColonies Integration",
+  "key.tensura_minecolonies.open_roster": "Open Goblin Roster"
 }

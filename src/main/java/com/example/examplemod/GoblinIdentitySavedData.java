@@ -43,16 +43,20 @@ public class GoblinIdentitySavedData extends SavedData {
                                            // type, position, attributes, inventory,
                                            // appearance, EvoState, and ManasCoreStorage
                                            // (all Tensura storages). Null until first send.
+        public final UUID ownerPlayerUUID;  // player who named the goblin; matches
+                                            // IExistence.permanentOwner. Used for
+                                            // the roster filter. Null on legacy records.
 
         public GoblinIdentity(UUID identityId, int citizenId, int colonyId,
                               UUID goblinEntityUUID, Mode mode,
-                              CompoundTag entitySnapshot) {
+                              CompoundTag entitySnapshot, UUID ownerPlayerUUID) {
             this.identityId        = identityId;
             this.citizenId         = citizenId;
             this.colonyId          = colonyId;
             this.goblinEntityUUID  = goblinEntityUUID;
             this.mode              = mode;
-            this.entitySnapshot = entitySnapshot;
+            this.entitySnapshot    = entitySnapshot;
+            this.ownerPlayerUUID   = ownerPlayerUUID;
         }
 
         CompoundTag toNBT() {
@@ -67,6 +71,9 @@ public class GoblinIdentitySavedData extends SavedData {
             if (entitySnapshot != null) {
                 tag.put("entity", entitySnapshot.copy());
             }
+            if (ownerPlayerUUID != null) {
+                tag.putUUID("ownerPlayerUUID", ownerPlayerUUID);
+            }
             return tag;
         }
 
@@ -79,8 +86,10 @@ public class GoblinIdentitySavedData extends SavedData {
                                     ? tag.getUUID("goblinEntityUUID") : null;
             CompoundTag entity = tag.contains("entity", Tag.TAG_COMPOUND)
                                  ? tag.getCompound("entity") : null;
+            UUID ownerPlayerUUID  = tag.hasUUID("ownerPlayerUUID")
+                                    ? tag.getUUID("ownerPlayerUUID") : null;
             return new GoblinIdentity(identityId, citizenId, colonyId,
-                                      goblinEntityUUID, mode, entity);
+                                      goblinEntityUUID, mode, entity, ownerPlayerUUID);
         }
     }
 
@@ -94,11 +103,14 @@ public class GoblinIdentitySavedData extends SavedData {
         public final UUID identityId;        // becomes GoblinIdentity.identityId on promotion
         public final String name;            // citizen name once promoted
         public final UUID goblinEntityUUID;  // for stale-check + identity link on promotion
+        public final UUID ownerPlayerUUID;   // namer's UUID — propagated to GoblinIdentity on promotion
 
-        public PendingGoblin(UUID identityId, String name, UUID goblinEntityUUID) {
+        public PendingGoblin(UUID identityId, String name, UUID goblinEntityUUID,
+                             UUID ownerPlayerUUID) {
             this.identityId       = identityId;
             this.name             = name;
             this.goblinEntityUUID = goblinEntityUUID;
+            this.ownerPlayerUUID  = ownerPlayerUUID;
         }
 
         CompoundTag toNBT() {
@@ -106,14 +118,18 @@ public class GoblinIdentitySavedData extends SavedData {
             t.putUUID("identityId", identityId);
             t.putString("name", name);
             t.putUUID("goblinEntityUUID", goblinEntityUUID);
+            if (ownerPlayerUUID != null) t.putUUID("ownerPlayerUUID", ownerPlayerUUID);
             return t;
         }
 
         static PendingGoblin fromNBT(CompoundTag t) {
+            UUID ownerPlayerUUID = t.hasUUID("ownerPlayerUUID")
+                                   ? t.getUUID("ownerPlayerUUID") : null;
             return new PendingGoblin(
                     t.getUUID("identityId"),
                     t.getString("name"),
-                    t.getUUID("goblinEntityUUID")
+                    t.getUUID("goblinEntityUUID"),
+                    ownerPlayerUUID
             );
         }
     }

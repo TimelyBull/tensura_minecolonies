@@ -111,6 +111,34 @@ If the currently-materialized body dies in either state (goblin-as-subordinate
 OR citizen-in-colony), the named identity dies: `CitizenData` is removed and
 the colony count decreases. There is no resurrection.
 
+**Roster menu (Stage C2b) — two-way toggle**
+The keybind-opened roster menu will display each of the player's named
+goblin-citizen identities with its current mode. Clicking a row routes to
+existing server logic based on mode:
+
+- Row showing `SUBORDINATE` → click triggers the send-to-colony flow that
+  the sneak-right-click trigger currently invokes.
+- Row showing `IN_COLONY` → click triggers the summon flow that
+  `/summongoblin` currently invokes.
+
+The mode indicator on each row tells the player which action a click will
+perform. Both server-side flows already exist; C2b only adds the C2S click
+packet and the Screen. Stage C2a (this commit) establishes the round-trip
+plumbing for the roster list itself.
+
+**Goblin/citizen stat systems differ — equalisation deferred**
+Tensura and MineColonies maintain separate stat models: Tensura tracks
+EP (aura + magicule), spiritual health, alignment, evolution state, and
+race-applied attribute modifiers on the entity; MineColonies tracks
+citizen skill levels (strength/dexterity/etc.), happiness, saturation,
+job level, and a separate health pool. "Equal" gameplay between subordinate
+mode and colony mode requires an explicit mapping — e.g. "EP threshold X
+maps to citizen skill level Y" or "Tensura attribute modifiers translate
+to citizen primary stats". This is a separate design problem and out of
+scope for the current vertical slice. Flagged for a later stage. Until
+mapped, a goblin appears strong as a subordinate and weak as a citizen
+(or vice versa) — accepted prototype trade-off.
+
 **Advisory messages gated by Great Sage (future)**
 The mod will surface a range of advisory / explanatory chat text to the player
 — things like "the goblin couldn't carry the excess items, they've been
