@@ -18,7 +18,7 @@ MineColonies citizen (not converted or removed).
 
 - [x] Task 1 — Find Tensura naming event (`TensuraEntityEvents.NAMING_EVENT` confirmed)
 - [x] Task 1.5 — Add Architectury + ManasCore sub-modules to compile classpath
-- [ ] Task 2 — Register naming listener, log when a goblin is named *(in progress)*
+- [x] Task 2 — Register naming listener, log goblin name; detect colony at goblin's position
 - [ ] Task 3 — Detect colony at goblin's location
 - [ ] Task 4 — Register goblin as citizen while keeping it a Tensura subordinate
   *(needs investigation: can MineColonies associate citizen data with a

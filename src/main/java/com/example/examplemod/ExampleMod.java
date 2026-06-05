@@ -4,12 +4,15 @@ import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
 
+import com.minecolonies.api.colony.IColony;
+import com.minecolonies.api.colony.IColonyManager;
 import dev.architectury.event.EventResult;
 import io.github.manasmods.tensura.event.TensuraEntityEvents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.BlockItem;
@@ -96,6 +99,18 @@ public class ExampleMod {
             ResourceLocation entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
             if (ResourceLocation.fromNamespaceAndPath("tensura", "goblin").equals(entityId)) {
                 LOGGER.info("goblin named: {}", name.get());
+
+                // Colony lookup must run server-side — IColonyManager works only on the
+                // server. The NAMING_EVENT fires on both sides, so we skip on the client.
+                if (entity.level() instanceof ServerLevel serverLevel) {
+                    IColony colony = IColonyManager.getInstance()
+                            .getColonyByPosFromWorld(serverLevel, entity.blockPosition());
+                    if (colony != null) {
+                        LOGGER.info("colony found: {} (id {})", colony.getName(), colony.getID());
+                    } else {
+                        LOGGER.info("no colony here");
+                    }
+                }
             }
             return EventResult.pass();
         });
