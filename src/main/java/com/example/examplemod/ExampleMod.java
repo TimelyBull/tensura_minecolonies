@@ -754,10 +754,17 @@ public class ExampleMod {
             sendAdvisoryNotice(player, "Couldn't access your magicule storage.");
             return;
         }
+        double beforeMag = playerExist.getMagicule();
         playerExist.setMagicule(0.0); // EXACTLY 0 — never negative
         playerExist.markDirty();
-        LOGGER.info("[TM] cost: '{}' forced collapse — magicule set to 0; Sleep Mode will trigger naturally next tick",
-                player.getName().getString());
+        double afterMag = playerExist.getMagicule();
+        boolean infMaterials = player.hasInfiniteMaterials();
+        boolean invulnerable = player.isInvulnerable();
+        LOGGER.info("[TM] cost: '{}' forced collapse — magicule {} → {}; hasInfiniteMaterials={} isInvulnerable={}{}",
+                player.getName().getString(), beforeMag, afterMag, infMaterials, invulnerable,
+                (infMaterials || invulnerable)
+                        ? " — TENSURA WILL SKIP SLEEP MODE (player must be in survival and not invulnerable)"
+                        : " — Sleep Mode will trigger naturally next tick");
 
         executeAction(player, identity, target);
     }
