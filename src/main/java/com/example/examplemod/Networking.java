@@ -270,6 +270,9 @@ public final class Networking {
     }
 
     private static void onOpenCollapseConfirm(OpenCollapseConfirmPayload payload, IPayloadContext context) {
+        // Diagnostic: confirms the S2C prompt actually reached the client.
+        LOGGER.info("[TM] client received collapse-confirm prompt: goblin='{}' cost={} have={}",
+                payload.goblinName(), payload.cost(), payload.currentMagicule());
         context.enqueueWork(() -> confirmCollapseClientHandler.accept(payload));
     }
 }
