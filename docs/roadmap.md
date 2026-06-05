@@ -41,14 +41,30 @@ is intentional at this stage.
 - [x] `goblin.discard()` — swap removal, NOT death (no `LivingDeathEvent`)
 - [x] Mode flag updated to `IN_COLONY` in `GoblinIdentitySavedData`
 
-### Stage C — Summon swap + roster keybind menu ⬜ PENDING
-Keybind opens a roster screen listing the player's named entities. Selecting one
-dissolves the citizen in the colony and materializes the goblin at the player's side.
+### Stage C — Summon swap + roster keybind menu 🔄 IN PROGRESS
 
-- [ ] Implement roster screen (basic list of named-entity identities)
-- [ ] Implement summon trigger from roster
-- [ ] Despawn `EntityCitizen` in colony
-- [ ] Materialize goblin entity at player's position
+**C1 — Core summon mechanic** ✅ COMPLETE
+Placeholder trigger: `/summongoblin <name>` command. Looks up an `IN_COLONY`
+identity by citizen name, discards the `EntityCitizen` (count unchanged),
+re-marks travelling, spawns a fresh Tensura goblin at the player's position
+with `IExistence` restored from snapshot, and updates the reverse map with the
+new goblin UUID.
+
+- [x] Despawn `EntityCitizen` in colony (`discard()`, not `die()`)
+- [x] Re-suppress respawn loop via `startTravellingTo`
+- [x] Spawn fresh goblin at player position
+- [x] Restore `IExistence` via `ExistenceStorage.load(snapshot)` +
+      `setCustomName` for the nameplate
+- [x] Update reverse map with the new goblin entity UUID
+
+**C2 — Roster keybind menu** ⬜ PENDING
+Replace the command trigger with a proper UX: keybind opens a screen listing
+the player's named entities; selecting one fires summon.
+
+- [ ] Client keybind + C2S "request roster" packet
+- [ ] Server handler returns S2C list of player's identities
+- [ ] Client `Screen` subclass with selectable list
+- [ ] C2S "summon this identity" packet → server runs summon logic
 
 ### Stage D — Identity persistence across swaps and save/reload ⬜ PENDING
 The saved identity (name, citizen ID, goblin UUID, current mode) survives world

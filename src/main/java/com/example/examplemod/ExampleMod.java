@@ -7,10 +7,15 @@ import com.mojang.logging.LogUtils;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColonyManager;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.architectury.event.EventResult;
 import io.github.manasmods.manascore.storage.api.StorageHolder;
 import io.github.manasmods.tensura.event.TensuraEntityEvents;
 import io.github.manasmods.tensura.storage.ep.ExistenceStorage;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -18,7 +23,10 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.BlockItem;
@@ -37,6 +45,7 @@ import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.registries.DeferredBlock;
@@ -270,6 +279,145 @@ public class ExampleMod {
 
         LOGGER.info("[TM] send: complete — '{}' is now IN_COLONY as citizen {} in '{}'",
                 citizenData.getName(), identity.citizenId, colony.getName());
+    }
+
+    // ------------------------------------------------------------------
+    // Stage C1 — summon: /summongoblin <name>
+    // ------------------------------------------------------------------
+
+    @SubscribeEvent
+    public void onRegisterCommands(RegisterCommandsEvent event) {
+        event.getDispatcher().register(
+                Commands.literal("summongoblin")
+                        .requires(src -> src.hasPermission(0))
+                        .then(Commands.argument("name", StringArgumentType.greedyString())
+                                .executes(this::handleSummonCommand))
+        );
+    }
+
+    private int handleSummonCommand(CommandContext<CommandSourceStack> ctx) {
+        String name = StringArgumentType.getString(ctx, "name");
+        CommandSourceStack src = ctx.getSource();
+
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/summongoblin must be run by a player"));
+            return 0;
+        }
+
+        ServerLevel level = player.serverLevel();
+        GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(level);
+        IColonyManager cm = IColonyManager.getInstance();
+
+        // Find an IN_COLONY identity whose citizen name matches.
+        GoblinIdentitySavedData.GoblinIdentity matchIdentity = null;
+        IColony matchColony = null;
+        ICitizenData matchData = null;
+        for (GoblinIdentitySavedData.GoblinIdentity id : saved.all()) {
+            if (id.mode != GoblinIdentitySavedData.Mode.IN_COLONY) continue;
+            IColony c = cm.getColonyByWorld(id.colonyId, level);
+            if (c == null) continue;
+            ICitizenData cd = c.getCitizenManager().getCivilian(id.citizenId);
+            if (cd == null) continue;
+            if (!name.equals(cd.getName())) continue;
+            matchIdentity = id;
+            matchColony   = c;
+            matchData     = cd;
+            break;
+        }
+
+        if (matchIdentity == null) {
+            src.sendFailure(Component.literal("no IN_COLONY identity named '" + name + "' found"));
+            return 0;
+        }
+
+        summonGoblin(player, level, saved, matchIdentity, matchColony, matchData);
+
+        final String displayName = name;
+        src.sendSuccess(() -> Component.literal("summoned '" + displayName + "'"), false);
+        return 1;
+    }
+
+    private static void summonGoblin(ServerPlayer player,
+                                     ServerLevel level,
+                                     GoblinIdentitySavedData saved,
+                                     GoblinIdentitySavedData.GoblinIdentity identity,
+                                     IColony colony,
+                                     ICitizenData citizenData) {
+        LOGGER.info("[TM] summon: starting for citizen {} ('{}')",
+                identity.citizenId, citizenData.getName());
+
+        // 1. Discard the EntityCitizen body (if it currently exists).
+        //    discard() removes the entity from the world WITHOUT triggering die().
+        //    It posts CitizenRemovedModEvent(DISCARDED) which does NOT delete
+        //    CitizenData — count stays the same.
+        citizenData.getEntity().ifPresentOrElse(
+                citizenEntity -> {
+                    citizenEntity.discard();
+                    LOGGER.info("[TM] summon: EntityCitizen discarded for citizen {} (count unchanged)",
+                            identity.citizenId);
+                },
+                () -> LOGGER.info("[TM] summon: citizen {} had no live body (chunk unloaded?) — nothing to discard",
+                        identity.citizenId)
+        );
+
+        // 2. Re-suppress the respawn loop so updateEntityIfNecessary() doesn't
+        //    immediately try to re-spawn the EntityCitizen during the summon window.
+        colony.getTravellingManager().startTravellingTo(
+                citizenData, player.blockPosition(), Integer.MAX_VALUE);
+        LOGGER.info("[TM] summon: citizen {} re-marked travelling — respawn loop suppressed",
+                identity.citizenId);
+
+        // 3. Spawn a fresh Tensura goblin at the player's position.
+        EntityType<?> goblinType = BuiltInRegistries.ENTITY_TYPE.get(GOBLIN_ID);
+        if (goblinType == null) {
+            LOGGER.warn("[TM] summon: tensura:goblin entity type not registered — aborting");
+            return;
+        }
+        Entity raw = goblinType.create(level);
+        if (!(raw instanceof LivingEntity goblin)) {
+            LOGGER.warn("[TM] summon: goblin create() returned null or non-LivingEntity — aborting");
+            return;
+        }
+        BlockPos spawnPos = player.blockPosition();
+        goblin.moveTo(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5,
+                player.getYRot(), 0f);
+
+        // 4. Restore IExistence state from snapshot BEFORE addFreshEntity so
+        //    the client receives the right data on first sync.
+        if (goblin instanceof StorageHolder holder && identity.existenceSnapshot != null) {
+            ExistenceStorage storage = holder.manasCore$getStorage(ExistenceStorage.getKey());
+            if (storage != null) {
+                storage.load(identity.existenceSnapshot);
+                storage.markDirty();
+                LOGGER.info("[TM] summon: IExistence restored (name='{}', owner={}, ep={})",
+                        storage.getName(), storage.getPermanentOwner(), storage.getEP());
+            } else {
+                LOGGER.warn("[TM] summon: fresh goblin has no ExistenceStorage — IExistence not restored");
+            }
+        }
+
+        // 5. Mirror the IExistence name to vanilla custom-name so the nameplate
+        //    shows. Tensura's naming code does both of these — load() restored
+        //    IExistence.name but NOT the entity's CustomName field.
+        goblin.setCustomName(Component.literal(citizenData.getName()));
+
+        // 6. Add to the world. UUID is already assigned by the Entity ctor.
+        level.addFreshEntity(goblin);
+        LOGGER.info("[TM] summon: goblin spawned at {} with UUID {}", spawnPos, goblin.getUUID());
+
+        // 7. Update the reverse map with the NEW goblin's UUID — without this,
+        //    the send trigger (and future death hook) won't recognise this entity
+        //    as belonging to the identity.
+        saved.updateGoblinUUID(identity, goblin.getUUID());
+
+        // 8. Update mode to SUBORDINATE.
+        saved.updateMode(identity, GoblinIdentitySavedData.Mode.SUBORDINATE);
+
+        LOGGER.info("[TM] summon: complete — '{}' is now SUBORDINATE (goblin uuid={})",
+                citizenData.getName(), goblin.getUUID());
     }
 
     // ------------------------------------------------------------------
