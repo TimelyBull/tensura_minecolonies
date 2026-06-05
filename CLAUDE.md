@@ -4,6 +4,14 @@ A NeoForge 1.21.1 mod that bridges **Tensura: Reincarnated** and **MineColonies*
 
 The developer is a beginner — explain concepts clearly, avoid jargon without explanation, and prefer simple and explicit code over clever abstractions.
 
+## Project planning
+
+Planning documents live in `docs/` and should be kept current as work progresses:
+
+- [docs/roadmap.md](docs/roadmap.md) — milestone checklist and feature tiers; update task status as work completes
+- [docs/decisions.md](docs/decisions.md) — record of key architectural and design decisions with reasoning; add new entries when a non-obvious choice is made
+- [docs/dependencies.md](docs/dependencies.md) — exact jar versions in `libs/` and confirmed registry IDs; update when new deps are added
+
 ## Project layout
 
 ```

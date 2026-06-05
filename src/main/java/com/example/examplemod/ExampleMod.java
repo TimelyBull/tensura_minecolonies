@@ -4,9 +4,13 @@ import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
 
+import dev.architectury.event.EventResult;
+import io.github.manasmods.tensura.event.TensuraEntityEvents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
@@ -16,7 +20,6 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
-import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
@@ -86,6 +89,16 @@ public class ExampleMod {
 
         // Register our mod's ModConfigSpec so that FML can create and load the config file for us
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+
+        // Tensura uses Architectury's event system, not NeoForge's @SubscribeEvent.
+        // We call .register(...) directly on the event field with a lambda.
+        TensuraEntityEvents.NAMING_EVENT.register((entity, player, magicule, aura, namingType, name) -> {
+            ResourceLocation entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
+            if (ResourceLocation.fromNamespaceAndPath("tensura", "goblin").equals(entityId)) {
+                LOGGER.info("goblin named: {}", name.get());
+            }
+            return EventResult.pass();
+        });
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {

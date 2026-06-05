@@ -150,9 +150,23 @@ dependencies {
     compileOnly files('libs/geckolib-neoforge-1.21.1-4.8.4.jar')
     localRuntime files('libs/geckolib-neoforge-1.21.1-4.8.4.jar')
 
-    // ManasCore (required by Tensura)
+    // ManasCore (required by Tensura).
+    // The main jar embeds sub-modules via JiJ; NeoForge extracts them at runtime.
+    // We add the sub-module jars to compileOnly so javac can see their classes (e.g. Changeable).
     compileOnly files('libs/manascore-neoforge-4.0.0.2.jar')
     localRuntime files('libs/manascore-neoforge-4.0.0.2.jar')
+    compileOnly files(
+        'libs/manascore-architectury-neoforge-4.0.0.2.jar',
+        'libs/manascore-attribute-neoforge-4.0.0.2.jar',
+        'libs/manascore-command-neoforge-4.0.0.2.jar',
+        'libs/manascore-config-neoforge-4.0.0.2.jar',
+        'libs/manascore-inventory-neoforge-4.0.0.2.jar',
+        'libs/manascore-keybind-neoforge-4.0.0.2.jar',
+        'libs/manascore-network-neoforge-4.0.0.2.jar',
+        'libs/manascore-race-neoforge-4.0.0.2.jar',
+        'libs/manascore-skill-neoforge-4.0.0.2.jar',
+        'libs/manascore-storage-neoforge-4.0.0.2.jar'
+    )
 
     // SmartBrainLib (required by Tensura for AI)
     compileOnly files('libs/SmartBrainLib-neoforge-1.21.1-1.16.11.jar')
