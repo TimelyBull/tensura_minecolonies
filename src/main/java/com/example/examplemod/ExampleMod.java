@@ -8,13 +8,18 @@ import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColonyManager;
 import dev.architectury.event.EventResult;
+import io.github.manasmods.manascore.storage.api.StorageHolder;
 import io.github.manasmods.tensura.event.TensuraEntityEvents;
+import io.github.manasmods.tensura.storage.ep.ExistenceStorage;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
@@ -26,137 +31,286 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
-import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
-// The value here should match an entry in the META-INF/neoforge.mods.toml file
+import java.util.List;
+import java.util.UUID;
+
 @Mod(ExampleMod.MODID)
 public class ExampleMod {
-    // Define mod id in a common place for everything to reference
+
     public static final String MODID = "tensura_minecolonies";
-    // Directly reference a slf4j logger
     public static final Logger LOGGER = LogUtils.getLogger();
-    // Create a Deferred Register to hold Blocks which will all be registered under the "examplemod" namespace
+
+    private static final ResourceLocation GOBLIN_ID =
+            ResourceLocation.fromNamespaceAndPath("tensura", "goblin");
+
     public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(MODID);
-    // Create a Deferred Register to hold Items which will all be registered under the "examplemod" namespace
-    public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(MODID);
-    // Create a Deferred Register to hold CreativeModeTabs which will all be registered under the "examplemod" namespace
-    public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
+    public static final DeferredRegister.Items  ITEMS  = DeferredRegister.createItems(MODID);
+    public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS =
+            DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
 
-    // Creates a new Block with the id "examplemod:example_block", combining the namespace and path
-    public static final DeferredBlock<Block> EXAMPLE_BLOCK = BLOCKS.registerSimpleBlock("example_block", BlockBehaviour.Properties.of().mapColor(MapColor.STONE));
-    // Creates a new BlockItem with the id "examplemod:example_block", combining the namespace and path
-    public static final DeferredItem<BlockItem> EXAMPLE_BLOCK_ITEM = ITEMS.registerSimpleBlockItem("example_block", EXAMPLE_BLOCK);
+    public static final DeferredBlock<Block> EXAMPLE_BLOCK =
+            BLOCKS.registerSimpleBlock("example_block", BlockBehaviour.Properties.of().mapColor(MapColor.STONE));
+    public static final DeferredItem<BlockItem> EXAMPLE_BLOCK_ITEM =
+            ITEMS.registerSimpleBlockItem("example_block", EXAMPLE_BLOCK);
+    public static final DeferredItem<Item> EXAMPLE_ITEM =
+            ITEMS.registerSimpleItem("example_item", new Item.Properties().food(
+                    new FoodProperties.Builder().alwaysEdible().nutrition(1).saturationModifier(2f).build()));
+    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> EXAMPLE_TAB =
+            CREATIVE_MODE_TABS.register("example_tab", () -> CreativeModeTab.builder()
+                    .title(Component.translatable("itemGroup.examplemod"))
+                    .withTabsBefore(CreativeModeTabs.COMBAT)
+                    .icon(() -> EXAMPLE_ITEM.get().getDefaultInstance())
+                    .displayItems((parameters, output) -> output.accept(EXAMPLE_ITEM.get()))
+                    .build());
 
-    // Creates a new food item with the id "examplemod:example_id", nutrition 1 and saturation 2
-    public static final DeferredItem<Item> EXAMPLE_ITEM = ITEMS.registerSimpleItem("example_item", new Item.Properties().food(new FoodProperties.Builder()
-            .alwaysEdible().nutrition(1).saturationModifier(2f).build()));
-
-    // Creates a creative tab with the id "examplemod:example_tab" for the example item, that is placed after the combat tab
-    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> EXAMPLE_TAB = CREATIVE_MODE_TABS.register("example_tab", () -> CreativeModeTab.builder()
-            .title(Component.translatable("itemGroup.examplemod")) //The language key for the title of your CreativeModeTab
-            .withTabsBefore(CreativeModeTabs.COMBAT)
-            .icon(() -> EXAMPLE_ITEM.get().getDefaultInstance())
-            .displayItems((parameters, output) -> {
-                output.accept(EXAMPLE_ITEM.get()); // Add the example item to the tab. For your own tabs, this method is preferred over the event
-            }).build());
-
-    // The constructor for the mod class is the first code that is run when your mod is loaded.
-    // FML will recognize some parameter types like IEventBus or ModContainer and pass them in automatically.
     public ExampleMod(IEventBus modEventBus, ModContainer modContainer) {
-        // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);
-
-        // Register the Deferred Register to the mod event bus so blocks get registered
         BLOCKS.register(modEventBus);
-        // Register the Deferred Register to the mod event bus so items get registered
         ITEMS.register(modEventBus);
-        // Register the Deferred Register to the mod event bus so tabs get registered
         CREATIVE_MODE_TABS.register(modEventBus);
-
-        // Register ourselves for server and other game events we are interested in.
-        // Note that this is necessary if and only if we want *this* class (ExampleMod) to respond directly to events.
-        // Do not add this line if there are no @SubscribeEvent-annotated functions in this class, like onServerStarting() below.
         NeoForge.EVENT_BUS.register(this);
-
-        // Register the item to a creative tab
         modEventBus.addListener(this::addCreative);
-
-        // Register our mod's ModConfigSpec so that FML can create and load the config file for us
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
 
-        // Tensura uses Architectury's event system, not NeoForge's @SubscribeEvent.
-        // We call .register(...) directly on the event field with a lambda.
-        TensuraEntityEvents.NAMING_EVENT.register((entity, player, magicule, aura, namingType, name) -> {
-            ResourceLocation entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
-            if (ResourceLocation.fromNamespaceAndPath("tensura", "goblin").equals(entityId)) {
-                LOGGER.info("goblin named: {}", name.get());
-
-                // Colony lookup and citizen registration must run server-side.
-                // NAMING_EVENT fires on both sides, so skip on the client.
-                if (entity.level() instanceof ServerLevel serverLevel) {
-                    // Prefer the colony owned by the naming player; fall back to the
-                    // first colony in the world so naming works even if the player
-                    // isn't the colony owner.
-                    IColonyManager colonyManager = IColonyManager.getInstance();
-                    IColony colony = colonyManager.getIColonyByOwner(serverLevel, player);
-                    if (colony == null) {
-                        java.util.List<IColony> all = colonyManager.getColonies(serverLevel);
-                        colony = all.isEmpty() ? null : all.get(0);
-                    }
-
-                    if (colony == null) {
-                        LOGGER.info("no colony exists in this world — goblin not registered");
-                    } else {
-                        // createAndRegisterCivilianData() adds the ICitizenData to the
-                        // colony's citizens map and returns it. No EntityCitizen is spawned.
-                        ICitizenData citizenData = colony.getCitizenManager().createAndRegisterCivilianData();
-                        citizenData.setName(name.get());
-                        LOGGER.info("registered goblin '{}' as citizen id {} in colony '{}' (now {} citizens)",
-                                name.get(),
-                                citizenData.getId(),
-                                colony.getName(),
-                                colony.getCitizenManager().getCurrentCitizenCount());
-                    }
-                }
-            }
-            return EventResult.pass();
-        });
+        // Tensura uses Architectury's event system — register via .register(), NOT @SubscribeEvent.
+        TensuraEntityEvents.NAMING_EVENT.register(this::onGoblinNamed);
     }
 
-    private void commonSetup(FMLCommonSetupEvent event) {
-        // Some common setup code
-        LOGGER.info("HELLO FROM COMMON SETUP");
+    // ------------------------------------------------------------------
+    // Stage A — naming creates CitizenData + identity record, no body
+    // ------------------------------------------------------------------
 
-        if (Config.LOG_DIRT_BLOCK.getAsBoolean()) {
-            LOGGER.info("DIRT BLOCK >> {}", BuiltInRegistries.BLOCK.getKey(Blocks.DIRT));
+    private EventResult onGoblinNamed(LivingEntity entity,
+                                      net.minecraft.world.entity.player.Player player,
+                                      io.github.manasmods.manascore.network.api.util.Changeable<Double> magicule,
+                                      io.github.manasmods.manascore.network.api.util.Changeable<Double> aura,
+                                      io.github.manasmods.manascore.network.api.util.Changeable<io.github.manasmods.tensura.network.c2s.RequestNamingMenuPacket.NamingType> namingType,
+                                      io.github.manasmods.manascore.network.api.util.Changeable<String> name) {
+
+        if (!GOBLIN_ID.equals(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()))) {
+            return EventResult.pass();
         }
 
-        LOGGER.info("{}{}", Config.MAGIC_NUMBER_INTRODUCTION.get(), Config.MAGIC_NUMBER.getAsInt());
+        LOGGER.info("[TM] goblin named: {}", name.get());
 
-        Config.ITEM_STRINGS.get().forEach((item) -> LOGGER.info("ITEM >> {}", item));
+        // Colony work is server-side only. NAMING_EVENT fires on both sides.
+        if (!(entity.level() instanceof ServerLevel serverLevel)) {
+            return EventResult.pass();
+        }
+
+        IColonyManager colonyManager = IColonyManager.getInstance();
+        IColony colony = colonyManager.getIColonyByOwner(serverLevel, player);
+        if (colony == null) {
+            List<IColony> all = colonyManager.getColonies(serverLevel);
+            colony = all.isEmpty() ? null : all.get(0);
+        }
+
+        if (colony == null) {
+            LOGGER.info("[TM] no colony in world — goblin '{}' stays a plain subordinate", name.get());
+            return EventResult.pass();
+        }
+
+        // --- Stage A: create CitizenData (count +1), name it, NO body yet ---
+
+        ICitizenData citizenData = colony.getCitizenManager().createAndRegisterCivilianData();
+        citizenData.setName(name.get());
+
+        LOGGER.info("[TM] CitizenData created: id={} colony='{}' count={}",
+                citizenData.getId(), colony.getName(),
+                colony.getCitizenManager().getCurrentCitizenCount());
+
+        // The per-citizen tick (updateEntityIfNecessary) will try to auto-spawn
+        // an EntityCitizen every tick if none exists. Suppress it via the
+        // travelling manager — isTravelling() is the only gate in that method.
+        // We call finishTravellingFor() in the send handler when we want a body.
+        colony.getTravellingManager().startTravellingTo(
+                citizenData, entity.blockPosition(), Integer.MAX_VALUE);
+
+        LOGGER.info("[TM] citizen {} marked travelling — no body will auto-spawn", citizenData.getId());
+
+        // --- Create persistent identity record ---
+
+        CompoundTag existenceSnapshot = snapshotExistence(entity);
+
+        GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(serverLevel);
+        GoblinIdentitySavedData.GoblinIdentity identity = new GoblinIdentitySavedData.GoblinIdentity(
+                UUID.randomUUID(),          // stable identity UUID
+                citizenData.getId(),
+                colony.getID(),
+                entity.getUUID(),           // current goblin entity UUID
+                GoblinIdentitySavedData.Mode.SUBORDINATE,
+                existenceSnapshot
+        );
+        saved.addIdentity(identity);
+
+        LOGGER.info("[TM] identity {} stored: citizen={} goblin={} mode=SUBORDINATE",
+                identity.identityId, identity.citizenId, identity.goblinEntityUUID);
+
+        return EventResult.pass();
     }
 
-    // Add the example block item to the building blocks tab
+    // ------------------------------------------------------------------
+    // Stage B — send trigger: sneak-right-click named goblin with empty hand
+    // ------------------------------------------------------------------
+
+    @SubscribeEvent
+    public void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
+        // Client-side fires too — only act on the server.
+        if (event.getLevel().isClientSide()) return;
+        // Only main-hand interactions (event fires once per hand).
+        if (event.getHand() != InteractionHand.MAIN_HAND) return;
+        // Must be sneaking with an empty hand.
+        if (!event.getEntity().isCrouching()) return;
+        if (!event.getEntity().getItemInHand(InteractionHand.MAIN_HAND).isEmpty()) return;
+        // Target must be a Tensura goblin.
+        if (!(event.getTarget() instanceof LivingEntity target)) return;
+        if (!GOBLIN_ID.equals(BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()))) return;
+
+        ServerLevel serverLevel = (ServerLevel) event.getLevel();
+        GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(serverLevel);
+        GoblinIdentitySavedData.GoblinIdentity identity = saved.getByGoblinUUID(target.getUUID());
+
+        if (identity == null) {
+            LOGGER.info("[TM] goblin {} has no tracked identity — not a named subordinate", target.getUUID());
+            return;
+        }
+        if (identity.mode == GoblinIdentitySavedData.Mode.IN_COLONY) {
+            LOGGER.info("[TM] goblin {} is already IN_COLONY — nothing to send", target.getUUID());
+            return;
+        }
+
+        // Consume the interaction so the goblin's normal right-click logic doesn't also fire.
+        event.setCanceled(true);
+
+        sendGoblinToColony(target, identity, serverLevel, saved);
+    }
+
+    // ------------------------------------------------------------------
+    // Send logic
+    // ------------------------------------------------------------------
+
+    private static void sendGoblinToColony(LivingEntity goblin,
+                                           GoblinIdentitySavedData.GoblinIdentity identity,
+                                           ServerLevel serverLevel,
+                                           GoblinIdentitySavedData saved) {
+        LOGGER.info("[TM] send: starting for goblin '{}' (citizen {})",
+                goblin.getName().getString(), identity.citizenId);
+
+        IColony colony = IColonyManager.getInstance()
+                .getColonyByWorld(identity.colonyId, serverLevel);
+        if (colony == null) {
+            LOGGER.warn("[TM] send: colony {} not found — aborting", identity.colonyId);
+            return;
+        }
+
+        ICitizenData citizenData = colony.getCitizenManager().getCivilian(identity.citizenId);
+        if (citizenData == null) {
+            LOGGER.warn("[TM] send: CitizenData {} not found in colony — aborting", identity.citizenId);
+            return;
+        }
+
+        // 1. Snapshot IExistence BEFORE discarding — the data lives on the entity.
+        CompoundTag snapshot = snapshotExistence(goblin);
+        saved.updateExistenceSnapshot(identity, snapshot);
+        LOGGER.info("[TM] send: IExistence snapshotted for citizen {}", identity.citizenId);
+
+        // 2. Find the town hall spawn position.
+        if (!colony.getServerBuildingManager().hasTownHall()) {
+            LOGGER.warn("[TM] send: colony '{}' has no town hall — aborting", colony.getName());
+            return;
+        }
+        BlockPos townHallPos = colony.getServerBuildingManager().getTownHall().getPosition();
+
+        // 3. Allow the respawn loop to run (finishTravelling makes isTravelling() return false).
+        //    Not strictly required — spawnOrCreateCivilian(force=true) bypasses the travelling
+        //    check — but it leaves the citizen in a clean non-travelling state.
+        colony.getTravellingManager().finishTravellingFor(citizenData);
+
+        // 4. Materialize the EntityCitizen for the existing CitizenData.
+        //    spawnOrCreateCivilian(data, level, hints, force=true):
+        //      - data non-null → reuses existing CitizenData, count does NOT increase
+        //      - force=true    → bypasses the colony's MOVE_IN setting
+        //    MineColonies finds a safe spawn point near townHallPos internally.
+        ICitizenData spawned = colony.getCitizenManager()
+                .spawnOrCreateCivilian(citizenData, serverLevel, List.of(townHallPos), true);
+
+        if (spawned == null || spawned.getEntity().isEmpty()) {
+            // spawnOrCreateCivilian returns the data even if the spawn failed (chunk not loaded).
+            // Detect failure by checking whether an entity was actually linked.
+            LOGGER.warn("[TM] send: EntityCitizen did not spawn (chunk not loaded?) — re-suppressing respawn");
+            colony.getTravellingManager().startTravellingTo(citizenData, townHallPos, Integer.MAX_VALUE);
+            return;
+        }
+
+        LOGGER.info("[TM] send: EntityCitizen spawned near {} for citizen {}",
+                townHallPos, identity.citizenId);
+
+        // 5. Discard the goblin entity — NOT die(), NOT remove(KILLED).
+        //    discard() removes the entity from the world without triggering
+        //    LivingDeathEvent or any death logic. This is a swap, not a death.
+        goblin.discard();
+        LOGGER.info("[TM] send: goblin entity {} discarded (swap, not death)", goblin.getUUID());
+
+        // 6. Update the identity record.
+        identity.goblinEntityUUID = null; // goblin entity no longer exists
+        saved.updateMode(identity, GoblinIdentitySavedData.Mode.IN_COLONY);
+
+        LOGGER.info("[TM] send: complete — '{}' is now IN_COLONY as citizen {} in '{}'",
+                citizenData.getName(), identity.citizenId, colony.getName());
+    }
+
+    // ------------------------------------------------------------------
+    // IExistence snapshot helper
+    // ------------------------------------------------------------------
+
+    /**
+     * Serialise the Tensura IExistence storage for an entity into a CompoundTag.
+     * ManasCore mixin-injects StorageHolder onto every Entity, so the cast is
+     * safe at runtime. Returns an empty tag if the storage isn't present.
+     */
+    private static CompoundTag snapshotExistence(LivingEntity entity) {
+        if (entity instanceof StorageHolder holder) {
+            ExistenceStorage storage = holder.manasCore$getStorage(ExistenceStorage.getKey());
+            if (storage != null) {
+                CompoundTag tag = new CompoundTag();
+                storage.save(tag);
+                return tag;
+            }
+        }
+        LOGGER.warn("[TM] snapshotExistence: no ExistenceStorage on {} — returning empty tag",
+                entity.getUUID());
+        return new CompoundTag();
+    }
+
+    // ------------------------------------------------------------------
+    // Boilerplate
+    // ------------------------------------------------------------------
+
+    private void commonSetup(FMLCommonSetupEvent event) {
+        LOGGER.info("[TM] common setup");
+    }
+
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.BUILDING_BLOCKS) {
             event.accept(EXAMPLE_BLOCK_ITEM);
         }
     }
 
-    // You can use SubscribeEvent and let the Event Bus discover methods to call
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        // Do something when the server starts
-        LOGGER.info("HELLO from server starting");
+        LOGGER.info("[TM] server starting");
     }
 }

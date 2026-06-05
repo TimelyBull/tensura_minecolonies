@@ -26,20 +26,20 @@ is spawned. The goblin stays alive at the player's side as a Tensura subordinate
 - [x] Add Architectury + ManasCore sub-modules to compile classpath
 - [x] Register naming listener; detect colony at goblin's position
 - [x] Call `createAndRegisterCivilianData()`, set citizen name, log count
-- [ ] Store persistent identity (saved data linking goblin UUID → citizen ID)
-- [ ] Prevent `EntityCitizen` auto-spawn for these citizens (resolved by design:
-      no body at naming time; CitizenData has no entity, spawn loop won't fire
-      until a body is explicitly materialized in Stage B)
+- [x] Store persistent identity (saved data linking goblin UUID → citizen ID)
+- [x] Prevent `EntityCitizen` auto-spawn — `startTravellingTo(..., MAX_VALUE)`
+      immediately after naming suppresses `updateEntityIfNecessary`'s respawn loop
 
-### Stage B — Send-to-colony swap (ugly colonist) ⬜ PENDING
+### Stage B — Send-to-colony swap (ugly colonist) ✅ COMPLETE
 Player triggers send. Goblin dissolves → default `EntityCitizen` materializes in
 colony at a valid spawn point. No goblin renderer yet — default colonist appearance
 is intentional at this stage.
 
-- [ ] Implement send trigger (command or right-click item, TBD)
-- [ ] Despawn goblin entity at player's side
-- [ ] Call `spawnOrCreateCivilian()` to materialize the citizen body
-- [ ] Link the citizen body back to our saved identity data
+- [x] Trigger: sneak-right-click named goblin with empty hand
+- [x] Snapshot `IExistence` into `SavedData` before discarding goblin
+- [x] `finishTravellingFor` + `spawnOrCreateCivilian(data, level, [townHallPos], force=true)`
+- [x] `goblin.discard()` — swap removal, NOT death (no `LivingDeathEvent`)
+- [x] Mode flag updated to `IN_COLONY` in `GoblinIdentitySavedData`
 
 ### Stage C — Summon swap + roster keybind menu ⬜ PENDING
 Keybind opens a roster screen listing the player's named entities. Selecting one
