@@ -12,8 +12,10 @@ import com.minecolonies.api.eventbus.events.colony.ColonyCreatedModEvent;
 import com.minecolonies.api.eventbus.events.colony.citizens.CitizenDiedModEvent;
 import com.minecolonies.api.inventory.InventoryCitizen;
 import io.github.manasmods.manascore.storage.api.StorageHolder;
+import io.github.manasmods.tensura.registry.attribute.TensuraAttributes;
 import io.github.manasmods.tensura.storage.ep.ExistenceStorage;
 import io.github.manasmods.tensura.storage.ep.IExistence;
+import io.github.manasmods.tensura.util.EnergyHelper;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -497,15 +499,15 @@ public class ExampleMod {
 
         // 5b. Stat sync: goblin (active body) → citizen (fresh body). Must
         //     happen before goblin.discard() while both bodies are alive.
-        //     IExistence subset via copyStats; HP as a percentage to handle
-        //     the goblin/citizen max-HP mismatch.
+        //     Energy pools scale by percentage to avoid magicule-poison
+        //     death on the citizen body (whose max-energy is ~0 by default).
         spawned.getEntity().ifPresent(citizenBody -> {
             ExistenceStorage srcExist = readExistence(goblin);
             ExistenceStorage dstExist = readExistence(citizenBody);
             if (srcExist != null && dstExist != null) {
-                copyStats(srcExist, dstExist);
-                LOGGER.info("[TM] send: stats copied goblin → citizen (aura={} magicule={} soul={})",
-                        srcExist.getAura(), srcExist.getMagicule(), srcExist.getSoulPoints());
+                copyStats(srcExist, goblin, dstExist, citizenBody);
+                LOGGER.info("[TM] send: stats copied goblin → citizen (now aura={} magicule={} soul={})",
+                        dstExist.getAura(), dstExist.getMagicule(), dstExist.getSoulPoints());
             }
             copyHealthPercentage(goblin.getHealth(), goblin.getMaxHealth(), citizenBody);
         });
@@ -675,9 +677,9 @@ public class ExampleMod {
             ExistenceStorage srcExist = readExistence(citizenBody);
             ExistenceStorage dstExist = readExistence(goblin);
             if (srcExist != null && dstExist != null) {
-                copyStats(srcExist, dstExist);
-                LOGGER.info("[TM] summon: stats copied citizen → goblin (aura={} magicule={} soul={})",
-                        srcExist.getAura(), srcExist.getMagicule(), srcExist.getSoulPoints());
+                copyStats(srcExist, citizenBody, dstExist, goblin);
+                LOGGER.info("[TM] summon: stats copied citizen → goblin (now aura={} magicule={} soul={})",
+                        dstExist.getAura(), dstExist.getMagicule(), dstExist.getSoulPoints());
             }
             copyHealthPercentage(citizenBody.getHealth(), citizenBody.getMaxHealth(), goblin);
         } else {
@@ -922,26 +924,42 @@ public class ExampleMod {
 
     /**
      * Field-by-field copy of the sync subset from one IExistence to another.
-     * SYNC: aura, magicule, spiritualHealth, gainedEP, soulPoints, humanKill,
-     *       alignment, originalAlignment, isDemonLordSeed, isTrueDemonLord,
-     *       isBlessed, isHeroEgg, isTrueHero, targetNeutralList.
-     * DO NOT SYNC: sleepModeTime, harvestTick, harvestGiftTick, hasHarvestGift,
-     *              isSpiritualForm, summoner/summonedSecond/summonedAbility,
-     *              spawnType, isSkippingEPDrop, temporaryOwner. These are
-     *              body-local or transient.
-     * Name / permanentOwner / isNameable are handled elsewhere (set at naming
-     * and at promotion); not touched here.
      *
-     * Aura and magicule are copied DIRECTLY — not via setEP() — to preserve
-     * any imbalance between the two pools.
+     * Energy pools (aura / magicule / spiritualHealth) are scaled by
+     * PERCENTAGE — not absolute — because the source and destination bodies
+     * have different max-energy attributes. Absolute copy would dump
+     * goblin-tier values into a citizen body whose max-magicule is near 0
+     * (citizens have no Tensura race attributes), triggering Tensura's
+     * MagiculePoisonEffect with massive amplifier ≈ instant kill. Percentage
+     * preserves "fullness%" across bodies with different scales. Aura and
+     * magicule are scaled INDIVIDUALLY (not via setEP — that would split
+     * equally and erase any imbalance).
+     *
+     * Counters (gainedEP / soulPoints / humanKill) are copied flat — no
+     * body-specific cap.
+     *
+     * Traits (alignment, destiny flags, targetNeutralList) are copied flat.
+     *
+     * Known tradeoff: percentage-scaling re-introduces the magicule-cost
+     * asymmetry the absolute copy was supposed to fix (a high-EP goblin
+     * costs a lot to send but its citizen counterpart has small EP, so
+     * summon-back is cheap). See docs/decisions.md → "Energy pool scale
+     * mismatch between goblin and citizen bodies".
      */
-    private static void copyStats(IExistence src, IExistence dst) {
-        // Energy pools
-        dst.setAura(src.getAura());
-        dst.setMagicule(src.getMagicule());
-        dst.setSpiritualHealth(src.getSpiritualHealth());
+    private static void copyStats(IExistence src, LivingEntity srcEntity,
+                                  IExistence dst, LivingEntity dstEntity) {
+        // Energy pools — percentage-based, scale to destination's own max
+        dst.setAura(scalePool(src.getAura(),
+                              EnergyHelper.getMaxAura(srcEntity),
+                              EnergyHelper.getMaxAura(dstEntity)));
+        dst.setMagicule(scalePool(src.getMagicule(),
+                                  EnergyHelper.getMaxMagicule(srcEntity),
+                                  EnergyHelper.getMaxMagicule(dstEntity)));
+        dst.setSpiritualHealth(scalePool(src.getSpiritualHealth(),
+                                         srcEntity.getAttributeValue(TensuraAttributes.MAX_SPIRITUAL_HEALTH),
+                                         dstEntity.getAttributeValue(TensuraAttributes.MAX_SPIRITUAL_HEALTH)));
 
-        // Progression / counters
+        // Progression / counters — flat copy, no max-cap
         dst.setGainedEP(src.getGainedEP());
         dst.setSoulPoints(src.getSoulPoints());
         dst.setHumanKill(src.getHumanKill());
@@ -958,14 +976,26 @@ public class ExampleMod {
         dst.setTrueHero(src.isTrueHero());
 
         // Target-neutral list — clear and re-add. Defensive copy of the
-        // source's collection so the clear() can't disturb iteration if
-        // the two collections ever shared backing (they shouldn't, but cheap).
+        // source's collection so the clear() can't disturb iteration.
         dst.clearNeutralTargets();
         for (UUID u : new java.util.ArrayList<>(src.getTargetNeutralList())) {
             dst.addNeutralTarget(u);
         }
 
         dst.markDirty();
+    }
+
+    /**
+     * Scale an energy-pool current value from one body's max to another's.
+     * Both maxes positive → ratio × dstMax (capped at dstMax). Either max
+     * non-positive → return 0 (no meaningful percentage available).
+     */
+    private static double scalePool(double srcCur, double srcMax, double dstMax) {
+        if (srcMax <= 0.0 || dstMax <= 0.0) return 0.0;
+        double scaled = (srcCur / srcMax) * dstMax;
+        if (scaled > dstMax) scaled = dstMax;
+        if (scaled < 0.0) scaled = 0.0;
+        return scaled;
     }
 
     /**

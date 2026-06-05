@@ -126,6 +126,32 @@ perform. Both server-side flows already exist; C2b only adds the C2S click
 packet and the Screen. Stage C2a (this commit) establishes the round-trip
 plumbing for the roster list itself.
 
+**Energy pool scale mismatch between goblin and citizen bodies**
+Goblin entities have Tensura race-tier `MAX_AURA` / `MAX_MAGICULE` /
+`MAX_SPIRITUAL_HEALTH` attributes; default MineColonies citizens do not,
+so their max-energy values are effectively zero. Absolute copy of these
+pools across the swap triggered `MagiculePoisonEffect` with massive
+amplifier and killed the citizen body within a few ticks.
+
+Resolved with **percentage-based** copy for the three energy pools
+(`scalePool(srcCur, srcMax, dstMax) = (srcCur/srcMax) × dstMax`). Counters
+(`gainedEP`, `soulPoints`, `humanKill`) and traits stay flat.
+
+Tradeoff: re-introduces the magicule-cost asymmetry that absolute copy
+was meant to fix. A high-EP goblin costs a lot to send (cost = EP × 0.25),
+but its citizen counterpart has only citizen-scale EP, so summon-back is
+cheap. Round-trip cost is asymmetric → exploitable for cheap repeated
+swaps.
+
+Future fixes worth considering: (a) apply a temporary
+`MAX_MAGICULE`/`MAX_AURA` attribute modifier to the citizen body for the
+duration of its colony service, sized to match the goblin's max, so
+absolute copy becomes safe; (b) compute summon-back cost from the
+goblin's pre-send EP stored in the snapshot rather than the citizen's
+current EP. (a) is cleaner if the citizen body's stat changes don't
+fight MineColonies' citizen-skill system; (b) is simpler but means the
+cost stops reflecting "current" power.
+
 **Goblin/citizen stat systems differ — equalisation deferred**
 Tensura and MineColonies maintain separate stat models: Tensura tracks
 EP (aura + magicule), spiritual health, alignment, evolution state, and
