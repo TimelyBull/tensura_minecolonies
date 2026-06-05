@@ -17,6 +17,22 @@ via `libs/` jars in the dev environment.
 See `docs/decisions.md` for the full design rationale. Earlier dual-tracking and
 spawn-suppression approaches are abandoned.
 
+### Stage 1b — Pending pool for pre-colony naming ✅ COMPLETE
+Goblins named before any colony exists are queued in `GoblinIdentitySavedData.pending`
+and persist across save/reload. On `ColonyCreatedModEvent`, every still-alive
+pending goblin is promoted to a real `ICitizenData` (count goes up) via the
+same path normal naming uses. Stale entries (dead goblin) are dropped both
+proactively (via the goblin-death hook) and at promotion time. Promoted
+identities are full `GoblinIdentity` records — fully compatible with the
+existing send/summon/death paths.
+
+- [x] `PendingGoblin` record (identityId, name, goblinEntityUUID) saved/loaded
+      in `GoblinIdentitySavedData`
+- [x] Naming-time capture in the no-colony branch
+- [x] `ColonyCreatedModEvent` subscription drains the pool
+- [x] Stale check via `server.getAllLevels()` UUID lookup
+- [x] Goblin-death hook also removes pending entries
+
 ### Stage A — Name → CitizenData + count, no body ✅ COMPLETE
 Naming a goblin (server-side, when a colony exists) immediately creates a
 `CitizenData` entry and increases the colony's citizen count. No `EntityCitizen`

@@ -9,6 +9,7 @@ import net.minecraft.world.level.saveddata.SavedData;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -84,6 +85,40 @@ public class GoblinIdentitySavedData extends SavedData {
     }
 
     // -----------------------------------------------------------------
+    // Pending pool — goblins named before any colony exists.
+    // Drained by ColonyCreatedModEvent into the newly-created colony.
+    // Single-colony assumption: see docs/decisions.md.
+    // -----------------------------------------------------------------
+
+    public static class PendingGoblin {
+        public final UUID identityId;        // becomes GoblinIdentity.identityId on promotion
+        public final String name;            // citizen name once promoted
+        public final UUID goblinEntityUUID;  // for stale-check + identity link on promotion
+
+        public PendingGoblin(UUID identityId, String name, UUID goblinEntityUUID) {
+            this.identityId       = identityId;
+            this.name             = name;
+            this.goblinEntityUUID = goblinEntityUUID;
+        }
+
+        CompoundTag toNBT() {
+            CompoundTag t = new CompoundTag();
+            t.putUUID("identityId", identityId);
+            t.putString("name", name);
+            t.putUUID("goblinEntityUUID", goblinEntityUUID);
+            return t;
+        }
+
+        static PendingGoblin fromNBT(CompoundTag t) {
+            return new PendingGoblin(
+                    t.getUUID("identityId"),
+                    t.getString("name"),
+                    t.getUUID("goblinEntityUUID")
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------
     // Internal maps
     // -----------------------------------------------------------------
 
@@ -92,6 +127,9 @@ public class GoblinIdentitySavedData extends SavedData {
 
     /** Reverse map for quick lookup when a goblin entity is interacted with */
     private final Map<UUID, UUID> goblinUUIDToIdentityId = new HashMap<>();
+
+    /** Pending goblins waiting for a colony to exist */
+    private final List<PendingGoblin> pending = new java.util.ArrayList<>();
 
     // -----------------------------------------------------------------
     // Factory / access
@@ -160,6 +198,32 @@ public class GoblinIdentitySavedData extends SavedData {
     }
 
     // -----------------------------------------------------------------
+    // Pending pool — add / remove / list
+    // -----------------------------------------------------------------
+
+    public void addPending(PendingGoblin p) {
+        pending.add(p);
+        setDirty();
+    }
+
+    public void removePending(PendingGoblin p) {
+        pending.remove(p);
+        setDirty();
+    }
+
+    /** Defensive cleanup: drop a pending entry whose goblin entity died before
+     *  any colony existed. Called from the goblin-death hook. No-op if no match. */
+    public void removePendingByGoblinUUID(UUID goblinEntityUUID) {
+        if (pending.removeIf(p -> p.goblinEntityUUID.equals(goblinEntityUUID))) {
+            setDirty();
+        }
+    }
+
+    public List<PendingGoblin> getPending() {
+        return pending;
+    }
+
+    // -----------------------------------------------------------------
     // Lookups
     // -----------------------------------------------------------------
 
@@ -187,25 +251,39 @@ public class GoblinIdentitySavedData extends SavedData {
 
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
-        ListTag list = new ListTag();
+        ListTag identitiesList = new ListTag();
         for (GoblinIdentity identity : byIdentityId.values()) {
-            list.add(identity.toNBT());
+            identitiesList.add(identity.toNBT());
         }
-        tag.put("identities", list);
+        tag.put("identities", identitiesList);
+
+        ListTag pendingList = new ListTag();
+        for (PendingGoblin p : pending) {
+            pendingList.add(p.toNBT());
+        }
+        tag.put("pending", pendingList);
+
         return tag;
     }
 
     public static GoblinIdentitySavedData load(CompoundTag tag,
                                                HolderLookup.Provider registries) {
         GoblinIdentitySavedData data = new GoblinIdentitySavedData();
-        ListTag list = tag.getList("identities", Tag.TAG_COMPOUND);
-        for (int i = 0; i < list.size(); i++) {
-            GoblinIdentity identity = GoblinIdentity.fromNBT(list.getCompound(i));
+
+        ListTag identitiesList = tag.getList("identities", Tag.TAG_COMPOUND);
+        for (int i = 0; i < identitiesList.size(); i++) {
+            GoblinIdentity identity = GoblinIdentity.fromNBT(identitiesList.getCompound(i));
             data.byIdentityId.put(identity.identityId, identity);
             if (identity.goblinEntityUUID != null) {
                 data.goblinUUIDToIdentityId.put(identity.goblinEntityUUID, identity.identityId);
             }
         }
+
+        ListTag pendingList = tag.getList("pending", Tag.TAG_COMPOUND);
+        for (int i = 0; i < pendingList.size(); i++) {
+            data.pending.add(PendingGoblin.fromNBT(pendingList.getCompound(i)));
+        }
+
         return data;
     }
 }

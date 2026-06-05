@@ -8,6 +8,7 @@ import com.minecolonies.api.IMinecoloniesAPI;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColonyManager;
+import com.minecolonies.api.eventbus.events.colony.ColonyCreatedModEvent;
 import com.minecolonies.api.eventbus.events.colony.citizens.CitizenDiedModEvent;
 import com.minecolonies.api.inventory.InventoryCitizen;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -24,6 +25,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -138,7 +140,19 @@ public class ExampleMod {
         }
 
         if (colony == null) {
-            LOGGER.info("[TM] no colony in world — goblin '{}' stays a plain subordinate", name.get());
+            // Stage 1b: no colony exists yet. Queue this goblin in the pending
+            // pool — it stays a plain subordinate at the player's side, but it
+            // will be promoted to a real CitizenData (and the count will
+            // increase) on the first ColonyCreatedModEvent.
+            GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(serverLevel);
+            GoblinIdentitySavedData.PendingGoblin p = new GoblinIdentitySavedData.PendingGoblin(
+                    UUID.randomUUID(),
+                    name.get(),
+                    entity.getUUID()
+            );
+            saved.addPending(p);
+            LOGGER.info("[TM] no colony yet — '{}' queued as pending (id={}, goblin={})",
+                    name.get(), p.identityId, p.goblinEntityUUID);
             return EventResult.pass();
         }
 
@@ -218,6 +232,87 @@ public class ExampleMod {
     }
 
     // ------------------------------------------------------------------
+    // Stage 1b — pending pool drain on colony creation
+    // ------------------------------------------------------------------
+
+    /**
+     * Promote every still-alive pending goblin into a real CitizenData when
+     * the first colony is created. Goblins whose entity died before the
+     * colony existed are silently dropped (stale entries cleaned).
+     *
+     * Single-colony assumption: all pending → this newly-created colony.
+     * Multi-colony future would need a per-pending colony assignment policy
+     * (see docs/decisions.md). Once drained, the pending list is empty;
+     * subsequent ColonyCreatedModEvent firings find nothing to do.
+     */
+    private void onColonyCreated(ColonyCreatedModEvent event) {
+        IColony colony = event.getColony();
+        if (!(colony.getWorld() instanceof ServerLevel serverLevel)) return;
+
+        MinecraftServer server = serverLevel.getServer();
+        GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(serverLevel);
+
+        // Snapshot to a separate list so we can mutate saved.pending during iteration.
+        List<GoblinIdentitySavedData.PendingGoblin> drain =
+                new java.util.ArrayList<>(saved.getPending());
+        if (drain.isEmpty()) {
+            LOGGER.info("[TM] colony '{}' created — no pending goblins to promote",
+                    colony.getName());
+            return;
+        }
+
+        LOGGER.info("[TM] colony '{}' created — draining {} pending goblin(s)",
+                colony.getName(), drain.size());
+
+        for (GoblinIdentitySavedData.PendingGoblin p : drain) {
+            // Stale check: drop pending entry if the goblin entity is gone.
+            LivingEntity goblin = findLivingEntityAcrossLevels(server, p.goblinEntityUUID);
+            if (goblin == null) {
+                LOGGER.info("[TM] pending '{}': goblin {} no longer alive — discarding stale entry",
+                        p.name, p.goblinEntityUUID);
+                saved.removePending(p);
+                continue;
+            }
+
+            // Same promotion path as a normal naming-with-colony.
+            ICitizenData citizenData = colony.getCitizenManager().createAndRegisterCivilianData();
+            citizenData.setName(p.name);
+            colony.getTravellingManager().startTravellingTo(
+                    citizenData, goblin.blockPosition(), Integer.MAX_VALUE);
+
+            GoblinIdentitySavedData.GoblinIdentity identity = new GoblinIdentitySavedData.GoblinIdentity(
+                    p.identityId,                                   // reuse the stable id from pending
+                    citizenData.getId(),
+                    colony.getID(),
+                    p.goblinEntityUUID,
+                    GoblinIdentitySavedData.Mode.SUBORDINATE,
+                    null                                            // entitySnapshot — populated at first send
+            );
+            saved.addIdentity(identity);
+            saved.removePending(p);
+
+            LOGGER.info("[TM] pending '{}' promoted: citizen id={} in '{}' (now {} citizens)",
+                    p.name, citizenData.getId(), colony.getName(),
+                    colony.getCitizenManager().getCurrentCitizenCount());
+        }
+    }
+
+    /**
+     * Find a living LivingEntity with the given UUID anywhere on the server.
+     * Iterates all server levels so we don't miss a goblin in a different
+     * dimension from the new colony.
+     */
+    private static LivingEntity findLivingEntityAcrossLevels(MinecraftServer server, UUID uuid) {
+        for (ServerLevel level : server.getAllLevels()) {
+            Entity e = level.getEntity(uuid);
+            if (e instanceof LivingEntity le && le.isAlive()) {
+                return le;
+            }
+        }
+        return null;
+    }
+
+    // ------------------------------------------------------------------
     // Stage D — death hooks
     //
     // Swap safety (verified by construction, not by runtime check):
@@ -241,6 +336,11 @@ public class ExampleMod {
 
         UUID entityUUID = event.getEntity().getUUID();
         GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(serverLevel);
+
+        // Stage 1b cleanup: if this entity was in the pending pool (named before
+        // any colony existed), drop the pending entry. No-op for normal goblins.
+        saved.removePendingByGoblinUUID(entityUUID);
+
         GoblinIdentitySavedData.GoblinIdentity identity = saved.getByGoblinUUID(entityUUID);
         if (identity == null) return; // not one of our named goblin-citizens
 
@@ -738,11 +838,26 @@ public class ExampleMod {
     private void commonSetup(FMLCommonSetupEvent event) {
         LOGGER.info("[TM] common setup");
         // Subscribe to MineColonies' own event bus (separate from NeoForge's).
-        // Case B death cleanup: CitizenDiedModEvent fires AFTER EntityCitizen.die()
-        // has already called removeCivilian — count is correct — we only clean our
-        // SavedData record.
-        event.enqueueWork(() -> IMinecoloniesAPI.getInstance().getEventBus()
-                .subscribe(CitizenDiedModEvent.class, this::onCitizenDied));
+        event.enqueueWork(() -> {
+            // Case B death cleanup. EntityCitizen.die() already called
+            // removeCivilian before posting this event — count is correct,
+            // we only clean our SavedData record.
+            IMinecoloniesAPI.getInstance().getEventBus()
+                    .subscribe(CitizenDiedModEvent.class, this::onCitizenDied);
+
+            // Stage 1b pending pool drain. All pending goblins join the
+            // newly-created colony (single-colony assumption — see
+            // docs/decisions.md).
+            //
+            // FUTURE FEATURE: when signing the town hall, show a menu asking
+            // what citizen TYPE the colony should use (goblin / human / etc.).
+            // That ties into the broader race/citizen-type system in the
+            // original design doc. The pending pool drain logic would then
+            // also filter by type. Not implemented now — recorded in
+            // docs/decisions.md → "Town hall citizen-type menu".
+            IMinecoloniesAPI.getInstance().getEventBus()
+                    .subscribe(ColonyCreatedModEvent.class, this::onColonyCreated);
+        });
     }
 
     private void addCreative(BuildCreativeModeTabContentsEvent event) {

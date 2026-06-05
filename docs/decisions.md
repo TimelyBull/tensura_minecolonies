@@ -45,6 +45,26 @@ testing but must be revisited before multi-colony support. Open question: should
 the target colony be the one nearest the goblin, nearest the player, or chosen
 via a UI prompt?
 
+**Pending pool drains into the first colony created (single-colony assumption)**
+Goblins named before any colony exists are queued in a pending pool in
+`GoblinIdentitySavedData`. On `ColonyCreatedModEvent` the pool is drained:
+every still-alive pending goblin is promoted via `createAndRegisterCivilianData()`
++ `setName()` + `startTravellingTo(...)` into the newly-created colony.
+Subsequent colony creations find an empty pool. Multi-colony future will need
+a per-pending-entry colony-assignment policy (by player ownership? by location?
+by UI prompt at promotion time?). Stale pending entries (goblin died before
+any colony existed) are dropped silently — the goblin-death hook also removes
+matching pending entries proactively so the list doesn't grow.
+
+**FUTURE FEATURE — Town hall citizen-type menu**
+When a player signs a MineColonies town hall to create a colony, show a menu
+asking what citizen TYPE the colony should use (goblin, human, etc.). This
+ties into the broader race/citizen-type system from the original design
+doc. The pending-pool drain would then also filter by chosen type — only
+goblin pending entries promoted into a goblin-typed colony, etc. Not
+implemented now; the colony-creation hook (`ColonyCreatedModEvent`) is the
+right interception point for this.
+
 **SUPERSEDED — dual-tracking / single-entity approaches abandoned**
 Earlier designs (Option A: convert to citizen, Option B: single entity dual
 tracking, Option B2: paired shadow citizen) are all superseded by the
