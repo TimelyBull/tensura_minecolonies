@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 
 import com.minecolonies.api.colony.IColony;
+import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColonyManager;
 import dev.architectury.event.EventResult;
 import io.github.manasmods.tensura.event.TensuraEntityEvents;
@@ -100,15 +101,31 @@ public class ExampleMod {
             if (ResourceLocation.fromNamespaceAndPath("tensura", "goblin").equals(entityId)) {
                 LOGGER.info("goblin named: {}", name.get());
 
-                // Colony lookup must run server-side — IColonyManager works only on the
-                // server. The NAMING_EVENT fires on both sides, so we skip on the client.
+                // Colony lookup and citizen registration must run server-side.
+                // NAMING_EVENT fires on both sides, so skip on the client.
                 if (entity.level() instanceof ServerLevel serverLevel) {
-                    IColony colony = IColonyManager.getInstance()
-                            .getColonyByPosFromWorld(serverLevel, entity.blockPosition());
-                    if (colony != null) {
-                        LOGGER.info("colony found: {} (id {})", colony.getName(), colony.getID());
+                    // Prefer the colony owned by the naming player; fall back to the
+                    // first colony in the world so naming works even if the player
+                    // isn't the colony owner.
+                    IColonyManager colonyManager = IColonyManager.getInstance();
+                    IColony colony = colonyManager.getIColonyByOwner(serverLevel, player);
+                    if (colony == null) {
+                        java.util.List<IColony> all = colonyManager.getColonies(serverLevel);
+                        colony = all.isEmpty() ? null : all.get(0);
+                    }
+
+                    if (colony == null) {
+                        LOGGER.info("no colony exists in this world — goblin not registered");
                     } else {
-                        LOGGER.info("no colony here");
+                        // createAndRegisterCivilianData() adds the ICitizenData to the
+                        // colony's citizens map and returns it. No EntityCitizen is spawned.
+                        ICitizenData citizenData = colony.getCitizenManager().createAndRegisterCivilianData();
+                        citizenData.setName(name.get());
+                        LOGGER.info("registered goblin '{}' as citizen id {} in colony '{}' (now {} citizens)",
+                                name.get(),
+                                citizenData.getId(),
+                                colony.getName(),
+                                colony.getCitizenManager().getCurrentCitizenCount());
                     }
                 }
             }
