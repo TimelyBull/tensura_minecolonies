@@ -139,6 +139,27 @@ permanently — no revival, matches the "death reflects in the colony" rule.
 - [ ] Verify identity survives server restart
 - [ ] Verify citizen count stays correct across swaps
 
+### Stage D2 — Magicule cost for swaps ✅ COMPLETE
+Each send/summon costs the player magicule = target's current EP × 0.25,
+read from the live body's IExistence. One shared chokepoint
+(`chargeOrPrompt`) used by the menu, `/summongoblin`, and sneak-right-click —
+no path bypasses the cost.
+
+- [x] `readExistence(LivingEntity)` helper via ManasCore StorageHolder mixin
+- [x] Cost = `targetExistence.getEP() * 0.25`
+- [x] Sufficient → deduct from `playerExistence.getMagicule()`, run action
+- [x] Insufficient → S2C `OpenCollapseConfirmPayload` opens the warning Screen
+- [x] `ConfirmCollapseScreen` layered on top of `RosterScreen` (or no parent
+      if triggered from command/sneak-click). Explicit wording about
+      defenceless + could die. Cancel = no packet, no change. Proceed sends
+      C2S `ConfirmCollapsePayload`
+- [x] On Accept: `setMagicule(0)` exactly, never negative; Tensura's natural
+      `handleSleepMode` tick detects depletion and enters Sleep Mode through
+      its full pipeline (event fires, attribute applied, magicule reset to 1.0,
+      unride, flying disabled). We do NOT suppress `ENTER_SLEEP_MODE_EVENT`
+- [x] Sneak-click and `/summongoblin` rerouted through `handleMenuAction` so
+      the chokepoint is enforced once for all entry points
+
 ### Stage E — Magic circle visuals ⬜ PENDING
 Add dissolve/materialize visual effects (particles, sound, brief animation) to
 the send and summon transitions.

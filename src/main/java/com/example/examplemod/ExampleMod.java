@@ -11,6 +11,8 @@ import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.eventbus.events.colony.ColonyCreatedModEvent;
 import com.minecolonies.api.eventbus.events.colony.citizens.CitizenDiedModEvent;
 import com.minecolonies.api.inventory.InventoryCitizen;
+import io.github.manasmods.manascore.storage.api.StorageHolder;
+import io.github.manasmods.tensura.storage.ep.ExistenceStorage;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -59,6 +61,7 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
@@ -240,7 +243,12 @@ public class ExampleMod {
         // Consume the interaction so the goblin's normal right-click logic doesn't also fire.
         event.setCanceled(true);
 
-        sendGoblinToColony(target, event.getEntity(), identity, serverLevel, saved);
+        // Route through the shared cost chokepoint (so sneak-send is taxed
+        // identically to a menu click). The player must be a ServerPlayer
+        // since we already checked isClientSide().
+        if (event.getEntity() instanceof ServerPlayer sp) {
+            handleMenuAction(sp, identity.identityId);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -547,32 +555,31 @@ public class ExampleMod {
         GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(level);
         IColonyManager cm = IColonyManager.getInstance();
 
-        // Find an IN_COLONY identity whose citizen name matches.
-        GoblinIdentitySavedData.GoblinIdentity matchIdentity = null;
-        IColony matchColony = null;
-        ICitizenData matchData = null;
+        // Find an IN_COLONY identity OWNED by this player whose citizen name matches.
+        // The command only routes the lookup; the actual action goes through the
+        // shared chokepoint so the magicule cost / collapse-prompt apply identically.
+        java.util.UUID matchId = null;
         for (GoblinIdentitySavedData.GoblinIdentity id : saved.all()) {
             if (id.mode != GoblinIdentitySavedData.Mode.IN_COLONY) continue;
+            if (!player.getUUID().equals(id.ownerPlayerUUID)) continue;
             IColony c = cm.getColonyByWorld(id.colonyId, level);
             if (c == null) continue;
             ICitizenData cd = c.getCitizenManager().getCivilian(id.citizenId);
             if (cd == null) continue;
             if (!name.equals(cd.getName())) continue;
-            matchIdentity = id;
-            matchColony   = c;
-            matchData     = cd;
+            matchId = id.identityId;
             break;
         }
 
-        if (matchIdentity == null) {
-            src.sendFailure(Component.literal("no IN_COLONY identity named '" + name + "' found"));
+        if (matchId == null) {
+            src.sendFailure(Component.literal(
+                    "no IN_COLONY identity named '" + name + "' that you own"));
             return 0;
         }
 
-        summonGoblin(player, level, saved, matchIdentity, matchColony, matchData);
-
+        handleMenuAction(player, matchId);
         final String displayName = name;
-        src.sendSuccess(() -> Component.literal("summoned '" + displayName + "'"), false);
+        src.sendSuccess(() -> Component.literal("summoning '" + displayName + "'"), false);
         return 1;
     }
 
@@ -685,53 +692,175 @@ public class ExampleMod {
     // ------------------------------------------------------------------
 
     static void handleMenuAction(ServerPlayer player, java.util.UUID identityId) {
-        ServerLevel level = player.serverLevel();
-        GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(level);
-
+        GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(player.serverLevel());
         GoblinIdentitySavedData.GoblinIdentity identity = saved.getById(identityId);
         if (identity == null) {
             sendAdvisoryNotice(player, "That goblin no longer exists.");
             return;
         }
-
         // Ownership check — only the namer can act on the identity.
         if (identity.ownerPlayerUUID == null
                 || !player.getUUID().equals(identity.ownerPlayerUUID)) {
             sendAdvisoryNotice(player, "That goblin isn't yours.");
             return;
         }
+        // Resolve the live body whose IExistence we'll read for the cost gate.
+        LivingEntity target = resolveTargetBody(player, identity);
+        if (target == null) {
+            String msg = identity.mode == GoblinIdentitySavedData.Mode.SUBORDINATE
+                    ? "Your goblin isn't in any loaded chunk right now — go closer and try again."
+                    : "That goblin's citizen body isn't loaded right now — visit the colony first.";
+            sendAdvisoryNotice(player, msg);
+            return;
+        }
+        // Shared cost chokepoint. Returns false if insufficient (prompt sent
+        // to client; action awaits confirmation).
+        if (chargeOrPrompt(player, identity, target)) {
+            executeAction(player, identity, target);
+        }
+    }
+
+    /**
+     * Server-side confirmation handler for the collapse dialog. Per the design:
+     *   - setMagicule(0) — EXACTLY zero, never negative. Tensura's natural
+     *     handleSleepMode tick detects magicule ≤ 0 and runs the full Sleep
+     *     Mode entry pipeline (ENTER_SLEEP_MODE_EVENT fires, attribute applied,
+     *     magicule reset to 1.0, entity unridden, flying disabled).
+     *   - We do NOT call applySleepModeAttribute, setSleepModeTime, or fire
+     *     the event ourselves. The natural pipeline does it.
+     *   - We do NOT cancel the event. Sleep Mode is intended here.
+     */
+    static void handleConfirmCollapse(ServerPlayer player, java.util.UUID identityId) {
+        GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(player.serverLevel());
+        GoblinIdentitySavedData.GoblinIdentity identity = saved.getById(identityId);
+        if (identity == null) {
+            sendAdvisoryNotice(player, "That goblin no longer exists.");
+            return;
+        }
+        if (identity.ownerPlayerUUID == null
+                || !player.getUUID().equals(identity.ownerPlayerUUID)) {
+            sendAdvisoryNotice(player, "That goblin isn't yours.");
+            return;
+        }
+        LivingEntity target = resolveTargetBody(player, identity);
+        if (target == null) {
+            sendAdvisoryNotice(player,
+                    "Couldn't reach the target now — try again from closer.");
+            return;
+        }
+
+        ExistenceStorage playerExist = readExistence(player);
+        if (playerExist == null) {
+            sendAdvisoryNotice(player, "Couldn't access your magicule storage.");
+            return;
+        }
+        playerExist.setMagicule(0.0); // EXACTLY 0 — never negative
+        playerExist.markDirty();
+        LOGGER.info("[TM] cost: '{}' forced collapse — magicule set to 0; Sleep Mode will trigger naturally next tick",
+                player.getName().getString());
+
+        executeAction(player, identity, target);
+    }
+
+    /**
+     * The shared cost gate. Returns true if the action should proceed
+     * (cost has been deducted), false if a confirm prompt was sent and the
+     * caller must NOT run the action.
+     *
+     * Cost = target's current EP × 0.25, deducted from player's magicule.
+     */
+    private static boolean chargeOrPrompt(ServerPlayer player,
+                                          GoblinIdentitySavedData.GoblinIdentity identity,
+                                          LivingEntity target) {
+        ExistenceStorage targetExist = readExistence(target);
+        if (targetExist == null) {
+            sendAdvisoryNotice(player, "Couldn't read the target's energy state.");
+            return false;
+        }
+        double cost = targetExist.getEP() * 0.25;
+
+        ExistenceStorage playerExist = readExistence(player);
+        if (playerExist == null) {
+            sendAdvisoryNotice(player, "Couldn't read your magicule.");
+            return false;
+        }
+        double playerMagicule = playerExist.getMagicule();
+
+        if (playerMagicule >= cost) {
+            playerExist.setMagicule(playerMagicule - cost);
+            playerExist.markDirty();
+            LOGGER.info("[TM] cost: deducted {} magicule from '{}' (had {}, now {})",
+                    cost, player.getName().getString(), playerMagicule, playerMagicule - cost);
+            return true;
+        }
+
+        // Insufficient — send the confirmation prompt. Action does NOT run
+        // until the player accepts (and even then, only after handleConfirmCollapse).
+        String name = resolveDisplayName(player, identity);
+        LOGGER.info("[TM] cost: '{}' has {} magicule, needs {} for '{}' — prompting collapse confirmation",
+                player.getName().getString(), playerMagicule, cost, name);
+        PacketDistributor.sendToPlayer(player, new Networking.OpenCollapseConfirmPayload(
+                identity.identityId, name, cost, playerMagicule));
+        return false;
+    }
+
+    /** Run the existing send or summon helper. No cost checking — the gate
+     *  has already been passed (sufficient or confirmed-collapse). */
+    private static void executeAction(ServerPlayer player,
+                                      GoblinIdentitySavedData.GoblinIdentity identity,
+                                      LivingEntity target) {
+        ServerLevel level = player.serverLevel();
+        GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(level);
 
         if (identity.mode == GoblinIdentitySavedData.Mode.SUBORDINATE) {
-            // Find the goblin entity to send. The Stage 1b helper searches
-            // every level — covers the case where the player is in one
-            // dimension and the goblin in another.
-            LivingEntity goblin = findLivingEntityAcrossLevels(
-                    player.getServer(), identity.goblinEntityUUID);
-            if (goblin == null) {
-                sendAdvisoryNotice(player,
-                        "Your goblin isn't in any loaded chunk right now — go closer and try again.");
+            if (!(target.level() instanceof ServerLevel goblinLevel)) {
+                LOGGER.warn("[TM] action: goblin not on ServerLevel — aborting");
                 return;
             }
-            if (!(goblin.level() instanceof ServerLevel goblinLevel)) {
-                LOGGER.warn("[TM] menu: goblin {} is not on a ServerLevel — aborting", goblin.getUUID());
-                return;
-            }
-            sendGoblinToColony(goblin, player, identity, goblinLevel, saved);
+            sendGoblinToColony(target, player, identity, goblinLevel, saved);
         } else {
-            // IN_COLONY: summon back to player.
-            IColony colony = IColonyManager.getInstance()
-                    .getColonyByWorld(identity.colonyId, level);
+            IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
             if (colony == null) {
                 sendAdvisoryNotice(player, "That goblin's colony no longer exists.");
                 return;
             }
-            ICitizenData citizenData = colony.getCitizenManager().getCivilian(identity.citizenId);
-            if (citizenData == null) {
-                sendAdvisoryNotice(player, "That goblin's citizen record is missing — try again later.");
+            ICitizenData cd = colony.getCitizenManager().getCivilian(identity.citizenId);
+            if (cd == null) {
+                sendAdvisoryNotice(player, "That goblin's citizen record is missing.");
                 return;
             }
-            summonGoblin(player, level, saved, identity, colony, citizenData);
+            summonGoblin(player, level, saved, identity, colony, cd);
         }
+    }
+
+    /** Resolve the live body for an identity. Returns null if not loaded. */
+    private static LivingEntity resolveTargetBody(ServerPlayer player,
+                                                  GoblinIdentitySavedData.GoblinIdentity identity) {
+        if (identity.mode == GoblinIdentitySavedData.Mode.SUBORDINATE) {
+            return findLivingEntityAcrossLevels(player.getServer(), identity.goblinEntityUUID);
+        }
+        IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, player.serverLevel());
+        if (colony == null) return null;
+        ICitizenData cd = colony.getCitizenManager().getCivilian(identity.citizenId);
+        if (cd == null) return null;
+        return cd.getEntity().orElse(null);
+    }
+
+    /** Lookup citizen name for advisory/prompt display. Falls back to "your goblin". */
+    private static String resolveDisplayName(ServerPlayer player,
+                                             GoblinIdentitySavedData.GoblinIdentity identity) {
+        IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, player.serverLevel());
+        if (colony == null) return "your goblin";
+        ICitizenData cd = colony.getCitizenManager().getCivilian(identity.citizenId);
+        return cd != null ? cd.getName() : "your goblin";
+    }
+
+    /** Read ExistenceStorage off any LivingEntity via the ManasCore mixin. */
+    private static ExistenceStorage readExistence(LivingEntity entity) {
+        if (entity instanceof StorageHolder holder) {
+            return holder.manasCore$getStorage(ExistenceStorage.getKey());
+        }
+        return null;
     }
 
     // ------------------------------------------------------------------

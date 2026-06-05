@@ -60,10 +60,20 @@ public final class Networking {
                 ActOnIdentityPayload.CODEC,
                 Networking::onActOnIdentity
         );
+        registrar.playToServer(
+                ConfirmCollapsePayload.TYPE,
+                ConfirmCollapsePayload.CODEC,
+                Networking::onConfirmCollapse
+        );
         registrar.playToClient(
                 RosterResponsePayload.TYPE,
                 RosterResponsePayload.CODEC,
                 Networking::onRosterResponse
+        );
+        registrar.playToClient(
+                OpenCollapseConfirmPayload.TYPE,
+                OpenCollapseConfirmPayload.CODEC,
+                Networking::onOpenCollapseConfirm
         );
     }
 
@@ -78,6 +88,12 @@ public final class Networking {
      */
     public static Consumer<List<RosterEntry>> rosterClientHandler = entries -> {
         LOGGER.info("[TM] roster (no client handler installed): {} entries", entries.size());
+    };
+
+    /** Client-side delegate for the collapse-confirm prompt. Installed by
+     *  {@code ClientEvents.init} to point at the Screen-opening logic. */
+    public static Consumer<OpenCollapseConfirmPayload> confirmCollapseClientHandler = payload -> {
+        LOGGER.info("[TM] confirm collapse (no client handler installed) for {}", payload.identityId());
     };
 
     // ------------------------------------------------------------------
@@ -122,6 +138,45 @@ public final class Networking {
         public static final StreamCodec<ByteBuf, ActOnIdentityPayload> CODEC = StreamCodec.composite(
                 UUIDUtil.STREAM_CODEC, ActOnIdentityPayload::identityId,
                 ActOnIdentityPayload::new
+        );
+
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /**
+     * S2C: insufficient magicule — open the collapse-confirmation Screen.
+     * Carries enough state for the dialog to render its body and reply.
+     */
+    public record OpenCollapseConfirmPayload(UUID identityId,
+                                             String goblinName,
+                                             double cost,
+                                             double currentMagicule) implements CustomPacketPayload {
+        public static final Type<OpenCollapseConfirmPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "open_collapse_confirm"));
+
+        public static final StreamCodec<ByteBuf, OpenCollapseConfirmPayload> CODEC = StreamCodec.composite(
+                UUIDUtil.STREAM_CODEC,        OpenCollapseConfirmPayload::identityId,
+                ByteBufCodecs.STRING_UTF8,    OpenCollapseConfirmPayload::goblinName,
+                ByteBufCodecs.DOUBLE,         OpenCollapseConfirmPayload::cost,
+                ByteBufCodecs.DOUBLE,         OpenCollapseConfirmPayload::currentMagicule,
+                OpenCollapseConfirmPayload::new
+        );
+
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /**
+     * C2S: player clicked "Proceed (collapse)" in the confirm dialog.
+     * Server force-collapses (sets magicule to 0) and runs the original action.
+     * (Decline sends NO packet — client just dismisses the dialog.)
+     */
+    public record ConfirmCollapsePayload(UUID identityId) implements CustomPacketPayload {
+        public static final Type<ConfirmCollapsePayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "confirm_collapse"));
+
+        public static final StreamCodec<ByteBuf, ConfirmCollapsePayload> CODEC = StreamCodec.composite(
+                UUIDUtil.STREAM_CODEC, ConfirmCollapsePayload::identityId,
+                ConfirmCollapsePayload::new
         );
 
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
@@ -190,7 +245,15 @@ public final class Networking {
             ExampleMod.handleMenuAction(sp, payload.identityId());
             // Always push a fresh roster after an action so the open Screen
             // reflects the new state (toggled mode, or unchanged if the action
-            // failed and an advisory was sent).
+            // failed/queued for confirmation and an advisory was sent).
+            sendRosterTo(sp);
+        });
+    }
+
+    private static void onConfirmCollapse(ConfirmCollapsePayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer sp)) return;
+        context.enqueueWork(() -> {
+            ExampleMod.handleConfirmCollapse(sp, payload.identityId());
             sendRosterTo(sp);
         });
     }
@@ -204,5 +267,9 @@ public final class Networking {
     private static void onRosterResponse(RosterResponsePayload payload, IPayloadContext context) {
         // Registered as playToClient → only fires on the logical client.
         context.enqueueWork(() -> rosterClientHandler.accept(payload.entries()));
+    }
+
+    private static void onOpenCollapseConfirm(OpenCollapseConfirmPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> confirmCollapseClientHandler.accept(payload));
     }
 }

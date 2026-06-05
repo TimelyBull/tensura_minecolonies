@@ -45,6 +45,9 @@ public final class ClientEvents {
         // Stage C2b — install the Screen-opening handler. Replaces the
         // log-only default in Networking.rosterClientHandler.
         Networking.rosterClientHandler = ClientRosterHandler::handle;
+
+        // Magicule cost — install the collapse-confirm prompt handler.
+        Networking.confirmCollapseClientHandler = ConfirmCollapseHandler::handle;
     }
 
     private static void onRegisterKeys(RegisterKeyMappingsEvent event) {
