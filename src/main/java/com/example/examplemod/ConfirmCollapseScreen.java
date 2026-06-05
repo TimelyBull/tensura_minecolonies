@@ -60,9 +60,21 @@ public class ConfirmCollapseScreen extends Screen {
         ).bounds(cx + 10, buttonY, 110, 20).build());
     }
 
+    /** Exposed for {@link ClientRosterHandler} so it can refresh the parent
+     *  list without replacing this Screen when a roster response arrives. */
+    public Screen getParent() {
+        return parent;
+    }
+
     private void cancel() {
         // Decline → close, charge nothing, change nothing. NO server packet.
         Minecraft.getInstance().setScreen(parent);
+    }
+
+    /** ESC should behave like Cancel (return to parent), not close everything. */
+    @Override
+    public void onClose() {
+        cancel();
     }
 
     private void proceed() {

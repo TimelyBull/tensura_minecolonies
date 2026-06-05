@@ -24,6 +24,22 @@ public final class ClientRosterHandler {
         Minecraft mc = Minecraft.getInstance();
         if (mc.screen instanceof RosterScreen open) {
             open.setEntries(entries);
+        } else if (mc.screen instanceof ConfirmCollapseScreen confirm) {
+            // The confirm dialog is layered over a Screen — typically the
+            // RosterScreen, possibly null. The server always pushes a roster
+            // refresh after an action (including the "prompt sent" case),
+            // and that arrives a moment after the confirm prompt. We must
+            // NOT replace mc.screen here, or the confirm dialog would be
+            // overwritten by a fresh RosterScreen — exactly what was making
+            // the prompt invisible.
+            //
+            // Instead, update the parent roster's data so it shows the
+            // refreshed list when the dialog is dismissed.
+            if (confirm.getParent() instanceof RosterScreen rosterParent) {
+                rosterParent.setEntries(entries);
+            }
+            // else: confirm has no roster parent (came from /summongoblin or
+            // sneak-click); nothing to refresh, dialog stays open.
         } else {
             mc.setScreen(new RosterScreen(entries));
         }
