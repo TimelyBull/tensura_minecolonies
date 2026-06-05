@@ -13,6 +13,7 @@ import com.minecolonies.api.eventbus.events.colony.citizens.CitizenDiedModEvent;
 import com.minecolonies.api.inventory.InventoryCitizen;
 import io.github.manasmods.manascore.storage.api.StorageHolder;
 import io.github.manasmods.tensura.storage.ep.ExistenceStorage;
+import io.github.manasmods.tensura.storage.ep.IExistence;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -494,6 +495,21 @@ public class ExampleMod {
         //    components/NBT — vanilla copy() carries everything.
         List<ItemStack> sendOverflow = transferGoblinItemsToCitizen(goblin, citizenData.getInventory());
 
+        // 5b. Stat sync: goblin (active body) → citizen (fresh body). Must
+        //     happen before goblin.discard() while both bodies are alive.
+        //     IExistence subset via copyStats; HP as a percentage to handle
+        //     the goblin/citizen max-HP mismatch.
+        spawned.getEntity().ifPresent(citizenBody -> {
+            ExistenceStorage srcExist = readExistence(goblin);
+            ExistenceStorage dstExist = readExistence(citizenBody);
+            if (srcExist != null && dstExist != null) {
+                copyStats(srcExist, dstExist);
+                LOGGER.info("[TM] send: stats copied goblin → citizen (aura={} magicule={} soul={})",
+                        srcExist.getAura(), srcExist.getMagicule(), srcExist.getSoulPoints());
+            }
+            copyHealthPercentage(goblin.getHealth(), goblin.getMaxHealth(), citizenBody);
+        });
+
         // 6. Strip HandItems/ArmorItems from the snapshot — the citizen now
         //    owns the items, the snapshot must not duplicate them. Other entity
         //    state (EvoState, attributes, ManasCoreStorage) stays in the snapshot.
@@ -592,19 +608,18 @@ public class ExampleMod {
         LOGGER.info("[TM] summon: starting for citizen {} ('{}')",
                 identity.citizenId, citizenData.getName());
 
-        // 1. Discard the EntityCitizen body (if it currently exists).
-        //    discard() removes the entity from the world WITHOUT triggering die().
-        //    It posts CitizenRemovedModEvent(DISCARDED) which does NOT delete
-        //    CitizenData — count stays the same.
-        citizenData.getEntity().ifPresentOrElse(
-                citizenEntity -> {
-                    citizenEntity.discard();
-                    LOGGER.info("[TM] summon: EntityCitizen discarded for citizen {} (count unchanged)",
-                            identity.citizenId);
-                },
-                () -> LOGGER.info("[TM] summon: citizen {} had no live body (chunk unloaded?) — nothing to discard",
-                        identity.citizenId)
-        );
+        // 1. Capture a reference to the live citizen body — but do NOT discard
+        //    it yet. We need to read its IExistence stats and HP later (step 6b),
+        //    after the goblin has been reconstructed. The discard is deferred
+        //    until step 7b, after the goblin is in the world. May be empty if
+        //    the colony chunk is unloaded; in that case we fall back to the
+        //    snapshot's stale stats.
+        java.util.Optional<? extends com.minecolonies.api.entity.citizen.AbstractCivilianEntity> citizenBodyOpt =
+                citizenData.getEntity();
+        if (citizenBodyOpt.isEmpty()) {
+            LOGGER.info("[TM] summon: citizen {} had no live body (chunk unloaded?) — stat copy will fall back to snapshot",
+                    identity.citizenId);
+        }
 
         // 2. Re-suppress the respawn loop so updateEntityIfNecessary() doesn't
         //    immediately try to re-spawn the EntityCitizen during the summon window.
@@ -651,12 +666,39 @@ public class ExampleMod {
         InventoryCitizen citizenInv = citizenData.getInventory();
         List<ItemStack> overflow = transferCitizenItemsToGoblin(citizenInv, goblin);
 
+        // 6b. Stat sync: citizen (active body) → goblin (fresh body). Overwrites
+        //     the snapshot's stale IExistence values that the NBT reconstruction
+        //     just restored. Must happen BEFORE addFreshEntity so the first
+        //     client sync carries the right values.
+        if (citizenBodyOpt.isPresent()) {
+            LivingEntity citizenBody = citizenBodyOpt.get();
+            ExistenceStorage srcExist = readExistence(citizenBody);
+            ExistenceStorage dstExist = readExistence(goblin);
+            if (srcExist != null && dstExist != null) {
+                copyStats(srcExist, dstExist);
+                LOGGER.info("[TM] summon: stats copied citizen → goblin (aura={} magicule={} soul={})",
+                        srcExist.getAura(), srcExist.getMagicule(), srcExist.getSoulPoints());
+            }
+            copyHealthPercentage(citizenBody.getHealth(), citizenBody.getMaxHealth(), goblin);
+        } else {
+            LOGGER.info("[TM] summon: no live citizen body — keeping snapshot's stats and HP");
+        }
+
         // 7. Add to the world. Custom name, attributes, evolution state,
         //    and all ManasCore storages are already restored from NBT;
-        //    equipment was just applied in step 6.
+        //    equipment was applied in step 6, stats in step 6b.
         level.addFreshEntity(goblin);
         LOGGER.info("[TM] summon: goblin reconstructed from NBT at {} with NEW UUID {}",
                 spawnPos, goblin.getUUID());
+
+        // 7b. NOW discard the citizen body — after stat copy, after addFreshEntity.
+        //     discard() never fires CitizenDiedModEvent (only die() does) so the
+        //     CitizenData / count are untouched; the body just leaves the world.
+        citizenBodyOpt.ifPresent(citizenBody -> {
+            citizenBody.discard();
+            LOGGER.info("[TM] summon: EntityCitizen discarded for citizen {} (count unchanged)",
+                    identity.citizenId);
+        });
 
         // 8. Clear citizen inventory now that everything has been transferred
         //    (equipment → goblin, non-equipment → overflow). Otherwise items
@@ -872,6 +914,78 @@ public class ExampleMod {
             return holder.manasCore$getStorage(ExistenceStorage.getKey());
         }
         return null;
+    }
+
+    // ------------------------------------------------------------------
+    // Stat sync helpers — copy IExistence (subset) + HP between bodies
+    // ------------------------------------------------------------------
+
+    /**
+     * Field-by-field copy of the sync subset from one IExistence to another.
+     * SYNC: aura, magicule, spiritualHealth, gainedEP, soulPoints, humanKill,
+     *       alignment, originalAlignment, isDemonLordSeed, isTrueDemonLord,
+     *       isBlessed, isHeroEgg, isTrueHero, targetNeutralList.
+     * DO NOT SYNC: sleepModeTime, harvestTick, harvestGiftTick, hasHarvestGift,
+     *              isSpiritualForm, summoner/summonedSecond/summonedAbility,
+     *              spawnType, isSkippingEPDrop, temporaryOwner. These are
+     *              body-local or transient.
+     * Name / permanentOwner / isNameable are handled elsewhere (set at naming
+     * and at promotion); not touched here.
+     *
+     * Aura and magicule are copied DIRECTLY — not via setEP() — to preserve
+     * any imbalance between the two pools.
+     */
+    private static void copyStats(IExistence src, IExistence dst) {
+        // Energy pools
+        dst.setAura(src.getAura());
+        dst.setMagicule(src.getMagicule());
+        dst.setSpiritualHealth(src.getSpiritualHealth());
+
+        // Progression / counters
+        dst.setGainedEP(src.getGainedEP());
+        dst.setSoulPoints(src.getSoulPoints());
+        dst.setHumanKill(src.getHumanKill());
+
+        // Character traits
+        dst.setAlignment(src.getAlignment());
+        dst.setOriginalAlignment(src.getOriginalAlignment());
+
+        // Destiny flags
+        dst.setDemonLordSeed(src.isDemonLordSeed());
+        dst.setTrueDemonLord(src.isTrueDemonLord());
+        dst.setBlessed(src.isBlessed());
+        dst.setHeroEgg(src.isHeroEgg());
+        dst.setTrueHero(src.isTrueHero());
+
+        // Target-neutral list — clear and re-add. Defensive copy of the
+        // source's collection so the clear() can't disturb iteration if
+        // the two collections ever shared backing (they shouldn't, but cheap).
+        dst.clearNeutralTargets();
+        for (UUID u : new java.util.ArrayList<>(src.getTargetNeutralList())) {
+            dst.addNeutralTarget(u);
+        }
+
+        dst.markDirty();
+    }
+
+    /**
+     * Copy current health as a percentage of max-HP.
+     * Each body keeps its own max-HP (which differs — race modifiers on the
+     * goblin, MineColonies skills/happiness on the citizen).
+     *
+     * CRITICAL: if the source was alive, the destination must also end alive.
+     * A swap must never kill via rounding. Clamps to [1, dstMax] when
+     * src had any positive HP.
+     */
+    private static void copyHealthPercentage(float srcHealth, float srcMax, LivingEntity dst) {
+        float dstMax = dst.getMaxHealth();
+        if (srcMax <= 0f || dstMax <= 0f) return;
+        float ratio = srcHealth / srcMax;
+        float newHealth = ratio * dstMax;
+        // Never kill via rounding: if src was alive, dst must end alive.
+        if (srcHealth > 0f && newHealth < 1f) newHealth = 1f;
+        if (newHealth > dstMax) newHealth = dstMax;
+        dst.setHealth(newHealth);
     }
 
     // ------------------------------------------------------------------

@@ -160,6 +160,28 @@ no path bypasses the cost.
 - [x] Sneak-click and `/summongoblin` rerouted through `handleMenuAction` so
       the chokepoint is enforced once for all entry points
 
+### Stage D3 — Stat sync across the swap ✅ COMPLETE
+Field-by-field copy of the IExistence stat subset (aura, magicule,
+spiritualHealth, gainedEP, soulPoints, humanKill, alignment + originalAlignment,
+the five destiny flags, targetNeutralList) plus a percentage-based HP copy
+that respects each body's own max-HP (race modifiers on goblin vs.
+MineColonies skills/happiness on citizen).
+
+- [x] `copyStats(IExistence src, IExistence dst)` — explicit field list,
+      direct aura/magicule copy (NOT setEP — preserves imbalance),
+      `clearNeutralTargets` + re-add for the list, `markDirty` at the end
+- [x] `copyHealthPercentage(srcHealth, srcMax, dst)` — ratio × dstMax,
+      clamped so a living source never produces a dead destination
+      (min 1 HP when srcHealth > 0)
+- [x] Send: stat copy goblin → citizen after item transfer, before
+      `goblin.discard()`. Both bodies alive at the copy.
+- [x] Summon: citizen discard deferred until AFTER goblin `addFreshEntity`.
+      Order: reconstruct → setUUID → moveTo → applyInventory →
+      `copyStats(citizen→goblin)` + HP percentage → `addFreshEntity` →
+      discard citizen body. First client sync carries correct values.
+- [x] Fixes the magicule-cost exploit: round-trip cost is now symmetric
+      because the swapped EP carries over.
+
 ### Stage E — Magic circle visuals ⬜ PENDING
 Add dissolve/materialize visual effects (particles, sound, brief animation) to
 the send and summon transitions.
