@@ -36,6 +36,15 @@ parent jar already handles runtime loading via JiJ.
 
 ## Feature design
 
+**Colony lookup order: owner → first colony → none**
+When a goblin is named, the code tries `getIColonyByOwner(player)` first, then
+falls back to `getColonies(level).get(0)` if the player owns no colony. The
+fallback is intentionally naive — it picks the first colony in the list, which
+is arbitrary when multiple colonies exist. This is fine for single-colony
+testing but must be revisited before multi-colony support. Open question: should
+the target colony be the one nearest the goblin, nearest the player, or chosen
+via a UI prompt?
+
 **Option B: goblin stays a Tensura subordinate AND becomes a MineColonies citizen**
 Option A (convert the entity to a citizen, losing Tensura state) was rejected
 because it removes all Tensura functionality. Option B keeps both roles active.
