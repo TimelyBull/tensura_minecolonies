@@ -17,7 +17,7 @@ via `libs/` jars in the dev environment.
 See `docs/decisions.md` for the full design rationale. Earlier dual-tracking and
 spawn-suppression approaches are abandoned.
 
-### Stage A — Name → CitizenData + count, no body 🔄 IN PROGRESS
+### Stage A — Name → CitizenData + count, no body ✅ COMPLETE
 Naming a goblin (server-side, when a colony exists) immediately creates a
 `CitizenData` entry and increases the colony's citizen count. No `EntityCitizen`
 is spawned. The goblin stays alive at the player's side as a Tensura subordinate.
@@ -54,7 +54,7 @@ dissolves the citizen in the colony and materializes the goblin at the player's 
 The saved identity (name, citizen ID, goblin UUID, current mode) survives world
 save/reload and repeated send/summon cycles.
 
-- [ ] Implement saved data (`SavedData` subclass)
+- [x] Implement saved data (`GoblinIdentitySavedData` — built in Stage B)
 - [ ] Verify identity survives server restart
 - [ ] Verify citizen count stays correct across swaps
 
