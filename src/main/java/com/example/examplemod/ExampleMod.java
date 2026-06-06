@@ -41,6 +41,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -510,11 +511,12 @@ public class ExampleMod {
         //     pools round-trip cleanly because the citizen's elevated max
         //     gives the values somewhere to live.
         spawned.getEntity().ifPresent(citizenBody -> {
-            bumpEnergyMaxAttributes(citizenBody, goblin);
-            LOGGER.info("[TM] send: citizen max-energy boosted to goblin's level (max-aura {} max-magicule {} max-SH {})",
+            bumpBodyMaxAttributes(citizenBody, goblin);
+            LOGGER.info("[TM] send: citizen max attributes boosted (max-aura {} max-magicule {} max-SH {} max-HP {})",
                     EnergyHelper.getMaxAura(citizenBody),
                     EnergyHelper.getMaxMagicule(citizenBody),
-                    citizenBody.getAttributeValue(TensuraAttributes.MAX_SPIRITUAL_HEALTH));
+                    citizenBody.getAttributeValue(TensuraAttributes.MAX_SPIRITUAL_HEALTH),
+                    citizenBody.getMaxHealth());
 
             ExistenceStorage srcExist = readExistence(goblin);
             ExistenceStorage dstExist = readExistence(citizenBody);
@@ -525,13 +527,10 @@ public class ExampleMod {
                         dstExist.getSpiritualHealth(), dstExist.getSoulPoints());
             }
 
-            // HP percentage copy. Log srcMax/dstMax so we can see if either is 0.
-            float gobHealth = goblin.getHealth();
-            float gobMax = goblin.getMaxHealth();
-            float citMax = citizenBody.getMaxHealth();
-            copyHealthPercentage(gobHealth, gobMax, citizenBody);
+            copyHealthAbsolute(goblin, citizenBody);
             LOGGER.info("[TM] send: HP copied — goblin {}/{} → citizen {}/{}",
-                    gobHealth, gobMax, citizenBody.getHealth(), citMax);
+                    goblin.getHealth(), goblin.getMaxHealth(),
+                    citizenBody.getHealth(), citizenBody.getMaxHealth());
         });
 
         // 6. Strip HandItems/ArmorItems from the snapshot — the citizen now
@@ -711,13 +710,10 @@ public class ExampleMod {
                         dstExist.getSpiritualHealth(), dstExist.getSoulPoints());
             }
 
-            // HP percentage copy. Log srcMax/dstMax so we can see if either is 0.
-            float citHealth = citizenBody.getHealth();
-            float citMax = citizenBody.getMaxHealth();
-            float gobMax = goblin.getMaxHealth();
-            copyHealthPercentage(citHealth, citMax, goblin);
+            copyHealthAbsolute(citizenBody, goblin);
             LOGGER.info("[TM] summon: HP copied — citizen {}/{} → goblin {}/{}",
-                    citHealth, citMax, goblin.getHealth(), gobMax);
+                    citizenBody.getHealth(), citizenBody.getMaxHealth(),
+                    goblin.getHealth(), goblin.getMaxHealth());
         } else {
             LOGGER.info("[TM] summon: no live citizen body — keeping snapshot's stats and HP");
         }
@@ -1011,21 +1007,26 @@ public class ExampleMod {
             net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "swap_energy_boost");
 
     /**
-     * Lift the destination body's max-energy attributes (MAX_AURA, MAX_MAGICULE,
-     * MAX_SPIRITUAL_HEALTH) up to at least the source body's values. This makes
-     * absolute energy-pool copy safe — the destination has enough headroom to
-     * hold the source's values without triggering MagiculePoisonEffect.
+     * Lift the destination body's max-pool attributes up to at least the
+     * source body's values. Covers four attributes:
+     *   - MAX_AURA, MAX_MAGICULE, MAX_SPIRITUAL_HEALTH (Tensura)
+     *   - MAX_HEALTH (vanilla)
+     *
+     * This makes absolute pool copy safe in all four cases — the destination
+     * has enough headroom to hold the source's values without triggering
+     * MagiculePoisonEffect (energy pools) or being capped (HP).
      *
      * Implemented as a tracked permanent AttributeModifier with our ResourceLocation,
      * so a second swap onto the same body removes the old modifier and re-applies
      * cleanly. When the body is discarded at the end of the swap (or on death),
      * the modifier goes with it.
      */
-    private static void bumpEnergyMaxAttributes(LivingEntity dst, LivingEntity src) {
+    private static void bumpBodyMaxAttributes(LivingEntity dst, LivingEntity src) {
         bumpAttributeTo(dst, TensuraAttributes.MAX_AURA, EnergyHelper.getMaxAura(src));
         bumpAttributeTo(dst, TensuraAttributes.MAX_MAGICULE, EnergyHelper.getMaxMagicule(src));
         bumpAttributeTo(dst, TensuraAttributes.MAX_SPIRITUAL_HEALTH,
                         src.getAttributeValue(TensuraAttributes.MAX_SPIRITUAL_HEALTH));
+        bumpAttributeTo(dst, Attributes.MAX_HEALTH, src.getMaxHealth());
     }
 
     private static void bumpAttributeTo(LivingEntity entity, Holder<Attribute> attrHolder, double target) {
@@ -1041,23 +1042,18 @@ public class ExampleMod {
     }
 
     /**
-     * Copy current health as a percentage of max-HP.
-     * Each body keeps its own max-HP (which differs — race modifiers on the
-     * goblin, MineColonies skills/happiness on the citizen).
-     *
-     * CRITICAL: if the source was alive, the destination must also end alive.
-     * A swap must never kill via rounding. Clamps to [1, dstMax] when
-     * src had any positive HP.
+     * Copy HP as an absolute value, after the destination's MAX_HEALTH has
+     * been bumped to at least the source's via {@link #bumpBodyMaxAttributes}.
+     * No percentage scaling — both bodies show the same numeric HP.
      */
-    private static void copyHealthPercentage(float srcHealth, float srcMax, LivingEntity dst) {
-        float dstMax = dst.getMaxHealth();
-        if (srcMax <= 0f || dstMax <= 0f) return;
-        float ratio = srcHealth / srcMax;
-        float newHealth = ratio * dstMax;
-        // Never kill via rounding: if src was alive, dst must end alive.
-        if (srcHealth > 0f && newHealth < 1f) newHealth = 1f;
-        if (newHealth > dstMax) newHealth = dstMax;
-        dst.setHealth(newHealth);
+    private static void copyHealthAbsolute(LivingEntity src, LivingEntity dst) {
+        float srcHealth = src.getHealth();
+        if (srcHealth <= 0f) {
+            // Defensive: if src was already dead, don't transfer 0 (a swap
+            // shouldn't be a death). Leave dst's HP alone.
+            return;
+        }
+        dst.setHealth(Math.min(srcHealth, dst.getMaxHealth()));
     }
 
     // ------------------------------------------------------------------
