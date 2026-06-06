@@ -48,8 +48,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.BlockItem;
@@ -117,13 +115,17 @@ public class ExampleMod {
                                long executeAtTick,
                                Vec3 materializePos) {}
 
-    /** Queued linear Y-axis animation: at progress p between [startTick, endTick],
-     *  entity.setY(startY + p × (targetY - startY)). When {@code clearInvulnerableOnEnd}
-     *  is true, the entity's invulnerable flag is reset on the final tick — used
-     *  for the materialize-body rise (we set invulnerable during the rise so block
-     *  suffocation doesn't drain HP through the floor and leak into the stat sync). */
+    /** Queued linear Y-axis animation with X/Z locked to a fixed position.
+     *  Each tick: setPos(lockX, interpolatedY, lockZ), deltaMovement zeroed,
+     *  fallDistance zeroed. Locking X/Z prevents the entity's AI from
+     *  walking out of its circle during the sink/rise. Zeroing fallDistance
+     *  prevents accumulated fall damage from kicking in when invulnerability
+     *  is cleared at the end. When {@code clearInvulnerableOnEnd} is true,
+     *  the entity's invulnerable flag is reset on the final tick. */
     private record VerticalMovement(UUID entityUUID,
                                     ResourceKey<Level> dim,
+                                    double lockX,
+                                    double lockZ,
                                     double startY,
                                     double targetY,
                                     long startTick,
@@ -959,21 +961,22 @@ public class ExampleMod {
                 materializePos = dissolvePos; // fallback; the action would fail anyway
             }
         } else {
-            // Summon → raytrace the block the player is LOOKING AT. The
-            // goblin appears on top of (or adjacent to) that block. If the
-            // raytrace misses, fall back to the player's current position.
-            materializePos = raytraceMaterializePos(player);
+            // Summon → 3 blocks ahead in the player's look direction.
+            materializePos = summonMaterializePos(player);
         }
         spawnSwapCircle(level, player, materializePos);
 
         // Dissolve-body sink: lower the live body SINK_DEPTH blocks over the
         // delay so it visually falls through its circle into the ground. Set
-        // invulnerable to block suffocation damage (which would otherwise leak
-        // through the stat sync onto the destination body).
+        // invulnerable to block suffocation damage. Lock X/Z so the body's
+        // AI can't walk it out of the circle while the sink is in progress.
         target.setInvulnerable(true);
         double sinkStartY = target.getY();
+        double sinkLockX  = target.getX();
+        double sinkLockZ  = target.getZ();
         pendingVerticalMovements.add(new VerticalMovement(
                 target.getUUID(), level.dimension(),
+                sinkLockX, sinkLockZ,
                 sinkStartY, sinkStartY - SINK_DEPTH,
                 now, now + SWAP_DELAY_TICKS,
                 false /* body gets discarded at execute; no need to clear invuln */));
@@ -992,26 +995,13 @@ public class ExampleMod {
     }
 
     /**
-     * For summon: raytrace from the player's view to find the block they're
-     * looking at and return the position on TOP of (or adjacent to) that
-     * block. Falls back to the player's current position if no block is hit
-     * within reach.
-     *
-     * Reach is generous (30 blocks) because the "summon" feels like magic
-     * teleport — clicking a faraway spot to summon the goblin there is
-     * intuitive even if you couldn't reach with your hand.
+     * For summon: 3 blocks in the direction the player is looking, measured
+     * from the player's feet position (so the goblin appears at roughly
+     * ground level when the player is looking horizontally).
      */
-    private static Vec3 raytraceMaterializePos(ServerPlayer player) {
-        HitResult hit = player.pick(30.0, 1.0f, false);
-        if (hit.getType() == HitResult.Type.BLOCK) {
-            BlockHitResult bhr = (BlockHitResult) hit;
-            // The block adjacent to the hit face — empty space where the
-            // goblin can stand. Looking at floor → block above; looking at
-            // a wall → block in front of the wall; etc.
-            BlockPos rel = bhr.getBlockPos().relative(bhr.getDirection());
-            return new Vec3(rel.getX() + 0.5, rel.getY(), rel.getZ() + 0.5);
-        }
-        return player.position();
+    private static Vec3 summonMaterializePos(ServerPlayer player) {
+        Vec3 lookDir = player.getLookAngle();
+        return player.position().add(lookDir.scale(3.0));
     }
 
     /**
@@ -1023,10 +1013,13 @@ public class ExampleMod {
      */
     private static void markMaterializedBody(ServerLevel level, LivingEntity body, double surfaceY) {
         long now = level.getServer().getTickCount();
-        body.setPos(body.getX(), surfaceY - RISE_START_OFFSET, body.getZ());
+        double lockX = body.getX();
+        double lockZ = body.getZ();
+        body.setPos(lockX, surfaceY - RISE_START_OFFSET, lockZ);
         body.setInvulnerable(true);
         pendingVerticalMovements.add(new VerticalMovement(
                 body.getUUID(), level.dimension(),
+                lockX, lockZ,
                 surfaceY - RISE_START_OFFSET, surfaceY,
                 now, now + RISE_DURATION_TICKS,
                 true /* clear invuln on completion */));
@@ -1073,6 +1066,12 @@ public class ExampleMod {
         // Advance vertical movements (dissolve sink, materialize rise).
         // Order before pending swaps so the dissolve body's final sink position
         // settles in the same tick the swap discards it.
+        //
+        // Each tick we lock X/Z to the queued position (prevents AI from
+        // walking the body out of its circle), zero deltaMovement (no
+        // residual velocity), and reset fallDistance (no fall damage
+        // accumulating during the rise, which would hit the moment
+        // invulnerability is cleared).
         java.util.Iterator<VerticalMovement> vit = pendingVerticalMovements.iterator();
         while (vit.hasNext()) {
             VerticalMovement m = vit.next();
@@ -1082,7 +1081,9 @@ public class ExampleMod {
             net.minecraft.world.entity.Entity e = lvl.getEntity(m.entityUUID());
             if (now >= m.endTick()) {
                 if (e instanceof LivingEntity le && !le.isRemoved()) {
-                    le.setPos(le.getX(), m.targetY(), le.getZ());
+                    le.setPos(m.lockX(), m.targetY(), m.lockZ());
+                    le.setDeltaMovement(Vec3.ZERO);
+                    le.fallDistance = 0f;
                     if (m.clearInvulnerableOnEnd()) {
                         le.setInvulnerable(false);
                     }
@@ -1093,7 +1094,11 @@ public class ExampleMod {
             if (e == null || e.isRemoved()) continue;
             double progress = (double) (now - m.startTick()) / (m.endTick() - m.startTick());
             double y = m.startY() + (m.targetY() - m.startY()) * progress;
-            e.setPos(e.getX(), y, e.getZ());
+            e.setPos(m.lockX(), y, m.lockZ());
+            e.setDeltaMovement(Vec3.ZERO);
+            if (e instanceof LivingEntity le) {
+                le.fallDistance = 0f;
+            }
         }
 
         // Execute due swaps
