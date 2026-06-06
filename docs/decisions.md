@@ -128,29 +128,33 @@ plumbing for the roster list itself.
 
 **Energy pool scale mismatch between goblin and citizen bodies**
 Goblin entities have Tensura race-tier `MAX_AURA` / `MAX_MAGICULE` /
-`MAX_SPIRITUAL_HEALTH` attributes; default MineColonies citizens do not,
-so their max-energy values are effectively zero. Absolute copy of these
-pools across the swap triggered `MagiculePoisonEffect` with massive
-amplifier and killed the citizen body within a few ticks.
+`MAX_SPIRITUAL_HEALTH` attributes; default MineColonies citizens have
+~0 for those, no Tensura race modifiers applied. Direct absolute copy
+of goblin-tier values into a default citizen would dump magicule far
+above the citizen's max → `handleMagiculeRegen` applies
+`MagiculePoisonEffect` with massive amplifier → near-instant death.
 
-Resolved with **percentage-based** copy for the three energy pools
-(`scalePool(srcCur, srcMax, dstMax) = (srcCur/srcMax) × dstMax`). Counters
-(`gainedEP`, `soulPoints`, `humanKill`) and traits stay flat.
+First fix attempted: **percentage-scale** the three pools to
+`(srcCur/srcMax) × dstMax`. Failed because citizen's
+`MAX_MAGICULE`/`MAX_AURA`/`MAX_SPIRITUAL_HEALTH` are 0, so the percentage
+calc divided by zero and produced 0 → all energy values dropped to zero
+on send, then summon read zero back into the goblin, draining everything.
 
-Tradeoff: re-introduces the magicule-cost asymmetry that absolute copy
-was meant to fix. A high-EP goblin costs a lot to send (cost = EP × 0.25),
-but its citizen counterpart has only citizen-scale EP, so summon-back is
-cheap. Round-trip cost is asymmetric → exploitable for cheap repeated
-swaps.
+Final fix: **`bumpEnergyMaxAttributes(dst, src)` then absolute copy.**
+On send, we add a permanent `AttributeModifier(SWAP_ENERGY_BOOST_ID,
+delta, ADD_VALUE)` to the citizen body's `MAX_AURA`/`MAX_MAGICULE`/
+`MAX_SPIRITUAL_HEALTH` to lift them up to the goblin's values. The
+citizen now has the headroom to safely hold the goblin's absolute
+values. On summon, the goblin already has its race-tier maxes from the
+NBT roundtrip — no boost needed, just absolute copy citizen → goblin.
+The modifier lives on the citizen body's `AttributeInstance` and is
+discarded with the body at the end of the summon flow. Re-swap removes
+the prior modifier first (tracked via `SWAP_ENERGY_BOOST_ID`) so we
+don't compound.
 
-Future fixes worth considering: (a) apply a temporary
-`MAX_MAGICULE`/`MAX_AURA` attribute modifier to the citizen body for the
-duration of its colony service, sized to match the goblin's max, so
-absolute copy becomes safe; (b) compute summon-back cost from the
-goblin's pre-send EP stored in the snapshot rather than the citizen's
-current EP. (a) is cleaner if the citizen body's stat changes don't
-fight MineColonies' citizen-skill system; (b) is simpler but means the
-cost stops reflecting "current" power.
+Side-benefits: round-trip cost stays symmetric (absolute EP carries
+across), and citizens with the boost can actively gain/spend magicule
+during colony service.
 
 **Goblin/citizen stat systems differ — equalisation deferred**
 Tensura and MineColonies maintain separate stat models: Tensura tracks
