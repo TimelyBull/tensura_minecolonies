@@ -48,6 +48,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.BlockItem;
@@ -102,13 +104,18 @@ public class ExampleMod {
     /** Queued circle entity awaiting discard after its lifetime expires. */
     private record PendingCircleDiscard(UUID circleUUID, ResourceKey<Level> dim, long discardAtTick) {}
 
-    /** Queued swap action awaiting execution after the dramatic delay. */
+    /** Queued swap action awaiting execution after the dramatic delay.
+     *  {@code materializePos} is captured at queue time so the materialize body
+     *  appears where the circle is, regardless of player movement during the
+     *  delay. For summon: raytraced from the player's view. For send: the
+     *  colony's town hall position. */
     private record PendingSwap(UUID playerUUID,
                                UUID identityId,
                                GoblinIdentitySavedData.Mode expectedMode,
                                UUID expectedGoblinUUID,
                                double magiculePaid,
-                               long executeAtTick) {}
+                               long executeAtTick,
+                               Vec3 materializePos) {}
 
     /** Queued linear Y-axis animation: at progress p between [startTick, endTick],
      *  entity.setY(startY + p × (targetY - startY)). When {@code clearInvulnerableOnEnd}
@@ -681,7 +688,8 @@ public class ExampleMod {
                                      GoblinIdentitySavedData saved,
                                      GoblinIdentitySavedData.GoblinIdentity identity,
                                      IColony colony,
-                                     ICitizenData citizenData) {
+                                     ICitizenData citizenData,
+                                     Vec3 materializePos) {
         LOGGER.info("[TM] summon: starting for citizen {} ('{}')",
                 identity.citizenId, citizenData.getName());
 
@@ -729,10 +737,15 @@ public class ExampleMod {
         goblin.setUUID(UUID.randomUUID());
 
         // 5. CRITICAL — override position. The tag carries the OLD position
-        //    (where the goblin was when sent). We want it at the player's feet.
-        BlockPos spawnPos = player.blockPosition();
-        goblin.moveTo(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5,
+        //    (where the goblin was when sent). We use materializePos, which
+        //    was locked at queue time (raytraced from the player's view to
+        //    the block they were looking at, or the player's position as
+        //    fallback). This way the goblin appears exactly where the
+        //    materialize circle is, regardless of player movement during
+        //    the delay.
+        goblin.moveTo(materializePos.x, materializePos.y, materializePos.z,
                 player.getYRot(), 0f);
+        BlockPos spawnPos = goblin.blockPosition();
 
         // 6. Apply citizen's CURRENT inventory to the goblin BEFORE addFreshEntity
         //    so first client sync carries the items. Citizen is the source of
@@ -931,10 +944,13 @@ public class ExampleMod {
         Vec3 dissolvePos = target.position();
         spawnSwapCircle(level, player, dissolvePos);
 
-        // Materialize circle — destination depends on direction
+        // Materialize circle — destination depends on direction.
+        // Captured here at queue time and locked into the PendingSwap so the
+        // materialize body appears at the SAME spot as the circle, even if
+        // the player turns or walks away during the delay.
         Vec3 materializePos;
         if (identity.mode == GoblinIdentitySavedData.Mode.SUBORDINATE) {
-            // Send → materialize near the town hall
+            // Send → materialize near the town hall.
             IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
             if (colony != null && colony.getServerBuildingManager().hasTownHall()) {
                 BlockPos th = colony.getServerBuildingManager().getTownHall().getPosition();
@@ -943,8 +959,10 @@ public class ExampleMod {
                 materializePos = dissolvePos; // fallback; the action would fail anyway
             }
         } else {
-            // Summon → materialize at the player
-            materializePos = player.position();
+            // Summon → raytrace the block the player is LOOKING AT. The
+            // goblin appears on top of (or adjacent to) that block. If the
+            // raytrace misses, fall back to the player's current position.
+            materializePos = raytraceMaterializePos(player);
         }
         spawnSwapCircle(level, player, materializePos);
 
@@ -967,9 +985,33 @@ public class ExampleMod {
                 identity.mode,
                 identity.goblinEntityUUID,
                 magiculePaid,
-                now + SWAP_DELAY_TICKS));
+                now + SWAP_DELAY_TICKS,
+                materializePos));
         LOGGER.info("[TM] swap: queued for execution in {} ticks (paid={} magicule, dissolve sink {}→{})",
                 SWAP_DELAY_TICKS, magiculePaid, sinkStartY, sinkStartY - SINK_DEPTH);
+    }
+
+    /**
+     * For summon: raytrace from the player's view to find the block they're
+     * looking at and return the position on TOP of (or adjacent to) that
+     * block. Falls back to the player's current position if no block is hit
+     * within reach.
+     *
+     * Reach is generous (30 blocks) because the "summon" feels like magic
+     * teleport — clicking a faraway spot to summon the goblin there is
+     * intuitive even if you couldn't reach with your hand.
+     */
+    private static Vec3 raytraceMaterializePos(ServerPlayer player) {
+        HitResult hit = player.pick(30.0, 1.0f, false);
+        if (hit.getType() == HitResult.Type.BLOCK) {
+            BlockHitResult bhr = (BlockHitResult) hit;
+            // The block adjacent to the hit face — empty space where the
+            // goblin can stand. Looking at floor → block above; looking at
+            // a wall → block in front of the wall; etc.
+            BlockPos rel = bhr.getBlockPos().relative(bhr.getDirection());
+            return new Vec3(rel.getX() + 0.5, rel.getY(), rel.getZ() + 0.5);
+        }
+        return player.position();
     }
 
     /**
@@ -1108,7 +1150,7 @@ public class ExampleMod {
         }
 
         // All validations pass — run the actual swap.
-        executeAction(player, identity, target);
+        executeAction(player, identity, target, pending.materializePos());
     }
 
     /**
@@ -1181,10 +1223,14 @@ public class ExampleMod {
     }
 
     /** Run the existing send or summon helper. No cost checking — the gate
-     *  has already been passed (sufficient or confirmed-collapse). */
+     *  has already been passed (sufficient or confirmed-collapse).
+     *  {@code materializePos} was locked at queue time and is used by summon
+     *  to spawn the goblin at the originally-targeted position regardless of
+     *  any player movement during the delay. */
     private static void executeAction(ServerPlayer player,
                                       GoblinIdentitySavedData.GoblinIdentity identity,
-                                      LivingEntity target) {
+                                      LivingEntity target,
+                                      Vec3 materializePos) {
         ServerLevel level = player.serverLevel();
         GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(level);
 
@@ -1205,7 +1251,7 @@ public class ExampleMod {
                 sendAdvisoryNotice(player, "That goblin's citizen record is missing.");
                 return;
             }
-            summonGoblin(player, level, saved, identity, colony, cd);
+            summonGoblin(player, level, saved, identity, colony, cd, materializePos);
         }
     }
 
