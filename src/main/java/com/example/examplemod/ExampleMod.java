@@ -995,13 +995,27 @@ public class ExampleMod {
     }
 
     /**
-     * For summon: 3 blocks in the direction the player is looking, measured
-     * from the player's feet position (so the goblin appears at roughly
-     * ground level when the player is looking horizontally).
+     * For summon: 3 blocks in the HORIZONTAL direction the player is looking,
+     * at the player's feet Y. We project to the XZ plane because if the
+     * player is looking even slightly downward (natural pose when summoning),
+     * a full 3D offset would put the materialize position below ground and
+     * the circle would render inside a block (invisible).
      */
     private static Vec3 summonMaterializePos(ServerPlayer player) {
-        Vec3 lookDir = player.getLookAngle();
-        return player.position().add(lookDir.scale(3.0));
+        Vec3 look = player.getLookAngle();
+        double horizLenSqr = look.x * look.x + look.z * look.z;
+        if (horizLenSqr < 1e-6) {
+            // Looking nearly straight up or down — fall back to yaw direction.
+            float yawRad = (float) Math.toRadians(player.getYRot());
+            double dx = -Math.sin(yawRad) * 3.0;
+            double dz =  Math.cos(yawRad) * 3.0;
+            return new Vec3(player.getX() + dx, player.getY(), player.getZ() + dz);
+        }
+        double scale = 3.0 / Math.sqrt(horizLenSqr);
+        return new Vec3(
+                player.getX() + look.x * scale,
+                player.getY(),
+                player.getZ() + look.z * scale);
     }
 
     /**
@@ -1035,7 +1049,11 @@ public class ExampleMod {
         circle.setSize(CIRCLE_SIZE);          // inherited from TensuraProjectile
         circle.refreshDimensions();           // recompute bounding box for the new size
         circle.setPos(pos.x, pos.y, pos.z);
-        level.addFreshEntity(circle);
+        boolean added = level.addFreshEntity(circle);
+        LOGGER.info("[TM] circle: spawned at ({}, {}, {}) caster={} added={}",
+                String.format("%.2f", pos.x), String.format("%.2f", pos.y),
+                String.format("%.2f", pos.z),
+                caster.getName().getString(), added);
         long discardAt = level.getServer().getTickCount() + CIRCLE_DURATION_TICKS;
         pendingCircles.add(new PendingCircleDiscard(circle.getUUID(), level.dimension(), discardAt));
     }
