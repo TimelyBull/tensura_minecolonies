@@ -20,6 +20,8 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.architectury.event.EventResult;
+import io.github.manasmods.tensura.entity.magic.MagicCircle;
+import io.github.manasmods.tensura.entity.variant.MagicCircleVariant;
 import io.github.manasmods.tensura.event.TensuraEntityEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
@@ -66,7 +68,10 @@ import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -85,6 +90,31 @@ public class ExampleMod {
 
     public static final String MODID = "tensura_minecolonies";
     public static final Logger LOGGER = LogUtils.getLogger();
+
+    // Stage E — circle visuals + delayed swap.
+    private static final int SWAP_DELAY_TICKS    = 15; // ~0.75s — feels responsive, anticipatory
+    private static final int CIRCLE_DURATION_TICKS = 40; // ~2.0s — appears before swap, lingers after
+
+    /** Queued circle entity awaiting discard after its lifetime expires. */
+    private record PendingCircleDiscard(UUID circleUUID, ResourceKey<Level> dim, long discardAtTick) {}
+
+    /** Queued swap action awaiting execution after the dramatic delay. */
+    private record PendingSwap(UUID playerUUID,
+                               UUID identityId,
+                               GoblinIdentitySavedData.Mode expectedMode,
+                               UUID expectedGoblinUUID,
+                               double magiculePaid,
+                               long executeAtTick) {}
+
+    /** Return value of {@link #chargeOrPrompt}: whether the action should
+     *  proceed and how much magicule was charged (for the refund path). */
+    private record ChargeOutcome(boolean charged, double amount) {
+        static ChargeOutcome charged(double amount) { return new ChargeOutcome(true, amount); }
+        static ChargeOutcome notCharged() { return new ChargeOutcome(false, 0.0); }
+    }
+
+    private static final java.util.List<PendingCircleDiscard> pendingCircles = new java.util.ArrayList<>();
+    private static final java.util.List<PendingSwap>          pendingSwaps   = new java.util.ArrayList<>();
 
     private static final ResourceLocation GOBLIN_ID =
             ResourceLocation.fromNamespaceAndPath("tensura", "goblin");
@@ -789,10 +819,11 @@ public class ExampleMod {
             sendAdvisoryNotice(player, msg);
             return;
         }
-        // Shared cost chokepoint. Returns false if insufficient (prompt sent
-        // to client; action awaits confirmation).
-        if (chargeOrPrompt(player, identity, target)) {
-            executeAction(player, identity, target);
+        // Shared cost chokepoint. Returns notCharged() if a prompt was sent
+        // (action awaits confirmation) or on read failure (advisory shown).
+        ChargeOutcome outcome = chargeOrPrompt(player, identity, target);
+        if (outcome.charged()) {
+            queueDelayedSwap(player, identity, target, outcome.amount());
         }
     }
 
@@ -842,53 +873,221 @@ public class ExampleMod {
                         ? " — TENSURA WILL SKIP SLEEP MODE (player must be in survival and not invulnerable)"
                         : " — Sleep Mode will trigger naturally next tick");
 
+        // Paid amount for refund-on-abort = the magicule we just zeroed out
+        // (the player's full pre-collapse magicule, which is what they "spent").
+        queueDelayedSwap(player, identity, target, beforeMag);
+    }
+
+    // ------------------------------------------------------------------
+    // Stage E — magic-circle visuals + delayed swap execution
+    // ------------------------------------------------------------------
+
+    /**
+     * Spawn the dramatic-pause swap: circles at both ends now, body change
+     * after SWAP_DELAY_TICKS. The magicule cost has already been deducted
+     * upstream — the {@code magiculePaid} value is what the player parts with
+     * and is refunded on abort.
+     */
+    private static void queueDelayedSwap(ServerPlayer player,
+                                         GoblinIdentitySavedData.GoblinIdentity identity,
+                                         LivingEntity target,
+                                         double magiculePaid) {
+        ServerLevel level = player.serverLevel();
+        long now = level.getServer().getTickCount();
+
+        // Dissolve circle — at the live body's current position
+        Vec3 dissolvePos = target.position();
+        spawnSwapCircle(level, player, dissolvePos);
+
+        // Materialize circle — destination depends on direction
+        Vec3 materializePos;
+        if (identity.mode == GoblinIdentitySavedData.Mode.SUBORDINATE) {
+            // Send → materialize near the town hall
+            IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
+            if (colony != null && colony.getServerBuildingManager().hasTownHall()) {
+                BlockPos th = colony.getServerBuildingManager().getTownHall().getPosition();
+                materializePos = new Vec3(th.getX() + 0.5, th.getY(), th.getZ() + 0.5);
+            } else {
+                materializePos = dissolvePos; // fallback; the action would fail anyway
+            }
+        } else {
+            // Summon → materialize at the player
+            materializePos = player.position();
+        }
+        spawnSwapCircle(level, player, materializePos);
+
+        // Queue the swap to execute after the delay
+        pendingSwaps.add(new PendingSwap(
+                player.getUUID(),
+                identity.identityId,
+                identity.mode,
+                identity.goblinEntityUUID,
+                magiculePaid,
+                now + SWAP_DELAY_TICKS));
+        LOGGER.info("[TM] swap: queued for execution in {} ticks (paid={} magicule)",
+                SWAP_DELAY_TICKS, magiculePaid);
+    }
+
+    /** Spawn a Tensura {@link MagicCircle} entity at {@code pos} with the
+     *  SPACE variant. Tracks it for {@link #CIRCLE_DURATION_TICKS}-tick
+     *  auto-discard via the ServerTickEvent.Post handler. */
+    private static void spawnSwapCircle(ServerLevel level, LivingEntity caster, Vec3 pos) {
+        MagicCircle circle = new MagicCircle(level, caster);
+        circle.setVariant(MagicCircleVariant.SPACE);
+        circle.setSpinning(true);
+        circle.setPos(pos.x, pos.y, pos.z);
+        level.addFreshEntity(circle);
+        long discardAt = level.getServer().getTickCount() + CIRCLE_DURATION_TICKS;
+        pendingCircles.add(new PendingCircleDiscard(circle.getUUID(), level.dimension(), discardAt));
+    }
+
+    /**
+     * Server tick handler. Drains the two pending lists:
+     *   - circle entities older than CIRCLE_DURATION_TICKS → discard
+     *   - pending swaps past their executeAtTick → re-validate and run
+     */
+    @SubscribeEvent
+    public void onServerTickPost(ServerTickEvent.Post event) {
+        MinecraftServer server = event.getServer();
+        long now = server.getTickCount();
+
+        // Discard expired circles
+        pendingCircles.removeIf(p -> {
+            if (now < p.discardAtTick()) return false;
+            ServerLevel lvl = server.getLevel(p.dim());
+            if (lvl != null) {
+                net.minecraft.world.entity.Entity e = lvl.getEntity(p.circleUUID());
+                if (e != null && !e.isRemoved()) {
+                    e.discard();
+                }
+            }
+            return true;
+        });
+
+        // Execute due swaps
+        java.util.Iterator<PendingSwap> it = pendingSwaps.iterator();
+        while (it.hasNext()) {
+            PendingSwap p = it.next();
+            if (now < p.executeAtTick()) continue;
+            it.remove();
+            executePendingSwap(server, p);
+        }
+    }
+
+    /**
+     * Re-validate the queued swap and run it, or abort + refund if state
+     * changed during the delay. Validation: player online, identity still
+     * exists, mode unchanged, goblin UUID unchanged (for SUBORDINATE),
+     * target body resolvable + alive.
+     */
+    private static void executePendingSwap(MinecraftServer server, PendingSwap pending) {
+        ServerPlayer player = server.getPlayerList().getPlayer(pending.playerUUID());
+        if (player == null) {
+            // Player disconnected during the delay — can't refund safely.
+            LOGGER.info("[TM] swap: player {} disconnected before execute; {} magicule lost",
+                    pending.playerUUID(), pending.magiculePaid());
+            return;
+        }
+
+        ServerLevel level = player.serverLevel();
+        GoblinIdentitySavedData saved = GoblinIdentitySavedData.get(level);
+        GoblinIdentitySavedData.GoblinIdentity identity = saved.getById(pending.identityId());
+
+        if (identity == null) {
+            sendAdvisoryNotice(player, "Swap aborted — the goblin is gone. Magicule refunded.");
+            refundMagicule(player, pending.magiculePaid());
+            return;
+        }
+        if (identity.mode != pending.expectedMode()) {
+            sendAdvisoryNotice(player, "Swap aborted — the goblin's state changed. Magicule refunded.");
+            refundMagicule(player, pending.magiculePaid());
+            return;
+        }
+        if (pending.expectedMode() == GoblinIdentitySavedData.Mode.SUBORDINATE
+                && pending.expectedGoblinUUID() != null
+                && !pending.expectedGoblinUUID().equals(identity.goblinEntityUUID)) {
+            sendAdvisoryNotice(player, "Swap aborted — the goblin changed. Magicule refunded.");
+            refundMagicule(player, pending.magiculePaid());
+            return;
+        }
+        LivingEntity target = resolveTargetBody(player, identity);
+        if (target == null || !target.isAlive()) {
+            sendAdvisoryNotice(player, "Swap aborted — the target is no longer reachable. Magicule refunded.");
+            refundMagicule(player, pending.magiculePaid());
+            return;
+        }
+
+        // All validations pass — run the actual swap.
         executeAction(player, identity, target);
     }
 
     /**
-     * The shared cost gate. Returns true if the action should proceed
-     * (cost has been deducted), false if a confirm prompt was sent and the
-     * caller must NOT run the action.
+     * Refund up to {@code amount} magicule to the player, capped at their
+     * max. Used when a queued swap aborts on re-validation.
+     */
+    private static void refundMagicule(ServerPlayer player, double amount) {
+        if (amount <= 0.0) return;
+        ExistenceStorage exist = readExistence(player);
+        if (exist == null) {
+            LOGGER.warn("[TM] refund: couldn't read magicule storage for '{}' — {} magicule lost",
+                    player.getName().getString(), amount);
+            return;
+        }
+        double cur = exist.getMagicule();
+        double max = EnergyHelper.getMaxMagicule(player);
+        double newVal = (max > 0.0) ? Math.min(cur + amount, max) : (cur + amount);
+        exist.setMagicule(newVal);
+        exist.markDirty();
+        LOGGER.info("[TM] refund: {} magicule returned to '{}' (was {}, now {})",
+                amount, player.getName().getString(), cur, newVal);
+    }
+
+    /**
+     * The shared cost gate. Returns {@link ChargeOutcome#charged(double)}
+     * (with the deducted amount, used for refund-on-abort) if the action
+     * should proceed, or {@link ChargeOutcome#notCharged()} if a confirm
+     * prompt was sent OR if a read failed and an advisory was shown. The
+     * caller runs the action (well — queues it for delayed execution) only
+     * on {@code charged}.
      *
      * Cost = target's current EP × 0.25, deducted from player's magicule.
      */
-    private static boolean chargeOrPrompt(ServerPlayer player,
-                                          GoblinIdentitySavedData.GoblinIdentity identity,
-                                          LivingEntity target) {
+    private static ChargeOutcome chargeOrPrompt(ServerPlayer player,
+                                                GoblinIdentitySavedData.GoblinIdentity identity,
+                                                LivingEntity target) {
         ExistenceStorage targetExist = readExistence(target);
         if (targetExist == null) {
             sendAdvisoryNotice(player, "Couldn't read the target's energy state.");
-            return false;
+            return ChargeOutcome.notCharged();
         }
         double cost = targetExist.getEP() * 0.25;
 
         ExistenceStorage playerExist = readExistence(player);
         if (playerExist == null) {
             sendAdvisoryNotice(player, "Couldn't read your magicule.");
-            return false;
+            return ChargeOutcome.notCharged();
         }
         double playerMagicule = playerExist.getMagicule();
 
         // Prompt boundary: spending this cost would leave the player at 0 or
         // below. Per the investigation, Tensura's handleSleepMode triggers
-        // Sleep Mode entry on `magicule ≤ 0` — so draining to exactly 0
-        // carries the SAME Sleep Mode risk as overspending. Both cases
-        // deserve the warning. Free actions (cost = 0) never prompt.
+        // Sleep Mode entry on `magicule ≤ 0`.
         if (cost > 0.0 && playerMagicule <= cost) {
             String name = resolveDisplayName(player, identity);
             LOGGER.info("[TM] cost: '{}' has {} magicule, action costs {} for '{}' — would empty or overspend; prompting collapse confirmation",
                     player.getName().getString(), playerMagicule, cost, name);
             PacketDistributor.sendToPlayer(player, new Networking.OpenCollapseConfirmPayload(
                     identity.identityId, name, cost, playerMagicule));
-            return false;
+            return ChargeOutcome.notCharged();
         }
 
-        // Safe path: strictly enough magicule (or zero-cost free action).
+        // Safe path: charge UP FRONT before queuing the swap. Refund happens
+        // if the delayed execution aborts on re-validation.
         playerExist.setMagicule(playerMagicule - cost);
         playerExist.markDirty();
         LOGGER.info("[TM] cost: deducted {} magicule from '{}' (had {}, now {})",
                 cost, player.getName().getString(), playerMagicule, playerMagicule - cost);
-        return true;
+        return ChargeOutcome.charged(cost);
     }
 
     /** Run the existing send or summon helper. No cost checking — the gate

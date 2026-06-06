@@ -182,9 +182,31 @@ MineColonies skills/happiness on citizen).
 - [x] Fixes the magicule-cost exploit: round-trip cost is now symmetric
       because the swapped EP carries over.
 
-### Stage E — Magic circle visuals ⬜ PENDING
-Add dissolve/materialize visual effects (particles, sound, brief animation) to
-the send and summon transitions.
+### Stage E — Magic circle visuals + delayed swap ✅ COMPLETE
+The swap is now dramatic: cost charged up front, circle entity (Tensura's
+`MagicCircle` with `SPACE` variant, spinning) spawns at both ends, then
+~15 ticks (0.75s) later the body change actually executes.
+
+- [x] Direct `new MagicCircle(level, player)` + `setVariant(SPACE)` +
+      `setSpinning(true)` + `setPos` + `level.addFreshEntity`. Standard
+      entity replication shows it to nearby clients — no custom packets,
+      no proximity filtering on the server side.
+- [x] Both ends spawn a circle: dissolve at the live body's position,
+      materialize at the destination (town hall for send, player for summon).
+- [x] Circle duration ~40 ticks (~2 seconds) via a manual discard list,
+      processed in a `@SubscribeEvent ServerTickEvent.Post` handler that
+      looks up the entity by UUID + dimension and calls `discard()`.
+- [x] Swap delay ~15 ticks (~0.75 seconds). The action is queued in a
+      separate `pendingSwaps` list with `(playerUUID, identityId, expected
+      mode, expected goblin UUID, magiculePaid, executeAtTick)`.
+- [x] Cost charged **up front** (in `chargeOrPrompt` for sufficient path
+      or `handleConfirmCollapse` for forced-collapse path) — never deferred.
+- [x] Re-validate at execute time: identity exists, mode unchanged, goblin
+      UUID unchanged (for SUBORDINATE), target body alive and resolvable.
+      If anything failed during the delay → advisory + `refundMagicule`
+      (capped at the player's max-magicule).
+- [x] Player-disconnect during the delay: log, skip refund (can't safely
+      modify offline data).
 
 ### Stage F — Goblin renderer (deferred polish) ⬜ PENDING
 Override `EntityCitizen` rendering for goblin-citizens so they appear as goblins
