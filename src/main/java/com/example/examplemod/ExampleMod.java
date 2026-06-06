@@ -91,9 +91,13 @@ public class ExampleMod {
     public static final String MODID = "tensura_minecolonies";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    // Stage E — circle visuals + delayed swap.
-    private static final int SWAP_DELAY_TICKS    = 15; // ~0.75s — feels responsive, anticipatory
-    private static final int CIRCLE_DURATION_TICKS = 40; // ~2.0s — appears before swap, lingers after
+    // Stage E — circle visuals + delayed swap + sink/rise animations.
+    private static final int   SWAP_DELAY_TICKS     = 40;    // ~2.0s — body change after this many ticks
+    private static final int   RISE_DURATION_TICKS  = 20;    // ~1.0s — how long the rise from underground takes
+    private static final int   CIRCLE_DURATION_TICKS = 80;   // ~4.0s — covers sink + delay + rise + afterglow
+    private static final float CIRCLE_SIZE          = 3.0f;  // ~3× the default MagicCircle visual scale
+    private static final double SINK_DEPTH          = 3.0;   // blocks the dissolve body falls during the delay
+    private static final double RISE_START_OFFSET   = 2.0;   // blocks below surface the materialize body spawns
 
     /** Queued circle entity awaiting discard after its lifetime expires. */
     private record PendingCircleDiscard(UUID circleUUID, ResourceKey<Level> dim, long discardAtTick) {}
@@ -106,6 +110,19 @@ public class ExampleMod {
                                double magiculePaid,
                                long executeAtTick) {}
 
+    /** Queued linear Y-axis animation: at progress p between [startTick, endTick],
+     *  entity.setY(startY + p × (targetY - startY)). When {@code clearInvulnerableOnEnd}
+     *  is true, the entity's invulnerable flag is reset on the final tick — used
+     *  for the materialize-body rise (we set invulnerable during the rise so block
+     *  suffocation doesn't drain HP through the floor and leak into the stat sync). */
+    private record VerticalMovement(UUID entityUUID,
+                                    ResourceKey<Level> dim,
+                                    double startY,
+                                    double targetY,
+                                    long startTick,
+                                    long endTick,
+                                    boolean clearInvulnerableOnEnd) {}
+
     /** Return value of {@link #chargeOrPrompt}: whether the action should
      *  proceed and how much magicule was charged (for the refund path). */
     private record ChargeOutcome(boolean charged, double amount) {
@@ -113,8 +130,9 @@ public class ExampleMod {
         static ChargeOutcome notCharged() { return new ChargeOutcome(false, 0.0); }
     }
 
-    private static final java.util.List<PendingCircleDiscard> pendingCircles = new java.util.ArrayList<>();
-    private static final java.util.List<PendingSwap>          pendingSwaps   = new java.util.ArrayList<>();
+    private static final java.util.List<PendingCircleDiscard> pendingCircles           = new java.util.ArrayList<>();
+    private static final java.util.List<PendingSwap>          pendingSwaps             = new java.util.ArrayList<>();
+    private static final java.util.List<VerticalMovement>     pendingVerticalMovements = new java.util.ArrayList<>();
 
     private static final ResourceLocation GOBLIN_ID =
             ResourceLocation.fromNamespaceAndPath("tensura", "goblin");
@@ -541,6 +559,12 @@ public class ExampleMod {
         //     pools round-trip cleanly because the citizen's elevated max
         //     gives the values somewhere to live.
         spawned.getEntity().ifPresent(citizenBody -> {
+            // Capture the citizen's surface Y BEFORE we lower it, then queue
+            // the rise. The body appears underground first and visually
+            // emerges from the materialize-end circle.
+            double citizenSurfaceY = citizenBody.getY();
+            markMaterializedBody(serverLevel, citizenBody, citizenSurfaceY);
+
             bumpBodyMaxAttributes(citizenBody, goblin);
             LOGGER.info("[TM] send: citizen max attributes boosted (max-aura {} max-magicule {} max-SH {} max-HP {})",
                     EnergyHelper.getMaxAura(citizenBody),
@@ -748,6 +772,14 @@ public class ExampleMod {
             LOGGER.info("[TM] summon: no live citizen body — keeping snapshot's stats and HP");
         }
 
+        // 6c. Lower the goblin RISE_START_OFFSET blocks below its destination
+        //     Y so addFreshEntity puts it underground. The vertical-movement
+        //     tick handler will lift it back to the surface over
+        //     RISE_DURATION_TICKS, visually rising out of the materialize-end
+        //     circle. Capture surface Y first.
+        double goblinSurfaceY = goblin.getY();
+        markMaterializedBody(level, goblin, goblinSurfaceY);
+
         // 7. Add to the world. Custom name, attributes, evolution state,
         //    and all ManasCore storages are already restored from NBT;
         //    equipment was applied in step 6, stats in step 6b.
@@ -916,6 +948,18 @@ public class ExampleMod {
         }
         spawnSwapCircle(level, player, materializePos);
 
+        // Dissolve-body sink: lower the live body SINK_DEPTH blocks over the
+        // delay so it visually falls through its circle into the ground. Set
+        // invulnerable to block suffocation damage (which would otherwise leak
+        // through the stat sync onto the destination body).
+        target.setInvulnerable(true);
+        double sinkStartY = target.getY();
+        pendingVerticalMovements.add(new VerticalMovement(
+                target.getUUID(), level.dimension(),
+                sinkStartY, sinkStartY - SINK_DEPTH,
+                now, now + SWAP_DELAY_TICKS,
+                false /* body gets discarded at execute; no need to clear invuln */));
+
         // Queue the swap to execute after the delay
         pendingSwaps.add(new PendingSwap(
                 player.getUUID(),
@@ -924,8 +968,26 @@ public class ExampleMod {
                 identity.goblinEntityUUID,
                 magiculePaid,
                 now + SWAP_DELAY_TICKS));
-        LOGGER.info("[TM] swap: queued for execution in {} ticks (paid={} magicule)",
-                SWAP_DELAY_TICKS, magiculePaid);
+        LOGGER.info("[TM] swap: queued for execution in {} ticks (paid={} magicule, dissolve sink {}→{})",
+                SWAP_DELAY_TICKS, magiculePaid, sinkStartY, sinkStartY - SINK_DEPTH);
+    }
+
+    /**
+     * Set up a freshly-spawned body to rise from underground: lower it
+     * RISE_START_OFFSET blocks below its current Y, mark invulnerable, and
+     * queue a VerticalMovement to raise it back to the surface over
+     * RISE_DURATION_TICKS. Call this AFTER spawn/addFreshEntity for the
+     * materialize-side body in both send and summon.
+     */
+    private static void markMaterializedBody(ServerLevel level, LivingEntity body, double surfaceY) {
+        long now = level.getServer().getTickCount();
+        body.setPos(body.getX(), surfaceY - RISE_START_OFFSET, body.getZ());
+        body.setInvulnerable(true);
+        pendingVerticalMovements.add(new VerticalMovement(
+                body.getUUID(), level.dimension(),
+                surfaceY - RISE_START_OFFSET, surfaceY,
+                now, now + RISE_DURATION_TICKS,
+                true /* clear invuln on completion */));
     }
 
     /** Spawn a Tensura {@link MagicCircle} entity at {@code pos} with the
@@ -935,6 +997,8 @@ public class ExampleMod {
         MagicCircle circle = new MagicCircle(level, caster);
         circle.setVariant(MagicCircleVariant.SPACE);
         circle.setSpinning(true);
+        circle.setSize(CIRCLE_SIZE);          // inherited from TensuraProjectile
+        circle.refreshDimensions();           // recompute bounding box for the new size
         circle.setPos(pos.x, pos.y, pos.z);
         level.addFreshEntity(circle);
         long discardAt = level.getServer().getTickCount() + CIRCLE_DURATION_TICKS;
@@ -963,6 +1027,32 @@ public class ExampleMod {
             }
             return true;
         });
+
+        // Advance vertical movements (dissolve sink, materialize rise).
+        // Order before pending swaps so the dissolve body's final sink position
+        // settles in the same tick the swap discards it.
+        java.util.Iterator<VerticalMovement> vit = pendingVerticalMovements.iterator();
+        while (vit.hasNext()) {
+            VerticalMovement m = vit.next();
+            if (now < m.startTick()) continue;
+            ServerLevel lvl = server.getLevel(m.dim());
+            if (lvl == null) { vit.remove(); continue; }
+            net.minecraft.world.entity.Entity e = lvl.getEntity(m.entityUUID());
+            if (now >= m.endTick()) {
+                if (e instanceof LivingEntity le && !le.isRemoved()) {
+                    le.setPos(le.getX(), m.targetY(), le.getZ());
+                    if (m.clearInvulnerableOnEnd()) {
+                        le.setInvulnerable(false);
+                    }
+                }
+                vit.remove();
+                continue;
+            }
+            if (e == null || e.isRemoved()) continue;
+            double progress = (double) (now - m.startTick()) / (m.endTick() - m.startTick());
+            double y = m.startY() + (m.targetY() - m.startY()) * progress;
+            e.setPos(e.getX(), y, e.getZ());
+        }
 
         // Execute due swaps
         java.util.Iterator<PendingSwap> it = pendingSwaps.iterator();
