@@ -18,17 +18,38 @@ Planning documents live in `docs/` and should be kept current as work progresses
 MDK-1.21.1-ModDevGradle-main/
   build.gradle              # Gradle build config (ModDevGradle 2.0.141)
   gradle.properties         # Mod metadata and version pins
-  libs/                     # Local mod JARs (compile + runtime deps)
+  libs/                     # Local mod JARs (compile + runtime deps; gitignored)
   src/
     main/
       java/com/example/examplemod/
-        ExampleMod.java       # Main mod entrypoint (@Mod class)
-        ExampleModClient.java # Client-only entrypoint
-        Config.java           # NeoForge config (placeholder, MDK default)
+        ExampleMod.java                # Main mod entrypoint (@Mod class).
+                                       # Hosts the NAMING_EVENT listener, swap
+                                       # helpers (sendGoblinToColony / summonGoblin),
+                                       # cost gate, server tick handler, death hooks.
+        ExampleModClient.java          # MDK default client entrypoint (legacy).
+        Config.java                    # NeoForge config (MDK placeholder).
+        GoblinIdentitySavedData.java   # Server-global SavedData. GoblinIdentity
+                                       # records (identityId, citizenId, colonyId,
+                                       # goblinUUID, mode, entitySnapshot,
+                                       # ownerPlayerUUID) and PendingGoblin pool.
+        Networking.java                # NeoForge payload registration + S2C / C2S
+                                       # records: RequestRoster / RosterResponse,
+                                       # ActOnIdentity, OpenCollapseConfirm,
+                                       # ConfirmCollapse. Server handlers.
+        ClientEvents.java              # @OnlyIn(CLIENT). Keybind (G), installs
+                                       # rosterClientHandler + confirmCollapseClientHandler.
+        ClientRosterHandler.java       # @OnlyIn(CLIENT). Opens/refreshes RosterScreen
+                                       # on roster response, handles ConfirmCollapseScreen
+                                       # parent-refresh case.
+        RosterScreen.java              # @OnlyIn(CLIENT). Goblin roster UI.
+        ConfirmCollapseHandler.java    # @OnlyIn(CLIENT). Routes collapse-confirm
+                                       # payload to the layered Screen.
+        ConfirmCollapseScreen.java     # @OnlyIn(CLIENT). Warning dialog when a
+                                       # swap would deplete the player's magicule.
       resources/
-        assets/examplemod/lang/en_us.json
+        assets/examplemod/lang/en_us.json   # Keybind + UI translations
       templates/
-        META-INF/neoforge.mods.toml   # Mod metadata template (expanded by Gradle)
+        META-INF/neoforge.mods.toml         # Mod metadata template (Gradle-expanded)
 ```
 
 ## Key identifiers
@@ -79,10 +100,38 @@ MDK-1.21.1-ModDevGradle-main/
 
 The MDK default package (`com.example.examplemod`) and class names (`ExampleMod`, `ExampleModClient`, `Config`) have not been renamed yet. When writing new code, start new classes in a proper package like `com.tensura.minecolonies` and migrate the existing files when convenient. Do not block feature work on this rename.
 
-## Current feature: goblin citizen
+## Current feature status (Milestone 3 vertical slice)
 
-**Goal:** when a player right-clicks a named Tensura goblin near a MineColonies colony, the goblin joins that colony as a citizen.
+The "two bodies, one identity" design is largely implemented end-to-end.
+See `docs/roadmap.md` for stage-by-stage detail; `docs/decisions.md` for
+the design rationale and design-choice history.
 
-Relevant APIs to research:
-- Tensura: look for the goblin entity class (`IGoblin` or similar) and how named entities are detected
-- MineColonies: `IColonyManager`, `IColony`, `ICitizenData` — the colony manager can find a colony by world position, and colonies expose a method to add or register new citizens
+**Complete:**
+- Stage 1b — pending pool (goblins named before any colony exists are
+  promoted on `ColonyCreatedModEvent`).
+- Stage A — naming creates `CitizenData` + count without spawning a body.
+- Stage B — sneak-right-click send-to-colony swap; full item transfer.
+- Stage C1 — `/summongoblin <name>` command brings the goblin back.
+- Stage C2a/b — keybind-opened roster Screen (default `G`), two-way
+  toggle, ConfirmCollapseScreen for the forced-collapse overspend prompt.
+- Stage D — death hooks (`LivingDeathEvent` + `CitizenDiedModEvent`).
+- Stage D2 — magicule cost gate (target.EP × 0.25), shared chokepoint.
+- Stage D3 — stat sync (bump destination max attributes, then absolute
+  copy of aura/magicule/spiritualHealth/HP plus flat copy of counters
+  and destiny flags).
+- Stage E — Tensura `MagicCircle` visuals (SPACE variant, 3× size,
+  spinning), 2-second delay, sink-and-rise animations with X/Z lock and
+  fall-damage prevention, refund-on-abort.
+
+**Pending:**
+- Stage F — goblin renderer for the in-colony citizen body. Currently
+  the citizen looks like a default colonist; the firm end-product
+  requirement is for it to render as a goblin (cf. "Colonies Maid
+  Citizen" mod technique). Deliberately deferred until all the
+  mechanics are proven.
+
+**Open future-work notes recorded in decisions.md:**
+- Multi-colony policy for pending pool drain and colony lookup.
+- Town hall citizen-type menu (choose race at colony creation).
+- Advisory messages gated by Tensura's Great Sage skill.
+- Equalisation between Tensura stats and MineColonies citizen skills.

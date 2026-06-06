@@ -140,21 +140,30 @@ First fix attempted: **percentage-scale** the three pools to
 calc divided by zero and produced 0 → all energy values dropped to zero
 on send, then summon read zero back into the goblin, draining everything.
 
-Final fix: **`bumpEnergyMaxAttributes(dst, src)` then absolute copy.**
+Final fix: **`bumpBodyMaxAttributes(dst, src)` then absolute copy.**
 On send, we add a permanent `AttributeModifier(SWAP_ENERGY_BOOST_ID,
-delta, ADD_VALUE)` to the citizen body's `MAX_AURA`/`MAX_MAGICULE`/
-`MAX_SPIRITUAL_HEALTH` to lift them up to the goblin's values. The
-citizen now has the headroom to safely hold the goblin's absolute
-values. On summon, the goblin already has its race-tier maxes from the
-NBT roundtrip — no boost needed, just absolute copy citizen → goblin.
-The modifier lives on the citizen body's `AttributeInstance` and is
-discarded with the body at the end of the summon flow. Re-swap removes
-the prior modifier first (tracked via `SWAP_ENERGY_BOOST_ID`) so we
-don't compound.
+delta, ADD_VALUE)` to the citizen body's `MAX_AURA` / `MAX_MAGICULE` /
+`MAX_SPIRITUAL_HEALTH` AND vanilla `MAX_HEALTH` to lift them up to the
+goblin's values. The citizen now has the headroom to safely hold the
+goblin's absolute values across all four pools. On summon, the goblin
+already has its race-tier maxes from the NBT roundtrip — no boost
+needed, just absolute copy citizen → goblin. The modifier lives on the
+citizen body's `AttributeInstance` and is discarded with the body at
+the end of the summon flow. Re-swap removes the prior modifier first
+(tracked via `SWAP_ENERGY_BOOST_ID`) so we don't compound.
+
+HP follows the same pattern as the three energy pools: bump
+`MAX_HEALTH` then absolute `setHealth`. An earlier attempt at
+percentage HP (`ratio × dstMax`) was inconsistent — the citizen's
+visible HP was always lower than the goblin's because citizens have
+smaller default max-HP; users perceived this as "HP didn't transfer."
+With the boost, both bodies show the same numeric HP.
 
 Side-benefits: round-trip cost stays symmetric (absolute EP carries
 across), and citizens with the boost can actively gain/spend magicule
-during colony service.
+during colony service. The goblin-citizen has higher max-HP than a
+normal MineColonies citizen for the duration of its colony service
+— consistent with the "fundamentally tougher entity" interpretation.
 
 **Goblin/citizen stat systems differ — equalisation deferred**
 Tensura and MineColonies maintain separate stat models: Tensura tracks

@@ -162,50 +162,96 @@ no path bypasses the cost.
 
 ### Stage D3 — Stat sync across the swap ✅ COMPLETE
 Field-by-field copy of the IExistence stat subset (aura, magicule,
-spiritualHealth, gainedEP, soulPoints, humanKill, alignment + originalAlignment,
-the five destiny flags, targetNeutralList) plus a percentage-based HP copy
-that respects each body's own max-HP (race modifiers on goblin vs.
-MineColonies skills/happiness on citizen).
+spiritualHealth, gainedEP, soulPoints, humanKill, alignment +
+originalAlignment, the five destiny flags, targetNeutralList) plus
+absolute HP copy. To avoid `MagiculePoisonEffect` killing the citizen
+(which has zero default max for the energy attributes), the destination
+body's max attributes are first boosted to the source's via a tracked
+`AttributeModifier`. See `docs/decisions.md` → "Energy pool scale
+mismatch between goblin and citizen bodies".
 
-- [x] `copyStats(IExistence src, IExistence dst)` — explicit field list,
-      direct aura/magicule copy (NOT setEP — preserves imbalance),
-      `clearNeutralTargets` + re-add for the list, `markDirty` at the end
-- [x] `copyHealthPercentage(srcHealth, srcMax, dst)` — ratio × dstMax,
-      clamped so a living source never produces a dead destination
-      (min 1 HP when srcHealth > 0)
+- [x] `copyStats(IExistence src, IExistence dst)` — absolute aura/magicule
+      copy (NOT setEP — preserves imbalance), `clearNeutralTargets` +
+      re-add for the list, `markDirty` at the end
+- [x] `bumpBodyMaxAttributes(dst, src)` — adds a tracked permanent
+      `AttributeModifier(SWAP_ENERGY_BOOST_ID, delta, ADD_VALUE)` lifting
+      `MAX_AURA` / `MAX_MAGICULE` / `MAX_SPIRITUAL_HEALTH` / vanilla
+      `MAX_HEALTH` on the destination up to the source's values so
+      absolute copy is safe and round-trips cleanly
+- [x] `copyHealthAbsolute(src, dst)` — `dst.setHealth(min(src.health,
+      dst.maxHealth))`, defensive skip if source already dead
 - [x] Send: stat copy goblin → citizen after item transfer, before
       `goblin.discard()`. Both bodies alive at the copy.
 - [x] Summon: citizen discard deferred until AFTER goblin `addFreshEntity`.
       Order: reconstruct → setUUID → moveTo → applyInventory →
-      `copyStats(citizen→goblin)` + HP percentage → `addFreshEntity` →
-      discard citizen body. First client sync carries correct values.
-- [x] Fixes the magicule-cost exploit: round-trip cost is now symmetric
-      because the swapped EP carries over.
+      `bumpBodyMaxAttributes` + `copyStats` + `copyHealthAbsolute` →
+      `addFreshEntity` → discard citizen body
+- [x] Magicule-cost round-trip is symmetric (EP carries across, citizens
+      can actively gain/spend during colony service).
 
 ### Stage E — Magic circle visuals + delayed swap ✅ COMPLETE
-The swap is now dramatic: cost charged up front, circle entity (Tensura's
-`MagicCircle` with `SPACE` variant, spinning) spawns at both ends, then
-~15 ticks (0.75s) later the body change actually executes.
+The swap is fully dramatic: cost charged up front, big spinning Tensura
+`MagicCircle` entities (SPACE variant, 3× size) at both ends, dissolve
+body sinks through its circle into the ground, ~2s pause, materialize
+body emerges from its circle, all positions locked at queue time.
 
-- [x] Direct `new MagicCircle(level, player)` + `setVariant(SPACE)` +
-      `setSpinning(true)` + `setPos` + `level.addFreshEntity`. Standard
-      entity replication shows it to nearby clients — no custom packets,
-      no proximity filtering on the server side.
-- [x] Both ends spawn a circle: dissolve at the live body's position,
-      materialize at the destination (town hall for send, player for summon).
-- [x] Circle duration ~40 ticks (~2 seconds) via a manual discard list,
-      processed in a `@SubscribeEvent ServerTickEvent.Post` handler that
-      looks up the entity by UUID + dimension and calls `discard()`.
-- [x] Swap delay ~15 ticks (~0.75 seconds). The action is queued in a
-      separate `pendingSwaps` list with `(playerUUID, identityId, expected
-      mode, expected goblin UUID, magiculePaid, executeAtTick)`.
-- [x] Cost charged **up front** (in `chargeOrPrompt` for sufficient path
-      or `handleConfirmCollapse` for forced-collapse path) — never deferred.
-- [x] Re-validate at execute time: identity exists, mode unchanged, goblin
-      UUID unchanged (for SUBORDINATE), target body alive and resolvable.
-      If anything failed during the delay → advisory + `refundMagicule`
-      (capped at the player's max-magicule).
-- [x] Player-disconnect during the delay: log, skip refund (can't safely
+**Timeline (constants):**
+- `SWAP_DELAY_TICKS = 40` (2.0s — dissolve sink phase)
+- `RISE_DURATION_TICKS = 20` (1.0s — materialize emergence)
+- `CIRCLE_DURATION_TICKS = 80` (4.0s — covers sink + delay + rise + afterglow)
+- `CIRCLE_SIZE = 3.0f` (3× default MagicCircle visual scale)
+- `SINK_DEPTH = 3.0` blocks (dissolve body's drop)
+- `RISE_START_OFFSET = 2.0` blocks (materialize body's underground spawn)
+
+**Visuals:**
+- [x] `new MagicCircle(level, player)` + `setVariant(SPACE)` + `setSpinning(true)`
+      + `setSize(3.0f)` + `refreshDimensions()` + `setPos` + `addFreshEntity`.
+      Standard entity replication; no custom packets.
+- [x] Both ends spawn a circle: dissolve at the live body's current
+      position; materialize at the locked destination (town hall pos for
+      send, `summonMaterializePos(player)` for summon — see below).
+- [x] Discard timer: `pendingCircles` list drained by `ServerTickEvent.Post`.
+- [x] Diagnostic log on each circle spawn: position, caster, `addFreshEntity` result.
+
+**Delay + position lock:**
+- [x] Swap delay 40 ticks. Action queued in `pendingSwaps` with
+      `(playerUUID, identityId, expectedMode, expectedGoblinUUID,
+       magiculePaid, executeAtTick, materializePos)`.
+- [x] `materializePos` captured at queue time so the materialize body
+      appears where the circle is, regardless of player movement during
+      the delay.
+- [x] Summon materialize position: `summonMaterializePos(player)` —
+      `player.position() + 3 × horizontal(lookAngle)` at the player's
+      feet Y. Always 3 blocks ahead horizontally regardless of pitch, so
+      the circle never spawns inside the ground when the player looks
+      downward. Falls back to yaw direction for nearly-vertical looks.
+
+**Sink and rise animations:**
+- [x] `VerticalMovement` record: `(entityUUID, dim, lockX, lockZ, startY,
+       targetY, startTick, endTick, clearInvulnerableOnEnd)`.
+- [x] Tick handler interpolates Y linearly, locks X/Z via setPos each
+      tick (prevents AI walking the body out of its circle), zeroes
+      `deltaMovement` (no residual velocity), zeroes `fallDistance` (no
+      accumulated fall damage on invulnerability clear).
+- [x] Dissolve body: `setInvulnerable(true)` + sink from current Y to
+      `currentY − SINK_DEPTH` over the delay. No need to clear invuln
+      (body discarded at execute).
+- [x] Materialize body: `markMaterializedBody(level, body, surfaceY)` —
+      lowers body to `surfaceY − RISE_START_OFFSET`, marks invulnerable,
+      queues rise over `RISE_DURATION_TICKS`. `clearInvulnerableOnEnd = true`
+      so the body is normal again post-rise.
+- [x] Order in tick handler: circles → vertical movements → swaps. Dissolve
+      body's final sink position settles in the same tick the swap
+      discards it.
+
+**Cost handling:**
+- [x] Cost charged **up front** in `chargeOrPrompt` (sufficient path) or
+      `handleConfirmCollapse` (forced-collapse path). Never deferred.
+- [x] Re-validate at execute time: identity exists, mode unchanged,
+      goblin UUID unchanged (for SUBORDINATE), target body alive and
+      resolvable. Any fail → advisory + `refundMagicule` capped at
+      `EnergyHelper.getMaxMagicule(player)`.
+- [x] Player-disconnect during delay: log, skip refund (can't safely
       modify offline data).
 
 ### Stage F — Goblin renderer (deferred polish) ⬜ PENDING
