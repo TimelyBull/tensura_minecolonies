@@ -36,14 +36,19 @@ import net.neoforged.neoforge.event.tick.EntityTickEvent;
  * </ol>
  *
  * <h3>Command cycle (no mixin)</h3>
- * The cycle is driven from {@link ExampleMod#onEntityInteract} on a
- * <b>sneak + right-click + empty main hand</b> of a named, owned, tame
- * {@code ISubordinate} (see {@link #handleCommandCycle}). Sneak is used
- * universally so we never hijack the plain right-click (which opens the
- * inventory screen for humanoids, mounts a mount, etc.). The cycle reads the
- * entity's real flags ({@code isWandering}/{@code isOrderedToSit}) plus our
- * {@link Attachments#PATROL_ORDER} attachment, so it stays in sync even if
- * the player also uses Tensura's native plain-click cycle on a beast.
+ * PATROL is added <i>into</i> Tensura's existing command set, activated the
+ * same way: <b>sneak + right-click + empty main hand</b> (the gesture that
+ * already reaches {@code cycleCommands} for humanoid subordinates — plain
+ * right-click opens their inventory / mounts a mount). From
+ * {@link ExampleMod#onEntityInteract} we intercept ONLY the two edges that
+ * touch PATROL — STAY → PATROL ({@link #beginPatrol}) and PATROL → FOLLOW
+ * ({@link #exitPatrolToFollow}). The other two edges (FOLLOW → WANDER,
+ * WANDER → STAY) are left to pass through to Tensura's native
+ * {@code cycleCommands}, which emits its own AQUA command message; our
+ * PATROL / FOLLOW messages reuse that same AQUA style so the four commands
+ * look identical as you cycle. State is derived from the entity's real flags
+ * plus the {@link Attachments#PATROL_ORDER} attachment, so it never drifts
+ * out of sync with Tensura's own cycle.
  *
  * <h3>Patrol movement (brain-native, no mixin)</h3>
  * Every Tensura subordinate has the {@code MoveToWalkTarget} core brain task,
@@ -71,6 +76,11 @@ public final class SubordinatePatrol {
     /** Public no-arg constructor — an instance is registered on the NeoForge
      *  game event bus for the {@link #onEntityTick} handler. */
     public SubordinatePatrol() {}
+
+    /** Colour Tensura uses for its native pet command messages
+     *  (follow/wander/stay) — matched so the PATROL message looks the same. */
+    private static final net.minecraft.ChatFormatting PET_MESSAGE_COLOR =
+            net.minecraft.ChatFormatting.AQUA;
 
     /** Walk speed multiplier handed to the brain. 1.0 = the mob's normal
      *  movement speed; patrolling is a relaxed activity so we keep it at 1. */
@@ -105,47 +115,24 @@ public final class SubordinatePatrol {
     }
 
     /**
-     * Advance the named subordinate one step along the extended command
-     * cycle FOLLOW → WANDER → STAY → PATROL → FOLLOW.
-     *
-     * The first three edges reuse Tensura's own state setters and message
-     * keys, so they behave exactly like the native cycle. The two edges that
-     * touch PATROL are ours. State is derived from the entity's real flags,
-     * never a separate counter, so it can't drift out of sync.
+     * Is this named subordinate currently following the PATROL command?
+     * (Used by the interact hook to decide which command edge to take.)
      */
-    public static void handleCommandCycle(Mob mob, ServerPlayer player) {
-        ISubordinate sub = (ISubordinate) mob;
-
-        if (mob.hasData(Attachments.PATROL_ORDER.get())) {
-            // PATROL → FOLLOW
-            stopPatrol(mob);
-            SubordinateHelper.setFollow(mob);
-            sendPetMessage(player, "tensura.message.pet.follow", mob);
-            return;
-        }
-        if (sub.isOrderedToSit()) {
-            // STAY → PATROL
-            beginPatrol(mob, player);
-            return;
-        }
-        if (sub.isWandering()) {
-            // WANDER → STAY
-            SubordinateHelper.setStay(mob);
-            sendPetMessage(player, "tensura.message.pet.stay", mob);
-            return;
-        }
-        // FOLLOW → WANDER
-        SubordinateHelper.setWander(mob);
-        sendPetMessage(player, "tensura.message.pet.wander", mob);
+    public static boolean isPatrolling(Mob mob) {
+        return mob.hasData(Attachments.PATROL_ORDER.get());
     }
 
     /**
-     * Enter the PATROL state: pin the order to the colony nearest the PLAYER
-     * (so it keeps patrolling that colony after the player leaves), put the
-     * mob in a "wandering, aggressive" stance so follow is off and hostiles
-     * are engaged, and attach the standing order.
+     * Enter the PATROL state (the STAY → PATROL edge of the command cycle):
+     * pin the order to the colony nearest the PLAYER (so it keeps patrolling
+     * that colony after the player leaves), put the mob in a "wandering,
+     * aggressive" stance so follow is off and hostiles are engaged, and attach
+     * the standing order.
+     *
+     * The message uses the same AQUA style as Tensura's native follow/wander/
+     * stay command messages so the four commands look identical as you cycle.
      */
-    private static void beginPatrol(Mob mob, ServerPlayer player) {
+    public static void beginPatrol(Mob mob, ServerPlayer player) {
         Level level = player.level();
         IColony colony = IColonyManager.getInstance()
                 .getClosestColony(level, player.blockPosition());
@@ -162,7 +149,7 @@ public final class SubordinatePatrol {
         // current target; our tick driver overrides the wander target.
         SubordinateHelper.setWander(mob);
         // Aggressive combat stance so the brain engages hostiles while
-        // patrolling (the friendly-citizen veto still protects colonists).
+        // patrolling (the friendly-race / citizen veto still protects allies).
         SubordinateHelper.setAggressive(mob);
 
         mob.setData(Attachments.PATROL_ORDER.get(),
@@ -172,17 +159,24 @@ public final class SubordinatePatrol {
 
         player.displayClientMessage(
                 Component.translatable("tensura_minecolonies.command.patrol",
-                        mob.getDisplayName(), colony.getName()),
+                                mob.getDisplayName(), colony.getName())
+                        .withStyle(PET_MESSAGE_COLOR),
                 true);
         ExampleMod.LOGGER.info("[TM] '{}' now patrolling outskirts of colony '{}' (id={})",
                 mob.getName().getString(), colony.getName(), colony.getID());
     }
 
-    /** Leave the PATROL state: drop the standing order and clear the patrol
-     *  walk target so the mob doesn't keep walking to the last point. */
-    private static void stopPatrol(Mob mob) {
+    /**
+     * Leave the PATROL state via the PATROL → FOLLOW edge: drop the standing
+     * order, clear the patrol walk target, and set the mob back to FOLLOW with
+     * the native (AQUA) follow message — so this edge looks exactly like
+     * Tensura's own STAY → FOLLOW step.
+     */
+    public static void exitPatrolToFollow(Mob mob, ServerPlayer player) {
         mob.removeData(Attachments.PATROL_ORDER.get());
         mob.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        SubordinateHelper.setFollow(mob);
+        sendPetMessage(player, "tensura.message.pet.follow", mob);
     }
 
     // =================================================================
@@ -309,9 +303,12 @@ public final class SubordinatePatrol {
     // Helpers
     // =================================================================
 
-    /** Send a Tensura "pet" command message (above the hotbar), matching the
-     *  native follow/wander/stay feedback. */
+    /** Send a Tensura "pet" command message (above the hotbar) in the same
+     *  AQUA colour Tensura uses for its native follow/wander/stay feedback
+     *  ({@code ISubordinate.cycleCommands} applies {@code Style.withColor(AQUA)}). */
     private static void sendPetMessage(ServerPlayer player, String key, Mob mob) {
-        player.displayClientMessage(Component.translatable(key, mob.getDisplayName()), true);
+        player.displayClientMessage(
+                Component.translatable(key, mob.getDisplayName()).withStyle(PET_MESSAGE_COLOR),
+                true);
     }
 }

@@ -938,12 +938,14 @@ become a citizen or guard.
   pinning the order to a colony id + dimension. Persists across
   unload/reload/relog → the patrol is a true standing order.
 - `SubordinatePatrol` — owns the command cycle and the patrol driver.
-  - Cycle: hooked from `ExampleMod.onEntityInteract`. Reuses Tensura's
-    own `SubordinateHelper.setFollow/setWander/setStay` and pet message
-    keys for the three native states; the two PATROL edges are ours.
-    State is derived from the entity's real flags + the attachment, so
-    it never drifts out of sync with Tensura's own plain-click cycle
-    (any native command change auto-cancels the order).
+  - Cycle: hooked from `ExampleMod.onEntityInteract`. PATROL is added
+    INTO the native set — we intercept only the STAY→PATROL and
+    PATROL→FOLLOW edges and let FOLLOW→WANDER / WANDER→STAY pass through
+    to Tensura's own `cycleCommands` (so those stay 100% native). PATROL
+    messages use the same AQUA style Tensura uses for its command
+    feedback. State is derived from the entity's real flags + the
+    attachment, so it never drifts (any native command change
+    auto-cancels the order).
   - Patrol: per-entity `EntityTickEvent.Post`. Drives the brain's
     vanilla `WALK_TARGET` memory (consumed by the `MoveToWalkTarget`
     core task every Tensura subordinate has) with outskirts points.
@@ -952,6 +954,9 @@ become a citizen or guard.
     without patching anything.
   - Combat: enters PATROL with aggressive stance; yields entirely while
     `getTarget() != null` (native fight behaviours drive), then resumes.
+    Targeting veto (`onSubordinateChangeTarget`, extended) spares all
+    citizens + goblins + lizardmen + friendly (tamed/allied) orcs, so the
+    patrol only fights genuine hostiles incl. wild/hostile orcs.
   - Outskirts geometry: colonies claim whole chunks, so the target is
     found by marching outward from `colony.getCenter()` in one-chunk
     steps while `isCoordInColony` holds (cap 16 chunks), then placing a

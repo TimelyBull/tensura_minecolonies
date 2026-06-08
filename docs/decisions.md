@@ -1123,42 +1123,51 @@ native combat) and receives a standing order through Tensura's
 **existing right-click command cycle** — it never becomes a
 MineColonies citizen or guard. Full roadmap entry in `roadmap.md`.
 
-**Extend Tensura's command cycle via the interact event, NOT a mixin
-on `cycleCommands`.** The native command system is
-`ISubordinate.cycleCommands(Mob, Player)` — a default interface method
-cycling FOLLOW → WANDER → STAY via boolean flags
-(`isWandering`/`isOrderedToSit`); combat stance is a separate axis
-(`cycleBehaviour`: neutral/passive/aggressive/protect). A mixin on the
-default method would have been the most surgical insertion point, but
-it isn't necessary: we already own `PlayerInteractEvent.EntityInteract`,
-which fires before Tensura's `mobInteract`. On the command gesture we
-run our own four-state cycle and cancel the event, so Tensura's native
-three-state cycle never runs and there's no double-cycling. Honours the
-"prefer extension over mixin where possible" rule. We reuse Tensura's
-own `SubordinateHelper.setFollow/setWander/setStay` and `pet.*` message
-keys for the three native edges, so those behave identically to native;
-only the two PATROL edges are ours.
+**Add PATROL INTO the native cycle by intercepting only its two edges,
+NOT by replacing the cycle and NOT via a mixin on `cycleCommands`.** The
+native command system is `ISubordinate.cycleCommands(Mob, Player)` — a
+default interface method cycling FOLLOW → WANDER → STAY via boolean
+flags (`isWandering`/`isOrderedToSit`); combat stance is a separate axis
+(`cycleBehaviour`: neutral/passive/aggressive/protect). We already own
+`PlayerInteractEvent.EntityInteract`, which fires before Tensura's
+`mobInteract`. The first design ran a full four-state cycle of our own
+and cancelled the event; the revised design (per user request: "an
+addition to the current set, activated the same way") instead
+intercepts **only the two edges that touch PATROL** — STAY → PATROL and
+PATROL → FOLLOW — and **lets the event pass through** for FOLLOW →
+WANDER and WANDER → STAY. Those two pass-through edges are therefore
+executed by Tensura's own `cycleCommands` the moment `mobInteract` runs,
+so their behaviour and messages are literally the native ones (no
+re-implementation, no chance of drift). Honours "prefer extension over
+mixin where possible."
 
-**Universal gesture = sneak + right-click + empty hand, NOT per-type
-gating.** The gesture that natively reaches `cycleCommands` differs by
-entity family: humanoids (`TensuraHumanoidEntity` — goblin/dwarf/
-lizardman) open the inventory screen on plain right-click and only
-reach the command cycle on **sneak** + right-click; pure beasts
-(`TensuraTamableEntity`) cycle on plain right-click; mounts
-(`TensuraMountEntity`, e.g. knight spider) mount on plain right-click.
-Replicating each family's gating in the event handler is fragile, so
-we require **sneak** universally. That guarantees we never hijack any
-plain-right-click behaviour (inventory / mount / trade), and for
-humanoids it matches the native command gesture exactly.
+**Message style matched to native: AQUA.** Tensura's `cycleCommands`
+emits its command feedback with `Style.withColor(ChatFormatting.AQUA)`
+above the hotbar (decompile-confirmed). The two edges we own (PATROL
+enter, FOLLOW on patrol-exit) send their messages with the same AQUA
+style, so all four commands look identical as the player cycles. The
+FOLLOW/WANDER/STAY edges we don't intercept keep native styling for
+free.
 
-**Command state is DERIVED, never a separate counter.** The cycle reads
-the entity's real `isWandering`/`isOrderedToSit` flags plus the
-`PATROL_ORDER` attachment to decide the next state. Consequence: a
-player can freely mix our sneak-cycle with Tensura's native plain-click
-cycle on a beast without desync. The patrol driver additionally
-auto-cancels the order if it ever sees the mob in a state `beginPatrol`
-didn't leave it in (not-wandering or ordered-to-sit) — i.e. a native
-command change cleanly ends the patrol.
+**Gesture = sneak + right-click + empty hand (the native command
+gesture for humanoids).** For humanoid subordinates (`TensuraHumanoidEntity`
+— goblin / lizardman / dwarf, the ones this feature targets in practice)
+plain right-click opens the inventory screen and the command cycle is
+reached on **sneak** + right-click — so requiring sneak makes PATROL
+activate exactly like the existing commands. Requiring sneak universally
+also avoids hijacking the plain right-click on pure beasts / mounts
+(which cycle / mount on plain-click); those still reach the native
+cycle on plain-click, and our sneak path adds PATROL on top. Because
+state is derived, the two paths never conflict.
+
+**Command state is DERIVED, never a separate counter.** The edge taken
+is decided from the entity's real `isWandering`/`isOrderedToSit` flags
+plus the `PATROL_ORDER` attachment. Consequence: a player can freely mix
+our sneak path with Tensura's native plain-click cycle on a beast
+without desync. The patrol driver additionally auto-cancels the order if
+it ever sees the mob in a state `beginPatrol` didn't leave it in
+(not-wandering or ordered-to-sit) — i.e. a native command change (e.g. a
+plain-click STAY on a beast) cleanly ends the patrol.
 
 **Patrol movement is brain-native via the `WALK_TARGET` memory, NOT a
 vanilla Goal.** All Tensura subordinates use SmartBrainLib brain AI
@@ -1180,11 +1189,32 @@ the aggressive stance (`SubordinateHelper.setAggressive`) so the brain's
 target sensors acquire hostiles. While `mob.getTarget() != null` the
 driver does nothing — the native fight behaviours own movement and
 `WALK_TARGET`. When the target clears, the driver resumes patrolling.
-Friendly colonists are still protected by the existing
-`onSubordinateChangeTarget` colony-citizen veto. We force aggressive on
-enter (and leave the stance as-is on exit, since the prior stance isn't
-recorded) — accepted as the simplest way to guarantee "fights ANY
-hostile while patrolling."
+We force aggressive on enter (and leave the stance as-is on exit, since
+the prior stance isn't recorded) — accepted as the simplest way to
+guarantee "fights ANY hostile while patrolling."
+
+**Targeting veto extended: spare citizens + friendly races, allow only
+hostile orcs.** The aggressive stance would otherwise make a patroller
+attack other Tensura race mobs and colonists. The existing
+`onSubordinateChangeTarget` listener on ManasCore's `LIVING_CHANGE_TARGET`
+(the exact gate Tensura routes assist-targeting through — see
+`docs/subordinate-citizen-targeting.md`) was widened so a subordinate's
+target change is vetoed when the proposed target is:
+- any `AbstractEntityCitizen` (was previously scoped to the owner's
+  colony; now all citizens — "citizens are not targeted");
+- any `GoblinEntity` or `LizardmanEntity` (friendly races, no exception);
+- an `OrcEntity` that is **friendly** — `isTame()` (someone's
+  subordinate) or `entity.isAlliedTo(orc)`.
+
+A **wild / hostile orc** (untamed, not allied) falls through and may be
+targeted, so the patrol still fights hostile orcs while sparing the
+player's own orc subordinates — per the request "orcs targeted if
+hostile to the player, not when they are not hostile." `OrcLordEntity`
+and `OrcDisasterEntity` extend `OrcEntity`, so the same rule covers
+them. The veto is global (all subordinate target changes, not just
+patrol) since it expresses a general "don't attack allied races /
+colonists" rule; it remains an acquisition-time veto (doesn't force-drop
+an already-held target).
 
 **Outskirts = outer ring of the claimed chunks, found by marching, NOT
 a hardcoded radius.** Colonies claim whole chunks (membership =

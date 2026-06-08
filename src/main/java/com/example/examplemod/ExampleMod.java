@@ -28,6 +28,8 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.architectury.event.EventResult;
 import io.github.manasmods.tensura.entity.magic.MagicCircle;
 import io.github.manasmods.tensura.entity.monster.GoblinEntity;
+import io.github.manasmods.tensura.entity.monster.LizardmanEntity;
+import io.github.manasmods.tensura.entity.monster.OrcEntity;
 import io.github.manasmods.tensura.entity.variant.MagicCircleVariant;
 import io.github.manasmods.tensura.event.TensuraEntityEvents;
 import io.github.manasmods.tensura.entity.template.subclass.ISubordinate;
@@ -241,19 +243,32 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (!(entity instanceof ISubordinate)) return EventResult.pass();
 
         LivingEntity proposed = target.get();
-        if (!(proposed instanceof AbstractEntityCitizen citizen)) return EventResult.pass();
+        if (proposed == null) return EventResult.pass();
 
         UUID ownerUuid = SubordinateHelper.getSubordinateOwnerUUID(entity);
         if (ownerUuid == null) return EventResult.pass();
 
-        IColony colony = citizen.getCitizenColonyHandler() == null ? null
-                : citizen.getCitizenColonyHandler().getColony();
-        if (colony == null) return EventResult.pass();
+        // (1) Never target colony citizens. (Patrol roams a colony, and the
+        // player's subordinates shouldn't assist-attack colonists when the
+        // player hits one — see docs/subordinate-citizen-targeting.md.)
+        if (proposed instanceof AbstractEntityCitizen) return EventResult.interruptFalse();
 
-        UUID colonyOwner = colony.getPermissions().getOwner();
-        if (colonyOwner == null || !colonyOwner.equals(ownerUuid)) return EventResult.pass();
+        // (2) Never target friendly Tensura races. Goblins and lizardmen are
+        // spared unconditionally; orcs are spared only when NOT hostile to the
+        // player (a tamed / allied orc is a subordinate, not an enemy). A wild
+        // orc falls through and may be targeted, so the patrol still fights
+        // hostile orcs. Orc lord / disaster extend OrcEntity, so the same rule
+        // covers them.
+        if (proposed instanceof GoblinEntity || proposed instanceof LizardmanEntity) {
+            return EventResult.interruptFalse();
+        }
+        if (proposed instanceof OrcEntity orc) {
+            boolean friendly = orc.isTame() || entity.isAlliedTo(orc);
+            if (friendly) return EventResult.interruptFalse();
+            // wild / hostile orc — allow targeting
+        }
 
-        return EventResult.interruptFalse();
+        return EventResult.pass();
     }
 
     // ------------------------------------------------------------------
@@ -407,20 +422,33 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // Leaving this method present (and the envoy branch above) keeps
         // the envoy dialogue working — only the send-by-sneak path is gone.
 
-        // "Patrol Colony Outskirts" command cycle. Sneak + right-click +
-        // empty main hand on a named, owned, tame subordinate advances its
-        // right-click command (FOLLOW → WANDER → STAY → PATROL → FOLLOW).
-        // Sneak is required universally so we never hijack the plain
-        // right-click (inventory screen for humanoids, mounting for mounts).
-        // We cancel so Tensura's native 3-state cycle doesn't also run.
+        // "Patrol Colony Outskirts" — a fourth command added INTO Tensura's
+        // existing command set (FOLLOW → WANDER → STAY → PATROL → FOLLOW),
+        // activated the same way the native commands are: sneak + right-click
+        // + empty main hand (the gesture that already reaches cycleCommands
+        // for humanoid subordinates; plain right-click opens the inventory /
+        // mounts a mount). We intercept ONLY the two edges that touch PATROL
+        // and let the event pass through for the other two, so Tensura's own
+        // cycleCommands emits the native FOLLOW→WANDER and WANDER→STAY steps
+        // (and their AQUA messages) unchanged — no double-cycling.
         if (event.getEntity() instanceof ServerPlayer sp
                 && sp.isSecondaryUseActive()
                 && sp.getItemInHand(InteractionHand.MAIN_HAND).isEmpty()
                 && event.getTarget() instanceof Mob targetMob
                 && SubordinatePatrol.isNamedSubordinateOf(targetMob, sp)) {
-            event.setCanceled(true);
-            event.setCancellationResult(net.minecraft.world.InteractionResult.SUCCESS);
-            SubordinatePatrol.handleCommandCycle(targetMob, sp);
+            if (SubordinatePatrol.isPatrolling(targetMob)) {
+                // PATROL → FOLLOW (ours): cancel so native cycle doesn't run.
+                event.setCanceled(true);
+                event.setCancellationResult(net.minecraft.world.InteractionResult.SUCCESS);
+                SubordinatePatrol.exitPatrolToFollow(targetMob, sp);
+            } else if (targetMob instanceof ISubordinate sub && sub.isOrderedToSit()) {
+                // STAY → PATROL (ours): cancel so native STAY→FOLLOW doesn't run.
+                event.setCanceled(true);
+                event.setCancellationResult(net.minecraft.world.InteractionResult.SUCCESS);
+                SubordinatePatrol.beginPatrol(targetMob, sp);
+            }
+            // FOLLOW → WANDER / WANDER → STAY: not cancelled — Tensura's
+            // native cycleCommands handles these the moment mobInteract runs.
         }
     }
 
