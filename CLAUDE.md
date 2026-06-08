@@ -311,7 +311,7 @@ the design rationale and design-choice history.
   marks the race permanently envoy-locked. Per-second scheduler with
   3-day post-resolve cooldown. Unlock conditions: COLONIST = colony age
   ≥ 3 days, GOBLIN = ≥ 3 named goblins, ORC = ≥ 25 citizens. Gamerule
-  `tensuraMaxNonColonistEnvoys` (default 2) caps non-colonist races
+  `tensuraMaxNonColonistEnvoys` (default 4) caps non-colonist races
   per player. Kill-gate (Stage H3b): killing an unaccepted race resets
   its condition for every colony you own, with per-shape semantics
   (timer / cumulative / current-value). Orc lord / orc disaster

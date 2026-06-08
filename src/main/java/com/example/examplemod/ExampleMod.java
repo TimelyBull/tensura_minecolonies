@@ -4849,8 +4849,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             RULE_MAX_NON_COLONIST_ENVOYS = net.minecraft.world.level.GameRules.register(
                     "tensuraMaxNonColonistEnvoys",
                     net.minecraft.world.level.GameRules.Category.PLAYER,
-                    net.minecraft.world.level.GameRules.IntegerValue.create(2));
-            LOGGER.info("[TM] gamerule 'tensuraMaxNonColonistEnvoys' registered (default 2)");
+                    net.minecraft.world.level.GameRules.IntegerValue.create(4));
+            LOGGER.info("[TM] gamerule 'tensuraMaxNonColonistEnvoys' registered (default 4)");
 
             // Case B death cleanup. EntityCitizen.die() already called
             // removeCivilian before posting this event — count is correct,

@@ -713,7 +713,7 @@ offering a new race for the colony's spawn set. Shipped in four stages:
 - COLONIST: colony age ≥ 3 in-game days.
 - GOBLIN: ≥ 3 named goblin identities for this colony.
 - ORC: colony citizen count ≥ 25.
-- `tensuraMaxNonColonistEnvoys` gamerule (default 2) — per-player cap on
+- `tensuraMaxNonColonistEnvoys` gamerule (default 4) — per-player cap on
   distinct non-colonist races whose envoys can ever spawn. COLONIST is
   exempt.
 - Scheduler ticks every 1 s (was once per in-game day; changed because

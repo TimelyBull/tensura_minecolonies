@@ -451,7 +451,7 @@ Plus universal exclusions: race not already in colony's members, not
 already in `acceptedEnvoys`, and (for non-COLONIST) within the player's
 non-colonist envoy cap.
 
-**`tensuraMaxNonColonistEnvoys` gamerule.** Default `2`. Per-player count
+**`tensuraMaxNonColonistEnvoys` gamerule.** Default `4`. Per-player count
 of distinct non-COLONIST races whose envoys have ever spawned for that
 player, across all their colonies, persisted. Once the player's set
 reaches the cap, only races they have already seen remain eligible (so a
@@ -546,7 +546,7 @@ GOBLIN, `"citizen count 25 must grow past snapshot 25"` for ORC.
 - **Networking payloads:** `OpenEnvoyDialoguePayload` (S2C),
   `EnvoyResponsePayload` (C2S).
 - **Attachments:** `ENVOY_TAG` sibling to `RACE_TAG`.
-- **Gamerules:** `tensuraMaxNonColonistEnvoys` (default 2),
+- **Gamerules:** `tensuraMaxNonColonistEnvoys` (default 4),
   `tensuraHostileToCitizens` (default true, predates envoys but used
   alongside).
 - **`ColonyRaceConfigSavedData` extensions:** members set,
