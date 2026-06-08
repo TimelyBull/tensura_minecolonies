@@ -51,13 +51,16 @@ public final class CitizenTradeButtonHandler {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** Button geometry — upper-right quadrant of the screen, biased
-     *  toward the right border (button's center sits at ~75% across,
-     *  ~20% down). Mirror of the upper-left placement.
+    /** Button geometry — hard against the right edge of the screen,
+     *  at the same upper level as before (~20% down). Using a fixed
+     *  pixel margin from the right edge rather than a percentage so
+     *  there's no ambiguity about which side of the screen the button
+     *  is on, regardless of GUI scale or monitor aspect ratio.
      *  Sized so the label "Trade" fits comfortably with the vanilla
      *  button textures. */
     private static final int BUTTON_W = 70;
     private static final int BUTTON_H = 20;
+    private static final int RIGHT_MARGIN = 12;
 
     /** Per-open-screen state. WeakHashMap so a closed screen evicts
      *  automatically without us having to hook close events. */
@@ -139,10 +142,11 @@ public final class CitizenTradeButtonHandler {
         ScreenState state = STATES.get(boScreen);
         if (state == null) return;
 
-        // Upper-right quadrant, biased toward the right border. The
-        // button's CENTER sits at (0.75 × screen width, 0.20 × screen
-        // height) — mirror of the upper-left placement.
-        int x = (boScreen.width * 3 / 4) - (BUTTON_W / 2);
+        // Right edge anchor — guarantees the button is unambiguously
+        // on the right side regardless of GUI scale, monitor aspect
+        // ratio, or BlockUI panel size. Vertical anchor stays at the
+        // upper-quadrant level we settled on (~20% down).
+        int x = boScreen.width - BUTTON_W - RIGHT_MARGIN;
         int y = (boScreen.height / 5) - (BUTTON_H / 2);
         state.button.setX(x);
         state.button.setY(y);
