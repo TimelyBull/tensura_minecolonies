@@ -390,12 +390,13 @@ the design rationale and design-choice history.
 - `EnvoyCondition` enum (7 values, 1-byte bitmask) captures which alternatives were satisfied at spawn.
 - Captured per envoy in `captureMetConditions`; persisted on `EnvoyTag.conditionMask` (NBT byte) and threaded through `OpenEnvoyDialoguePayload` to the client.
 - Dialogue text = `base + " " + snippet(member, condA) + " " + snippet(member, condB)` ... — each snippet a complete sentence in the race's voice, joined with a space, no inter-snippet references. No combinatorial explosion.
-- Race voices: goblin humble, orc simple-thinking (NOT simple-vocabulary — short declaratives in normal words), lizardman condescending-but-impressed, dwarf well-spoken-formal, colonist polite-neutral.
+- Race voices (rewritten to Tensura canon — envoys are generic race reps who revere the player as a powerful protector-ruler): goblin humble-eager-grateful, orc dutiful-solemn-with-atonement, lizardman proud-formal-but-sincere, dwarf gruff-hearty-craftsman, colonist polite-neutral (left as-is; not a Tensura race, no canon profile).
 - COUNT / TIMER alternatives DO get snippets — keeps early-game (single-condition) dialogue from feeling flat.
 - `EnvoyDialogueScreen` panel grows dynamically to fit the wrapped body line count (clamped to screen height − 20).
 - Backward-compat: legacy envoys with no `condMask` decode as mask 0 → base-only dialogue.
 - Accept / decline TEXT is also condition-aware for DWARF + TRUE_HERO / TRUE_DEMON_LORD (title acknowledged in the parting line); other races stay flat. HERO precedes DEMON_LORD when both captured. Accept/Decline server mechanics unchanged.
-- Post-Stage-J2 polish: every base body and snippet shortened (~half length), key identifiers ("Orc Disaster" by name, "Elder", "Marsh-Tribe", "Holds", "Ifrit", "true hero / demon lord mantle", "twenty days", "our kin in their own hold") kept throughout; orc voice rewritten to simple-thinking-not-simple-vocabulary.
+- Post-Stage-J2 polish: every base body and snippet shortened (~half length).
+- Canon-voice rewrite (latest): goblin/orc/lizardman/dwarf dialogue reworded to match each race's Tensura voice with envoys revering the player. Functional condition references kept verbatim ("Orc Disaster", "Ifrit", "true demon lord / hero", dwarven village, colony size/age, "twenty days"); invented org/character names ("Elder", "Marsh-Tribe", "Holds", "council", "chroniclers") removed; neutral reverent address ("great one"). Colonist lines unchanged.
 
 **Stage J — deferred-content envoy conditions (eligibility + kill-gate, no dialogue yet):**
 - ORC alternative: Orc Disaster defeated (per-player, permanent flag, immune to all resets).

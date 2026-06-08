@@ -852,8 +852,29 @@ stable across runs and groups related observations.
 to write race-voiced snippets for the COUNT and TIMER alternatives
 (rather than treating them as "plain" / no-snippet) keeps the
 single-condition early-game dialogue from feeling flat — a colony
-that hits the ≥25 orc threshold gets a dumb-friendly *"Your village
-is so big now!"* acknowledgement instead of base-only text.
+that hits the ≥25 orc threshold gets a race-voiced acknowledgement
+(post canon-voice rewrite, the orc's dutiful *"Your settlement has
+grown great and strong — a place … where many hands like ours could
+do honest work."*) instead of base-only text.
+
+**Canon-voice rewrite of envoy dialogue (latest).** The goblin / orc /
+lizardman / dwarf envoy copy (greetings, condition snippets, accept /
+decline lines) was reworded to match each race's "That Time I Got
+Reincarnated as a Slime" voice, with envoys as generic race
+representatives revering the player as a powerful protector-ruler:
+goblin humble-eager-grateful, orc dutiful-solemn (with a note of
+atonement — orcs were starving and leaderless before being given
+purpose), lizardman proud-formal-but-sincere, dwarf
+gruff-hearty-craftsman. Constraint honoured: no invented canon — voices
+came only from supplied race profiles, and functional references that
+convey unlock conditions (Orc Disaster, Ifrit, true demon lord / true
+hero, dwarven village, colony size / age, "twenty days") were kept
+verbatim so the snippets still communicate the same conditions. Invented
+org / character names (Elder, Marsh-Tribe, Dwarven Holds, council,
+chroniclers) were removed; neutral reverent address ("great one") used
+in place of gendered forms. COLONIST left unchanged (not a Tensura race;
+no profile supplied). Function of every line preserved exactly —
+wording / voice only.
 
 **Dialog panel grows with body.** Multi-condition dwarf envoys can
 push the wrapped-line count past the original 220px floor.

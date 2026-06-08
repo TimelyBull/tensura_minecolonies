@@ -471,10 +471,11 @@ all the same.
 the orc bar of 25, marsh-tribe scouts earlier than orcs commit.
 Kill-gate shape: current-value snapshot (same as orc).
 
-**Dialogue**: nameplate `YELLOW`, body / accept / decline copy
-softened from the initial draft (the original "condescending /
-upstart-colony" tone was tuned down on feedback; current text is
-formal-but-respectful, "we are cautious by nature").
+**Dialogue**: nameplate `YELLOW`. (Superseded — the body / accept /
+decline copy was later rewritten to the Tensura canon voice:
+**proud, formal, a touch grandiose, but earnest and sincere in
+allegiance**, revering the player as a protector-ruler. See
+`docs/decisions.md` → "Canon-voice rewrite of envoy dialogue".)
 
 **Skill profile** (post-Stage-K): precision / mystic carrier
 archetype — `+Agility / +Dexterity / +Focus / +Mana HIGH`,
@@ -585,9 +586,11 @@ late-game envoy with a thematic stoneworking-interest signal.
 Surfaced in `/envoystate` with a `[PLACEHOLDER condition]` marker.
 Kill-gate shape: current-value snapshot (same as orc / lizardman).
 
-**Dialogue**: nameplate `GOLD` (craftsmanship / wealth / mountain-hold);
-body kept the well-spoken wordy-imperious register the investigation
-pre-wrote.
+**Dialogue**: nameplate `GOLD` (craftsmanship / wealth / mountain-hold).
+(Superseded — the body / accept / decline copy was later rewritten to
+the Tensura canon voice: **gruff, hearty, blunt; craftsman's pride and
+a love of a good drink, warm beneath the bluntness**. See
+`docs/decisions.md` → "Canon-voice rewrite of envoy dialogue".)
 
 **Skill profile** (post-Stage-K): mental / craft archetype —
 `+Knowledge / +Intelligence / +Creativity HIGH`,
