@@ -48,18 +48,6 @@ public final class Attachments {
                             .serialize(EnvoyTag.SERIALIZER)
                             .build());
 
-    /**
-     * Beast-guard marker — see {@link BeastTag}. Attached to citizen
-     * entities created from a named beast (knight spider). Disjoint
-     * from {@link #RACE_TAG} — a citizen has one or the other, never
-     * both. The render-handler pipeline probes BEAST first, then RACE.
-     */
-    public static final Supplier<AttachmentType<BeastTag>> BEAST_TAG =
-            ATTACHMENTS.register("beast_tag",
-                    () -> AttachmentType.<BeastTag>builder(() -> null)
-                            .serialize(BeastTag.SERIALIZER)
-                            .build());
-
     private Attachments() {}
 
     public static void register(IEventBus modBus) {

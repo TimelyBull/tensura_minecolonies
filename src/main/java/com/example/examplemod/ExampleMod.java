@@ -221,11 +221,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // mod bus alongside blocks/items/tabs above.
         Attachments.register(modEventBus);
 
-        // Stage L1 — beast-guard job registry. Registers our custom
-        // JobBeastGuard against MineColonies' JOBS deferred register so
-        // citizen assignment / load / save sees it as a first-class job.
-        ModJobsRegistry.register(modEventBus);
-
         // Client-only setup (keybind + tick listener). Guard prevents the
         // server JVM from ever loading client-only classes.
         if (FMLEnvironment.dist.isClient()) {
@@ -279,15 +274,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         .withStyle(ChatFormatting.RED));
             }
             return EventResult.interruptFalse();
-        }
-
-        // Beast-first probe — if the named entity is a registered
-        // beast (knight spider), take the beast-guard naming path
-        // rather than the worker-race path. Disjoint registries:
-        // Beasts and Races never overlap. See Stage L1 docs.
-        Beast beast = Beasts.of(entity.getType());
-        if (beast != null) {
-            return handleBeastNaming(entity, player, beast, name.get());
         }
 
         // Race-aware filter — passes through ANY entity type registered in
@@ -378,447 +364,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         return EventResult.pass();
     }
 
-    // ------------------------------------------------------------------
-    // Stage L1 — beast-guard naming pipeline
-    // ------------------------------------------------------------------
-
-    /**
-     * Stage L2 — naming branch for {@link Beast}s. NOW mirrors the
-     * worker-race pipeline: the named beast stays alive at the player's
-     * side as a SUBORDINATE; the player has to SEND IT (G-roster or
-     * /summongoblin equivalent) to materialise it as a citizen-guard.
-     *
-     * <p>Differences from race naming:
-     * <ul>
-     *   <li>No skill profile applied — beasts are guards, not workers.</li>
-     *   <li>Identity records {@code beast} field instead of {@code race}.</li>
-     *   <li>No envoy / kill-gate participation (handled via {@code isBeast()}
-     *       checks at those call sites — beasts are out of scope for the
-     *       worker-race social systems).</li>
-     * </ul>
-     *
-     * <p>Stage 1's "name = citizen" behaviour is REPLACED. The Stage 1
-     * tower-assignment block moves to {@link #spawnBeastCitizenAtTower}
-     * which runs at SEND time.
-     */
-    private EventResult handleBeastNaming(LivingEntity entity,
-                                          net.minecraft.world.entity.player.Player player,
-                                          Beast beast, String chosenName) {
-        if (!(entity.level() instanceof ServerLevel level)) return EventResult.pass();
-
-        IColonyManager colonyManager = IColonyManager.getInstance();
-        IColony colony = colonyManager.getIColonyByOwner(level, player);
-        if (colony == null) {
-            List<IColony> all = colonyManager.getColonies(level);
-            colony = all.isEmpty() ? null : all.get(0);
-        }
-        if (colony == null) {
-            // No colony yet — Stage 2 doesn't add beasts to the pending
-            // pool yet (the pending pool is race-typed). The wild named
-            // beast is just a Tensura subordinate until the player makes
-            // a colony, at which point they can re-name to bind it.
-            LOGGER.info("[TM] beast naming: no colony yet for '{}' — leaving as plain Tensura subordinate", chosenName);
-            return EventResult.pass();
-        }
-
-        // Create CitizenData (count +1) — same as race naming. Skill
-        // profile NOT applied (beasts are not workers).
-        ICitizenData citizenData = colony.getCitizenManager().createAndRegisterCivilianData();
-        citizenData.setName(chosenName);
-        LOGGER.info("[TM] beast CitizenData created: id={} colony='{}' count={} (subordinate-first, no body yet)",
-                citizenData.getId(), colony.getName(),
-                colony.getCitizenManager().getCurrentCitizenCount());
-
-        // Suppress auto-spawn (same as race naming). The body materialises
-        // at SEND time via spawnBeastCitizenAtTower; until then the only
-        // body is the wild beast at the player's side.
-        colony.getTravellingManager().startTravellingTo(
-                citizenData, entity.blockPosition(), Integer.MAX_VALUE);
-
-        // Identity record — beast field set, race left null. mode=SUBORDINATE
-        // because the live body IS the named beast at the player's side.
-        // entitySnapshot starts null; populated at first send.
-        RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
-        RaceIdentitySavedData.RaceIdentity identity = new RaceIdentitySavedData.RaceIdentity(
-                UUID.randomUUID(),
-                citizenData.getId(),
-                colony.getID(),
-                entity.getUUID(),
-                RaceIdentitySavedData.Mode.SUBORDINATE,
-                null,                       // entitySnapshot — populated at first send
-                player.getUUID(),
-                null,                       // race — null because this is a beast
-                beast                       // beast discriminator
-        );
-        saved.addIdentity(identity);
-
-        LOGGER.info("[TM] beast identity {} stored: citizen={} mob={} beast={} mode=SUBORDINATE",
-                identity.identityId, identity.citizenId, identity.mobEntityUUID, beast);
-
-        return EventResult.pass();
-    }
-
-    /** Walk the colony's building list and return the first
-     *  guard-capable building found. Stage L3-hotfix-4 broadened from
-     *  only {@code BuildingGuardTower} to {@code AbstractBuildingGuards}
-     *  so it also matches {@code BuildingBarracksTower} / any future
-     *  mod-added guard-tower subclass. Returns null if none.
-     *
-     *  <p>NOTE: returns the abstract type so callers can pass to module
-     *  lookup without caring which concrete tower variant. Both the
-     *  module assignment + the patrol AI only need an
-     *  {@code AbstractBuildingGuards}. */
-    private static com.minecolonies.core.colony.buildings.AbstractBuildingGuards
-            findFirstGuardTower(IColony colony) {
-        for (Object obj : colony.getCommonBuildingManager().getBuildings().values()) {
-            if (obj instanceof com.minecolonies.core.colony.buildings.AbstractBuildingGuards g) {
-                return g;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Assign the citizen to the tower with JobBeastGuard. Stage
-     * L3-hotfix-4 rewrite — the previous version went through
-     * {@code module.assignCitizen} which rejects when:
-     * <ul>
-     *   <li>The tower is full ({@code list.size() >= sizeLimit}).
-     *       For a level-0 (just-placed) tower, sizeLimit may be 0 →
-     *       always rejected.</li>
-     *   <li>The citizen is already in the list (re-send hit this).</li>
-     *   <li>The citizen has a job whose JobEntry doesn't match the
-     *       module's (re-send with JobBeastGuard hit this — beast_guard
-     *       ≠ knight).</li>
-     * </ul>
-     * Any of those returned false silently → no JobBeastGuard set →
-     * the outer "hired" check failed → spurious "no Guard Tower"
-     * advisory + paused citizen.
-     *
-     * <p>The new path bypasses {@code module.assignCitizen} entirely
-     * and does the work directly:
-     * <ol>
-     *   <li>Add the citizen to the module's {@code assignedCitizen}
-     *       list via reflection (skips isFull + dedup checks).</li>
-     *   <li>Clear any pre-existing job on the citizen via reflection
-     *       (skips MC's {@code setJob} onRemoval cascade which would
-     *       re-unassign).</li>
-     *   <li>Create JobBeastGuard with workBuilding pre-linked (same
-     *       L3 NPE-avoidance trick).</li>
-     *   <li>{@code citizenData.setJob(beastJob)} — old job is now
-     *       null so onRemoval is skipped; AI ctor reads
-     *       workBuilding from the new job (pre-linked) → succeeds.</li>
-     * </ol>
-     */
-    private static void assignBeastToTower(ICitizenData citizenData,
-                                           com.minecolonies.core.colony.buildings.AbstractBuildingGuards tower) {
-        // 1. Find the tower's WorkerBuildingModule. Any will do — we
-        //    bypass its job-creation pipeline.
-        com.minecolonies.core.colony.buildings.modules.WorkerBuildingModule module = null;
-        for (com.minecolonies.api.colony.buildings.modules.IBuildingModule m : tower.getModules()) {
-            if (m instanceof com.minecolonies.core.colony.buildings.modules.WorkerBuildingModule wm) {
-                module = wm;
-                break;
-            }
-        }
-        if (module == null) {
-            LOGGER.warn("[TM] beast assign: tower at {} has no WorkerBuildingModule — skipping",
-                    tower.getPosition());
-            return;
-        }
-
-        // 2. Add citizen to the module's list (bypass isFull / dedup).
-        addCitizenToModuleListIfMissing(module, citizenData);
-
-        // 3. Clear any pre-existing job DIRECTLY (bypass setJob's
-        //    onRemoval cascade). If the citizen already has a
-        //    JobBeastGuard from a previous send, the next step's
-        //    setJob would otherwise call old.onRemoval which
-        //    unassigns from the module — and we just spent step 2
-        //    re-adding. Clearing via reflection skips onRemoval
-        //    entirely. Has the additional benefit of bypassing MC's
-        //    "no-op if same job" check at the top of setJob.
-        clearJobDirect(citizenData);
-
-        // 4. Construct JobBeastGuard through the JobEntry.produceJob
-        //    path (not `new JobBeastGuard(citizenData)` directly) so the
-        //    job's internal `entry` field gets populated via
-        //    `IJob.setRegistryEntry(this)` — see {@code JobEntry.produceJob}
-        //    bytecode. Skipping that path leaves `entry` null and any
-        //    downstream `getJobRegistryEntry().getKey()` call NPEs.
-        //    The CitizenSkillHandler.levelUp → SoundUtils.playSoundAtCitizenWith
-        //    chain hits this on every kill (XP grant + level-up sound),
-        //    spamming "Statemachine for state ATTACKING threw an exception"
-        //    in the log. Combat still works (damage lands before the
-        //    XP-grant), but XP gain is lost and the log fills up.
-        JobBeastGuard beastJob = (JobBeastGuard) ModJobsRegistry.BEAST_GUARD
-                .get().produceJob(citizenData);
-        beastJob.preLinkWorkBuilding(tower);
-
-        // 5. setJob — old job is null (cleared at step 3), so
-        //    onRemoval is skipped. AI builds against the pre-linked
-        //    workBuilding. No NPE.
-        try {
-            citizenData.setJob(beastJob);
-        } catch (Throwable t) {
-            LOGGER.error("[TM] beast assign: setJob threw — re-throwing for rollback", t);
-            throw t instanceof RuntimeException re ? re : new RuntimeException(t);
-        }
-        LOGGER.info("[TM] beast assign: citizen {} ('{}') hired at tower {} (JobBeastGuard)",
-                citizenData.getId(), citizenData.getName(), tower.getPosition());
-    }
-
-    /** Add citizen to module's assignedCitizen list if not already
-     *  present. Uses reflection because {@code module.assignCitizen}
-     *  has isFull + JobEntry checks that reject in legitimate cases
-     *  for beasts. */
-    private static void addCitizenToModuleListIfMissing(
-            com.minecolonies.core.colony.buildings.modules.WorkerBuildingModule module,
-            ICitizenData citizenData) {
-        try {
-            java.lang.reflect.Field f = com.minecolonies.core.colony.buildings.modules.AbstractAssignedCitizenModule.class
-                    .getDeclaredField("assignedCitizen");
-            f.setAccessible(true);
-            @SuppressWarnings("unchecked")
-            java.util.List<ICitizenData> list = (java.util.List<ICitizenData>) f.get(module);
-            if (!list.contains(citizenData)) {
-                list.add(citizenData);
-                LOGGER.info("[TM] beast assign: added citizen {} to tower module assigned-list (size now {})",
-                        citizenData.getId(), list.size());
-            }
-        } catch (Throwable t) {
-            LOGGER.warn("[TM] beast assign: failed to reflect into module list — fallback to module.assignCitizen", t);
-            module.assignCitizen(citizenData);
-        }
-    }
-
-    /** Clear the citizen's job field directly (no onRemoval cascade).
-     *  Used to bypass MC's setJob → oldJob.onRemoval → unassign-from-
-     *  module chain when we're about to set a new job that needs the
-     *  workBuilding to remain linked. */
-    private static void clearJobDirect(ICitizenData citizenData) {
-        try {
-            java.lang.reflect.Field jf = com.minecolonies.core.colony.CitizenData.class
-                    .getDeclaredField("job");
-            jf.setAccessible(true);
-            jf.set(citizenData, null);
-        } catch (Throwable t) {
-            LOGGER.warn("[TM] beast assign: failed to clear job field via reflection (re-send may re-create JobKnight)", t);
-        }
-    }
-
-    // (L3-hotfix-4) — the old reAddCitizenToModuleList helper was
-    // subsumed by addCitizenToModuleListIfMissing (which does the same
-    // reflection work, just earlier in the assign flow). Removed.
-
-    /**
-     * Stage L2 — resolve the materialise position for a beast send.
-     * Prefer the colony's first Guard Tower; fall back to the town hall
-     * with a yellow advisory if no tower exists (citizen still spawns;
-     * player can build a tower later and re-assign through the standard
-     * MC hire UI). Called from {@link #queueDelayedSwap} at the
-     * materialise-position branch.
-     */
-    static net.minecraft.core.BlockPos beastMaterialisePos(IColony colony,
-                                                            net.minecraft.core.BlockPos fallback,
-                                                            ServerPlayer maybePlayer) {
-        com.minecolonies.core.colony.buildings.AbstractBuildingGuards tower =
-                findFirstGuardTower(colony);
-        if (tower != null) {
-            // Stage L3 — don't materialise INSIDE the tower (Stage L2 returned
-            // tower.getPosition() which is the tower's anchor block — typically
-            // inside the structure). Scan outward for a safe nearby spot with
-            // ground + 2 blocks of clearance.
-            if (colony.getWorld() instanceof ServerLevel sl) {
-                net.minecraft.core.BlockPos safe = findSafeSpotNear(sl, tower.getPosition());
-                if (safe != null) return safe;
-            }
-            return tower.getPosition(); // ultimate fallback
-        }
-        if (maybePlayer != null) {
-            maybePlayer.sendSystemMessage(net.minecraft.network.chat.Component.literal(
-                    "No Guard Tower in colony — your beast will land at the town hall. "
-                  + "Build a Guard Tower so they can patrol.")
-                    .withStyle(ChatFormatting.YELLOW));
-        }
-        return fallback;
-    }
-
-    /**
-     * Stage L3 — find a safe block to spawn a beast near a tower.
-     * Scans the perimeter of concentric rings around {@code anchor}
-     * starting at radius 3 (just outside a typical 5×5 tower footprint),
-     * returning the first position with:
-     * <ul>
-     *   <li>A solid block to stand on at the surface (probed via
-     *       heightmap),</li>
-     *   <li>Two blocks of air above (humanoid clearance),</li>
-     *   <li>The same Y as the anchor ±2 (don't drag the beast deep
-     *       underground or up a cliff face).</li>
-     * </ul>
-     * Returns null if no spot is found within the search ring. The
-     * caller falls back to {@code tower.getPosition()} in that case
-     * (better to spawn-clip than to abort the whole send).
-     */
-    /** Package-private alias of {@link #findSafeSpotNear} so the
-     *  beast-guard AI can use the same ring-scan when redirecting the
-     *  parent's "patrol-to-tower-block" behaviour to an exterior spot.
-     *  See {@code EntityAIBeastGuard.startWorkingAtOwnBuilding}. */
-    static net.minecraft.core.BlockPos findSafeSpotNearTowerForPatrol(ServerLevel level,
-                                                                       net.minecraft.core.BlockPos anchor) {
-        return findSafeSpotNear(level, anchor);
-    }
-
-    private static net.minecraft.core.BlockPos findSafeSpotNear(ServerLevel level,
-                                                                 net.minecraft.core.BlockPos anchor) {
-        for (int r = 3; r <= 6; r++) {
-            for (int dx = -r; dx <= r; dx++) {
-                for (int dz = -r; dz <= r; dz++) {
-                    // Perimeter of the ring only — skip interior we already searched.
-                    if (Math.abs(dx) != r && Math.abs(dz) != r) continue;
-                    int x = anchor.getX() + dx;
-                    int z = anchor.getZ() + dz;
-                    int y = level.getHeightmapPos(
-                            net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE,
-                            new net.minecraft.core.BlockPos(x, 0, z)).getY();
-                    if (Math.abs(y - anchor.getY()) > 2) continue;
-                    net.minecraft.core.BlockPos candidate = new net.minecraft.core.BlockPos(x, y, z);
-                    if (hasStandingClearance(level, candidate)) {
-                        return candidate;
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    /** Two blocks of air above + a solid block at or just below.
-     *  Conservative humanoid-clearance check. */
-    private static boolean hasStandingClearance(ServerLevel level,
-                                                 net.minecraft.core.BlockPos pos) {
-        return level.getBlockState(pos).isAir()
-                && level.getBlockState(pos.above()).isAir()
-                && !level.getBlockState(pos.below()).isAir();
-    }
-
-    /**
-     * Stage L2 — post-send tower assignment for a freshly-spawned beast
-     * citizen. Finds the colony's first Guard Tower, assigns the
-     * citizen via its WorkerBuildingModule, and overrides the
-     * auto-assigned job (knight/ranger/druid) with our
-     * {@link JobBeastGuard}. Called from the send pipeline after the
-     * EntityCitizen has been spawned. If no tower exists, the citizen
-     * stays jobless until the player builds one and re-assigns manually.
-     */
-    static void assignSpawnedBeastToTower(ICitizenData citizenData, IColony colony) {
-        com.minecolonies.core.colony.buildings.AbstractBuildingGuards tower =
-                findFirstGuardTower(colony);
-        if (tower == null) {
-            LOGGER.info("[TM] beast send: no guard-capable building found — citizen {} stays jobless",
-                    citizenData.getId());
-            return;
-        }
-        assignBeastToTower(citizenData, tower);
-    }
-
-    /**
-     * Stage L2 — attach the BeastTag to the spawned citizen body and
-     * broadcast to tracking players. Mirrors the RaceTag attach for
-     * worker races. Also sets SCALE = {@link #BEAST_BODY_SCALE} so the
-     * citizen hitbox and rendered spider visual both scale together
-     * (see the constant's javadoc for the trade-off).
-     */
-    static void attachAndSyncBeastTag(LivingEntity citizenBody,
-                                      RaceIdentitySavedData.RaceIdentity identity,
-                                      Beast beast) {
-        BeastTag tag = new BeastTag(identity.identityId, beast);
-        citizenBody.setData(Attachments.BEAST_TAG.get(), tag);
-        net.minecraft.world.entity.ai.attributes.AttributeInstance scaleAttr =
-                citizenBody.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.SCALE);
-        if (scaleAttr != null) {
-            scaleAttr.setBaseValue(BEAST_BODY_SCALE);
-            LOGGER.info("[TM] beast tag attach: SCALE set to {} for citizen {} (hitbox ≈ {}w × {}h)",
-                    BEAST_BODY_SCALE, citizenBody.getUUID(),
-                    0.6 * BEAST_BODY_SCALE, 1.8 * BEAST_BODY_SCALE);
-        } else {
-            LOGGER.warn("[TM] beast tag attach: SCALE attribute missing on citizen {} — body stays at default size",
-                    citizenBody.getUUID());
-        }
-        PacketDistributor.sendToPlayersTrackingEntity(citizenBody,
-                Networking.SyncBeastTagPayload.of(citizenBody.getUUID(), tag));
-        LOGGER.info("[TM] beast tag attached to citizen entity {} (identity {} beast={})",
-                citizenBody.getUUID(), identity.identityId, beast);
-    }
-
-    /**
-     * Server-side handler for the Trade button on a citizen's MC window.
-     * Stage 1 stub: validates the citizen is a merchant-capable race AND
-     * the player owns the identity, then opens trade IF the subordinate
-     * body is currently in the world (i.e. has been summoned). Otherwise
-     * tells the player to summon first.
-     *
-     * <p>The "reconstruct merchant from snapshot" path is deferred — for
-     * Stage 1 the citizen-side button works only when the subordinate
-     * has been summoned back to its mob form.
-     */
-    static void handleOpenCitizenTrade(ServerPlayer player, int citizenEntityId) {
-        ServerLevel level = player.serverLevel();
-        net.minecraft.world.entity.Entity ent = level.getEntity(citizenEntityId);
-        if (!(ent instanceof com.minecolonies.api.entity.citizen.AbstractEntityCitizen citizen)) {
-            sendAdvisoryNotice(player, "That isn't a citizen.");
-            return;
-        }
-        RaceTag tag = citizen.getData(Attachments.RACE_TAG.get());
-        if (tag == null) {
-            sendAdvisoryNotice(player, "That citizen has no race identity.");
-            return;
-        }
-        // Merchant-capable races: goblin, lizardman, dwarf (NOT orc).
-        if (tag.race() == Race.ORC) {
-            sendAdvisoryNotice(player, "Orcs do not trade.");
-            return;
-        }
-        RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
-        RaceIdentitySavedData.RaceIdentity identity =
-                saved.getById(tag.identityId());
-        if (identity == null) {
-            sendAdvisoryNotice(player, "Citizen identity not found.");
-            return;
-        }
-        if (identity.ownerPlayerUUID == null
-                || !identity.ownerPlayerUUID.equals(player.getUUID())) {
-            sendAdvisoryNotice(player, "That citizen isn't yours.");
-            return;
-        }
-        // Stage 1 simplification: trade only when subordinate body exists.
-        if (identity.mobEntityUUID == null) {
-            sendAdvisoryNotice(player,
-                    "Summon them back first to trade (Stage 2 will reconstruct trade from snapshot).");
-            return;
-        }
-        net.minecraft.world.entity.Entity subBody = level.getEntity(identity.mobEntityUUID);
-        if (!(subBody instanceof io.github.manasmods.tensura.entity.template.TensuraMerchantEntity merchant)) {
-            sendAdvisoryNotice(player, "Their subordinate form isn't loaded — go closer to them.");
-            return;
-        }
-        if (merchant.isBaby() || !merchant.isAlive()) {
-            sendAdvisoryNotice(player, "Your subordinate isn't trade-ready.");
-            return;
-        }
-        if (merchant.getTradingPlayer() != null) {
-            sendAdvisoryNotice(player, "Someone else is already trading with them.");
-            return;
-        }
-        net.minecraft.world.item.trading.MerchantOffers offers = merchant.getOffers();
-        if (offers.isEmpty()) {
-            sendAdvisoryNotice(player, "They have no trades available.");
-            return;
-        }
-        merchant.setTradingPlayer(player);
-        merchant.openTradingScreen(player, citizen.getDisplayName(), merchant.getMerchantLevel());
-        LOGGER.info("[TM] citizen trade opened via citizen-side button: player {} ↔ citizen {} / subordinate {}",
-                player.getName().getString(), citizen.getUUID(), subBody.getUUID());
-    }
 
     // ------------------------------------------------------------------
     // Stage B — send trigger: sneak-right-click named goblin with empty hand
@@ -1247,9 +792,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
         int count = 0;
         for (RaceIdentitySavedData.RaceIdentity id : saved.all()) {
-            // Beast identities have race==null; the == comparison naturally
-            // returns false but we make the intent explicit for the next
-            // reader.
             if (id.colonyId == colonyId && id.race == Race.GOBLIN) count++;
         }
         return count;
@@ -3058,37 +2600,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         LOGGER.info("[TM] send: full entity snapshot captured for citizen {} ({} top-level NBT keys)",
                 identity.citizenId, snapshot.getAllKeys().size());
 
-        // 2. Find the spawn position. For worker races: the town hall.
-        //    For beasts: prefer the colony's first Guard Tower (so beasts
-        //    materialise on patrol post), fall back to town hall. The
-        //    variable name "townHallPos" is kept for the worker-race code
-        //    path it serves — for beasts it's actually the tower position
-        //    (or town hall fallback) but the downstream
-        //    spawnOrCreateCivilian call just wants a spawn hint.
+        // 2. Find the spawn position — town hall anchor.
         if (!colony.getServerBuildingManager().hasTownHall()) {
             LOGGER.warn("[TM] send: colony '{}' has no town hall — aborting", colony.getName());
             return;
         }
         BlockPos townHallPos = colony.getServerBuildingManager().getTownHall().getPosition();
-        if (identity.isBeast()) {
-            ServerPlayer sp = triggeringPlayer instanceof ServerPlayer s ? s : null;
-            townHallPos = beastMaterialisePos(colony, townHallPos, sp);
-
-            // One-time per session advisory — beasts are guard-tower
-            // only AND their pathfinding suffers in dense colonies
-            // because MineColonies' A* is width-blind (see
-            // BEAST_BODY_SCALE javadoc). The player benefits from
-            // knowing this BEFORE building a dense town and wondering
-            // why their spider gets stuck.
-            if (sp != null && SEEN_BEAST_SEND_ADVISORY.add(sp.getUUID())) {
-                sp.sendSystemMessage(net.minecraft.network.chat.Component.literal(
-                        "Note about beast guards: they can only be assigned to "
-                      + "Guard Towers, and the denser your colony's buildings, "
-                      + "the worse their pathfinding becomes. Keep clear lanes "
-                      + "around the tower for best results.")
-                        .withStyle(ChatFormatting.GOLD));
-            }
-        }
 
         // 2b. EARLY variant capture — must happen BEFORE the citizen body
         //     is spawned. This is the most throw-prone read on the goblin
@@ -3096,21 +2613,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         //     running it first means a failure aborts cleanly with the
         //     goblin still at the player's side and no orphaned citizen
         //     in the world. Only depends on the live goblin entity.
-        //
-        //     Beasts have NO race variant data (no per-instance appearance
-        //     fields) — skip the capture entirely; variant stays null and
-        //     the BeastTag is used at tag-attach time instead of RaceTag.
-        RaceVariantData variant = null;
-        if (!identity.isBeast()) {
-            try {
-                variant = captureRaceVariant(goblin, identity.race);
-            } catch (Throwable t) {
-                LOGGER.error("[TM] send: variant capture threw for identity {} — aborting before spawn",
-                        identity.identityId, t);
-                sendAdvisoryNotice(triggeringPlayer,
-                        "Couldn't read your subordinate's appearance — try again.");
-                return;
-            }
+        RaceVariantData variant;
+        try {
+            variant = captureRaceVariant(goblin, identity.race);
+        } catch (Throwable t) {
+            LOGGER.error("[TM] send: variant capture threw for identity {} — aborting before spawn",
+                    identity.identityId, t);
+            sendAdvisoryNotice(triggeringPlayer,
+                    "Couldn't read your subordinate's appearance — try again.");
+            return;
         }
 
         // 3. Allow the respawn loop to run (finishTravelling makes isTravelling() return false).
@@ -3139,25 +2650,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         LOGGER.info("[TM] send: EntityCitizen spawned near {} for citizen {}",
                 townHallPos, identity.citizenId);
 
-        // Stage L3 hotfix — tower assignment MOVED into the post-spawn
-        // try/catch block below. The previous Stage L2 placement here
-        // was OUTSIDE the try/catch: an NPE in setJob (the underlying
-        // crash bug) would escape with the citizen body persisted but
-        // un-tagged, leaving a plain-humanoid "knight spider" citizen
-        // in the colony on relog. The crash is now fixed at the source
-        // (JobBeastGuard.preLinkWorkBuilding) but the call still lives
-        // inside the rollback boundary as defense-in-depth — any future
-        // failure here triggers body discard, no half-state survives.
-
         // 5. Transfer items from goblin → citizen inventory (Option B: citizen
         //    is source of truth during colony service). Preserves full ItemStack
         //    components/NBT — vanilla copy() carries everything.
-        //    Beasts: KnightSpiderEntity has no inventory (spider doesn't
-        //    own items), so the transfer is a no-op. Skip to avoid
-        //    reading non-existent slots.
-        List<ItemStack> sendOverflow = identity.isBeast()
-                ? java.util.Collections.emptyList()
-                : transferGoblinItemsToCitizen(goblin, citizenData.getInventory());
+        List<ItemStack> sendOverflow = transferGoblinItemsToCitizen(goblin, citizenData.getInventory());
 
         // 5b. Stat sync: goblin (active body) → citizen (fresh body). Must
         //     happen before goblin.discard() while both bodies are alive.
@@ -3223,60 +2719,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         identity.citizenId);
             }
 
-            // Stage F1 / L2 — attach the appropriate tag (RaceTag for
-            // worker races, BeastTag for beasts) to the freshly-spawned
+            // Stage F1 — attach the RaceTag to the freshly-spawned
             // citizen entity and broadcast it to every player currently
             // tracking the body. Players who start tracking later get
             // the tag via PlayerEvent.StartTracking.
-            //
-            // Stage L3 hotfix — for beasts, the tag is attached EARLY
-            // (right here, BEFORE the tower assignment below). The Stage
-            // L2 sequence attached the tag here but ran the assignment
-            // OUTSIDE this try block, so an NPE in assignment escaped
-            // with no body discard and the tag attach never ran (it was
-            // inside the later catch'd block). The L3 order is:
-            //   1. tag the body (always succeeds — cheap setData)
-            //   2. assign to tower (may fail; if so, rollback discards
-            //      the body and the tag goes with it)
-            // This means even if a future bug regresses the assignment,
-            // there's no possibility of an orphan untagged citizen
-            // surviving in the colony.
-            if (identity.isBeast()) {
-                attachAndSyncBeastTag(citizenBody, identity, identity.beast);
-                // Now assign to a Guard Tower with JobBeastGuard. If
-                // this throws (e.g. workBuilding pre-link regressed),
-                // the surrounding try/catch discards the body cleanly.
-                assignSpawnedBeastToTower(citizenData, colony);
-                // Stage L3 polish — "doesn't move unless hired" rule.
-                // If the assignment didn't end up with a JobBeastGuard
-                // on the citizen (no Guard Tower in the colony, or the
-                // tower's module rejected the assignment), pause the
-                // citizen so they don't wander as a generic idle vanilla
-                // citizen. The visual is a giant spider; aimless
-                // wandering is jarring. They stand still until properly
-                // hired. The HIRED branch defensively un-pauses in case
-                // a prior session had left the flag set.
-                boolean hired = citizenData.getJob() instanceof JobBeastGuard;
-                if (!hired) {
-                    citizenData.setPaused(true);
-                    if (triggeringPlayer instanceof ServerPlayer pausedSp) {
-                        pausedSp.sendSystemMessage(net.minecraft.network.chat.Component.literal(
-                                citizenData.getName() + " has no Guard Tower to patrol from — "
-                              + "they will stand still until you build one and re-send them.")
-                                .withStyle(ChatFormatting.YELLOW));
-                    }
-                    LOGGER.info("[TM] beast {} ('{}') not hired — paused in place",
-                            citizenData.getId(), citizenData.getName());
-                } else if (citizenData.isPaused()) {
-                    citizenData.setPaused(false);
-                    LOGGER.info("[TM] beast {} ('{}') hired — un-paused from previous state",
-                            citizenData.getId(), citizenData.getName());
-                }
-                // Skip the race-tag log + scale-attribute block — beasts
-                // have their own attach helper that pins SCALE=1.0.
-                // Stat-sync (max attribute bump + IExistence copy + HP)
-                // still runs below; works on any LivingEntity.
-            } else {
             RaceTag tag = RaceTag.of(identity.identityId, identity.race, variant);
             citizenBody.setData(Attachments.RACE_TAG.get(), tag);
             PacketDistributor.sendToPlayersTrackingEntity(citizenBody,
@@ -3327,7 +2773,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // intrinsic scale (LivingEntityRenderer reads entity.getScale()).
             // Persists on the AttributeInstance — survives save/load.
             applyRaceScaleAttribute(citizenBody, identity.race);
-            } // end !isBeast() block — attachAndSyncBeastTag already pinned SCALE=1.0 for beasts
 
             bumpBodyMaxAttributes(citizenBody, goblin);
             LOGGER.info("[TM] send: citizen max attributes boosted (max-aura {} max-magicule {} max-SH {} max-HP {})",
@@ -3335,16 +2780,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     EnergyHelper.getMaxMagicule(citizenBody),
                     citizenBody.getAttributeValue(TensuraAttributes.MAX_SPIRITUAL_HEALTH),
                     citizenBody.getMaxHealth());
-
-            // Stage L3a — beast-only level scaling. Stacks on top of
-            // bumpBodyMaxAttributes (the max-HP bump leaves headroom
-            // for the EP multiplier). Sets ATTACK_DAMAGE / ARMOR /
-            // KNOCKBACK_RESISTANCE which bumpBodyMaxAttributes
-            // doesn't touch, AND further lifts MAX_HEALTH past what
-            // the bump did when the EP multiplier > 1.0.
-            if (identity.isBeast()) {
-                applyBeastLevelScaling(citizenBody, goblin);
-            }
 
             ExistenceStorage srcExist = readExistence(goblin);
             ExistenceStorage dstExist = readExistence(citizenBody);
@@ -3381,15 +2816,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // 6. Strip HandItems/ArmorItems from the snapshot — the citizen now
         //    owns the items, the snapshot must not duplicate them. Other entity
         //    state (EvoState, attributes, ManasCoreStorage) stays in the snapshot.
-        //    Beasts skip this — the spider had no inventory to transfer, so
-        //    the snapshot's HandItems/ArmorItems (if any from Tensura's
-        //    finalizeSpawn) stay intact for round-trip via summon.
-        if (!identity.isBeast()) {
-            identity.entitySnapshot.remove("HandItems");
-            identity.entitySnapshot.remove("ArmorItems");
-            saved.updateEntitySnapshot(identity, identity.entitySnapshot);
-            LOGGER.info("[TM] send: items transferred to citizen, snapshot stripped of HandItems/ArmorItems");
-        }
+        identity.entitySnapshot.remove("HandItems");
+        identity.entitySnapshot.remove("ArmorItems");
+        saved.updateEntitySnapshot(identity, identity.entitySnapshot);
+        LOGGER.info("[TM] send: items transferred to citizen, snapshot stripped of HandItems/ArmorItems");
 
         // 7. Drop send-overflow at triggering player's position. Rare path —
         //    only fires if the citizen inventory was already nearly full.
@@ -3813,13 +3243,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         //    or lost during colony service) is what the goblin gets back.
         //    Equipment slots (2 hand + 4 armor) map 1:1; the rest of the
         //    27-slot main inventory is overflow.
-        //    Beasts: KnightSpiderEntity has no inventory — skip item
-        //    transfer, no overflow possible. Citizen inventory stays empty
-        //    (beasts never had items to send in step 5 either).
         InventoryCitizen citizenInv = citizenData.getInventory();
-        List<ItemStack> overflow = identity.isBeast()
-                ? java.util.Collections.emptyList()
-                : transferCitizenItemsToGoblin(citizenInv, goblin);
+        List<ItemStack> overflow = transferCitizenItemsToGoblin(citizenInv, goblin);
 
         // 6b. Stat sync: citizen (active body) → goblin (fresh body). Overwrites
         //     the snapshot's stale IExistence values that the NBT reconstruction
@@ -3876,15 +3301,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         //     insurance against any reordering and makes the round-trip
         //     symmetric with the send-side broadcast.
         citizenBodyOpt.ifPresent(citizenBody -> {
-            // Clear whichever tag is attached: BeastTag for beasts,
-            // RaceTag for worker races. The two are disjoint by design.
-            if (citizenBody.hasData(Attachments.BEAST_TAG.get())) {
-                citizenBody.removeData(Attachments.BEAST_TAG.get());
-                PacketDistributor.sendToPlayersTrackingEntity(citizenBody,
-                        Networking.SyncBeastTagPayload.clear(citizenBody.getUUID()));
-                LOGGER.info("[TM] summon: beast tag cleared from citizen entity {}",
-                        citizenBody.getUUID());
-            } else if (citizenBody.hasData(Attachments.RACE_TAG.get())) {
+            if (citizenBody.hasData(Attachments.RACE_TAG.get())) {
                 citizenBody.removeData(Attachments.RACE_TAG.get());
                 PacketDistributor.sendToPlayersTrackingEntity(citizenBody,
                         Networking.SyncRaceTagPayload.clear(citizenBody.getUUID()));
@@ -4325,16 +3742,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // the player turns or walks away during the delay.
         Vec3 materializePos;
         if (identity.mode == RaceIdentitySavedData.Mode.SUBORDINATE) {
-            // Send → materialize at the town hall (for worker races) OR
-            // at the colony's first Guard Tower (for beasts — they're
-            // sent to GUARD DUTY, not the TH).
+            // Send → materialize at the town hall.
             IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
             if (colony != null && colony.getServerBuildingManager().hasTownHall()) {
                 BlockPos thPos = colony.getServerBuildingManager().getTownHall().getPosition();
-                BlockPos chosen = identity.isBeast()
-                        ? beastMaterialisePos(colony, thPos, player)
-                        : thPos;
-                materializePos = new Vec3(chosen.getX() + 0.5, chosen.getY(), chosen.getZ() + 0.5);
+                materializePos = new Vec3(thPos.getX() + 0.5, thPos.getY(), thPos.getZ() + 0.5);
             } else {
                 materializePos = dissolvePos; // fallback; the action would fail anyway
             }
@@ -5002,83 +4414,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     private static final net.minecraft.resources.ResourceLocation SWAP_ENERGY_BOOST_ID =
             net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "swap_energy_boost");
 
-    /** Stage L3a — separate tracked modifier id for beast-level combat
-     *  scaling. Distinct from {@link #SWAP_ENERGY_BOOST_ID} so the two
-     *  systems don't fight: energy-boost lifts MAX_HEALTH up to the
-     *  source's value (race-and-beast); this one stacks on top to give
-     *  beasts EP-scaled combat attributes. Removed and re-applied on
-     *  every send so repeat sends don't compound. */
-    private static final net.minecraft.resources.ResourceLocation BEAST_LEVEL_SCALE_ID =
-            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "beast_level_scale");
-
-    /**
-     * Stage L3 polish — beast-CITIZEN body HITBOX scale (via
-     * {@code Attributes.SCALE}, which drives
-     * {@link net.minecraft.world.entity.LivingEntity#getDimensions}).
-     *
-     * <p><b>Decoupled from render scale.</b> The visual is sized
-     * independently by {@link #BEAST_RENDER_SCALE} in the render
-     * handler — this constant only governs the citizen's collision
-     * box and the distance MineColonies' combat math uses
-     * ({@code AttackMoveAI.isInDistanceForAttack} uses center-to-
-     * center distance, but other entities' hit-vs-miss test uses the
-     * AABB, so a bigger hitbox makes the spider easier to hit AND
-     * easier to land hits on at melee range).
-     *
-     * <p>2.5 gives hitbox ≈ 1.5w × 4.5h — substantially wider than a
-     * 1-wide door, and TALLER than a 2-block ceiling gap. The spider's
-     * collision box fills a small room. Render stays at
-     * {@link #BEAST_RENDER_SCALE} ≈ 0.7 (the visual is fully decoupled
-     * from this constant — see the render handler — so the spider
-     * model size is unchanged regardless of how big the hitbox grows).
-     *
-     * <p>Tradeoff: MineColonies' A* is width-blind, so a hitbox this
-     * wide WILL jam in any 1-wide doorway / corridor. Only viable
-     * because the patrol-stays-outside fix (BUILDING_AVOID_BUFFER in
-     * EntityAIBeastGuard) keeps the spider on open ground 22+ blocks
-     * from every building.
-     *
-     * <p><b>Affects only the citizen-form spider, not the subordinate
-     * mob.</b> The subordinate is restored from its NBT snapshot
-     * captured at first send, which carries its native Tensura
-     * SCALE — independent of this constant.
-     *
-     * <p>Tuning hitbox: drop toward 2.0 if pursuit jams even on open
-     * ground (1.2w × 3.6h — still wide); 3.0 if the collision still
-     * feels too small for the spider's perceived presence.
-     */
-    static final double BEAST_BODY_SCALE = 2.5;
-
-    /**
-     * Visual multiplier applied to the spider shadow at render time.
-     * <b>Independent of {@link #BEAST_BODY_SCALE}.</b> The hitbox can
-     * change without the visual following, which is what we want
-     * when the spider render already looks correct but the collision
-     * box needs to be tighter / larger.
-     *
-     * <p>0.7 matches the previously-shipped visual (when render was
-     * coupled to SCALE = 0.7). The renderer multiplies the native
-     * KnightSpider model size (~5w × 3.75h) by this factor, so the
-     * apparent spider stays at ~3.5w × 2.625h regardless of how
-     * {@code BEAST_BODY_SCALE} changes underneath.
-     *
-     * <p>If tuning render: bump up to ~1.0 to fill the colony more
-     * imposingly, down to ~0.5 to clearly differentiate from the
-     * subordinate.
-     */
-    static final float BEAST_RENDER_SCALE = 0.7f;
-
-    /**
-     * Per-server-session set of players who have already seen the
-     * one-time "beasts need a guard tower and don't pathfind well in
-     * dense areas" advisory. Resets on server restart — that's fine:
-     * the advisory is "nice to know once" rather than "must persist
-     * across reboots." Concurrent-safe because send-handler reads /
-     * writes happen on the server thread but onWorldUnload may iterate.
-     */
-    private static final java.util.Set<java.util.UUID> SEEN_BEAST_SEND_ADVISORY
-            = java.util.concurrent.ConcurrentHashMap.newKeySet();
-
     /**
      * Lift the destination body's max-pool attributes up to at least the
      * source body's values. Covers four attributes:
@@ -5140,118 +4475,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 SWAP_ENERGY_BOOST_ID, delta, AttributeModifier.Operation.ADD_VALUE));
     }
 
-    /**
-     * Stage L3a — apply EP-scaled combat attributes to a beast-guard
-     * citizen body. Reads the spider's {@link IExistence#getEP()} (with
-     * a sum-of-pools fallback), computes a clamped log-scale multiplier,
-     * and sets MAX_HEALTH / ATTACK_DAMAGE / ARMOR / KNOCKBACK_RESISTANCE
-     * on the citizen body via {@link #BEAST_LEVEL_SCALE_ID} modifiers.
-     *
-     * <p><b>Multiplier shape</b>: {@code 1.0 + log10(max(EP, 100) / 100) × 0.5},
-     * clamped to {@code [1.0, 4.0]}. Means baseline EP ≈ 100 gives 1.0×
-     * (no boost), spider-baseline ≈ 11k gives ~2.04×, evolved
-     * tier-spider 100k gives 2.5×, mythical 1M gives 3.0×.
-     *
-     * <p><b>Stricter than races</b>: race send only matches max
-     * attributes via {@link #bumpBodyMaxAttributes}; beasts get that
-     * PLUS this EP-multiplier on combat attributes. "More rigorous"
-     * per the spec.
-     *
-     * <p><b>Indirect modest</b>: KNOCKBACK_RESISTANCE scales gently
-     * (max of spider's natural value and {@code (scale - 1) × 0.3}),
-     * capped at 0.95 so beasts aren't unmovable. Other "common-sense"
-     * beast traits intentionally left out for Stage 3a — a knockback
-     * boost is the single safe indirect translation.
-     */
-    private static void applyBeastLevelScaling(LivingEntity citizenBody, LivingEntity spider) {
-        // 1. Read EP. Prefer IExistence.getEP(); fall back to the sum of
-        //    pools (Tensura's underlying composition) when EP is zero —
-        //    happens for entities Tensura hasn't yet "charged" with EP
-        //    via normal-spawn pipeline. The fallback gives a sensible
-        //    nonzero number from baseline attribute storage.
-        IExistence existence = readExistenceSafe(spider);
-        if (existence == null) {
-            LOGGER.warn("[TM] beast scaling: no IExistence on spider — skipping level boost");
-            return;
-        }
-        double ep = existence.getEP();
-        if (ep <= 0.0) {
-            ep = existence.getAura() + existence.getMagicule() + existence.getSpiritualHealth();
-        }
-        if (ep <= 0.0) ep = 100.0;
-
-        // 2. Multiplier. Log-shape so a 10× EP gain is ~+0.5×, not 10×.
-        double scale = 1.0 + Math.log10(Math.max(ep, 100.0) / 100.0) * 0.5;
-        scale = Math.max(1.0, Math.min(4.0, scale));
-
-        // 3. Spider's baseline combat attributes. Read off the LIVE
-        //    spider entity at send time — same window the rest of the
-        //    sync pipeline uses (both bodies alive). For attributes
-        //    the spider doesn't have, fall back to vanilla defaults.
-        double spiderMaxHp   = spider.getAttributeBaseValue(Attributes.MAX_HEALTH);
-        double spiderAttack  = attributeBaseOrDefault(spider, Attributes.ATTACK_DAMAGE, 2.0);
-        double spiderArmor   = attributeBaseOrDefault(spider, Attributes.ARMOR, 0.0);
-        double spiderKR      = attributeBaseOrDefault(spider, Attributes.KNOCKBACK_RESISTANCE, 0.0);
-
-        // 4. Scaled targets.
-        double targetMaxHp   = spiderMaxHp  * scale;
-        double targetAttack  = spiderAttack * scale;
-        double targetArmor   = Math.min(30.0, spiderArmor * scale);
-        // Indirect: tanky beasts shrug off knockback. Modest stack —
-        // spider's natural high KR (0.9) wins for low EP; high EP
-        // nudges it toward the cap.
-        double targetKR      = Math.min(0.95, Math.max(spiderKR, (scale - 1.0) * 0.3));
-
-        // 5. Apply via our tracked modifier so repeat sends don't
-        //    compound. SET_TOTAL semantics via removeModifier + add
-        //    delta-to-current — mirrors bumpAttributeTo's shape.
-        setBeastAttributeAbsolute(citizenBody, Attributes.MAX_HEALTH, targetMaxHp);
-        setBeastAttributeAbsolute(citizenBody, Attributes.ATTACK_DAMAGE, targetAttack);
-        setBeastAttributeAbsolute(citizenBody, Attributes.ARMOR, targetArmor);
-        setBeastAttributeAbsolute(citizenBody, Attributes.KNOCKBACK_RESISTANCE, targetKR);
-
-        LOGGER.info("[TM] beast scaling: EP={} → scale={} → maxHp={} atk={} armor={} kr={}",
-                String.format("%.0f", ep), String.format("%.2f", scale),
-                String.format("%.1f", targetMaxHp),
-                String.format("%.1f", targetAttack),
-                String.format("%.1f", targetArmor),
-                String.format("%.2f", targetKR));
-    }
-
-    /** Read an attribute's base value, or return {@code fallback} if
-     *  the entity doesn't have that attribute. Distinct from
-     *  {@link AttributeInstance#getValue()} — base ignores modifiers,
-     *  which is what we want for "spider's natural baseline." */
-    private static double attributeBaseOrDefault(LivingEntity entity,
-                                                  Holder<Attribute> attrHolder,
-                                                  double fallback) {
-        AttributeInstance inst = entity.getAttribute(attrHolder);
-        return inst != null ? inst.getBaseValue() : fallback;
-    }
-
-    /**
-     * Set an attribute's effective value to a target by removing any
-     * prior beast-level modifier and adding a fresh ADD_VALUE delta
-     * from the unboosted base. Permanent operation so MC's per-tick
-     * recompute doesn't strip it.
-     */
-    private static void setBeastAttributeAbsolute(LivingEntity entity,
-                                                   Holder<Attribute> attrHolder,
-                                                   double target) {
-        AttributeInstance instance = entity.getAttribute(attrHolder);
-        if (instance == null) return;
-        instance.removeModifier(BEAST_LEVEL_SCALE_ID);
-        // After removing our prior modifier, getValue() reflects the
-        // "natural" value (whatever other systems set, including the
-        // citizen's class defaults and any SWAP_ENERGY_BOOST_ID
-        // contribution from bumpBodyMaxAttributes). Delta lifts us to
-        // target on top of that.
-        double current = instance.getValue();
-        double delta = target - current;
-        if (delta <= 0.0) return; // target already met or below; no boost
-        instance.addPermanentModifier(new AttributeModifier(
-                BEAST_LEVEL_SCALE_ID, delta, AttributeModifier.Operation.ADD_VALUE));
-    }
 
     /**
      * Copy HP as an absolute value, after the destination's MAX_HEALTH has
@@ -5537,66 +4760,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         LOGGER.info("[TM] server starting");
     }
 
-    /**
-     * Stage L3 polish — instant beast-guard retaliation.
-     *
-     * <p>The standard guard AI proactive scan fires every 80 ticks
-     * (4s) and the reactive threat-table check every 5 ticks (0.25s).
-     * Reactive only catches an attacker AFTER they've been registered
-     * in the spider's threat table — which doesn't happen
-     * automatically when a citizen is damaged (MineColonies' citizen
-     * damage path doesn't add to threat).
-     *
-     * <p>This hook listens for {@code LivingIncomingDamageEvent} and,
-     * if the victim is a beast-guard citizen, adds the attacker to
-     * the citizen's threat table with a high threat value. The
-     * combat AI's 5-tick reactive transition then picks it up next
-     * tick — sub-quarter-second engagement, indistinguishable from
-     * "instant" at gameplay speed.
-     *
-     * <p>Filters out friendly fire (citizen-on-citizen damage is
-     * never a colony combat target) and self-damage (fall, fire,
-     * etc. — never engage yourself). Self-source-null (env damage)
-     * also skipped.
-     */
-    @SubscribeEvent
-    public void onBeastGuardAttacked(
-            net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent event) {
-        if (!(event.getEntity() instanceof com.minecolonies.core.entity.citizen.EntityCitizen citizen)) {
-            return;
-        }
-        // Cheap guard before deeper poking — only beast-guards retaliate
-        // via this hook. Regular guards keep their vanilla behaviour.
-        if (citizen.getCitizenJobHandler() == null
-                || !(citizen.getCitizenJobHandler().getColonyJob() instanceof JobBeastGuard)) {
-            return;
-        }
-        net.minecraft.world.entity.Entity sourceEntity = event.getSource().getEntity();
-        if (!(sourceEntity instanceof net.minecraft.world.entity.LivingEntity attacker)) {
-            return;
-        }
-        if (attacker == citizen) return;
-        // Don't engage other citizens — friendly-fire incidents would
-        // make beast-guards turn on the colony. The vanilla guard AI
-        // applies the same filter via isAttackableTarget.
-        if (attacker instanceof com.minecolonies.api.entity.citizen.AbstractEntityCitizen) {
-            return;
-        }
-        try {
-            // High threat value (100) ensures the attacker outranks
-            // any existing threat entry, so the spider engages the
-            // mob that just hit it rather than continuing to chase a
-            // distant earlier target.
-            citizen.getThreatTable().addThreat(attacker, 100);
-        } catch (Throwable t) {
-            // Defensive — guard AI's exception-swallowing trap means
-            // a silent failure here would manifest as "spider still
-            // ignores attackers" with no log. Surface it.
-            LOGGER.warn("[TM] beast-guard threat-add failed for citizen {} (attacker={})",
-                    citizen.getUUID(), attacker.getType(), t);
-        }
-    }
-
     // ------------------------------------------------------------------
     // Stage F1 — entity tracking sync
     //
@@ -5613,40 +4776,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (!(event.getTarget() instanceof AbstractEntityCitizen citizen)) return;
         if (!(event.getEntity() instanceof ServerPlayer sp)) return;
 
-        // Stage L3-hotfix-6 — re-ATTACH the BeastTag if missing. MC
-        // discards the citizen entity body on chunk unload and respawns
-        // a fresh EntityCitizen when the chunk re-loads. The fresh
-        // entity has NO data attachments (the persisted NBT is from the
-        // OLD entity which got discarded). Without re-attaching, the
-        // tag is gone server-side too → no re-sync below would help.
-        //
-        // We resolve by looking up the citizen's identity via citizenId
-        // → RaceIdentitySavedData. If it's a beast identity, attach
-        // BeastTag with the stored beast kind + identityId. Done first
-        // so the re-sync block below picks up the freshly-attached tag.
-        if (!citizen.hasData(Attachments.BEAST_TAG.get())
-                && citizen.getCitizenData() != null) {
-            RaceIdentitySavedData saved = RaceIdentitySavedData.get(sp.serverLevel());
-            RaceIdentitySavedData.RaceIdentity identity =
-                    saved.getByCitizenId(citizen.getCitizenData().getId());
-            if (identity != null && identity.isBeast()) {
-                BeastTag tag = new BeastTag(identity.identityId, identity.beast);
-                citizen.setData(Attachments.BEAST_TAG.get(), tag);
-                // Mirror the SCALE bump from attachAndSyncBeastTag —
-                // the respawned EntityCitizen has default SCALE=1.0
-                // (attributes aren't part of the player-tracking
-                // payload that gets re-synced here). Without this, a
-                // beast that the player walks away from and back to
-                // would render at the new visual scale but with the
-                // OLD humanoid hitbox.
-                net.minecraft.world.entity.ai.attributes.AttributeInstance scaleAttr =
-                        citizen.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.SCALE);
-                if (scaleAttr != null) scaleAttr.setBaseValue(BEAST_BODY_SCALE);
-                LOGGER.info("[TM] tracking: re-attached BeastTag to respawned citizen {} (identity {} beast={})",
-                        citizen.getUUID(), identity.identityId, identity.beast);
-            }
-        }
-
         // Race-tag re-sync (worker races).
         if (citizen.hasData(Attachments.RACE_TAG.get())) {
             RaceTag tag = citizen.getData(Attachments.RACE_TAG.get());
@@ -5654,22 +4783,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     Networking.SyncRaceTagPayload.of(citizen.getUUID(), tag));
             LOGGER.info("[TM] tracking: re-synced race tag to {} for citizen entity {} (identity {})",
                     sp.getName().getString(), citizen.getUUID(), tag.identityId());
-        }
-
-        // Stage L3 hotfix — beast-tag re-sync. Without this, beasts
-        // (knight spider) load with their server-side BeastTag intact
-        // (the attachment NBT-serialises) but the client's
-        // BeastTagClientStore was wiped on logout. The render handler
-        // gates on the client store → no tag → plain humanoid visual
-        // on relog. Re-syncing here makes the spider visible from the
-        // first render frame for any player tracking the citizen.
-        if (citizen.hasData(Attachments.BEAST_TAG.get())) {
-            BeastTag bt = citizen.getData(Attachments.BEAST_TAG.get());
-            PacketDistributor.sendToPlayer(sp,
-                    Networking.SyncBeastTagPayload.of(citizen.getUUID(), bt));
-            LOGGER.info("[TM] tracking: re-synced beast tag to {} for citizen entity {} (identity {} beast={})",
-                    sp.getName().getString(), citizen.getUUID(),
-                    bt.identityId(), bt.beast());
         }
     }
 }

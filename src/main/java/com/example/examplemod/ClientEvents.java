@@ -57,13 +57,6 @@ public final class ClientEvents {
         // UUID → RaceTag map that the renderers (goblin / orc / future)
         // consult during render to pick the right model.
         Networking.raceTagClientHandler = RaceTagClientStore::onPayload;
-        Networking.beastTagClientHandler = BeastTagClientStore::onPayload;
-
-        // Stage L3 polish — server-driven GeckoLib triggers for beast
-        // shadows (e.g. spider leap animation). The render handler
-        // owns the shadow pool and is the only thing that can locate
-        // the right shadow for a given citizen UUID.
-        Networking.triggerSpiderAnimHandler = KnightSpiderCitizenRenderHandler::onTriggerAnimPayload;
 
         // Stage B picker — server sends OpenRacePickerPayload when a
         // colony needs the race choice. Client defers screen-open by 1
@@ -107,12 +100,6 @@ public final class ClientEvents {
         NeoForge.EVENT_BUS.addListener(RenderLivingEvent.Pre.class,
                 DwarfCitizenRenderHandler::onRenderLivingPre);
 
-        // KNIGHT SPIDER (beast) — shadow-entity GeckoLib pattern. Gated by
-        // BeastTag rather than RaceTag. Citizen body keeps humanoid hitbox
-        // (SCALE 1.0); the spider visual is decoration only.
-        NeoForge.EVENT_BUS.addListener(RenderLivingEvent.Pre.class,
-                KnightSpiderCitizenRenderHandler::onRenderLivingPre);
-
         // Cleanup hooks: drop the mirror entry when an entity leaves the
         // client world (chunk unload, discard, dimension change), and wipe
         // the whole map on disconnect so a relog or world-switch starts
@@ -120,11 +107,9 @@ public final class ClientEvents {
         NeoForge.EVENT_BUS.addListener(ClientEvents::onEntityLeaveLevel);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onClientLoggingOut);
 
-        // Stage L2 — trade button FLIP: removed from subordinate UI,
-        // moved to the CITIZEN window (MainWindowCitizen). The
-        // SubordinateTradeButtonHandler is no longer registered; the
-        // file stays for now in case Stage 2 wants to re-enable it.
-        NeoForge.EVENT_BUS.addListener(CitizenTradeButtonHandler::onScreenInitPost);
+        // Subordinate-side trade button — right-click on the wild mob
+        // form opens the merchant screen.
+        NeoForge.EVENT_BUS.addListener(SubordinateTradeButtonHandler::onScreenInitPost);
     }
 
     private static void onRegisterKeys(RegisterKeyMappingsEvent event) {
@@ -148,8 +133,6 @@ public final class ClientEvents {
         // citizen UUID; same-tick cleanup keeps the pool bounded.
         OrcCitizenRenderHandler.removeForEntity(uuid);
         LizardmanCitizenRenderHandler.removeForEntity(uuid);
-        KnightSpiderCitizenRenderHandler.removeForEntity(uuid);
-        BeastTagClientStore.removeForEntity(uuid);
     }
 
     private static void onClientLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
@@ -161,7 +144,5 @@ public final class ClientEvents {
         OrcCitizenRenderHandler.invalidate();
         LizardmanCitizenRenderHandler.invalidate();
         DwarfCitizenRenderHandler.invalidate();
-        KnightSpiderCitizenRenderHandler.invalidate();
-        BeastTagClientStore.clearAll();
     }
 }

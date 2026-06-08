@@ -122,26 +122,6 @@ public final class Networking {
                 SyncRaceTagPayload.CODEC,
                 Networking::onSyncRaceTag
         );
-        registrar.playToClient(
-                SyncBeastTagPayload.TYPE,
-                SyncBeastTagPayload.CODEC,
-                Networking::onSyncBeastTag
-        );
-        // Stage L3 polish — trigger a named GeckoLib animation on the
-        // shadow entity rendered for a beast-guard citizen. Used by
-        // BeastGuardCombatAI.doAttack to play the leap animation
-        // (the leap MOVEMENT is server-side; the animation can only
-        // run on the client, which has no other way to detect it).
-        registrar.playToClient(
-                TriggerSpiderAnimPayload.TYPE,
-                TriggerSpiderAnimPayload.CODEC,
-                Networking::onTriggerSpiderAnim
-        );
-        registrar.playToServer(
-                OpenCitizenTradePayload.TYPE,
-                OpenCitizenTradePayload.CODEC,
-                Networking::onOpenCitizenTrade
-        );
     }
 
     /**
@@ -170,21 +150,6 @@ public final class Networking {
     public static Consumer<SyncRaceTagPayload> raceTagClientHandler = payload -> {
         LOGGER.info("[TM] race tag (no client handler) entity={} present={}",
                 payload.entityUuid(), payload.present());
-    };
-
-    /** Client-side delegate for beast tag sync — parallel to
-     *  {@link #raceTagClientHandler}. Installed by ClientEvents. */
-    public static Consumer<SyncBeastTagPayload> beastTagClientHandler = payload -> {
-        LOGGER.info("[TM] beast tag (no client handler) entity={} present={}",
-                payload.entityUuid(), payload.present());
-    };
-
-    /** Client-side delegate for trigger-spider-anim payloads. Installed
-     *  by ClientEvents to forward to the spider render handler. Default
-     *  is a logging stub so the field is loadable on the server JVM. */
-    public static Consumer<TriggerSpiderAnimPayload> triggerSpiderAnimHandler = payload -> {
-        LOGGER.info("[TM] trigger spider anim (no client handler) entity={} ctrl={} anim={}",
-                payload.entityUuid(), payload.controllerName(), payload.animName());
     };
 
     /** Client-side delegate for the race-picker open prompt. Installed
@@ -428,92 +393,6 @@ public final class Networking {
         }
     }
 
-    /** Beast-tag sync — parallel to {@link SyncRaceTagPayload} but for
-     *  {@link BeastTag}. Stage 1 carries no per-citizen variant data
-     *  (the spider has no per-instance appearance fields), so the
-     *  payload is tighter than the race-tag one. */
-    public record SyncBeastTagPayload(UUID entityUuid, boolean present,
-                                      UUID identityId, byte beastId)
-            implements CustomPacketPayload {
-
-        public static final Type<SyncBeastTagPayload> TYPE = new Type<>(
-                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "sync_beast_tag"));
-
-        public static final StreamCodec<ByteBuf, SyncBeastTagPayload> CODEC = StreamCodec.composite(
-                UUIDUtil.STREAM_CODEC,  SyncBeastTagPayload::entityUuid,
-                ByteBufCodecs.BOOL,     SyncBeastTagPayload::present,
-                UUIDUtil.STREAM_CODEC,  SyncBeastTagPayload::identityId,
-                ByteBufCodecs.BYTE,     SyncBeastTagPayload::beastId,
-                SyncBeastTagPayload::new
-        );
-
-        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
-
-        public static SyncBeastTagPayload of(UUID entityUuid, BeastTag tag) {
-            return new SyncBeastTagPayload(entityUuid, true,
-                    tag.identityId() != null ? tag.identityId() : new UUID(0L, 0L),
-                    (byte) tag.beast().getId());
-        }
-
-        public static SyncBeastTagPayload clear(UUID entityUuid) {
-            return new SyncBeastTagPayload(entityUuid, false,
-                    new UUID(0L, 0L), (byte) 0);
-        }
-    }
-
-    /** S2C — instruct the client renderer to call
-     *  {@code shadow.triggerAnim(controllerName, animName)} on the
-     *  shadow entity rendered for the citizen identified by
-     *  {@code entityUuid}.
-     *
-     *  <p>Used by the beast-guard combat AI to play the spider's leap
-     *  animation when the server-side combat code decides to pounce.
-     *  The animation is purely visual — GeckoLib's triggerableAnims
-     *  run a one-shot animation independent of the entity's logical
-     *  state, so misfires are harmless (worst case: extra flailing).
-     *
-     *  <p>String-based rather than enum-based to keep the payload
-     *  generic — future beasts will use the same payload with their
-     *  own controller / anim names.
-     */
-    public record TriggerSpiderAnimPayload(UUID entityUuid,
-                                            String controllerName,
-                                            String animName)
-            implements CustomPacketPayload {
-
-        public static final Type<TriggerSpiderAnimPayload> TYPE = new Type<>(
-                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "trigger_spider_anim"));
-
-        public static final StreamCodec<ByteBuf, TriggerSpiderAnimPayload> CODEC = StreamCodec.composite(
-                UUIDUtil.STREAM_CODEC,    TriggerSpiderAnimPayload::entityUuid,
-                ByteBufCodecs.STRING_UTF8, TriggerSpiderAnimPayload::controllerName,
-                ByteBufCodecs.STRING_UTF8, TriggerSpiderAnimPayload::animName,
-                TriggerSpiderAnimPayload::new
-        );
-
-        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
-    }
-
-    /** C2S — player clicks the Trade button on a citizen's MC window.
-     *  Server resolves the citizen's {@code RaceTag} → identity, validates
-     *  ownership and merchant-capability, then opens the merchant screen.
-     *  Stage 1: opens trade only when the citizen's subordinate body is
-     *  also currently in the world (i.e. summon-back-first flow).
-     *  Future: reconstruct a transient merchant from the snapshot. */
-    public record OpenCitizenTradePayload(int citizenEntityId)
-            implements CustomPacketPayload {
-
-        public static final Type<OpenCitizenTradePayload> TYPE = new Type<>(
-                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "open_citizen_trade"));
-
-        public static final StreamCodec<ByteBuf, OpenCitizenTradePayload> CODEC = StreamCodec.composite(
-                ByteBufCodecs.VAR_INT, OpenCitizenTradePayload::citizenEntityId,
-                OpenCitizenTradePayload::new
-        );
-
-        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
-    }
-
     /**
      * S2C: open the race picker for the given colony. Carries the
      * colony's display name so the screen can show it without a
@@ -710,21 +589,6 @@ public final class Networking {
         // happens off the netty thread (the store is a ConcurrentHashMap so
         // it'd be safe anyway, but downstream renderer reads expect main).
         context.enqueueWork(() -> raceTagClientHandler.accept(payload));
-    }
-
-    private static void onSyncBeastTag(SyncBeastTagPayload payload, IPayloadContext context) {
-        context.enqueueWork(() -> beastTagClientHandler.accept(payload));
-    }
-
-    private static void onTriggerSpiderAnim(TriggerSpiderAnimPayload payload, IPayloadContext context) {
-        // Bounce to the client main thread — GeckoLib's animation cache
-        // is touched by render, which runs on main.
-        context.enqueueWork(() -> triggerSpiderAnimHandler.accept(payload));
-    }
-
-    private static void onOpenCitizenTrade(OpenCitizenTradePayload payload, IPayloadContext context) {
-        if (!(context.player() instanceof ServerPlayer sp)) return;
-        context.enqueueWork(() -> ExampleMod.handleOpenCitizenTrade(sp, payload.citizenEntityId()));
     }
 
     private static void onOpenRacePicker(OpenRacePickerPayload payload, IPayloadContext context) {

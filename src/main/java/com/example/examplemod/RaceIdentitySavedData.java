@@ -56,28 +56,12 @@ public class RaceIdentitySavedData extends SavedData {
                                             // IExistence.permanentOwner.
         public Race race;                   // which worker race this identity is —
                                             // determines renderer + variant
-                                            // capture. NULL when this identity
-                                            // is a beast (see {@link #beast}).
-        public Beast beast;                 // Stage L2: which beast this identity
-                                            // is. NULL when {@link #race} is set.
-                                            // Exactly one of race/beast is non-null
-                                            // for any well-formed identity.
+                                            // capture.
 
         public RaceIdentity(UUID identityId, int citizenId, int colonyId,
                             UUID mobEntityUUID, Mode mode,
                             CompoundTag entitySnapshot, UUID ownerPlayerUUID,
                             Race race) {
-            this(identityId, citizenId, colonyId, mobEntityUUID, mode,
-                 entitySnapshot, ownerPlayerUUID, race, null);
-        }
-
-        /** Full constructor accepting both race and beast — exactly one
-         *  must be non-null. The race-only convenience ctor above passes
-         *  beast=null and is the path every legacy call site uses. */
-        public RaceIdentity(UUID identityId, int citizenId, int colonyId,
-                            UUID mobEntityUUID, Mode mode,
-                            CompoundTag entitySnapshot, UUID ownerPlayerUUID,
-                            Race race, Beast beast) {
             this.identityId       = identityId;
             this.citizenId        = citizenId;
             this.colonyId         = colonyId;
@@ -86,11 +70,7 @@ public class RaceIdentitySavedData extends SavedData {
             this.entitySnapshot   = entitySnapshot;
             this.ownerPlayerUUID  = ownerPlayerUUID;
             this.race             = race;
-            this.beast            = beast;
         }
-
-        /** True iff this identity is a beast (not a worker race). */
-        public boolean isBeast() { return beast != null; }
 
         CompoundTag toNBT() {
             CompoundTag tag = new CompoundTag();
@@ -109,15 +89,8 @@ public class RaceIdentitySavedData extends SavedData {
             if (ownerPlayerUUID != null) {
                 tag.putUUID("ownerPlayerUUID", ownerPlayerUUID);
             }
-            // Exactly one of race / beast is non-null. Race write skipped
-            // for beast identities so legacy "race=GOBLIN default on
-            // missing" logic in {@link #fromNBT} cleanly distinguishes
-            // race-only old saves from beast-only new ones.
             if (race != null) {
                 tag.putByte("race", (byte) race.getId());
-            }
-            if (beast != null) {
-                tag.putByte("beast", (byte) beast.getId());
             }
             return tag;
         }
@@ -133,23 +106,12 @@ public class RaceIdentitySavedData extends SavedData {
                                     ? tag.getCompound("entity") : null;
             UUID ownerPlayerUUID  = tag.hasUUID("ownerPlayerUUID")
                                     ? tag.getUUID("ownerPlayerUUID") : null;
-            // Decode order: beast tag wins if present (Stage L2 records),
-            // else race tag (worker race) with legacy fallback to GOBLIN.
-            Beast beast = tag.contains("beast")
-                          ? Beast.byId(tag.getByte("beast") & 0xFF)
-                          : null;
-            Race race;
-            if (beast != null) {
-                // Beast identity — race intentionally null.
-                race = null;
-            } else {
-                race = tag.contains("race")
-                       ? Race.byId(tag.getByte("race") & 0xFF)
-                       : Race.GOBLIN; // legacy records (pre-multi-race-format)
-            }
+            Race race = tag.contains("race")
+                   ? Race.byId(tag.getByte("race") & 0xFF)
+                   : Race.GOBLIN; // legacy records (pre-multi-race-format)
             return new RaceIdentity(identityId, citizenId, colonyId,
                                     mobEntityUUID, mode, entity,
-                                    ownerPlayerUUID, race, beast);
+                                    ownerPlayerUUID, race);
         }
     }
 

@@ -859,3 +859,30 @@ Full as-built record: `docs/lizardman-dwarf-and-skills.md`.
 - Dual reclaim mechanics
 - Independent settlement leveling
 - Angel raid
+
+## Scrapped — beast-guard (knight-spider) approach
+
+The Stage L track that bound a knight spider to a MineColonies Guard
+Tower as a `JobBeastGuard` citizen has been removed. The MineColonies
+pathfinder is width-blind and humanoid-tuned, the visible spider
+geometry never matched the hitbox, the "shadow entity" GeckoLib
+render needed extensive per-frame state mirroring, and the
+guard-job lifecycle had several layered silent-exception failure
+modes that each needed bespoke patches. The accumulated complexity
+outweighed the feature.
+
+**New direction — "Guard This Area" Tensura-menu commands.** For
+non-humanoid mobs (knight spider and future beasts), control will be
+driven by per-player commands issued through the Tensura command
+menu rather than the MineColonies citizen/guard-tower system. The
+mob stays a Tensura entity, owned and named by the player, and
+receives stay-here / patrol-here / follow-me-style orders. No
+citizen body, no shadow rendering, no guard tower binding, no
+threat-table / state-machine integration. This sidesteps the
+width-blind pathfinder problem (the mob keeps its native pathing),
+the visual/hitbox mismatch (it IS the native entity), and the
+silent-exception trap of MineColonies AI.
+
+The race-citizen pipeline (goblin / orc / dwarf / lizardman) is
+unaffected — those are humanoid, fit the pathfinder, and the
+identity / send / summon flow remains the right home for them.
