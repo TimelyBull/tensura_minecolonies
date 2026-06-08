@@ -107,9 +107,12 @@ public final class ClientEvents {
         NeoForge.EVENT_BUS.addListener(ClientEvents::onEntityLeaveLevel);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onClientLoggingOut);
 
-        // Subordinate-side trade button — right-click on the wild mob
-        // form opens the merchant screen.
-        NeoForge.EVENT_BUS.addListener(SubordinateTradeButtonHandler::onScreenInitPost);
+        // Citizen-side trade button — injected into MineColonies'
+        // MainWindowCitizen via a ScreenEvent.Init.Post hook. Replaces
+        // the subordinate-side trade tab; SubordinateTradeButtonHandler
+        // is no longer registered (the file is retained in case we
+        // ever want to bring it back).
+        NeoForge.EVENT_BUS.addListener(CitizenTradeButtonHandler::onScreenInitPost);
     }
 
     private static void onRegisterKeys(RegisterKeyMappingsEvent event) {

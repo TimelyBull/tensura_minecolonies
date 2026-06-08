@@ -122,6 +122,15 @@ public final class Networking {
                 SyncRaceTagPayload.CODEC,
                 Networking::onSyncRaceTag
         );
+        // Citizen-side trade button — player clicks "Trade" in
+        // MainWindowCitizen → CitizenTradeButtonHandler fires this
+        // C2S payload → server opens the merchant trade screen if
+        // the citizen's subordinate body is loaded and trade-ready.
+        registrar.playToServer(
+                OpenCitizenTradePayload.TYPE,
+                OpenCitizenTradePayload.CODEC,
+                Networking::onOpenCitizenTrade
+        );
     }
 
     /**
@@ -393,6 +402,25 @@ public final class Networking {
         }
     }
 
+    /** C2S — player clicks the Trade button on the citizen's
+     *  MineColonies info screen. Server resolves the citizen's
+     *  {@code RaceTag} → identity, validates ownership and merchant
+     *  capability, then opens the merchant screen if the citizen's
+     *  subordinate body is currently in the world. */
+    public record OpenCitizenTradePayload(int citizenEntityId)
+            implements CustomPacketPayload {
+
+        public static final Type<OpenCitizenTradePayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "open_citizen_trade"));
+
+        public static final StreamCodec<ByteBuf, OpenCitizenTradePayload> CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, OpenCitizenTradePayload::citizenEntityId,
+                OpenCitizenTradePayload::new
+        );
+
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
     /**
      * S2C: open the race picker for the given colony. Carries the
      * colony's display name so the screen can show it without a
@@ -593,6 +621,11 @@ public final class Networking {
 
     private static void onOpenRacePicker(OpenRacePickerPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> racePickerOpenHandler.accept(payload));
+    }
+
+    private static void onOpenCitizenTrade(OpenCitizenTradePayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer sp)) return;
+        context.enqueueWork(() -> ExampleMod.handleOpenCitizenTrade(sp, payload.citizenEntityId()));
     }
 
     private static void onRaceChoice(RaceChoicePayload payload, IPayloadContext context) {

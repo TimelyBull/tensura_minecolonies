@@ -1762,6 +1762,79 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 merchant.getProfession(), merchant.getMerchantLevel());
     }
 
+    /**
+     * Server-side handler for the Trade button on a citizen's MC info
+     * window. Validates the citizen is a merchant-capable race, the
+     * player owns the identity, then opens trade IF the subordinate
+     * body is currently in the world (i.e. has been summoned back).
+     * Otherwise tells the player to summon first.
+     *
+     * <p>The "reconstruct merchant from snapshot" path is deferred —
+     * for now the citizen-side button works only when the subordinate
+     * has been summoned back to its mob form.
+     */
+    static void handleOpenCitizenTrade(ServerPlayer player, int citizenEntityId) {
+        ServerLevel level = player.serverLevel();
+        net.minecraft.world.entity.Entity ent = level.getEntity(citizenEntityId);
+        if (!(ent instanceof com.minecolonies.api.entity.citizen.AbstractEntityCitizen citizen)) {
+            sendAdvisoryNotice(player, "That isn't a citizen.");
+            return;
+        }
+        RaceTag tag = citizen.getData(Attachments.RACE_TAG.get());
+        if (tag == null) {
+            sendAdvisoryNotice(player, "That citizen has no race identity.");
+            return;
+        }
+        // Merchant-capable races: goblin, lizardman, dwarf (NOT orc).
+        if (tag.race() == Race.ORC) {
+            sendAdvisoryNotice(player, "Orcs do not trade.");
+            return;
+        }
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
+        RaceIdentitySavedData.RaceIdentity identity =
+                saved.getById(tag.identityId());
+        if (identity == null) {
+            sendAdvisoryNotice(player, "Citizen identity not found.");
+            return;
+        }
+        if (identity.ownerPlayerUUID == null
+                || !identity.ownerPlayerUUID.equals(player.getUUID())) {
+            sendAdvisoryNotice(player, "That citizen isn't yours.");
+            return;
+        }
+        // Stage 1 simplification: trade only when subordinate body
+        // exists. Stage 2 will reconstruct a transient merchant from
+        // the entity snapshot so the button works even with the
+        // subordinate in colony service.
+        if (identity.mobEntityUUID == null) {
+            sendAdvisoryNotice(player,
+                    "Summon them back first to trade.");
+            return;
+        }
+        net.minecraft.world.entity.Entity subBody = level.getEntity(identity.mobEntityUUID);
+        if (!(subBody instanceof io.github.manasmods.tensura.entity.template.TensuraMerchantEntity merchant)) {
+            sendAdvisoryNotice(player, "Their subordinate form isn't loaded — go closer to them.");
+            return;
+        }
+        if (merchant.isBaby() || !merchant.isAlive()) {
+            sendAdvisoryNotice(player, "Your subordinate isn't trade-ready.");
+            return;
+        }
+        if (merchant.getTradingPlayer() != null) {
+            sendAdvisoryNotice(player, "Someone else is already trading with them.");
+            return;
+        }
+        net.minecraft.world.item.trading.MerchantOffers offers = merchant.getOffers();
+        if (offers.isEmpty()) {
+            sendAdvisoryNotice(player, "They have no trades available.");
+            return;
+        }
+        merchant.setTradingPlayer(player);
+        merchant.openTradingScreen(player, citizen.getDisplayName(), merchant.getMerchantLevel());
+        LOGGER.info("[TM] citizen trade opened via citizen-side button: player {} ↔ citizen {} / subordinate {}",
+                player.getName().getString(), citizen.getUUID(), subBody.getUUID());
+    }
+
     static void handleEnvoyResponse(ServerPlayer player, int entityId, boolean accepted) {
         ServerLevel level = player.serverLevel();
         net.minecraft.world.entity.Entity entity = level.getEntity(entityId);
