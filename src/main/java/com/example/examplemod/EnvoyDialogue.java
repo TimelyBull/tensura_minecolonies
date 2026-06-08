@@ -56,32 +56,44 @@ public final class EnvoyDialogue {
         DIALOGUE_TITLE.put(ColonyMember.LIZARDMAN, "A lizardman envoy approaches");
         DIALOGUE_TITLE.put(ColonyMember.DWARF,     "A dwarven envoy approaches");
 
+        // Goblin voice: humble, eager, warm, deeply grateful — the first and
+        // most faithful followers, who remember being saved and protected.
         DIALOGUE_BODY.put(ColonyMember.GOBLIN,
-                "Honored chief. The Elder sent me. We are small and not strong, but we "
-                + "work hard and follow well. Will you let our tribe live here with you?");
+                "Great one! Word of your protection has reached even us — and goblins "
+                + "never forget who shelters the weak. We are small, and not strong, but "
+                + "we will work hard and follow you with all our hearts. Please, will you "
+                + "let our tribe live here at your side?");
 
-        // Orc voice: limited reasoning, not toddler vocabulary. Short
-        // declarative sentences, plain "what we are / what we do," no
-        // baby-talk intensifiers.
+        // Orc voice: dutiful, disciplined, solemn — service-minded, with a note
+        // of atonement (orcs were starving and leaderless before being given
+        // purpose); they speak of repaying through labour and loyalty.
         DIALOGUE_BODY.put(ColonyMember.ORC,
-                "Hello, friend. Your colony is one we noticed. Orcs are strong, and we "
-                + "would carry for you and fight for you. We would like to stand with "
-                + "your people. Will you have us?");
+                "I come for my people, great one. Once we orcs were starving and without "
+                + "a leader, and we lost our way for it. Now we seek a worthy ruler to "
+                + "serve, and to make amends through honest labour and loyalty. We are "
+                + "strong — we will carry, build, and fight for you without complaint. "
+                + "Will you have us?");
 
         DIALOGUE_BODY.put(ColonyMember.COLONIST,
                 "Good day. I speak for settlers seeking a new home — your colony came "
                 + "well-recommended. We bring skilled hands. Would you welcome us?");
 
+        // Lizardman voice: proud, formal, a touch grandiose about their people's
+        // strength and lineage — but earnest and sincere in their allegiance.
         DIALOGUE_BODY.put(ColonyMember.LIZARDMAN,
-                "Greetings, founder. The Marsh-Tribe sent me to assess your settlement. "
-                + "We do not lend our hands lightly — but yours shows promise. Will you "
-                + "have us?");
+                "I greet you, great one, on behalf of the lizardmen. Ours is an old and "
+                + "mighty people — our warriors strong, our bloodline proud. Yet strength "
+                + "knows strength, and yours far surpasses our own; it would honour us to "
+                + "pledge our spears to one such as you. Will you accept our allegiance?");
 
+        // Dwarf voice: gruff, hearty, blunt — craftsman's pride, fond of good
+        // work and a good drink, with warmth beneath the bluntness.
         DIALOGUE_BODY.put(ColonyMember.DWARF,
-                "Greetings, founder. I speak for the Dwarven Holds. After due "
-                + "deliberation we have judged your settlement worthy. We bring stonework "
-                + "and smithing — for a fair share of your prosperity, of course. Will "
-                + "you accept?");
+                "Right then — I'll speak plain, that's the dwarf way. We hear there's a "
+                + "ruler here worth the working for, and we don't set our hammers to just "
+                + "any forge. Give us good stone, a hot fire, and a strong drink at day's "
+                + "end, and you'll find no better smiths nor harder workers anywhere. So "
+                + "— do we have a deal?");
 
         // Pre-written for later stages — not reachable in Stage 2.
         // Stored under string keys since Dwarf/Lizardman aren't ColonyMember
@@ -95,15 +107,17 @@ public final class EnvoyDialogue {
         EXTRA_DIALOGUE_TITLE.put("lizardman", "A lizardman envoy approaches");
 
         EXTRA_DIALOGUE_BODY.put("dwarf",
-                "Greetings, founder. I speak for the Dwarven Holds. After due "
-                + "deliberation we have judged your settlement worthy. We bring stonework "
-                + "and smithing — for a fair share of your prosperity, of course. Will "
-                + "you accept?");
+                "Right then — I'll speak plain, that's the dwarf way. We hear there's a "
+                + "ruler here worth the working for, and we don't set our hammers to just "
+                + "any forge. Give us good stone, a hot fire, and a strong drink at day's "
+                + "end, and you'll find no better smiths nor harder workers anywhere. So "
+                + "— do we have a deal?");
 
         EXTRA_DIALOGUE_BODY.put("lizardman",
-                "Greetings, founder. The Marsh-Tribe sent me to assess your settlement. "
-                + "We do not lend our hands lightly — but yours shows promise. Will you "
-                + "have us?");
+                "I greet you, great one, on behalf of the lizardmen. Ours is an old and "
+                + "mighty people — our warriors strong, our bloodline proud. Yet strength "
+                + "knows strength, and yours far surpasses our own; it would honour us to "
+                + "pledge our spears to one such as you. Will you accept our allegiance?");
     }
 
     private EnvoyDialogue() {}
@@ -166,22 +180,22 @@ public final class EnvoyDialogue {
      *
      * <p>Each snippet is one complete sentence in the race's voice:
      * <ul>
-     *   <li>GOBLIN — humble, deferential, short sentences.</li>
-     *   <li>ORC — dumb-friendly, exclamation marks, "really" / "real" /
-     *       "very" intensifiers.</li>
+     *   <li>GOBLIN — humble, eager, warm, deeply grateful.</li>
+     *   <li>ORC — dutiful, disciplined, solemn; a note of atonement;
+     *       speaks of repaying through service.</li>
      *   <li>COLONIST — neutral, polite, business-formal.</li>
-     *   <li>LIZARDMAN — condescending but courteous, "we do not lightly..."
-     *       / "you have shown..." constructions.</li>
-     *   <li>DWARF — well-spoken, formal, fond of "moreover", "indeed",
-     *       and acknowledgements of stewardship / craft.</li>
+     *   <li>LIZARDMAN — proud, formal, a touch grandiose, but earnest and
+     *       sincere in allegiance.</li>
+     *   <li>DWARF — gruff, hearty, blunt; craftsman's pride; plain-spoken
+     *       and warm beneath the bluntness.</li>
      * </ul>
      */
     public static String conditionSnippet(ColonyMember member, EnvoyCondition condition) {
         return switch (member) {
             case GOBLIN -> switch (condition) {
                 case COUNT ->
-                        "The Elder said our kin who come to you do not return sad — "
-                        + "that is why we trust you.";
+                        "The goblins already at your side send back only happy words — "
+                        + "that is why we come to you so gladly.";
                 default -> null;
             };
             case COLONIST -> switch (condition) {
@@ -192,39 +206,43 @@ public final class EnvoyDialogue {
             };
             case ORC -> switch (condition) {
                 case COUNT ->
-                        "Your colony is large now — large enough that we want a "
-                        + "place in it.";
+                        "Your settlement has grown great and strong — a place, we "
+                        + "think, where many hands like ours could do honest work.";
                 case ORC_DISASTER_DEFEATED ->
-                        "And — the Orc Disaster. The one no orc could fight. You "
-                        + "killed him. Our people are grateful. That is why we came.";
+                        "And there is the Orc Disaster — the calamity not one of us "
+                        + "could stand against. You laid it low. For that, my people "
+                        + "owe you a debt we mean to repay with our service.";
                 default -> null;
             };
             case LIZARDMAN -> switch (condition) {
                 case COUNT ->
-                        "Your settlement has grown to a size we deem notable — we "
-                        + "do not approach lesser holdings.";
+                        "Your settlement has grown to a size worthy of our notice — "
+                        + "and we lizardmen offer our strength only where it is earned.";
                 case IFRIT_DEFEATED ->
-                        "And we have noted that you felled Ifrit — few warmbloods "
-                        + "could. We are, reluctantly, impressed.";
+                        "And we have not failed to mark that you felled Ifrit — a feat "
+                        + "few could ever claim. Such power leaves us in genuine awe; "
+                        + "we would be proud to stand beneath it.";
                 default -> null;
             };
             case DWARF -> switch (condition) {
                 case COUNT ->
-                        "Your colony's craft has drawn the Holds' attention — your "
-                        + "smithfires speak well of you.";
+                        "Word of your craftwork's reached us — and a dwarf marks a "
+                        + "well-kept forge before near anything else. Yours speaks well "
+                        + "of you.";
                 case TIMER ->
-                        "Twenty days by our reckoning since you last fell — steady "
-                        + "stewardship, and our council marks it well.";
+                        "Twenty days you've held this place without once falling — "
+                        + "that's the kind of steady hand a dwarf can respect.";
                 case DWARVEN_VILLAGE ->
-                        "That you walked among our kin in their own hold was reported "
-                        + "to us — and reported favourably.";
+                        "And we hear you've walked among our kin in their own village "
+                        + "— and left a good impression, which isn't easily done.";
                 case TRUE_DEMON_LORD ->
-                        "Moreover, the Holds know you bear the mantle of a true demon "
-                        + "lord — and we treat with such a one only with full honour.";
+                        "And we know full well you bear the mantle of a true demon lord "
+                        + "— a dwarf doesn't offer his hand to such a one lightly, but "
+                        + "offer it we do.";
                 case TRUE_HERO ->
-                        "Moreover, our chroniclers have marked your name: a true hero "
-                        + "— and the Holds account it a rare honour to send our "
-                        + "craftsfolk to such company.";
+                        "And your name's known to us as that of a true hero — there's "
+                        + "no finer company a dwarf could send his craftsfolk to keep, "
+                        + "and that's the plain truth.";
                 default -> null;
             };
         };
@@ -259,30 +277,30 @@ public final class EnvoyDialogue {
                                        java.util.Set<EnvoyCondition> conditions) {
         if (member == ColonyMember.DWARF && conditions != null) {
             if (conditions.contains(EnvoyCondition.TRUE_HERO)) {
-                return "The dwarven envoy bows lower than ceremony requires. \"To set "
-                        + "our hands to a true hero's work is no small honour. Our "
-                        + "craftsfolk arrive with the next caravan — and proud. Fare "
-                        + "you well, hero.\"";
+                return "The dwarven envoy bows lower than any dwarf bows easily. \"To "
+                        + "put our hammers to a true hero's cause — there's honour in "
+                        + "that a dwarf doesn't find twice in a life. Our craftsfolk "
+                        + "ride with the next caravan, and proud to. Fare you well, "
+                        + "hero.\"";
             }
             if (conditions.contains(EnvoyCondition.TRUE_DEMON_LORD)) {
-                return "The dwarven envoy inclines their head gravely. \"We do not "
-                        + "lightly bind our hand to one bearing the demon lord's "
-                        + "mantle — but we do so now, with the full weight of the "
-                        + "Holds. The first caravan rides with the next moon. Until "
-                        + "then, my lord.\"";
+                return "The dwarven envoy inclines their head, grave and certain. \"A "
+                        + "dwarf doesn't bind his hand to a true demon lord on a whim "
+                        + "— but bind it we do, and gladly. The first caravan rides "
+                        + "with the next moon. Until then, great one.\"";
             }
         }
         return switch (member) {
             case GOBLIN ->
-                    "The goblin envoy bows deeply. Goblins will make their way to your colony.";
+                    "The goblin envoy bows again and again, beaming. \"Thank you, great one — thank you! We will not let you down!\" Goblins will make their way to your colony.";
             case ORC ->
-                    "The orc envoy lets out a deep, glad sound. Orcs will make their way to your colony.";
+                    "The orc envoy lowers their head solemnly, a fist over their heart. \"You honour us. We will repay this with every ounce of our strength.\" Orcs will make their way to your colony.";
             case COLONIST ->
                     "The colonist envoy nods gratefully. Settlers will make their way to your colony.";
             case LIZARDMAN ->
-                    "The lizardman envoy gives a measured nod. \"Thank you, founder. The Marsh-Tribe will send its people in due course.\"";
+                    "The lizardman envoy bows with rigid, formal pride. \"You honour our people, great one. Our strongest will be sent to your side in due course.\"";
             case DWARF ->
-                    "The dwarven envoy strokes their beard. \"A fine bargain. Our craftsfolk arrive with the next caravan — have lodgings ready.\"";
+                    "The dwarven envoy grins through their beard and claps you on the arm. \"Ha! A fine bargain, and no mistake. Our craftsfolk arrive with the next caravan — have a forge ready, and a barrel of ale colder still.\"";
         };
     }
 
@@ -304,28 +322,28 @@ public final class EnvoyDialogue {
                                         java.util.Set<EnvoyCondition> conditions) {
         if (member == ColonyMember.DWARF && conditions != null) {
             if (conditions.contains(EnvoyCondition.TRUE_HERO)) {
-                return "The dwarven envoy straightens, surprise barely concealed. "
-                        + "\"That a true hero would turn us aside — few in our Holds "
-                        + "will believe the tale. Fare you well. Our gates remain "
-                        + "open to you.\"";
+                return "The dwarven envoy blinks, plainly caught off guard. \"Turned "
+                        + "aside by a true hero, of all folk — there's a tale none "
+                        + "back home will credit. Fare you well. Our doors stay open "
+                        + "to you, always.\"";
             }
             if (conditions.contains(EnvoyCondition.TRUE_DEMON_LORD)) {
-                return "The dwarven envoy regards you long, then bows shallowly. "
-                        + "\"As my lord wills. The Holds remember those who would "
-                        + "not be obliged to us. Should the wind turn, send word.\"";
+                return "The dwarven envoy regards you a long moment, then bows. \"As "
+                        + "you will it, then. A dwarf remembers those who'd not be put "
+                        + "in his debt — should the wind turn, send word.\"";
             }
         }
         return switch (member) {
             case GOBLIN ->
-                    "The goblin envoy nods sadly and shuffles away.";
+                    "The goblin envoy's ears droop. They nod, downcast, and shuffle away.";
             case ORC ->
-                    "The orc envoy shrugs and lumbers off — not seeming much hurt by it.";
+                    "The orc envoy bows their head in quiet acceptance and turns to go, shoulders heavy.";
             case COLONIST ->
                     "The colonist envoy thanks you politely and departs.";
             case LIZARDMAN ->
-                    "The lizardman envoy gives a reserved bow. \"I understand. Perhaps another time.\"";
+                    "The lizardman envoy draws itself up and bows, proud even in refusal. \"Understood. Our offer stands, should you think better of it.\"";
             case DWARF ->
-                    "The dwarven envoy bows with measured dignity. \"A pity. Should you reconsider, our Holds are not so distant.\"";
+                    "The dwarven envoy gives a gruff nod. \"Bah — your loss, and ours. You know where to find us if you change your mind.\"";
         };
     }
 }

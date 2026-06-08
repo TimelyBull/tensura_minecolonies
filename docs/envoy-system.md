@@ -419,9 +419,15 @@ without committing (envoy stays, can be re-clicked).
 nameplate label, nameplate colour, dialogue title, dialogue body, accept
 message, decline message — all keyed by `ColonyMember`. Dwarf and
 Lizardman copy pre-written in `EXTRA_*` maps for later stages. Tone
-deliberately distinct per race: goblin humble-eager, orc friendly-dim,
-colonist polite, dwarf wordy-imperious, lizardman condescending. Copy
-iterated once to dial back broken English while preserving personality.
+deliberately distinct per race, rewritten to match Tensura canon (envoys
+are generic race representatives who revere the player as a powerful
+protector-ruler): goblin humble-eager-grateful, orc dutiful-solemn with a
+note of atonement, lizardman proud-formal-but-sincere, dwarf
+gruff-hearty-craftsman. Colonist left polite-neutral (not a Tensura race;
+no canon profile). Functional references that convey unlock conditions
+(Orc Disaster, Ifrit, true demon lord / hero, dwarven village, colony
+size / age) are kept verbatim; invented org/character names (Elder,
+Marsh-Tribe, Dwarven Holds, etc.) were removed.
 
 **Server resolves response.** C2S `EnvoyResponsePayload(entityId, accepted)`.
 `handleEnvoyResponse` re-validates entity + ownership + ALIVE state, then:
