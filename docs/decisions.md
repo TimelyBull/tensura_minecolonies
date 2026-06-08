@@ -1203,6 +1203,41 @@ We force aggressive on enter (and leave the stance as-is on exit, since
 the prior stance isn't recorded) — accepted as the simplest way to
 guarantee "fights ANY hostile while patrolling."
 
+**Targeting leash must follow the patroller, not the owner (fixed).**
+`ISubordinate.shouldTarget` (decompiled) gates ALL targeting while the
+mob is wandering: a candidate is rejected if it's farther than
+`EntityConfig.tamedWanderRadius` (default **20**) blocks from
+`getWanderPos()`. `SubordinateHelper.setWander` leaves `getWanderPos()`
+at the OWNER's position, so a subordinate patrolling far from its owner
+could neither proactively acquire hostiles (the `getBehaviour()==2`
+aggressive branch is still distance-gated) NOR even retaliate when hit —
+it visibly *ignored* nearby always-hostile mobs. Fix: the patrol driver
+re-anchors `WANDER_POS` to the mob's own `blockPosition()` (throttled —
+it's synced entity data — re-anchoring only after ~8 blocks of drift),
+so the 20-block targeting leash follows the patroller and it engages
+anything near where it actually is.
+
+**Run-vs-walk animation: clear lingering anger on calm patrol (fixed).**
+Tensura's per-entity GeckoLib movement controllers pick the **run**
+clip when moving and `isAngry() || isSprinting()`, else **walk**
+(verified on `LeechLizardEntity.loopController`). `isSprinting()` is only
+set while a mob is *ridden* (`TensuraRideableEntity.tickRidden`), so for
+an autonomous patroller the run clip is driven purely by `isAngry()` —
+the `NeutralMob` persistent-anger timer, which lingers for seconds after
+a fight ends (and was being kept alive indefinitely by the leash bug
+above: the mob got hit, became angry, couldn't target back, stayed
+angry). That left a calm patroller playing the **run** animation while
+the driver moved it at the patrol/walk `WALK_TARGET` speed (1.0) — the
+reported mismatch. Fix: in the no-target branch the driver calls
+`NeutralMob.stopBeingAngry()`, so peaceful patrol shows **walk** (matching
+its speed) while an actual chase — driven by the native fight behaviour,
+which re-arms anger instantly on a fresh target — shows **run** at chase
+speed. The patrol `WALK_TARGET` speed (1.0) already equals the entity's
+native idle-wander modifier, so peaceful-patrol pace matches the walk
+clip. Casting is unaffected: cast animations fire from the fight
+behaviours, which only run when the mob has a target — exactly when the
+driver has already yielded, so it never overrides a cast's movement.
+
 **Targeting veto extended: spare citizens + friendly races, allow only
 hostile orcs.** The aggressive stance would otherwise make a patroller
 attack other Tensura race mobs and colonists. The existing

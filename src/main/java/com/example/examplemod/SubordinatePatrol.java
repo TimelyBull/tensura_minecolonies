@@ -100,6 +100,11 @@ public final class SubordinatePatrol {
     /** Outer edge of the band, as a fraction of the boundary radius. Kept
      *  below 1.0 so the point stays a few blocks inside the claim. */
     private static final double BAND_OUTER = 0.95;
+    /** Re-anchor the targeting leash ({@code WANDER_POS}) to the mob only once
+     *  it has drifted this far (blocks²) from the last anchor — WANDER_POS is
+     *  synced entity data, so this avoids a packet every tick while walking.
+     *  8 blocks² ≈ keeps the 20-block leash comfortably centred on the mob. */
+    private static final double LEASH_REANCHOR_DIST_SQR = 64.0;
 
     // =================================================================
     // Command cycle — driven from the cycleCommands mixin
@@ -227,9 +232,38 @@ public final class SubordinatePatrol {
             return;
         }
 
+        // Keep the targeting leash centred on the PATROLLER, not the owner.
+        // While a subordinate is wandering, Tensura's ISubordinate.shouldTarget
+        // only allows targets within `tamedWanderRadius` (20) blocks of
+        // getWanderPos(); SubordinateHelper.setWander left that at the owner's
+        // position, so a patroller far from its owner could neither acquire
+        // hostiles (aggressive proactive branch) NOR retaliate when hit —
+        // it ignored nearby always-hostile mobs. Re-anchoring the leash to the
+        // mob's own position makes it detect/engage anything within 20 blocks
+        // of where it actually is. Throttled by distance because WANDER_POS is
+        // synced entity data.
+        BlockPos here = mob.blockPosition();
+        BlockPos leash = sub.getWanderPos();
+        if (leash == null || leash.distSqr(here) > LEASH_REANCHOR_DIST_SQR) {
+            sub.setWanderPos(here);
+        }
+
         // In combat: yield completely. Native fight behaviours own movement
         // and the WALK_TARGET memory; we resume patrolling once it clears.
         if (mob.getTarget() != null && mob.getTarget().isAlive()) return;
+
+        // Peaceful patrol (no current target): clear any lingering persistent
+        // anger. Tensura's run-vs-walk animation plays "run" while moving and
+        // isAngry() (NeutralMob persistent-anger timer) is set; that timer
+        // outlives a finished/lost fight, so a calm patroller moving at walk
+        // speed would otherwise show the run animation. Clearing it here keeps
+        // the animation consistent with the patrol (walk) speed; a fresh target
+        // re-arms anger immediately and the native fight behaviour then drives
+        // the run animation at chase speed.
+        if (mob instanceof net.minecraft.world.entity.NeutralMob nm
+                && nm.getRemainingPersistentAngerTime() > 0) {
+            nm.stopBeingAngry();
+        }
 
         PatrolOrder order = mob.getData(Attachments.PATROL_ORDER.get());
         // The order is pinned to a specific colony in a specific dimension.
