@@ -1065,14 +1065,51 @@ a colonist). Three things forced a specific implementation shape:
    `mc.getWindow().getGuiScaledWidth()` directly is the authoritative
    value the vanilla render pipeline actually uses.
 
-Result: trade button is a vanilla `Button` drawn as an overlay via
-`ScreenEvent.Render.Post` (fires after BOScreen finishes) at a
-position computed from `mc.getWindow().getGuiScaledWidth()`. Clicks
-are intercepted via `ScreenEvent.MouseButtonPressed.Pre` with a
+Result (original): trade button was a vanilla `Button` drawn as an
+overlay via `ScreenEvent.Render.Post` (fires after BOScreen finishes) at
+a position computed from `mc.getWindow().getGuiScaledWidth()`. Clicks
+were intercepted via `ScreenEvent.MouseButtonPressed.Pre` with a
 manual bounds check; on a hit, the click is dispatched and the
 event is canceled so BOScreen never sees it. Per-screen state held
 in a `WeakHashMap<BOScreen, ScreenState>` so closed screens evict
 automatically.
+
+**SUPERSEDED — trade button is now a native BlockUI tab.** The three
+blockers above all concern OFF-window placement (`childIsVisible`
+clipping) or VANILLA widgets (BOScreen not rendering/routing them).
+Neither applies to a BlockUI `ButtonImage` added INSIDE the window via
+`View.addChild` — it renders and receives clicks through BlockUI's own
+pipeline, exactly like MC's native tabs. So the overlay (Render.Post +
+MouseButtonPressed.Pre + the WeakHashMap/ScreenState/`getGuiScaledWidth`
+machinery) was removed and replaced with a real tab in the citizen
+window's left tab strip:
+
+- The single `ScreenEvent.Init.Post` hook now targets
+  `AbstractWindowCitizen` (not just `MainWindowCitizen`), so the tab is
+  present on every citizen sub-page (main/requests/inventory/happiness/
+  family/job). The base class has no public `getCitizen()` — only
+  `MainWindowCitizen` does — so the shared protected `citizen` field is
+  read reflectively (cached `Field`), same reflection tolerance as the
+  old subordinate trade button.
+- The tab is a `ButtonImage` reusing MC's own
+  `minecolonies:textures/gui/modules/tab_left_side3.png` (32×26 at x=0)
+  with a 20×20 icon `ButtonImage` layered at `(5, tabY+3)` — the exact
+  pair-and-offset MC's `citizen/nav.xml` uses. The icon is a shipped
+  asset `tensura_minecolonies:textures/gui/modules/trade.png` (a simple
+  placeholder exchange glyph; swap for final art later).
+- Slot: the first free Y at/after `familyTab` (144) — `jobTab` (170) and
+  `debugTab` (196) set their visibility in the `AbstractWindowCitizen`
+  constructor (before `Init.Post`), so the handler reads `isVisible()`
+  and picks 170 → 196 → 222 to avoid overlap.
+- Routing is identical to MC's own tabs: `setHandler(window)` +
+  `window.registerButton("tm_tradeTab"/"tm_tradeIcon", runnable)`, where
+  the runnable fires the UNCHANGED `OpenCitizenTradePayload`. A
+  `findPaneByID(TAB_ID)` re-init guard prevents double-adds.
+- Eligibility unchanged: only GOBLIN / LIZARDMAN / DWARF race citizens
+  (RaceTag present, not ORC) get the tab.
+
+Net: pixel-matches MC's tabs, drops all the projection-matrix /
+manual-hit-test fragility, and the server-side trade flow is untouched.
 
 The trade itself runs against a **transient merchant** so the
 player no longer has to summon the subordinate back. Server

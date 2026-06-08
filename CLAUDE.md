@@ -418,19 +418,22 @@ the design rationale and design-choice history.
 
 **Post-Stage-I polish — trade button on citizen body:**
 - Trade button moved from the subordinate's HumanoidMainScreen to
-  the CITIZEN info window (MineColonies' `MainWindowCitizen`).
-  Subordinate-side handler retained but unregistered. The button is
-  now drawn as a vanilla `Button` overlay via
-  `ScreenEvent.Render.Post` and clicks routed via
-  `ScreenEvent.MouseButtonPressed.Pre` (BlockUI's `BOScreen` doesn't
-  call `super.render` and routes `mouseClicked` directly to the
-  `BOWindow`, so children added with `event.addListener` get neither
-  drawn nor input; BlockUI's own `ButtonImage` was also unusable
-  because `View.childIsVisible` clips children outside the parent
-  window's interior). Position is anchored to the right edge using
-  `mc.getWindow().getGuiScaledWidth()` — `boScreen.width` was wrong
-  on the BOScreen render path because BlockUI installs a
-  framebuffer-pixel projection matrix during its own draw.
+  the CITIZEN info window. Subordinate-side handler retained but
+  unregistered.
+- **Now a native BlockUI tab** (was a vanilla overlay — superseded).
+  A single `ScreenEvent.Init.Post` hook on `AbstractWindowCitizen`
+  (every citizen sub-page) adds a `ButtonImage` tab reusing MC's own
+  `tab_left_side3.png` (32×26 at x=0) + a 20×20 icon
+  (`tensura_minecolonies:textures/gui/modules/trade.png`) at
+  `(5, tabY+3)`, in the first free slot at/after `familyTab`
+  (170→196→222, reading `jobTab`/`debugTab` visibility). Routed like
+  MC's tabs: `setHandler(window)` + `registerButton(id, runnable)`
+  firing the unchanged `OpenCitizenTradePayload`. The earlier vanilla-
+  `Button` overlay (`Render.Post` + `MouseButtonPressed.Pre` +
+  `getGuiScaledWidth` anchoring) was removed; the off-window /
+  vanilla-widget blockers don't apply to an in-window BlockUI child.
+  See decisions.md "SUPERSEDED — trade button is now a native BlockUI
+  tab". Only GOBLIN/LIZARDMAN/DWARF race citizens get the tab (not orc).
 - Trade now works directly in CITIZEN form. The old "summon them
   back first" advisory is gone. `handleOpenCitizenTrade`
   reconstructs a transient `TensuraMerchantEntity` via
