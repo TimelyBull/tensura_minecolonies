@@ -1123,23 +1123,46 @@ native combat) and receives a standing order through Tensura's
 **existing right-click command cycle** — it never becomes a
 MineColonies citizen or guard. Full roadmap entry in `roadmap.md`.
 
-**Add PATROL INTO the native cycle by intercepting only its two edges,
-NOT by replacing the cycle and NOT via a mixin on `cycleCommands`.** The
-native command system is `ISubordinate.cycleCommands(Mob, Player)` — a
-default interface method cycling FOLLOW → WANDER → STAY via boolean
-flags (`isWandering`/`isOrderedToSit`); combat stance is a separate axis
-(`cycleBehaviour`: neutral/passive/aggressive/protect). We already own
-`PlayerInteractEvent.EntityInteract`, which fires before Tensura's
-`mobInteract`. The first design ran a full four-state cycle of our own
-and cancelled the event; the revised design (per user request: "an
-addition to the current set, activated the same way") instead
-intercepts **only the two edges that touch PATROL** — STAY → PATROL and
-PATROL → FOLLOW — and **lets the event pass through** for FOLLOW →
-WANDER and WANDER → STAY. Those two pass-through edges are therefore
-executed by Tensura's own `cycleCommands` the moment `mobInteract` runs,
-so their behaviour and messages are literally the native ones (no
-re-implementation, no chance of drift). Honours "prefer extension over
-mixin where possible."
+**Add PATROL INTO the native cycle via a mixin on `cycleCommands`, so it
+activates EXACTLY like the vanilla commands.** The native command system
+is `ISubordinate.cycleCommands(Mob, Player)` — a default interface method
+cycling FOLLOW → WANDER → STAY via boolean flags
+(`isWandering`/`isOrderedToSit`); combat stance is a separate axis
+(`cycleBehaviour`: neutral/passive/aggressive/protect).
+
+The first two iterations hooked `PlayerInteractEvent.EntityInteract` to
+avoid a mixin (initially a full self-run 4-cycle; then intercepting only
+the two PATROL edges and letting the others pass through). Both required
+re-deriving Tensura's interaction gating in our handler. The user then
+asked for the activation to be *merged with vanilla* — "shift + right
+click while looking at the entity, **without needing an empty hand**,"
+exactly like Tensura's own command. Reproducing that gating from the
+interact event is not feasible: Tensura's `mobInteract` consumes a held
+**hipokute / arcane potion** (heal) or **edible item** (`isHealingFood`/
+`isFood`, both entity-specific and state-dependent) BEFORE it ever
+reaches the command cycle, and the humanoid inventory-vs-command split
+keys off `isSecondaryUseActive`. The only way to inherit all of that
+exactly is to hook the command path itself.
+
+So PATROL is now inserted by `ISubordinateCommandMixin` — an `@Inject`
+at the HEAD of `cycleCommands` (cancellable). `cycleCommands` is reached
+ONLY after Tensura's full gating has passed, so PATROL is offered in
+precisely the same situations as FOLLOW/WANDER/STAY — same gesture, no
+empty-hand requirement, food/potions still take priority, inventory
+screen still opens on plain right-click for humanoids. The injector
+delegates to `SubordinatePatrol.handlePatrolCycle`, which handles ONLY
+the two edges that touch PATROL (STAY → PATROL, PATROL → FOLLOW) and
+cancels native for those; for every other edge it returns false and
+Tensura's own `cycleCommands` runs FOLLOW → WANDER / WANDER → STAY
+unchanged (native behaviour AND native message). Gated to NAMED
+subordinates (`hasCustomName`) so unnamed ones keep the vanilla 3-cycle.
+
+This is the one place a mixin is warranted (the "prefer extension"
+guidance yields once "match vanilla exactly" is the requirement and the
+interaction-event path provably can't). Interface-default-method mixin:
+`@Mixin(ISubordinate.class)` with a `private` (Java-21 private interface
+method) injector handler — the standard pattern for attaching an
+injector to an interface target's default method.
 
 **Message style matched to native: AQUA.** Tensura's `cycleCommands`
 emits its command feedback with `Style.withColor(ChatFormatting.AQUA)`
@@ -1149,25 +1172,12 @@ style, so all four commands look identical as the player cycles. The
 FOLLOW/WANDER/STAY edges we don't intercept keep native styling for
 free.
 
-**Gesture = sneak + right-click + empty hand (the native command
-gesture for humanoids).** For humanoid subordinates (`TensuraHumanoidEntity`
-— goblin / lizardman / dwarf, the ones this feature targets in practice)
-plain right-click opens the inventory screen and the command cycle is
-reached on **sneak** + right-click — so requiring sneak makes PATROL
-activate exactly like the existing commands. Requiring sneak universally
-also avoids hijacking the plain right-click on pure beasts / mounts
-(which cycle / mount on plain-click); those still reach the native
-cycle on plain-click, and our sneak path adds PATROL on top. Because
-state is derived, the two paths never conflict.
-
 **Command state is DERIVED, never a separate counter.** The edge taken
 is decided from the entity's real `isWandering`/`isOrderedToSit` flags
-plus the `PATROL_ORDER` attachment. Consequence: a player can freely mix
-our sneak path with Tensura's native plain-click cycle on a beast
-without desync. The patrol driver additionally auto-cancels the order if
-it ever sees the mob in a state `beginPatrol` didn't leave it in
-(not-wandering or ordered-to-sit) — i.e. a native command change (e.g. a
-plain-click STAY on a beast) cleanly ends the patrol.
+plus the `PATROL_ORDER` attachment, so there is no state to desync from
+Tensura's own cycle. The patrol driver additionally auto-cancels the
+order if it ever sees the mob in a state `beginPatrol` didn't leave it
+in (not-wandering or ordered-to-sit).
 
 **Patrol movement is brain-native via the `WALK_TARGET` memory, NOT a
 vanilla Goal.** All Tensura subordinates use SmartBrainLib brain AI

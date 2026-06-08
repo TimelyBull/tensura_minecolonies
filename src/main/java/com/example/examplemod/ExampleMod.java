@@ -48,7 +48,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Mob;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -422,34 +421,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // Leaving this method present (and the envoy branch above) keeps
         // the envoy dialogue working — only the send-by-sneak path is gone.
 
-        // "Patrol Colony Outskirts" — a fourth command added INTO Tensura's
-        // existing command set (FOLLOW → WANDER → STAY → PATROL → FOLLOW),
-        // activated the same way the native commands are: sneak + right-click
-        // + empty main hand (the gesture that already reaches cycleCommands
-        // for humanoid subordinates; plain right-click opens the inventory /
-        // mounts a mount). We intercept ONLY the two edges that touch PATROL
-        // and let the event pass through for the other two, so Tensura's own
-        // cycleCommands emits the native FOLLOW→WANDER and WANDER→STAY steps
-        // (and their AQUA messages) unchanged — no double-cycling.
-        if (event.getEntity() instanceof ServerPlayer sp
-                && sp.isSecondaryUseActive()
-                && sp.getItemInHand(InteractionHand.MAIN_HAND).isEmpty()
-                && event.getTarget() instanceof Mob targetMob
-                && SubordinatePatrol.isNamedSubordinateOf(targetMob, sp)) {
-            if (SubordinatePatrol.isPatrolling(targetMob)) {
-                // PATROL → FOLLOW (ours): cancel so native cycle doesn't run.
-                event.setCanceled(true);
-                event.setCancellationResult(net.minecraft.world.InteractionResult.SUCCESS);
-                SubordinatePatrol.exitPatrolToFollow(targetMob, sp);
-            } else if (targetMob instanceof ISubordinate sub && sub.isOrderedToSit()) {
-                // STAY → PATROL (ours): cancel so native STAY→FOLLOW doesn't run.
-                event.setCanceled(true);
-                event.setCancellationResult(net.minecraft.world.InteractionResult.SUCCESS);
-                SubordinatePatrol.beginPatrol(targetMob, sp);
-            }
-            // FOLLOW → WANDER / WANDER → STAY: not cancelled — Tensura's
-            // native cycleCommands handles these the moment mobInteract runs.
-        }
+        // "Patrol Colony Outskirts" is added INTO Tensura's native command
+        // cycle via ISubordinateCommandMixin (injected at the head of
+        // ISubordinate.cycleCommands), so it activates exactly like the
+        // vanilla follow/wander/stay commands — no handling needed here.
     }
 
     // ------------------------------------------------------------------

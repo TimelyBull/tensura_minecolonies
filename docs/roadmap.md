@@ -924,28 +924,32 @@ subordinate:
 FOLLOW → WANDER → STAY → PATROL → FOLLOW …
 ```
 
-Issued with **sneak + right-click + empty hand** (sneak so we never
-hijack the plain right-click — which opens the inventory screen for
-humanoids, or mounts a mount). While in PATROL the mob walks the
-OUTER ring of the colony nearest the PLAYER at issue time, avoids
-water, and fights any hostile it meets with its native Tensura
-combat, then resumes. It stays a Tensura subordinate the whole time
-— its own entity, AI, size, pathfinding, and combat. It does NOT
-become a citizen or guard.
+Activated **exactly like the vanilla commands** — sneak + right-click
+while looking at the subordinate, with NO empty-hand requirement (a
+held hipokute/edible item still heals/feeds first, just like vanilla).
+While in PATROL the mob walks the OUTER ring of the colony nearest the
+PLAYER at issue time, avoids water, and fights any hostile it meets
+with its native Tensura combat, then resumes. It stays a Tensura
+subordinate the whole time — its own entity, AI, size, pathfinding, and
+combat. It does NOT become a citizen or guard.
 
-**Implementation (no Tensura mixin):**
+**Implementation:**
 - `PatrolOrder` — serialized NeoForge attachment (`Attachments.PATROL_ORDER`)
   pinning the order to a colony id + dimension. Persists across
   unload/reload/relog → the patrol is a true standing order.
-- `SubordinatePatrol` — owns the command cycle and the patrol driver.
-  - Cycle: hooked from `ExampleMod.onEntityInteract`. PATROL is added
-    INTO the native set — we intercept only the STAY→PATROL and
-    PATROL→FOLLOW edges and let FOLLOW→WANDER / WANDER→STAY pass through
-    to Tensura's own `cycleCommands` (so those stay 100% native). PATROL
-    messages use the same AQUA style Tensura uses for its command
-    feedback. State is derived from the entity's real flags + the
-    attachment, so it never drifts (any native command change
-    auto-cancels the order).
+- `ISubordinateCommandMixin` — `@Inject` at the HEAD of
+  `ISubordinate.cycleCommands` (interface default method). This is the
+  exact point Tensura reaches only after its own gating (sneak,
+  food/potion priority, inventory-vs-command), so PATROL activates
+  identically to the vanilla commands. Delegates to
+  `SubordinatePatrol.handlePatrolCycle`.
+- `SubordinatePatrol` — owns the cycle logic and the patrol driver.
+  - Cycle: handles only the STAY→PATROL and PATROL→FOLLOW edges (cancels
+    native for those); FOLLOW→WANDER / WANDER→STAY fall through to
+    Tensura's own `cycleCommands` (100% native). PATROL/FOLLOW messages
+    use the same AQUA style Tensura uses. NAMED subordinates only. State
+    is derived from the entity's real flags + the attachment, so it
+    never drifts (any native command change auto-cancels the order).
   - Patrol: per-entity `EntityTickEvent.Post`. Drives the brain's
     vanilla `WALK_TARGET` memory (consumed by the `MoveToWalkTarget`
     core task every Tensura subordinate has) with outskirts points.

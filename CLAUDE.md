@@ -185,15 +185,15 @@ MDK-1.21.1-ModDevGradle-main/
                                        # Colony Outskirts" command (colonyId
                                        # + dimension). Presence = command
                                        # active; persists across reload.
-        SubordinatePatrol.java         # Owns the 4th right-click command
+        SubordinatePatrol.java         # Owns the 4th command's logic
                                        # (FOLLOW→WANDER→STAY→PATROL→FOLLOW)
                                        # and the per-entity EntityTickEvent
                                        # patrol driver. Brain-native via the
                                        # WALK_TARGET memory; outskirts = outer
                                        # ring of the nearest colony's claimed
-                                       # chunks, water avoided. No Tensura
-                                       # mixin. Cycle hooked from
-                                       # ExampleMod.onEntityInteract.
+                                       # chunks, water avoided. handlePatrolCycle
+                                       # is the entry point called by the
+                                       # cycleCommands mixin.
 
         # — Mixin —
         mixin/
@@ -202,6 +202,13 @@ MDK-1.21.1-ModDevGradle-main/
                                         # suppress the auto-sent "colony_founded"
                                         # / "colony_reactivated" chat messages
                                         # (re-issued by our race-picker handler).
+          ISubordinateCommandMixin.java # @Inject at HEAD of Tensura's
+                                        # ISubordinate.cycleCommands (interface
+                                        # default method) — inserts the PATROL
+                                        # command into the native command cycle
+                                        # so it activates exactly like vanilla
+                                        # follow/wander/stay. Delegates to
+                                        # SubordinatePatrol.handlePatrolCycle.
       resources/
         assets/examplemod/lang/en_us.json   # Keybind + UI translations +
                                             # tensura_minecolonies.colony.created.*
