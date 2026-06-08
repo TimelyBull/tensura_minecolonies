@@ -1401,24 +1401,83 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             lastRestockDayPerDim.put(level.dimension(), currentDay);
 
             RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
-            int restocked = 0;
+            int restockedLive = 0;
+            int restockedSnapshot = 0;
+
+            // Track which identityIds have an active in-progress trade
+            // session. We skip those — overwriting their snapshot now
+            // would race with the close-event persist path
+            // ({@link #onPlayerContainerClose}), which writes the
+            // mid-trade merchant state back on menu close. The next
+            // day rollover will catch them.
+            java.util.Set<java.util.UUID> activeTradeIdentities =
+                    new java.util.HashSet<>();
+            for (TransientMerchantSession s : TRANSIENT_MERCHANTS.values()) {
+                activeTradeIdentities.add(s.identityId());
+            }
+
             for (RaceIdentitySavedData.RaceIdentity identity : saved.all()) {
-                if (identity.mobEntityUUID == null) continue;
-                if (identity.mode != RaceIdentitySavedData.Mode.SUBORDINATE) continue;
-                net.minecraft.world.entity.Entity e = level.getEntity(identity.mobEntityUUID);
-                if (!(e instanceof io.github.manasmods.tensura.entity.template.TensuraMerchantEntity merchant)) continue;
-                if (!merchant.isAlive()) continue;
+                // Pass A — SUBORDINATE mode: wild form is in the world.
+                // Restock the live entity directly.
+                if (identity.mode == RaceIdentitySavedData.Mode.SUBORDINATE
+                        && identity.mobEntityUUID != null) {
+                    net.minecraft.world.entity.Entity e = level.getEntity(identity.mobEntityUUID);
+                    if (e instanceof io.github.manasmods.tensura.entity.template.TensuraMerchantEntity merchant
+                            && merchant.isAlive()) {
+                        try {
+                            merchant.restock();
+                            restockedLive++;
+                        } catch (Throwable t) {
+                            LOGGER.warn("[TM] dawn restock: restock() threw for subordinate {}",
+                                    identity.mobEntityUUID, t);
+                        }
+                    }
+                    continue;
+                }
+
+                // Pass B — CITIZEN mode: merchant lives in the snapshot.
+                // Reconstruct, restock, save back. Without this, the
+                // citizen-form trade button reconstructs from a snapshot
+                // whose offers' use counts never reset, so trades drain
+                // and never refill — "trades reset every morning"
+                // silently broken.
+                if (identity.mode != RaceIdentitySavedData.Mode.IN_COLONY) continue;
+                if (identity.entitySnapshot == null) continue;
+                if (activeTradeIdentities.contains(identity.identityId)) {
+                    // Trade in progress — the close hook will persist
+                    // the merchant's CURRENT state, which would clobber
+                    // a freshly restocked snapshot we wrote here. Skip
+                    // and let tomorrow's pass handle it.
+                    continue;
+                }
+
                 try {
+                    java.util.Optional<net.minecraft.world.entity.Entity> created =
+                            net.minecraft.world.entity.EntityType.create(identity.entitySnapshot, level);
+                    if (created.isEmpty()
+                            || !(created.get() instanceof io.github.manasmods.tensura.entity.template.TensuraMerchantEntity merchant)) {
+                        continue; // non-merchant race (orc) or decode failure
+                    }
                     merchant.restock();
-                    restocked++;
+
+                    net.minecraft.nbt.CompoundTag fresh = new net.minecraft.nbt.CompoundTag();
+                    if (merchant.save(fresh)) {
+                        saved.updateEntitySnapshot(identity, fresh);
+                        restockedSnapshot++;
+                    } else {
+                        LOGGER.warn("[TM] dawn restock: merchant.save returned false for citizen identity {}",
+                                identity.identityId);
+                    }
                 } catch (Throwable t) {
-                    LOGGER.warn("[TM] dawn restock: restock() threw for subordinate {}",
-                            identity.mobEntityUUID, t);
+                    LOGGER.warn("[TM] dawn restock: snapshot restock threw for citizen identity {}",
+                            identity.identityId, t);
                 }
             }
-            if (restocked > 0) {
-                LOGGER.info("[TM] dawn restock in {}: refreshed {} subordinate(s) — day {}",
-                        level.dimension().location(), restocked, currentDay);
+
+            if (restockedLive > 0 || restockedSnapshot > 0) {
+                LOGGER.info("[TM] dawn restock in {} — day {}: {} live subordinate(s), {} citizen snapshot(s)",
+                        level.dimension().location(), currentDay,
+                        restockedLive, restockedSnapshot);
             }
         }
     }
