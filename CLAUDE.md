@@ -341,16 +341,17 @@ the design rationale and design-choice history.
     `DwarfEntity` for Tensura's static texture helpers. Gold
     nameplate. Envoy unlock PLACEHOLDER (≥30 citizens AND a Miner's
     Hut built); real conditions deferred-content.
-  - **I4 Subordinate trade tab**: Yellow "Trade" button on
-    `HumanoidMainScreen` (the armor + weapons page — the page the
-    player lands on when right-clicking) for named goblin /
-    lizardman / dwarf subordinates. Server opens vanilla Merchant
-    screen. Profession / merchant level / persisted offers / gossips
-    all round-trip via Tensura's NBT and survive naming.
-    `ScreenEvent.Init.Post` hook + one reflective field read; no
-    mixin. Trade screen viewable 24h; stock refresh fires once at
-    dawn (per-dimension `getDayTime()/24000` rollover) via
-    `tickDawnRestock` calling each merchant's `restock()`.
+  - **I4 Trade tab** (now CITIZEN-side — see post-Stage-I polish
+    below): Yellow "Trade" button for named goblin / lizardman /
+    dwarf bodies. Server opens vanilla Merchant screen. Profession /
+    merchant level / persisted offers / gossips all round-trip via
+    Tensura's NBT. Trade screen viewable 24h; stock refresh fires
+    once at dawn (per-dimension `getDayTime()/24000` rollover) via
+    `tickDawnRestock` calling each merchant's `restock()`. The
+    button was originally on the subordinate's `HumanoidMainScreen`;
+    that handler still exists in the source tree but is no longer
+    registered. The current implementation is described in the
+    "Post-Stage-I polish — trade button on citizen body" section.
 
 **Stage K — earned-race skill partition + Orc removed from picker:**
 - STARTERS (Colonist, Goblin) — picker-available, flat baselines, unchanged.
@@ -390,6 +391,60 @@ the design rationale and design-choice history.
   `HumanoidModel.createMesh`, so the generic PlayerModel-based
   `DwarfOverlayLayer` was failing the bake and silently dropping
   the beard.
+
+**Post-Stage-I polish — trade button on citizen body:**
+- Trade button moved from the subordinate's HumanoidMainScreen to
+  the CITIZEN info window (MineColonies' `MainWindowCitizen`).
+  Subordinate-side handler retained but unregistered. The button is
+  now drawn as a vanilla `Button` overlay via
+  `ScreenEvent.Render.Post` and clicks routed via
+  `ScreenEvent.MouseButtonPressed.Pre` (BlockUI's `BOScreen` doesn't
+  call `super.render` and routes `mouseClicked` directly to the
+  `BOWindow`, so children added with `event.addListener` get neither
+  drawn nor input; BlockUI's own `ButtonImage` was also unusable
+  because `View.childIsVisible` clips children outside the parent
+  window's interior). Position is anchored to the right edge using
+  `mc.getWindow().getGuiScaledWidth()` — `boScreen.width` was wrong
+  on the BOScreen render path because BlockUI installs a
+  framebuffer-pixel projection matrix during its own draw.
+- Trade now works directly in CITIZEN form. The old "summon them
+  back first" advisory is gone. `handleOpenCitizenTrade`
+  reconstructs a transient `TensuraMerchantEntity` via
+  `EntityType.create(identity.entitySnapshot, level)`, positions it
+  on the citizen (bookkeeping only — never `addFreshEntity`), sets
+  the trading player and opens the standard MerchantMenu. The
+  reconstructed entity is held in `TRANSIENT_MERCHANTS` keyed by
+  player UUID; a new `@SubscribeEvent onPlayerContainerClose`
+  saves `merchant.save(freshTag)` back to `identity.entitySnapshot`
+  via `saved.updateEntitySnapshot` and drops the session. Re-entry
+  is blocked while a trade is open. No world-side merchant ever
+  appears; the trade UI is the only surface.
+- Dawn restock extended to citizen-form snapshots.
+  `tickDawnRestock` now runs two passes per dimension: (A) the
+  original live-subordinate pass for SUBORDINATE-mode identities
+  whose wild form is in the world, and (B) a new snapshot pass for
+  IN_COLONY-mode identities — reconstruct merchant via
+  `EntityType.create(snapshot)`, call `restock()`, save back to the
+  snapshot. Without pass B, the citizen-form trade button would
+  drain offers and never refill. Pass B skips any identity that
+  has an active `TRANSIENT_MERCHANTS` session to avoid racing the
+  close-event persist hook clobbering the restocked snapshot — those
+  catch up on the next dawn.
+- Summon-time skin fix. `applyVariantToMob(LivingEntity mob, RaceTag tag)`
+  now runs in `summonGoblin` immediately after `EntityType.create`
+  succeeds — stamps each race-specific appearance field
+  (`setGender/setSkin/.../setVariant/...`) from the citizen's
+  current `RaceTag` onto the freshly reconstructed wild mob. The
+  NBT round-trip via `readAdditionalSaveData` was usually correct
+  but the snapshot is older than the RaceTag (snapshot captured at
+  first send; RaceTag refreshed on every send), so drift produced
+  the reported "summoned mob's skin doesn't match the citizen"
+  symptom. Per-race apply methods: `applyGoblinVariant`,
+  `applyOrcVariant`, `applyLizardmanVariant`,
+  `applyDwarfVariant` (the dwarf one also restores the per-mob
+  `Attributes.SCALE`).
+- `tensuraMaxNonColonistEnvoys` gamerule default bumped 2 → 4.
+  Existing worlds keep their stored value; new worlds start at 4.
 
 **Pending:**
 - Stage G6 — orc lord and orc disaster as separate shadow types in the

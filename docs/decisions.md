@@ -1014,3 +1014,102 @@ trading screen. The trade-tab button sidesteps that branch by calling
 the merchant flow directly. Restocking, level-ups, and gossip updates
 continue to fire from `customServerAiStep` which runs regardless of
 tame state.
+
+**Trade button moved from subordinate to citizen, with transient
+merchant.** Stage I4's subordinate-side trade-tab `ScreenEvent.Init.Post`
+overlay on `HumanoidMainScreen` is no longer registered;
+`SubordinateTradeButtonHandler` stays in the source tree as dormant
+reference. Trade now opens from a button on MineColonies'
+`MainWindowCitizen` (the citizen info window opened by right-clicking
+a colonist). Three things forced a specific implementation shape:
+
+1. **BlockUI's `BOScreen` doesn't extend the vanilla `Screen` render
+   path.** Its `render` method does NOT call `super.render`, so
+   vanilla widgets added via `event.addListener(button)` get
+   registered but never drawn. `mouseClicked` also forwards directly
+   to the `BOWindow` without consulting the screen's children list,
+   so the same widgets receive no input either. Confirmed by
+   disassembling BOScreen — there is no `super.` call and no
+   children iteration in either method.
+2. **BlockUI's own `ButtonImage` (which DOES participate in the
+   BOWindow render tree) gets clipped if placed outside the parent
+   window's interior bounds.** `View.childIsVisible` (disassembled)
+   skips any child whose `x >= parent.interiorWidth` or
+   `y >= parent.interiorHeight`. So we can't use a BlockUI widget
+   to render off-window either.
+3. **`boScreen.width` is unreliable on the BlockUI render path.**
+   BOScreen installs a framebuffer-pixel projection matrix during
+   its draw (saved and restored at the end), so vanilla Screen
+   width/height read during render gave odd results — using
+   `mc.getWindow().getGuiScaledWidth()` directly is the authoritative
+   value the vanilla render pipeline actually uses.
+
+Result: trade button is a vanilla `Button` drawn as an overlay via
+`ScreenEvent.Render.Post` (fires after BOScreen finishes) at a
+position computed from `mc.getWindow().getGuiScaledWidth()`. Clicks
+are intercepted via `ScreenEvent.MouseButtonPressed.Pre` with a
+manual bounds check; on a hit, the click is dispatched and the
+event is canceled so BOScreen never sees it. Per-screen state held
+in a `WeakHashMap<BOScreen, ScreenState>` so closed screens evict
+automatically.
+
+The trade itself runs against a **transient merchant** so the
+player no longer has to summon the subordinate back. Server
+`handleOpenCitizenTrade`: reconstruct merchant via
+`EntityType.create(identity.entitySnapshot, level)`, position it on
+the citizen for bookkeeping only (never `addFreshEntity`, never
+visible to anyone), `setTradingPlayer(player)`, `openTradingScreen`.
+The reconstructed entity satisfies the `Merchant` interface the
+MerchantMenu calls into; the menu doesn't reach into the world for
+the merchant. Session held in `TRANSIENT_MERCHANTS` keyed by
+player UUID. New `@SubscribeEvent onPlayerContainerClose` handler
+saves `merchant.save(freshTag)` back to `identity.entitySnapshot`
+via `saved.updateEntitySnapshot` and drops the session — so any
+uses-count / demand / xp changes during the trade persist. Re-entry
+is blocked while a trade is open. Server restart mid-trade loses
+the in-flight session but never corrupts the snapshot.
+
+**Dawn restock extended to citizen-form snapshots.** The Stage I4
+`tickDawnRestock` loop only walked SUBORDINATE-mode identities and
+called `merchant.restock()` on the live entity. After the trade
+button moved to citizen-side, every merchant a player actually
+interacts with is IN_COLONY mode with `mobEntityUUID == null` —
+all of them were silently skipped, so offers drained on use and
+never refilled. The fix: a second pass for IN_COLONY identities
+that reconstructs a transient merchant via
+`EntityType.create(snapshot)`, calls `restock()` (which iterates
+offers and calls `resetUses()` on each, per the bytecode), then
+`merchant.save(fresh)` → `saved.updateEntitySnapshot`. Skip any
+identity whose `identityId` is in `TRANSIENT_MERCHANTS.values()`
+to avoid racing the close-event persist hook clobbering a
+freshly-restocked snapshot — those identities catch up on the
+next dawn. Log line now reports both counts: `... {X} live
+subordinate(s), {Y} citizen snapshot(s)`.
+
+**Summon-time skin sync via `applyVariantToMob`.** The wild form's
+appearance is restored via Tensura's `readAdditionalSaveData` from
+the snapshot NBT (`EntityType.create(snapshot, level)`). In
+principle that round-trips cleanly because the snapshot was
+captured with `goblin.save(snapshot)` at send time, which calls
+the corresponding `addAdditionalSaveData`. In practice the
+snapshot is older than the RaceTag — the snapshot is written ONCE
+at first send (and updated on each subsequent send), while the
+RaceTag is refreshed on every send via `captureRaceVariant`, AND
+is the source of truth for what the player has been watching the
+citizen wear. Any drift (e.g. a re-send that captures a new
+variant but goes through a code path that doesn't immediately
+re-save the snapshot) manifested as "summoned mob's skin doesn't
+match the citizen." Fix: new `applyVariantToMob(LivingEntity mob,
+RaceTag tag)` polymorphic dispatcher in `summonGoblin`, called
+immediately after `EntityType.create` succeeds and before
+`addFreshEntity`. Per-race apply methods stamp every appearance
+field via the entity's public setters (`setGender`, `setSkin`,
+`setVariant(byId)`, etc.). The dwarf apply also restores
+`Attributes.SCALE` because the dwarf renderer reads that for
+size.
+
+**`tensuraMaxNonColonistEnvoys` default 2 → 4.** Allows a player
+to encounter all four non-colonist races (goblin / orc / dwarf /
+lizardman) at the default setting without raising the cap
+manually. Existing worlds keep their stored gamerule value; new
+worlds start at 4.

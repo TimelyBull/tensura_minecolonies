@@ -817,24 +817,78 @@ post-naming subordinate-trade tab. Shipped in four interlocking sub-stages:
   `[PLACEHOLDER condition]`.
 - Skill profile: craftsmanship archetype.
 
-**Stage I4 — Subordinate trade tab ✅**
-- Yellow "Trade" button injected onto Tensura's `HumanoidInventoryScreen`
-  for named subordinates that extend `TensuraMerchantEntity` (goblin,
-  lizardman, dwarf — NOT orc).
-- Lives in one new file (`SubordinateTradeButtonHandler`) plus one
-  C2S networking payload (`OpenSubordinateTradePayload`). No mixin.
-- `ScreenEvent.Init.Post` hook reflects the screen's private
-  `humanoid` field (cached after first success), checks
-  `instanceof TensuraMerchantEntity`, adds a Button widget via
-  `event.addListener`.
-- Click → server resolves entity → identity-store ownership check →
-  vanilla `Merchant.openTradingScreen` opens the standard merchant
-  menu. Profession / merchant level / persisted offers / gossips all
-  round-trip via Tensura's own NBT (untouched by naming) so the player
-  sees the same trades they would have pre-naming, and merchant XP /
-  level-ups continue to fire from `customServerAiStep`.
+**Stage I4 — Subordinate trade tab ✅ (SUPERSEDED by post-Stage-I polish; see below)**
+- Original: yellow "Trade" button injected onto Tensura's
+  `HumanoidInventoryScreen` for named subordinates that extend
+  `TensuraMerchantEntity` (goblin, lizardman, dwarf — NOT orc).
+- `SubordinateTradeButtonHandler` + `OpenSubordinateTradePayload`
+  still in the source tree, but the handler is no longer
+  registered. The button is now rendered on the citizen body's
+  MineColonies info window; the implementation is described in
+  the post-Stage-I polish entry.
 
 Full as-built record: `docs/lizardman-dwarf-and-skills.md`.
+
+---
+
+### Post-Stage-I polish — trade on citizen body + dawn restock fix + skin sync ✅
+
+**Trade button moved to the citizen window.** The original Stage I4
+overlay on `HumanoidMainScreen` is gone; the trade button is now drawn
+on top of MineColonies' `MainWindowCitizen`. Because BlockUI's
+`BOScreen` doesn't extend the vanilla `Screen` render path (it
+overrides both `render` and `mouseClicked` without calling super, and
+clips BlockUI children outside the parent window's interior), the
+button is implemented as a vanilla overlay drawn via
+`ScreenEvent.Render.Post` and routed via
+`ScreenEvent.MouseButtonPressed.Pre` with a manual bounds check.
+Position anchored using `mc.getWindow().getGuiScaledWidth()` because
+`boScreen.width` is unreliable on the BlockUI render path (BOScreen
+installs a framebuffer-pixel projection matrix during its draw).
+
+**Trade works in citizen form — no summon required.** Server
+`handleOpenCitizenTrade` reconstructs a transient
+`TensuraMerchantEntity` via `EntityType.create(snapshot, level)`,
+positions it on the citizen for bookkeeping (never `addFreshEntity`),
+sets the trading player, opens the standard MerchantMenu. The session
+is tracked in `TRANSIENT_MERCHANTS` keyed by player UUID; a new
+`@SubscribeEvent onPlayerContainerClose` saves `merchant.save(freshTag)`
+back to `identity.entitySnapshot` via `saved.updateEntitySnapshot` so
+any uses-count / demand / xp changes persist for the next trade and
+the next summon. Re-entry blocked while a trade is open.
+
+**Dawn restock extended to citizen-form snapshots.** `tickDawnRestock`
+now runs two passes per dimension:
+- Pass A (existing): SUBORDINATE-mode identities → restock the live
+  `TensuraMerchantEntity` in the world.
+- Pass B (new): IN_COLONY-mode identities → reconstruct a transient
+  merchant from `identity.entitySnapshot`, call `restock()`, save
+  back via `saved.updateEntitySnapshot`. Without this pass, the
+  citizen-form trade button would drain offer uses and never refill —
+  the user's "trades reset every morning" intent was silently broken
+  after Stage I4 was superseded.
+- Race-condition guard: pass B skips any identity whose `identityId`
+  is in `TRANSIENT_MERCHANTS.values()` so a freshly-restocked snapshot
+  isn't clobbered by the close-event persist hook saving the mid-trade
+  merchant. Those identities catch up on the next dawn.
+
+**Skin sync on summon.** New `applyVariantToMob(LivingEntity mob,
+RaceTag tag)` polymorphic dispatcher runs in `summonGoblin` right
+after `EntityType.create` succeeds. Per-race apply methods stamp
+every appearance field from the citizen's current `RaceTag` onto the
+freshly-reconstructed wild mob (goblin: 12 setters; orc: variant +
+9 cosmetic; lizardman: variant + 6; dwarf: 13 + `Attributes.SCALE`).
+NBT round-trip via `readAdditionalSaveData` normally restores
+appearance, but the snapshot is older than the RaceTag (snapshot
+captured at first send; RaceTag refreshed on every send) — drift
+manifested as "summoned mob's skin doesn't match the citizen."
+RaceTag is now the authoritative source for the wild form's
+appearance.
+
+**`tensuraMaxNonColonistEnvoys` default 2 → 4.** Allows a player to
+encounter all four non-colonist races at the default cap without
+raising the gamerule manually. Existing worlds keep their stored
+value; new worlds start at 4.
 
 ---
 
