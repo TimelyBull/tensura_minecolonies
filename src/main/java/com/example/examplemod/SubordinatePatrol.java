@@ -2,12 +2,14 @@ package com.example.examplemod;
 
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
+import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import io.github.manasmods.tensura.entity.template.subclass.ISubordinate;
 import io.github.manasmods.tensura.util.SubordinateHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
@@ -105,6 +107,24 @@ public final class SubordinatePatrol {
      *  synced entity data, so this avoids a packet every tick while walking.
      *  8 blocks² ≈ keeps the 20-block leash comfortably centred on the mob. */
     private static final double LEASH_REANCHOR_DIST_SQR = 64.0;
+    /** Acquisition tether: a patrolling subordinate only takes targets within
+     *  the colony claim + this many blocks, so it engages threats at the
+     *  outskirts but doesn't lock onto mobs far outside the colony. */
+    private static final int TARGET_AREA_BUFFER = 8;
+    /** Recall tether: if a chase carries the mob beyond the colony claim + this
+     *  many blocks, it abandons the target and heads back to the outskirts.
+     *  Larger than the acquisition buffer so a brief edge-chase isn't cut short
+     *  but a runaway chain-aggro is reined in. */
+    private static final int STRAY_RECALL_BUFFER = 24;
+
+    /** Tensura's "always hostile" entity-type tag (vanilla hostiles + Tensura
+     *  beasts). Built by ResourceLocation rather than referencing Tensura's
+     *  constant so we're decoupled from its field names and benefit from any
+     *  datapack additions. */
+    private static final net.minecraft.tags.TagKey<net.minecraft.world.entity.EntityType<?>> HOSTILE_MONSTER_TAG =
+            net.minecraft.tags.TagKey.create(
+                    net.minecraft.core.registries.Registries.ENTITY_TYPE,
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("tensura", "hostile_monster"));
 
     // =================================================================
     // Command cycle — driven from the cycleCommands mixin
@@ -248,9 +268,38 @@ public final class SubordinatePatrol {
             sub.setWanderPos(here);
         }
 
-        // In combat: yield completely. Native fight behaviours own movement
-        // and the WALK_TARGET memory; we resume patrolling once it clears.
-        if (mob.getTarget() != null && mob.getTarget().isAlive()) return;
+        // Resolve the pinned colony up front — the tether/recall below needs it
+        // even while the mob is in combat.
+        PatrolOrder order = mob.getData(Attachments.PATROL_ORDER.get());
+        if (!level.dimension().equals(order.dimensionKey())) return;
+        IColony colony = IColonyManager.getInstance().getColonyByWorld(order.colonyId(), level);
+        if (colony == null) return; // colony deleted / not loaded — idle, keep order
+
+        // Recall tether: if a chase (or a chain of chases) has carried the mob
+        // well outside the colony, abandon the target and head back to the
+        // outskirts so it keeps defending the colony instead of wandering off.
+        // Runs even during combat, hence before the combat yield below.
+        if (!isWithinColony(colony, level, here, STRAY_RECALL_BUFFER)) {
+            SubordinateHelper.removeTarget(mob);
+            BlockPos back = outskirtsReturnTarget(colony, level, mob);
+            mob.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
+                    new WalkTarget(back, PATROL_SPEED, CLOSE_ENOUGH));
+            return;
+        }
+
+        // Combat handling. Yield to the native fight behaviour ONLY for a valid
+        // patrol target — a genuine hostile that is still within the colony
+        // area. Drop anything else: a peaceful mob (e.g. a pig that slipped
+        // through, or a target set by a path that bypassed the acquisition
+        // veto) or a hostile that has fled too far from the colony. Dropping it
+        // here falls through to normal patrolling instead of chasing it.
+        LivingEntity tgt = mob.getTarget();
+        if (tgt != null && tgt.isAlive()) {
+            boolean valid = isHostileThreat(mob, tgt)
+                    && isWithinColony(colony, level, tgt.blockPosition(), STRAY_RECALL_BUFFER);
+            if (valid) return;                  // legitimate fight — let the brain drive it
+            SubordinateHelper.removeTarget(mob); // pig / runaway target — abandon it
+        }
 
         // Peaceful patrol (no current target): clear any lingering persistent
         // anger. Tensura's run-vs-walk animation plays "run" while moving and
@@ -264,12 +313,6 @@ public final class SubordinatePatrol {
                 && nm.getRemainingPersistentAngerTime() > 0) {
             nm.stopBeingAngry();
         }
-
-        PatrolOrder order = mob.getData(Attachments.PATROL_ORDER.get());
-        // The order is pinned to a specific colony in a specific dimension.
-        if (!level.dimension().equals(order.dimensionKey())) return;
-        IColony colony = IColonyManager.getInstance().getColonyByWorld(order.colonyId(), level);
-        if (colony == null) return; // colony deleted / not loaded — idle, keep order
 
         boolean hasTarget = mob.getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET);
         if (hasTarget) {
@@ -316,42 +359,128 @@ public final class SubordinatePatrol {
      *         none of the sampled bearings produced one.
      */
     private static BlockPos computeOutskirtsTarget(IColony colony, ServerLevel level, Mob mob) {
-        BlockPos center = colony.getCenter();
         for (int attempt = 0; attempt < 8; attempt++) {
             double angle = mob.getRandom().nextDouble() * Math.PI * 2.0;
-            double dx = Math.cos(angle);
-            double dz = Math.sin(angle);
-
-            // March outward to find the claimed boundary in this direction.
-            int boundary = 0;
-            for (int step = 1; step <= MAX_SEARCH_CHUNKS; step++) {
-                int r = step * 16;
-                BlockPos probe = new BlockPos(
-                        center.getX() + (int) Math.round(dx * r),
-                        center.getY(),
-                        center.getZ() + (int) Math.round(dz * r));
-                if (colony.isCoordInColony(level, probe)) {
-                    boundary = r;
-                } else {
-                    break;
-                }
-            }
-            if (boundary < 16) continue; // colony barely extends this way
-
-            // Place the point in the outer band of the boundary distance.
-            double frac = BAND_INNER + mob.getRandom().nextDouble() * (BAND_OUTER - BAND_INNER);
-            int radius = Math.max(8, (int) Math.round(boundary * frac));
-            int x = center.getX() + (int) Math.round(dx * radius);
-            int z = center.getZ() + (int) Math.round(dz * radius);
-
-            // Snap to the surface and reject water.
-            BlockPos surface = level.getHeightmapPos(
-                    Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, new BlockPos(x, 0, z));
-            if (isWater(level, surface)) continue;
-            if (!colony.isCoordInColony(level, surface)) continue;
-            return surface;
+            BlockPos p = outskirtsPointAlong(colony, level, mob, angle);
+            if (p != null) return p;
         }
         return null;
+    }
+
+    /**
+     * An outskirts point on the bearing from the colony centre toward the mob —
+     * i.e. the nearest stretch of outskirts to where the (strayed) mob is now.
+     * Used by the recall path so a pulled-back patroller returns to the colony
+     * edge it wandered off from rather than crossing to the far side or sitting
+     * in the centre. Falls back to a random outskirts point, then the centre.
+     */
+    private static BlockPos outskirtsReturnTarget(IColony colony, ServerLevel level, Mob mob) {
+        BlockPos center = colony.getCenter();
+        double angle = Math.atan2(mob.getZ() - center.getZ(), mob.getX() - center.getX());
+        BlockPos p = outskirtsPointAlong(colony, level, mob, angle);
+        if (p != null) return p;
+        p = computeOutskirtsTarget(colony, level, mob);
+        return p != null ? p : center;
+    }
+
+    /**
+     * Place a patrol point in the outer 70–95% band of the colony's claimed
+     * radius along {@code angle}, snapped to the surface and rejected over
+     * water. Colonies claim whole chunks, so the boundary is found by marching
+     * outward in one-chunk steps while {@code isCoordInColony} holds (no
+     * hardcoded radius). Returns null if the colony barely extends this way or
+     * the point is water / out of claim.
+     */
+    private static BlockPos outskirtsPointAlong(IColony colony, ServerLevel level, Mob mob, double angle) {
+        BlockPos center = colony.getCenter();
+        double dx = Math.cos(angle);
+        double dz = Math.sin(angle);
+
+        int boundary = 0;
+        for (int step = 1; step <= MAX_SEARCH_CHUNKS; step++) {
+            int r = step * 16;
+            BlockPos probe = new BlockPos(
+                    center.getX() + (int) Math.round(dx * r),
+                    center.getY(),
+                    center.getZ() + (int) Math.round(dz * r));
+            if (colony.isCoordInColony(level, probe)) {
+                boundary = r;
+            } else {
+                break;
+            }
+        }
+        if (boundary < 16) return null; // colony barely extends this way
+
+        double frac = BAND_INNER + mob.getRandom().nextDouble() * (BAND_OUTER - BAND_INNER);
+        int radius = Math.max(8, (int) Math.round(boundary * frac));
+        int x = center.getX() + (int) Math.round(dx * radius);
+        int z = center.getZ() + (int) Math.round(dz * radius);
+
+        BlockPos surface = level.getHeightmapPos(
+                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, new BlockPos(x, 0, z));
+        if (isWater(level, surface)) return null;
+        if (!colony.isCoordInColony(level, surface)) return null;
+        return surface;
+    }
+
+    // =================================================================
+    // Targeting policy (colony tether + hostile-only) — called from the
+    // ExampleMod.onSubordinateChangeTarget veto for patrolling subordinates
+    // =================================================================
+
+    /**
+     * Whether a patrolling subordinate may target {@code candidate}. A target
+     * is allowed only if it is a genuine hostile threat AND lies within the
+     * patrolled colony's area. This keeps the patrol fighting actual enemies
+     * (not peaceful animals like pigs) and stops it chasing mobs off into the
+     * distance away from the colony it's meant to defend.
+     */
+    public static boolean isPatrolTargetAllowed(Mob mob, LivingEntity candidate) {
+        PatrolOrder order = mob.getData(Attachments.PATROL_ORDER.get());
+        if (order == null) return true;
+        if (!(mob.level() instanceof ServerLevel level)) return true;
+        if (!level.dimension().equals(order.dimensionKey())) return false;
+        IColony colony = IColonyManager.getInstance().getColonyByWorld(order.colonyId(), level);
+        if (colony == null) return true; // can't resolve — don't add a restriction
+
+        if (!isHostileThreat(mob, candidate)) return false;                       // no pigs / neutrals
+        return isWithinColony(colony, level, candidate.blockPosition(), TARGET_AREA_BUFFER); // tether
+    }
+
+    /**
+     * A target counts as a hostile threat if it is an always-hostile mob
+     * (Tensura's {@code tensura:hostile_monster} tag — covers vanilla zombies/
+     * skeletons/etc. AND Tensura beasts), or if it is currently attacking the
+     * patroller, one of its allies, or a colony citizen (e.g. a normally-neutral
+     * wild orc that turned on the colony). Peaceful animals and idle neutral
+     * mobs are NOT threats.
+     */
+    private static boolean isHostileThreat(Mob patroller, LivingEntity target) {
+        if (target.getType().builtInRegistryHolder().is(HOSTILE_MONSTER_TAG)) return true;
+        if (target instanceof Mob m) {
+            LivingEntity victim = m.getTarget();
+            if (victim != null && (victim == patroller
+                    || victim instanceof AbstractEntityCitizen
+                    || SubordinateHelper.isAlly(victim, patroller))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** True if {@code pos} is inside the colony's claimed chunks, or within
+     *  {@code buffer} blocks of the claim edge (measured toward the centre). */
+    private static boolean isWithinColony(IColony colony, ServerLevel level, BlockPos pos, int buffer) {
+        if (colony.isCoordInColony(level, pos)) return true;
+        if (buffer <= 0) return false;
+        BlockPos center = colony.getCenter();
+        double dx = center.getX() - pos.getX();
+        double dz = center.getZ() - pos.getZ();
+        double len = Math.sqrt(dx * dx + dz * dz);
+        if (len < 1.0) return true;
+        BlockPos shifted = pos.offset(
+                (int) Math.round(dx / len * buffer), 0, (int) Math.round(dz / len * buffer));
+        return colony.isCoordInColony(level, shifted);
     }
 
     /** True if the surface position (or the block it stands on) is water —

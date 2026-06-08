@@ -1261,6 +1261,49 @@ patrol) since it expresses a general "don't attack allied races /
 colonists" rule; it remains an acquisition-time veto (doesn't force-drop
 an already-held target).
 
+**Patrol fights only hostiles — `tensura:hostile_monster` tag, not the
+`Enemy` interface (fixed: was attacking pigs).** Forcing the aggressive
+stance made `ISubordinate.shouldTarget` return true for ANY attackable,
+non-allied mob within the leash — including peaceful animals (pigs,
+cows). Vanilla's `Enemy` interface can't classify this because Tensura's
+own mobs extend `TamableAnimal` (so they're `Animal`, like pigs) and
+never implement `Enemy`. The right classifier is Tensura's own
+`tensura:hostile_monster` entity-type tag, which lists the genuinely
+always-hostile mobs (vanilla zombies/skeletons/creepers/… AND Tensura
+beasts like `direwolf`/`knight_spider`/`leech_lizard`/`orc_lord`) but
+**not** base goblin/orc/lizardman or peaceful animals. New patrol-only
+veto branch (`SubordinatePatrol.isPatrolTargetAllowed`, gated on the mob
+carrying `PATROL_ORDER`): a target is allowed only if it's in
+`hostile_monster` **or** is currently attacking the patroller / one of
+its allies / a colony citizen (so a normally-neutral wild orc that
+turned on the colony is still fought). The tag is built from its
+`ResourceLocation` rather than Tensura's constant, so we're decoupled
+from field renames and pick up datapack additions. The driver also drops
+an already-held invalid target (a pig that slipped through, or a target
+set off-event) rather than only vetoing acquisition.
+
+**Colony tether — patrol the outskirts, don't chase mobs off into the
+distance (fixed).** Two complementary limits keep a patroller defending
+its colony instead of chain-aggroing outward:
+- *Acquisition:* `isPatrolTargetAllowed` also requires the target to be
+  within the colony claim + a small buffer (`TARGET_AREA_BUFFER` = 8
+  blocks), so it never locks onto mobs well outside the colony.
+- *Recall:* each tick the driver checks the mob's own position; if a
+  chase has carried it beyond the claim + a larger buffer
+  (`STRAY_RECALL_BUFFER` = 24 blocks), it `removeTarget`s and sets
+  `WALK_TARGET` back to the nearest outskirts point
+  (`outskirtsReturnTarget` — the outer-band point on the bearing from the
+  colony centre toward the mob, so it returns to the edge it left rather
+  than the centre). The combat yield also drops a target that has fled
+  past the recall buffer.
+
+Membership uses `colony.isCoordInColony` (colonies claim whole chunks)
+plus a toward-centre shift for the buffer, so no hardcoded radius. This
+sits on top of the existing leash-follows-the-mob anchor: the leash lets
+it *detect* nearby hostiles, the tether stops it *committing* to or
+chasing distant ones. The outskirts targeting itself (outer 70–95% band)
+already keeps it off the colony centre.
+
 **Outskirts = outer ring of the claimed chunks, found by marching, NOT
 a hardcoded radius.** Colonies claim whole chunks (membership =
 `colony.isCoordInColony(level, pos)`), so from `colony.getCenter()` the

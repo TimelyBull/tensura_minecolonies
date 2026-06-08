@@ -956,11 +956,17 @@ combat. It does NOT become a citizen or guard.
     Keeping the memory populated suppresses Tensura's idle wander
     (`SetRandomWalkTarget` only fires when `WALK_TARGET` is absent)
     without patching anything.
-  - Combat: enters PATROL with aggressive stance; yields entirely while
-    `getTarget() != null` (native fight behaviours drive), then resumes.
-    Targeting veto (`onSubordinateChangeTarget`, extended) spares all
-    citizens + goblins + lizardmen + friendly (tamed/allied) orcs, so the
-    patrol only fights genuine hostiles incl. wild/hostile orcs.
+  - Combat: enters PATROL with aggressive stance; yields to the native
+    fight behaviours only for a VALID target, then resumes. Targeting
+    veto (`onSubordinateChangeTarget`, extended) spares citizens, goblins,
+    lizardmen, and friendly orcs; the patrol-only branch
+    (`isPatrolTargetAllowed`) further restricts it to genuine hostiles
+    (Tensura's `hostile_monster` tag, or anything attacking the colony) so
+    it doesn't attack peaceful animals like pigs.
+  - Colony tether: only acquires targets inside the colony claim (+8
+    blocks) and recalls to the outskirts if a chase carries it beyond the
+    claim (+24 blocks), so it defends the colony instead of chasing mobs
+    off into the distance.
   - Outskirts geometry: colonies claim whole chunks, so the target is
     found by marching outward from `colony.getCenter()` in one-chunk
     steps while `isCoordInColony` holds (cap 16 chunks), then placing a

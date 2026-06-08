@@ -267,6 +267,17 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // wild / hostile orc — allow targeting
         }
 
+        // (3) PATROL-specific: a patrolling subordinate is forced to the
+        // aggressive stance, which otherwise targets ANY attackable mob
+        // (pigs included) and chases it anywhere. Restrict it to genuine
+        // hostiles within the colony area so it defends the outskirts instead
+        // of hunting peaceful animals or wandering off after distant mobs.
+        if (entity instanceof net.minecraft.world.entity.Mob pm
+                && pm.hasData(Attachments.PATROL_ORDER.get())
+                && !SubordinatePatrol.isPatrolTargetAllowed(pm, proposed)) {
+            return EventResult.interruptFalse();
+        }
+
         return EventResult.pass();
     }
 
