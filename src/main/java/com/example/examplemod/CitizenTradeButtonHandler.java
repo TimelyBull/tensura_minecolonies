@@ -60,7 +60,7 @@ public final class CitizenTradeButtonHandler {
      *  button textures. */
     private static final int BUTTON_W = 70;
     private static final int BUTTON_H = 20;
-    private static final int RIGHT_MARGIN = 12;
+    private static final int RIGHT_MARGIN = 40;
 
     /** Per-open-screen state. WeakHashMap so a closed screen evicts
      *  automatically without us having to hook close events. */
@@ -69,7 +69,6 @@ public final class CitizenTradeButtonHandler {
     private static final class ScreenState {
         final int citizenEntityId;
         final Button button;
-        boolean diagnosticLogged = false;
         ScreenState(int citizenEntityId, Button button) {
             this.citizenEntityId = citizenEntityId;
             this.button = button;
@@ -157,22 +156,6 @@ public final class CitizenTradeButtonHandler {
         int x = guiW - BUTTON_W - RIGHT_MARGIN;
         int y = (guiH / 5) - (BUTTON_H / 2);
 
-        // One-shot diagnostic — log the first render's geometry so we
-        // can see what coordinate space we're actually in. Compares
-        // boScreen.width (which we were using before) against
-        // mc.getWindow().getGuiScaledWidth() (vanilla GUI coords).
-        if (!state.diagnosticLogged) {
-            state.diagnosticLogged = true;
-            LOGGER.info("[TM] citizen trade button render geometry: " +
-                    "boScreen.width={} boScreen.height={} | " +
-                    "guiScaled={}x{} fb={}x{} guiScale={} | " +
-                    "computed x={} y={} (BUTTON_W={} RIGHT_MARGIN={})",
-                    boScreen.width, boScreen.height,
-                    guiW, guiH,
-                    mc.getWindow().getWidth(), mc.getWindow().getHeight(),
-                    mc.getWindow().getGuiScale(),
-                    x, y, BUTTON_W, RIGHT_MARGIN);
-        }
         state.button.setX(x);
         state.button.setY(y);
 
