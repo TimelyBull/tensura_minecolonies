@@ -51,9 +51,9 @@ public final class CitizenTradeButtonHandler {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** Button geometry — upper-LEFT quadrant of the screen, biased
-     *  toward the left border (button's center sits at ~25% across,
-     *  ~20% down). Mirror of the previous upper-right placement.
+    /** Button geometry — upper-right quadrant of the screen, biased
+     *  toward the right border (button's center sits at ~75% across,
+     *  ~20% down). Mirror of the upper-left placement.
      *  Sized so the label "Trade" fits comfortably with the vanilla
      *  button textures. */
     private static final int BUTTON_W = 70;
@@ -139,10 +139,10 @@ public final class CitizenTradeButtonHandler {
         ScreenState state = STATES.get(boScreen);
         if (state == null) return;
 
-        // Upper-LEFT quadrant, biased toward the left border. The
-        // button's CENTER sits at (0.25 × screen width, 0.20 × screen
-        // height) — mirror of the previous upper-right placement.
-        int x = (boScreen.width / 4) - (BUTTON_W / 2);
+        // Upper-right quadrant, biased toward the right border. The
+        // button's CENTER sits at (0.75 × screen width, 0.20 × screen
+        // height) — mirror of the upper-left placement.
+        int x = (boScreen.width * 3 / 4) - (BUTTON_W / 2);
         int y = (boScreen.height / 5) - (BUTTON_H / 2);
         state.button.setX(x);
         state.button.setY(y);
