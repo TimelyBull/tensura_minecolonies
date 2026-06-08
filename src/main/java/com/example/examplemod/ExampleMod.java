@@ -1764,14 +1764,27 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
     /**
      * Server-side handler for the Trade button on a citizen's MC info
-     * window. Validates the citizen is a merchant-capable race, the
-     * player owns the identity, then opens trade IF the subordinate
-     * body is currently in the world (i.e. has been summoned back).
-     * Otherwise tells the player to summon first.
+     * window. The trade happens entirely in CITIZEN FORM — no need to
+     * summon the subordinate back. We reconstruct a transient merchant
+     * from the identity's entity-snapshot NBT, open trade against it,
+     * and persist any merchant-state changes (uses count, demand, xp,
+     * level) back to the snapshot when the player closes the trade
+     * screen.
      *
-     * <p>The "reconstruct merchant from snapshot" path is deferred —
-     * for now the citizen-side button works only when the subordinate
-     * has been summoned back to its mob form.
+     * <p><b>Why the transient merchant works.</b> {@link Merchant} is
+     * an interface; {@link Merchant#openTradingScreen} just opens a
+     * {@code MerchantMenu} with this merchant as the trading partner.
+     * The menu only calls {@code Merchant} interface methods (getOffers,
+     * notifyTrade, setTradingPlayer, etc.) and never reaches into the
+     * world for the merchant — so the reconstructed entity doesn't
+     * have to be in the world for the trade to function. We do NOT
+     * call {@code addFreshEntity}, so the merchant is invisible to
+     * the world; the trade screen is the only place it surfaces.
+     *
+     * <p>The transient merchant is held in {@link #TRANSIENT_MERCHANTS}
+     * keyed by the trading player; the close-event hook
+     * {@link #onPlayerContainerClose} saves the merchant back to the
+     * identity's snapshot and drops the entry.
      */
     static void handleOpenCitizenTrade(ServerPlayer player, int citizenEntityId) {
         ServerLevel level = player.serverLevel();
@@ -1802,26 +1815,46 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             sendAdvisoryNotice(player, "That citizen isn't yours.");
             return;
         }
-        // Stage 1 simplification: trade only when subordinate body
-        // exists. Stage 2 will reconstruct a transient merchant from
-        // the entity snapshot so the button works even with the
-        // subordinate in colony service.
-        if (identity.mobEntityUUID == null) {
+        if (identity.entitySnapshot == null) {
             sendAdvisoryNotice(player,
-                    "Summon them back first to trade.");
+                    "That citizen has no merchant snapshot yet — send them to the colony once first.");
             return;
         }
-        net.minecraft.world.entity.Entity subBody = level.getEntity(identity.mobEntityUUID);
-        if (!(subBody instanceof io.github.manasmods.tensura.entity.template.TensuraMerchantEntity merchant)) {
-            sendAdvisoryNotice(player, "Their subordinate form isn't loaded — go closer to them.");
+
+        // Reject re-entry: one trade session per player at a time.
+        // Otherwise reopening would build a second transient merchant
+        // before the previous one had a chance to persist back.
+        if (TRANSIENT_MERCHANTS.containsKey(player.getUUID())) {
+            sendAdvisoryNotice(player, "You're already in a trade — close it before starting another.");
             return;
         }
+
+        // Reconstruct the merchant from the identity's snapshot. The
+        // snapshot was captured by {@code goblin.save(tag)} at the
+        // last send, so it carries every Tensura storage including the
+        // merchant's offers, level, profession, and xp.
+        java.util.Optional<net.minecraft.world.entity.Entity> created =
+                net.minecraft.world.entity.EntityType.create(identity.entitySnapshot, level);
+        if (created.isEmpty()
+                || !(created.get() instanceof io.github.manasmods.tensura.entity.template.TensuraMerchantEntity merchant)) {
+            LOGGER.warn("[TM] citizen trade: snapshot reconstruction did not yield a TensuraMerchantEntity for identity {}",
+                    identity.identityId);
+            sendAdvisoryNotice(player,
+                    "Couldn't open the merchant — their snapshot doesn't decode as a merchant.");
+            return;
+        }
+
+        // Position the transient merchant at the citizen so any
+        // level-relative call inside the merchant pipeline (Tensura's
+        // restock onMerchantUpdate, vanilla notifyTrade sounds, etc.)
+        // has a sensible nearby location. We don't addFreshEntity, so
+        // the merchant is never visible to anyone — this is purely a
+        // bookkeeping pose.
+        merchant.moveTo(citizen.getX(), citizen.getY(), citizen.getZ(),
+                citizen.getYRot(), 0f);
+
         if (merchant.isBaby() || !merchant.isAlive()) {
             sendAdvisoryNotice(player, "Your subordinate isn't trade-ready.");
-            return;
-        }
-        if (merchant.getTradingPlayer() != null) {
-            sendAdvisoryNotice(player, "Someone else is already trading with them.");
             return;
         }
         net.minecraft.world.item.trading.MerchantOffers offers = merchant.getOffers();
@@ -1829,10 +1862,83 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             sendAdvisoryNotice(player, "They have no trades available.");
             return;
         }
+
         merchant.setTradingPlayer(player);
         merchant.openTradingScreen(player, citizen.getDisplayName(), merchant.getMerchantLevel());
-        LOGGER.info("[TM] citizen trade opened via citizen-side button: player {} ↔ citizen {} / subordinate {}",
-                player.getName().getString(), citizen.getUUID(), subBody.getUUID());
+
+        // Register the session — the close hook will persist offers /
+        // level / xp back to identity.entitySnapshot when the player
+        // closes the trade screen.
+        TRANSIENT_MERCHANTS.put(player.getUUID(),
+                new TransientMerchantSession(merchant, identity.identityId));
+        LOGGER.info("[TM] citizen trade opened (transient merchant) — player {} ↔ citizen {} identity {}",
+                player.getName().getString(), citizen.getUUID(), identity.identityId);
+    }
+
+    /** Per-trading-player session — the reconstructed merchant entity
+     *  and the identity it came from. The close-hook uses these to
+     *  save merchant state back to the right snapshot. */
+    private record TransientMerchantSession(
+            io.github.manasmods.tensura.entity.template.TensuraMerchantEntity merchant,
+            java.util.UUID identityId) {}
+
+    /** Active trade sessions keyed by player UUID. Lives only in
+     *  memory — restart loses any in-flight trades (the merchant data
+     *  was last persisted at the previous SEND so nothing is corrupted,
+     *  just whatever uses happened mid-trade are discarded). */
+    private static final java.util.Map<java.util.UUID, TransientMerchantSession> TRANSIENT_MERCHANTS
+            = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Persist the transient merchant's state back to the identity's
+     * entity snapshot when the player closes the trade screen.
+     *
+     * <p>{@code PlayerContainerEvent.Close} fires whenever the player's
+     * container menu closes — this includes the trade-screen close
+     * (player presses ESC, walks away, logs out, etc.). We don't have
+     * to distinguish "trade closed" specifically because we only enter
+     * the session map when opening a trade.
+     *
+     * <p>Saves the transient merchant's full NBT (via
+     * {@code merchant.save(tag)}) into the identity snapshot — this
+     * preserves whatever Tensura's merchant updated during the session
+     * (uses counts, demand factor, xp, profession) for the next trade
+     * or for the next summon.
+     */
+    @SubscribeEvent
+    public void onPlayerContainerClose(
+            net.neoforged.neoforge.event.entity.player.PlayerContainerEvent.Close event) {
+        if (!(event.getEntity() instanceof ServerPlayer sp)) return;
+        TransientMerchantSession session = TRANSIENT_MERCHANTS.remove(sp.getUUID());
+        if (session == null) return;
+
+        try {
+            // Drop the trading-player binding so the merchant releases
+            // any in-flight state. setTradingPlayer(null) is idempotent.
+            session.merchant().setTradingPlayer(null);
+
+            // Persist back to snapshot.
+            ServerLevel sl = sp.serverLevel();
+            RaceIdentitySavedData saved = RaceIdentitySavedData.get(sl);
+            RaceIdentitySavedData.RaceIdentity identity = saved.getById(session.identityId());
+            if (identity == null) {
+                LOGGER.warn("[TM] citizen trade close: identity {} gone — session dropped without persisting",
+                        session.identityId());
+                return;
+            }
+            net.minecraft.nbt.CompoundTag fresh = new net.minecraft.nbt.CompoundTag();
+            if (session.merchant().save(fresh)) {
+                saved.updateEntitySnapshot(identity, fresh);
+                LOGGER.info("[TM] citizen trade closed — merchant snapshot updated for identity {} ({} top-level NBT keys)",
+                        session.identityId(), fresh.getAllKeys().size());
+            } else {
+                LOGGER.warn("[TM] citizen trade close: merchant.save returned false — snapshot NOT updated for identity {}",
+                        session.identityId());
+            }
+        } catch (Throwable t) {
+            LOGGER.error("[TM] citizen trade close: persist back to snapshot threw for identity {}",
+                    session.identityId(), t);
+        }
     }
 
     static void handleEnvoyResponse(ServerPlayer player, int entityId, boolean accepted) {

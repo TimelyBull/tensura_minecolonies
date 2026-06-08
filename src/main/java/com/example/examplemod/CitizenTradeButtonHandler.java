@@ -1,11 +1,15 @@
 package com.example.examplemod;
 
 import com.ldtteam.blockui.BOScreen;
-import com.ldtteam.blockui.controls.ButtonImage;
 import com.ldtteam.blockui.views.BOWindow;
 import com.minecolonies.api.colony.ICitizenDataView;
 import com.minecolonies.core.client.gui.citizen.MainWindowCitizen;
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.logging.LogUtils;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
@@ -13,99 +17,150 @@ import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.slf4j.Logger;
 
-import java.util.List;
+import java.util.WeakHashMap;
 
 /**
- * Citizen-side trade button. Injects a "Trade" button into MineColonies'
- * {@link MainWindowCitizen} (right-click a citizen → that window opens).
+ * Citizen-side Trade button — rendered OFF the BlockUI window so it
+ * doesn't overlap MineColonies' citizen info screen.
  *
- * <p><b>Why this uses BlockUI's {@link ButtonImage}, not a vanilla
- * {@code Button}.</b> The original implementation added a vanilla
- * {@code net.minecraft.client.gui.components.Button} via
- * {@code event.addListener(button)} → that calls
- * {@code Screen.addRenderableWidget}, which only draws the widget when
- * the screen's {@code render()} iterates its renderables list.
- * Disassembly of {@link BOScreen#render} confirms it does NOT call
- * {@code super.render(...)} — BOScreen is a full override that draws
- * only the BlockUI window contents. Result: vanilla widgets added via
- * the event were registered but never drawn. The button was invisible.
+ * <p><b>Why a vanilla overlay instead of a BlockUI child widget.</b>
+ * BOScreen's render() does NOT call {@code super.render}, and its
+ * mouseClicked() forwards directly to the BOWindow without consulting
+ * the screen's children list. Vanilla widgets added via
+ * {@code event.addListener} therefore get neither drawn nor input
+ * events. Additionally, BlockUI's {@code View.childIsVisible} clips any
+ * child whose position lies outside the parent window's interior — so
+ * we can't even use a BlockUI {@code ButtonImage} positioned off-window.
  *
- * <p>Fix: use BlockUI's own widget hierarchy. Construct a
- * {@link ButtonImage} with {@code setVanillaButton()} for the vanilla
- * look, position it inside the {@link BOWindow} via
- * {@code putInside(window)}, set a {@link com.ldtteam.blockui.controls.ButtonHandler}
- * for click routing → C2S {@link Networking.OpenCitizenTradePayload}.
+ * <p>Approach: draw a vanilla Button via {@link ScreenEvent.Render.Post}
+ * (fires AFTER BOScreen finishes drawing) at screen-pixel coords in
+ * the top-right corner of the BOScreen. Intercept clicks via
+ * {@link ScreenEvent.MouseButtonPressed.Pre} with a manual bounds
+ * check; if the click falls on our button, fire the trade payload and
+ * cancel the event so BOScreen never sees it.
  *
- * <p>The button shows only on citizens with a {@link RaceTag} for a
- * merchant-capable race (GOBLIN / LIZARDMAN / DWARF — orc excluded
- * since orcs don't trade).
+ * <p>Per-screen state tracks the currently-eligible button (one button
+ * per open citizen window). The state evicts itself when the screen
+ * closes via the WeakHashMap.
  *
- * <p>Position chosen inside the window: x=55 y=222 size 100×18. The
- * window is 210×244 per {@code main.xml}; the skills scrollgroup
- * occupies y=117..217 at x=33..138; the right-column ornaments (status
- * icon, ribbon, gender wax) sit at x≥150. y=222..240 is the only clear
- * area visible in every tab state, and x=55..155 avoids the
- * decorative ribbon at x=157+.
+ * <p>Only shows for citizens with a merchant-capable {@link RaceTag}
+ * (GOBLIN / LIZARDMAN / DWARF — orc excluded).
  */
 @OnlyIn(Dist.CLIENT)
 public final class CitizenTradeButtonHandler {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
+    /** Button geometry — top-right corner of the screen, sized so the
+     *  label "Trade" fits comfortably with the vanilla button textures. */
+    private static final int BUTTON_W = 70;
+    private static final int BUTTON_H = 20;
+    private static final int MARGIN   = 8;
+
+    /** Per-open-screen state. WeakHashMap so a closed screen evicts
+     *  automatically without us having to hook close events. */
+    private static final WeakHashMap<BOScreen, ScreenState> STATES = new WeakHashMap<>();
+
+    private static final class ScreenState {
+        final int citizenEntityId;
+        final Button button;
+        ScreenState(int citizenEntityId, Button button) {
+            this.citizenEntityId = citizenEntityId;
+            this.button = button;
+        }
+    }
+
     private CitizenTradeButtonHandler() {}
 
-    public static void onScreenInitPost(ScreenEvent.Init.Post event) {
-        if (!(event.getScreen() instanceof BOScreen boScreen)) return;
+    // ----- Hooks (wired in ClientEvents) -------------------------------
 
+    /** Fires when a screen finishes initialising. We resolve the citizen,
+     *  determine eligibility, and stash a Button instance for the render
+     *  hook to draw. Click handling goes through {@link #onMouseClickedPre}. */
+    public static void onScreenInitPost(ScreenEvent.Init.Post event) {
+        if (!(event.getScreen() instanceof BOScreen boScreen)) {
+            STATES.remove(event.getScreen());
+            return;
+        }
         BOWindow window;
         try {
             window = boScreen.getWindow();
         } catch (Throwable t) {
+            STATES.remove(boScreen);
             return;
         }
-        if (!(window instanceof MainWindowCitizen mwc)) return;
+        if (!(window instanceof MainWindowCitizen mwc)) {
+            STATES.remove(boScreen);
+            return;
+        }
 
         ICitizenDataView citizen;
         try {
             citizen = mwc.getCitizen();
         } catch (Throwable t) {
             LOGGER.warn("[TM] citizen trade button: MainWindowCitizen.getCitizen threw", t);
+            STATES.remove(boScreen);
             return;
         }
-        if (citizen == null) return;
+        if (citizen == null) {
+            STATES.remove(boScreen);
+            return;
+        }
 
-        // Resolve the citizen entity client-side to look up the RaceTag.
-        // If the entity isn't loaded (opening the citizen info from the
-        // colony overview while standing far away), skip silently.
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-        if (mc.level == null) return;
+        // The citizen entity must be loaded client-side so we can look
+        // up the RaceTag. If not (opening from colony overview while
+        // far away), no button — the player has no way to know what
+        // race they are from the UI alone, and we can't trust the
+        // server-side validation without it.
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) { STATES.remove(boScreen); return; }
         net.minecraft.world.entity.Entity entity = mc.level.getEntity(citizen.getEntityId());
-        if (entity == null) {
-            LOGGER.debug("[TM] citizen trade button: entity {} not loaded — skipping", citizen.getEntityId());
-            return;
-        }
+        if (entity == null) { STATES.remove(boScreen); return; }
         RaceTag tag = RaceTagClientStore.get(entity.getUUID());
-        if (tag == null) return;
-        if (tag.race() == Race.ORC) return;
-
-        // Idempotency — if we've already injected the button on a previous
-        // init pass (BlockUI can re-run init on resize / tab change), do
-        // not duplicate it. Locate by the unique ID we set below.
-        if (window.findPaneByID("tm_trade") != null) return;
+        if (tag == null) { STATES.remove(boScreen); return; }
+        if (tag.race() == Race.ORC) { STATES.remove(boScreen); return; }
 
         final int citizenEntityId = citizen.getEntityId();
+        Button button = Button.builder(
+                Component.literal("Trade").withStyle(ChatFormatting.YELLOW),
+                b -> sendOpenTrade(citizenEntityId))
+                // Coords are recomputed on every render so window
+                // resize doesn't desync; initial placeholder here.
+                .bounds(0, 0, BUTTON_W, BUTTON_H)
+                .build();
+        STATES.put(boScreen, new ScreenState(citizenEntityId, button));
+    }
 
-        ButtonImage trade = new ButtonImage();
-        trade.setID("tm_trade");
-        trade.setVanillaButton();
-        trade.setSize(100, 18);
-        trade.setPosition(55, 222);
-        trade.setText(List.of(Component.literal("Trade")));
-        trade.setHandler(button -> sendOpenTrade(citizenEntityId));
-        trade.putInside(window);
+    /** Draw the button as an overlay AFTER BOScreen finishes rendering. */
+    public static void onScreenRenderPost(ScreenEvent.Render.Post event) {
+        if (!(event.getScreen() instanceof BOScreen boScreen)) return;
+        ScreenState state = STATES.get(boScreen);
+        if (state == null) return;
 
-        LOGGER.debug("[TM] citizen trade button injected for citizen entity {} (race={})",
-                citizenEntityId, tag.race());
+        int x = boScreen.width - BUTTON_W - MARGIN;
+        int y = MARGIN;
+        state.button.setX(x);
+        state.button.setY(y);
+
+        GuiGraphics gfx = event.getGuiGraphics();
+        state.button.render(gfx, event.getMouseX(), event.getMouseY(), event.getPartialTick());
+    }
+
+    /** Intercept clicks on our button before BOScreen swallows them. */
+    public static void onMouseClickedPre(ScreenEvent.MouseButtonPressed.Pre event) {
+        if (event.getButton() != InputConstants.MOUSE_BUTTON_LEFT) return;
+        if (!(event.getScreen() instanceof BOScreen boScreen)) return;
+        ScreenState state = STATES.get(boScreen);
+        if (state == null) return;
+
+        double mx = event.getMouseX();
+        double my = event.getMouseY();
+        Button btn = state.button;
+        if (mx >= btn.getX() && mx < btn.getX() + btn.getWidth()
+                && my >= btn.getY() && my < btn.getY() + btn.getHeight()) {
+            btn.onClick(mx, my);
+            event.setCanceled(true);
+        }
     }
 
     private static void sendOpenTrade(int citizenEntityId) {
