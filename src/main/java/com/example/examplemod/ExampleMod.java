@@ -46,6 +46,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -203,6 +204,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         ITEMS.register(modEventBus);
         CREATIVE_MODE_TABS.register(modEventBus);
         NeoForge.EVENT_BUS.register(this);
+        // "Patrol Colony Outskirts" subordinate command — per-entity tick
+        // driver lives in its own handler class. The command-cycle branch is
+        // hooked from onEntityInteract below.
+        NeoForge.EVENT_BUS.register(new SubordinatePatrol());
         modEventBus.addListener(this::addCreative);
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
 
@@ -401,6 +406,22 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // routes through the same {@link #handleMenuAction} chokepoint.
         // Leaving this method present (and the envoy branch above) keeps
         // the envoy dialogue working — only the send-by-sneak path is gone.
+
+        // "Patrol Colony Outskirts" command cycle. Sneak + right-click +
+        // empty main hand on a named, owned, tame subordinate advances its
+        // right-click command (FOLLOW → WANDER → STAY → PATROL → FOLLOW).
+        // Sneak is required universally so we never hijack the plain
+        // right-click (inventory screen for humanoids, mounting for mounts).
+        // We cancel so Tensura's native 3-state cycle doesn't also run.
+        if (event.getEntity() instanceof ServerPlayer sp
+                && sp.isSecondaryUseActive()
+                && sp.getItemInHand(InteractionHand.MAIN_HAND).isEmpty()
+                && event.getTarget() instanceof Mob targetMob
+                && SubordinatePatrol.isNamedSubordinateOf(targetMob, sp)) {
+            event.setCanceled(true);
+            event.setCancellationResult(net.minecraft.world.InteractionResult.SUCCESS);
+            SubordinatePatrol.handleCommandCycle(targetMob, sp);
+        }
     }
 
     // ------------------------------------------------------------------

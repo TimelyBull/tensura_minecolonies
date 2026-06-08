@@ -48,6 +48,20 @@ public final class Attachments {
                             .serialize(EnvoyTag.SERIALIZER)
                             .build());
 
+    /**
+     * Standing-order marker for the "Patrol Colony Outskirts" subordinate
+     * command — see {@link PatrolOrder} and {@link SubordinatePatrol}.
+     * Attached to a named Tensura subordinate while it is following the
+     * PATROL command; removed when the command is cycled away. Default null
+     * → {@code hasData(...)} is the authoritative presence check, same
+     * pattern as {@link #RACE_TAG} / {@link #ENVOY_TAG}.
+     */
+    public static final Supplier<AttachmentType<PatrolOrder>> PATROL_ORDER =
+            ATTACHMENTS.register("patrol_order",
+                    () -> AttachmentType.<PatrolOrder>builder(() -> null)
+                            .serialize(PatrolOrder.SERIALIZER)
+                            .build());
+
     private Attachments() {}
 
     public static void register(IEventBus modBus) {

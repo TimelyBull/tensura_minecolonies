@@ -179,6 +179,22 @@ MDK-1.21.1-ModDevGradle-main/
                                        # tick()'d. Animation-driver state
                                        # mirroring + variant + equipment sync.
 
+        # — Subordinate commands —
+        PatrolOrder.java               # Serialized NeoForge attachment —
+                                       # standing order for the "Patrol
+                                       # Colony Outskirts" command (colonyId
+                                       # + dimension). Presence = command
+                                       # active; persists across reload.
+        SubordinatePatrol.java         # Owns the 4th right-click command
+                                       # (FOLLOW→WANDER→STAY→PATROL→FOLLOW)
+                                       # and the per-entity EntityTickEvent
+                                       # patrol driver. Brain-native via the
+                                       # WALK_TARGET memory; outskirts = outer
+                                       # ring of the nearest colony's claimed
+                                       # chunks, water avoided. No Tensura
+                                       # mixin. Cycle hooked from
+                                       # ExampleMod.onEntityInteract.
+
         # — Mixin —
         mixin/
           CreateColonyMessageMixin.java # @WrapOperation on MC's

@@ -1113,3 +1113,105 @@ to encounter all four non-colonist races (goblin / orc / dwarf /
 lizardman) at the default setting without raising the cap
 manually. Existing worlds keep their stored gamerule value; new
 worlds start at 4.
+
+## Subordinate command — "Patrol Colony Outskirts"
+
+This is the concrete realisation of the "new direction" that replaced
+the scrapped beast-guard / guard-tower approach: the mob stays a
+Tensura **subordinate** (its own entity, AI, hitbox, pathfinding,
+native combat) and receives a standing order through Tensura's
+**existing right-click command cycle** — it never becomes a
+MineColonies citizen or guard. Full roadmap entry in `roadmap.md`.
+
+**Extend Tensura's command cycle via the interact event, NOT a mixin
+on `cycleCommands`.** The native command system is
+`ISubordinate.cycleCommands(Mob, Player)` — a default interface method
+cycling FOLLOW → WANDER → STAY via boolean flags
+(`isWandering`/`isOrderedToSit`); combat stance is a separate axis
+(`cycleBehaviour`: neutral/passive/aggressive/protect). A mixin on the
+default method would have been the most surgical insertion point, but
+it isn't necessary: we already own `PlayerInteractEvent.EntityInteract`,
+which fires before Tensura's `mobInteract`. On the command gesture we
+run our own four-state cycle and cancel the event, so Tensura's native
+three-state cycle never runs and there's no double-cycling. Honours the
+"prefer extension over mixin where possible" rule. We reuse Tensura's
+own `SubordinateHelper.setFollow/setWander/setStay` and `pet.*` message
+keys for the three native edges, so those behave identically to native;
+only the two PATROL edges are ours.
+
+**Universal gesture = sneak + right-click + empty hand, NOT per-type
+gating.** The gesture that natively reaches `cycleCommands` differs by
+entity family: humanoids (`TensuraHumanoidEntity` — goblin/dwarf/
+lizardman) open the inventory screen on plain right-click and only
+reach the command cycle on **sneak** + right-click; pure beasts
+(`TensuraTamableEntity`) cycle on plain right-click; mounts
+(`TensuraMountEntity`, e.g. knight spider) mount on plain right-click.
+Replicating each family's gating in the event handler is fragile, so
+we require **sneak** universally. That guarantees we never hijack any
+plain-right-click behaviour (inventory / mount / trade), and for
+humanoids it matches the native command gesture exactly.
+
+**Command state is DERIVED, never a separate counter.** The cycle reads
+the entity's real `isWandering`/`isOrderedToSit` flags plus the
+`PATROL_ORDER` attachment to decide the next state. Consequence: a
+player can freely mix our sneak-cycle with Tensura's native plain-click
+cycle on a beast without desync. The patrol driver additionally
+auto-cancels the order if it ever sees the mob in a state `beginPatrol`
+didn't leave it in (not-wandering or ordered-to-sit) — i.e. a native
+command change cleanly ends the patrol.
+
+**Patrol movement is brain-native via the `WALK_TARGET` memory, NOT a
+vanilla Goal.** All Tensura subordinates use SmartBrainLib brain AI
+(`SmartBrainOwner`), so adding a `goalSelector` Goal would not
+integrate. Instead the per-entity `EntityTickEvent.Post` driver keeps
+the brain's vanilla `WALK_TARGET` memory pointed at the current
+outskirts point; the `MoveToWalkTarget` core task every subordinate
+has paths the mob there with its native pathfinding. Tensura's idle
+wander (`SetRandomWalkTarget`) is an SBL path behaviour that only
+starts when `WALK_TARGET` is **absent**, so a continuously-populated
+memory suppresses native wandering without touching Tensura — the
+driver refills the memory the same tick the brain clears it on arrival,
+closing the window in which wander could grab it. This is also fully
+entity-agnostic (humanoid, beast, mount all share the memory + core
+task), satisfying "available on ANY named subordinate."
+
+**Combat coexists by yielding, not by competing.** Entering PATROL sets
+the aggressive stance (`SubordinateHelper.setAggressive`) so the brain's
+target sensors acquire hostiles. While `mob.getTarget() != null` the
+driver does nothing — the native fight behaviours own movement and
+`WALK_TARGET`. When the target clears, the driver resumes patrolling.
+Friendly colonists are still protected by the existing
+`onSubordinateChangeTarget` colony-citizen veto. We force aggressive on
+enter (and leave the stance as-is on exit, since the prior stance isn't
+recorded) — accepted as the simplest way to guarantee "fights ANY
+hostile while patrolling."
+
+**Outskirts = outer ring of the claimed chunks, found by marching, NOT
+a hardcoded radius.** Colonies claim whole chunks (membership =
+`colony.isCoordInColony(level, pos)`), so from `colony.getCenter()` the
+driver marches outward along a random bearing in one-chunk (16-block)
+steps while membership holds — finding the real claimed boundary in
+that direction — then places the patrol point in the outer 70–95% band
+of that distance. This self-adapts to irregular claims and any colony
+size, with a 16-chunk search cap (256 blocks) bounding the march.
+Reading MineColonies' `maxColonySize` config was rejected: its
+`getConfig()` returns a BlockUI `Configurations` type that's
+runtime-only (not on the compile classpath), and the march makes the
+exact radius unnecessary anyway. Candidate points are snapped to the
+surface (`MOTION_BLOCKING_NO_LEAVES` heightmap) and rejected if the
+surface or the block under it is water, so the patrol never wades in;
+several bearings are tried so a water edge in one direction doesn't
+strand the mob.
+
+**Order pinned to the colony nearest the PLAYER at issue time, stored on
+the entity.** `beginPatrol` resolves
+`IColonyManager.getInstance().getClosestColony(playerLevel, playerPos)`
+and stores `colony.getID()` + dimension in the `PatrolOrder`
+attachment, so the subordinate keeps patrolling that specific colony
+even after the player walks away or to another colony. The attachment
+is NBT-serialised (same mechanism as `RaceTag` / `EnvoyTag`), so the
+standing order survives unload/reload and relog — combined with Tensura
+persisting its own `isWandering`/`behaviour` flags, `EntityTickEvent`
+simply resumes the patrol when the mob reloads. No new save data of our
+own; no client/networking changes (server-authoritative movement
+replicates normally).

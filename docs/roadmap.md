@@ -914,7 +914,53 @@ value; new worlds start at 4.
 - Independent settlement leveling
 - Angel raid
 
-## Scrapped — beast-guard (knight-spider) approach
+## Subordinate commands — "Patrol Colony Outskirts" ✅ COMPLETE
+
+The first command on the new-direction track below. Adds a fourth
+state to Tensura's native right-click command cycle on any **named**
+subordinate:
+
+```
+FOLLOW → WANDER → STAY → PATROL → FOLLOW …
+```
+
+Issued with **sneak + right-click + empty hand** (sneak so we never
+hijack the plain right-click — which opens the inventory screen for
+humanoids, or mounts a mount). While in PATROL the mob walks the
+OUTER ring of the colony nearest the PLAYER at issue time, avoids
+water, and fights any hostile it meets with its native Tensura
+combat, then resumes. It stays a Tensura subordinate the whole time
+— its own entity, AI, size, pathfinding, and combat. It does NOT
+become a citizen or guard.
+
+**Implementation (no Tensura mixin):**
+- `PatrolOrder` — serialized NeoForge attachment (`Attachments.PATROL_ORDER`)
+  pinning the order to a colony id + dimension. Persists across
+  unload/reload/relog → the patrol is a true standing order.
+- `SubordinatePatrol` — owns the command cycle and the patrol driver.
+  - Cycle: hooked from `ExampleMod.onEntityInteract`. Reuses Tensura's
+    own `SubordinateHelper.setFollow/setWander/setStay` and pet message
+    keys for the three native states; the two PATROL edges are ours.
+    State is derived from the entity's real flags + the attachment, so
+    it never drifts out of sync with Tensura's own plain-click cycle
+    (any native command change auto-cancels the order).
+  - Patrol: per-entity `EntityTickEvent.Post`. Drives the brain's
+    vanilla `WALK_TARGET` memory (consumed by the `MoveToWalkTarget`
+    core task every Tensura subordinate has) with outskirts points.
+    Keeping the memory populated suppresses Tensura's idle wander
+    (`SetRandomWalkTarget` only fires when `WALK_TARGET` is absent)
+    without patching anything.
+  - Combat: enters PATROL with aggressive stance; yields entirely while
+    `getTarget() != null` (native fight behaviours drive), then resumes.
+  - Outskirts geometry: colonies claim whole chunks, so the target is
+    found by marching outward from `colony.getCenter()` in one-chunk
+    steps while `isCoordInColony` holds (cap 16 chunks), then placing a
+    point in the outer 70–95% band of that distance, snapped to the
+    surface and rejected if over water. No hardcoded radius.
+
+Lang: `tensura_minecolonies.command.patrol`.
+
+## Scrapped — beast-guard (knight-spider) guard-tower citizen approach
 
 The Stage L track that bound a knight spider to a MineColonies Guard
 Tower as a `JobBeastGuard` citizen has been removed. The MineColonies
@@ -925,17 +971,19 @@ guard-job lifecycle had several layered silent-exception failure
 modes that each needed bespoke patches. The accumulated complexity
 outweighed the feature.
 
-**New direction — "Guard This Area" Tensura-menu commands.** For
-non-humanoid mobs (knight spider and future beasts), control will be
-driven by per-player commands issued through the Tensura command
-menu rather than the MineColonies citizen/guard-tower system. The
-mob stays a Tensura entity, owned and named by the player, and
-receives stay-here / patrol-here / follow-me-style orders. No
-citizen body, no shadow rendering, no guard tower binding, no
+**New direction — subordinate right-click commands (the mob stays a
+subordinate, NOT a citizen/guard).** Rather than the citizen /
+guard-tower system, colony-defence-style control is driven by
+commands added to Tensura's existing right-click command cycle on
+named subordinates. The mob stays a Tensura entity, owned and named
+by the player, keeping its native pathing, hitbox, and combat. No
+citizen body, no shadow rendering, no guard-tower binding, no
 threat-table / state-machine integration. This sidesteps the
-width-blind pathfinder problem (the mob keeps its native pathing),
-the visual/hitbox mismatch (it IS the native entity), and the
-silent-exception trap of MineColonies AI.
+width-blind pathfinder problem, the visual/hitbox mismatch (it IS
+the native entity), and the silent-exception trap of MineColonies AI.
+The first such command, **Patrol Colony Outskirts**, is built (see
+the section above) and replaces the abandoned beast-guard /
+guard-tower approach for the colony-patrol use case.
 
 The race-citizen pipeline (goblin / orc / dwarf / lizardman) is
 unaffected — those are humanoid, fit the pathfinder, and the
