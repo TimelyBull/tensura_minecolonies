@@ -3220,6 +3220,30 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             return;
         }
 
+        // 3b. Skin / variant sync — apply the citizen's RaceTag variant
+        //     onto the freshly-reconstructed wild mob so its appearance
+        //     EXACTLY matches what the player has been watching in
+        //     colony. NBT-restore from {@code snapshot} normally
+        //     handles this, but the snapshot was captured at first
+        //     send and is older than the citizen's RaceTag (which is
+        //     the source of truth for what's been rendered). Without
+        //     this step, drift between snapshot and current RaceTag
+        //     manifests as "summoned mob's skin doesn't match the
+        //     citizen I just summoned" — exactly the reported bug.
+        //
+        //     We read RaceTag off the live citizen body if it's still
+        //     loaded (citizenBodyOpt populated above); if not (chunk
+        //     unloaded), we fall back to the snapshot's NBT-restored
+        //     appearance, which is the best we have.
+        if (citizenBodyOpt.isPresent()
+                && citizenBodyOpt.get() instanceof LivingEntity citizenForSkin
+                && citizenForSkin.hasData(Attachments.RACE_TAG.get())) {
+            RaceTag srcTag = citizenForSkin.getData(Attachments.RACE_TAG.get());
+            applyVariantToMob(goblin, srcTag);
+            LOGGER.info("[TM] summon: applied citizen RaceTag variant onto wild mob (race={})",
+                    srcTag.race());
+        }
+
         // 4. CRITICAL — regenerate UUID. The tag carries the OLD goblin's UUID;
         //    if we kept it, the reverse map would still point at a stale identity
         //    record. setUUID before addFreshEntity ensures the world tracks the
@@ -4120,6 +4144,119 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             case LIZARDMAN -> captureLizardmanVariant(mob);
             case DWARF     -> captureDwarfVariant(mob);
         };
+    }
+
+    /**
+     * Race-aware variant APPLY dispatcher — inverse of
+     * {@link #captureRaceVariant}. Stamps each appearance field from
+     * {@code variant} back onto the live mob via the Tensura entity's
+     * public setters.
+     *
+     * <p><b>Why this exists.</b> The summon path reconstructs the
+     * wild mob via {@code EntityType.create(snapshot, level)} which
+     * relies on Tensura's {@code readAdditionalSaveData} to restore
+     * appearance from the NBT snapshot. In principle that round-trips
+     * cleanly, but in practice the citizen's {@link RaceTag} is the
+     * SOURCE OF TRUTH for what the player has been seeing in colony,
+     * and the NBT snapshot is older (captured at first send and not
+     * re-snapshotted on every appearance-touching interaction).
+     *
+     * <p>The user-visible symptom of NOT applying this: the wild mob
+     * comes back with the appearance it had at FIRST send, not the
+     * appearance the citizen body had right before summon — so any
+     * variant drift between snapshot and the citizen's tag manifests
+     * as a "skin doesn't match" complaint.
+     *
+     * <p>Calling this after {@code EntityType.create} but BEFORE
+     * {@code addFreshEntity} guarantees the wild mob's appearance
+     * matches the citizen's RaceTag exactly — that's what the player
+     * watched walking around the colony.
+     */
+    private static void applyVariantToMob(LivingEntity mob, RaceTag tag) {
+        try {
+            switch (tag.variant()) {
+                case GoblinVariantData g    -> applyGoblinVariant(mob, g);
+                case OrcVariantData o       -> applyOrcVariant(mob, o);
+                case LizardmanVariantData l -> applyLizardmanVariant(mob, l);
+                case DwarfVariantData d     -> applyDwarfVariant(mob, d);
+            }
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] variant apply: failed for entity {} (race={}) — leaving NBT-restored values",
+                    mob.getUUID(), tag.race(), t);
+        }
+    }
+
+    private static void applyGoblinVariant(LivingEntity mob, GoblinVariantData v) {
+        if (!(mob instanceof io.github.manasmods.tensura.entity.monster.GoblinEntity g)) return;
+        g.setGender(v.gender());
+        g.setSkin(v.skin());
+        g.setFace(v.face());
+        g.setHair(v.hair());
+        g.setHairColor(v.hairColor());
+        g.setHead(v.head());
+        g.setHeadColor(v.headColor());
+        g.setTop(v.top());
+        g.setTopColor(v.topColor());
+        g.setBottom(v.bottom());
+        g.setBottomColor(v.bottomColor());
+        g.setBandages(v.bandages());
+        // evolutionState — restored by NBT (no public setter). Variant
+        // capture re-records it on every send so it stays consistent.
+    }
+
+    private static void applyOrcVariant(LivingEntity mob, OrcVariantData v) {
+        if (!(mob instanceof io.github.manasmods.tensura.entity.monster.OrcEntity o)) return;
+        try {
+            o.setVariant(io.github.manasmods.tensura.entity.variant.OrcVariant.byId(v.variantId()));
+        } catch (Throwable ignored) { /* enum id out of range — keep default */ }
+        o.setNeck(v.neckId());
+        o.setNeckColor(v.neckColor());
+        o.setTop(v.topId());
+        o.setTopColor(v.topColor());
+        o.setBottomColor(v.bottomColor());
+        o.setBeltColor(v.beltColor());
+        o.setBootsColor(v.bootsColor());
+        o.setBandage(v.bandage());
+        o.setNecklace(v.necklace());
+    }
+
+    private static void applyLizardmanVariant(LivingEntity mob, LizardmanVariantData v) {
+        if (!(mob instanceof io.github.manasmods.tensura.entity.monster.LizardmanEntity l)) return;
+        try {
+            l.setVariant(io.github.manasmods.tensura.entity.variant.LizardmanVariant.byId(v.variantId()));
+        } catch (Throwable ignored) { /* enum id out of range — keep default */ }
+        l.setHair(v.hairId());
+        l.setHairColor(v.hairColor());
+        l.setTop(v.topId());
+        l.setTopColor(v.topColor());
+        l.setBottomColor(v.bottomColor());
+        l.setBandage(v.bandage());
+    }
+
+    private static void applyDwarfVariant(LivingEntity mob, DwarfVariantData v) {
+        if (!(mob instanceof io.github.manasmods.tensura.entity.human.DwarfEntity d)) return;
+        d.setGender(v.gender());
+        d.setSkin(v.skin());
+        d.setFace(v.face());
+        d.setScar(v.scar());
+        d.setHair(v.hair());
+        d.setFacialHair(v.facialHair());
+        d.setTop(v.top());
+        d.setTopColor(v.topColor());
+        d.setBottom(v.bottom());
+        d.setBottomColor(v.bottomColor());
+        d.setFeet(v.feet());
+        d.setFeetColor(v.feetColor());
+        d.setHairColor(v.hairColor());
+        // Dwarf has SCALE in variant data — restore it on the wild mob
+        // too. captureDwarfVariant reads Tensura's natural per-mob
+        // SCALE attribute; without re-applying here, the summoned
+        // dwarf would render at MC's default 1.0 if NBT lost it.
+        net.minecraft.world.entity.ai.attributes.AttributeInstance scaleAttr =
+                d.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.SCALE);
+        if (scaleAttr != null) {
+            scaleAttr.setBaseValue(v.scale());
+        }
     }
 
     /**
