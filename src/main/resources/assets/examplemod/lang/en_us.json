@@ -12,5 +12,8 @@
   "examplemod.configuration.magicNumber": "Magic Number",
 
   "key.categories.tensura_minecolonies": "Tensura MineColonies Integration",
-  "key.tensura_minecolonies.open_roster": "Open Goblin Roster"
+  "key.tensura_minecolonies.open_roster": "Open Citizen Roster",
+
+  "tensura_minecolonies.colony.created.goblin": "News of your new goblin town spreads far and wide. Wild goblins drawn to your banner will appear in your territory — name them, and they will serve.",
+  "tensura_minecolonies.colony.created.orc": "Whispers of your orc settlement carry on the wind. Wild orcs answering the call will arrive in your territory — name them, and they will serve."
 }

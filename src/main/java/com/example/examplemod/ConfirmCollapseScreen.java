@@ -15,9 +15,13 @@ import java.util.UUID;
 /**
  * Layered confirmation dialog for the "force Sleep Mode" overspend path.
  *
- *   Parent (RosterScreen or null) is rendered behind a translucent dark
- *   overlay so the player sees what they came from. The dialog body is then
- *   rendered on top with the warning text + two buttons.
+ *   Renders the underlying world dimmed with vanilla's blur, then a
+ *   bounded dialog panel centred on screen with the warning text and
+ *   two buttons. Parent screen (RosterScreen, if we came from it) is
+ *   NOT redrawn behind — the original layered approach let it bleed
+ *   through at low overlay alpha and caused widget bounds to overflow
+ *   when the parent's own widgets re-laid-out under our coordinate
+ *   space.
  *
  *   Decline → close this Screen, return to parent (or nothing). NO packet sent.
  *   Accept  → send {@link Networking.ConfirmCollapsePayload}, return to parent.
@@ -26,6 +30,11 @@ import java.util.UUID;
  */
 @OnlyIn(Dist.CLIENT)
 public class ConfirmCollapseScreen extends Screen {
+
+    /** Modal panel size — fixed in pixels so widget bounds stay sane on
+     *  any window size (the panel is centred via this.width / this.height). */
+    private static final int DIALOG_WIDTH  = 360;
+    private static final int DIALOG_HEIGHT = 160;
 
     private final Screen parent;
     private final UUID identityId;
@@ -46,8 +55,13 @@ public class ConfirmCollapseScreen extends Screen {
     @Override
     protected void init() {
         super.init();
+        int dialogX = (this.width  - DIALOG_WIDTH)  / 2;
+        int dialogY = (this.height - DIALOG_HEIGHT) / 2;
+
+        // Buttons sit at the bottom of the dialog panel, 8px from its
+        // bottom edge. Centred horizontally with a 10px gap between them.
+        int buttonY = dialogY + DIALOG_HEIGHT - 28;
         int cx = this.width / 2;
-        int buttonY = this.height / 2 + 50;
 
         addRenderableWidget(Button.builder(
                 Component.literal("Cancel"),
@@ -83,14 +97,26 @@ public class ConfirmCollapseScreen extends Screen {
         Minecraft.getInstance().setScreen(parent);
     }
 
-    /** Layer effect: render parent behind a dark overlay, then dialog on top. */
+    /**
+     * Backdrop: vanilla's blur + menu darken (covers world fully, no
+     * see-through), then a contained dialog panel with a 1px white
+     * border and dark interior, plus a drop shadow.
+     */
     @Override
     public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        if (parent != null) {
-            // Render parent without mouse hover state (-1 == "outside the window").
-            parent.render(g, -1, -1, partialTick);
-        }
-        g.fill(0, 0, this.width, this.height, 0xC0000000); // 75% dark
+        super.renderBackground(g, mouseX, mouseY, partialTick);
+
+        int x0 = (this.width  - DIALOG_WIDTH)  / 2;
+        int y0 = (this.height - DIALOG_HEIGHT) / 2;
+        int x1 = x0 + DIALOG_WIDTH;
+        int y1 = y0 + DIALOG_HEIGHT;
+
+        // Drop shadow (offset 4px) — drawn before the panel so it sits behind.
+        g.fill(x0 + 4, y0 + 4, x1 + 4, y1 + 4, 0xA0000000);
+        // 1px white outer border
+        g.fill(x0 - 1, y0 - 1, x1 + 1, y1 + 1, 0xFFFFFFFF);
+        // Solid dark interior — opaque so no see-through under any condition.
+        g.fill(x0, y0, x1, y1, 0xFF181818);
     }
 
     @Override
@@ -98,14 +124,14 @@ public class ConfirmCollapseScreen extends Screen {
         super.render(g, mouseX, mouseY, partialTick);
 
         int cx = this.width / 2;
-        int cy = this.height / 2;
+        int dialogTop = (this.height - DIALOG_HEIGHT) / 2;
 
         // Title — red + bold for emphasis. Covers both cases the boundary
         // catches: spending == magicule (depletes to 0) and spending > magicule
         // (overspends). Both result in Sleep Mode entry on the next tick.
         Component title = Component.literal("This would empty your magicule.")
                 .withStyle(ChatFormatting.RED, ChatFormatting.BOLD);
-        g.drawCenteredString(this.font, title, cx, cy - 60, 0xFFFFFFFF);
+        g.drawCenteredString(this.font, title, cx, dialogTop + 16, 0xFFFFFFFF);
 
         // Body — explicit consequence
         String[] lines = {
@@ -114,7 +140,7 @@ public class ConfirmCollapseScreen extends Screen {
                 "",
                 String.format("Cost: %.1f magicule    You have: %.1f", cost, currentMagicule),
         };
-        int y = cy - 35;
+        int y = dialogTop + 44;
         for (String line : lines) {
             g.drawCenteredString(this.font, line, cx, y, 0xFFFFFFFF);
             y += 12;

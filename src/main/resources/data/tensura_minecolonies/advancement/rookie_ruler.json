@@ -1,0 +1,25 @@
+{
+  "criteria": {
+    "create_colony": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "icon": {
+      "id": "minecraft:golden_helmet"
+    },
+    "title": "Rookie Ruler",
+    "description": "Becoming a ruler has given you the ability to rule — and summon your subjects.",
+    "frame": "task",
+    "background": "minecraft:textures/block/light_gray_wool.png",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "requirements": [
+    [
+      "create_colony"
+    ]
+  ],
+  "sends_telemetry_event": false
+}

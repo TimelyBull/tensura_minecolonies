@@ -181,7 +181,11 @@ dependencies {
     // -------------------------------------------------------------------------
 
     // MineColonies runtime dependencies
-    localRuntime files('libs/blockui-1.0.209-1.21.1.jar')
+    // BlockUI promoted to compile-time — Stage L2's CitizenTradeButtonHandler
+    // references BOScreen / BOWindow / MainWindowCitizen for the citizen-side
+    // trade button injection. MainWindowCitizen extends BlockUI types so
+    // BlockUI must be on the compile classpath, not just runtime.
+    implementation files('libs/blockui-1.0.209-1.21.1.jar')
     localRuntime files('libs/domum-ornamentum-1.0.231-main.jar')
     localRuntime files('libs/multipiston-1.2.58-1.21.1.jar')
     localRuntime files('libs/towntalk-1.2.0.jar')
