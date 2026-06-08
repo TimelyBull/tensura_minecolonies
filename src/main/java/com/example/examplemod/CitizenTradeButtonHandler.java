@@ -51,11 +51,14 @@ public final class CitizenTradeButtonHandler {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** Button geometry — top-right corner of the screen, sized so the
-     *  label "Trade" fits comfortably with the vanilla button textures. */
+    /** Button geometry — upper-right quadrant of the screen, biased
+     *  toward the right border (button's center sits at ~75% across,
+     *  ~20% down), so it's clearly inside the upper-right quadrant
+     *  and visibly closer to the right edge than to screen center.
+     *  Sized so the label "Trade" fits comfortably with the vanilla
+     *  button textures. */
     private static final int BUTTON_W = 70;
     private static final int BUTTON_H = 20;
-    private static final int MARGIN   = 8;
 
     /** Per-open-screen state. WeakHashMap so a closed screen evicts
      *  automatically without us having to hook close events. */
@@ -137,8 +140,14 @@ public final class CitizenTradeButtonHandler {
         ScreenState state = STATES.get(boScreen);
         if (state == null) return;
 
-        int x = boScreen.width - BUTTON_W - MARGIN;
-        int y = MARGIN;
+        // Upper-right quadrant, biased toward the right border. The
+        // button's CENTER sits at (0.75 × screen width, 0.20 × screen
+        // height). With screen-width 400 GUI px (default 1080p × scale
+        // 3), that puts the center near x=300, y=72 — clearly in the
+        // right half (300 vs. midpoint 200) and clearly in the upper
+        // half (72 vs. midpoint 180).
+        int x = (boScreen.width * 3 / 4) - (BUTTON_W / 2);
+        int y = (boScreen.height / 5) - (BUTTON_H / 2);
         state.button.setX(x);
         state.button.setY(y);
 
