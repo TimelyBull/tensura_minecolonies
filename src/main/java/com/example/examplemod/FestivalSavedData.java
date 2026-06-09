@@ -41,6 +41,11 @@ public class FestivalSavedData extends SavedData {
     private final Set<Integer> pendingTensuraSwap = new HashSet<>();
     /** colonyId -> citizenId -> (skill ordinal -> baked bonus offset). */
     private final Map<Integer, Map<Integer, Map<Integer, Integer>>> offsets = new HashMap<>();
+    /** identityIds of subordinates that have already received their ONE Tensura
+     *  EP/stat festival gift. Like base Tensura, a subordinate upgrades only once
+     *  — not once per colony and not every festival. Keyed by the stable identity
+     *  UUID so it survives send/summon. Cleared by a prestige reset. */
+    private final Set<java.util.UUID> giftedSubordinates = new HashSet<>();
 
     public static FestivalSavedData get(ServerLevel anyLevel) {
         ServerLevel overworld = anyLevel.getServer().overworld();
@@ -60,6 +65,12 @@ public class FestivalSavedData extends SavedData {
     public void queueSwap(int colonyId)          { pendingTensuraSwap.add(colonyId); setDirty(); }
     public void clearSwapPending(int colonyId)   { pendingTensuraSwap.remove(colonyId); setDirty(); }
     public Set<Integer> pendingSwapColonies()    { return new HashSet<>(pendingTensuraSwap); }
+
+    // -------- once-per-subordinate EP/stat gift --------
+
+    public boolean isGifted(java.util.UUID identityId) { return giftedSubordinates.contains(identityId); }
+    public void markGifted(java.util.UUID identityId)  { if (giftedSubordinates.add(identityId)) setDirty(); }
+    public void clearGifted(java.util.UUID identityId) { if (giftedSubordinates.remove(identityId)) setDirty(); }
 
     // -------- tracked skill offsets (for prestige reset) --------
 
@@ -93,6 +104,14 @@ public class FestivalSavedData extends SavedData {
         tag.putIntArray("done", doneColonies.stream().mapToInt(Integer::intValue).toArray());
         tag.putIntArray("pendingSwap", pendingTensuraSwap.stream().mapToInt(Integer::intValue).toArray());
 
+        ListTag gifted = new ListTag();
+        for (java.util.UUID id : giftedSubordinates) {
+            CompoundTag g = new CompoundTag();
+            g.putUUID("id", id);
+            gifted.add(g);
+        }
+        tag.put("gifted", gifted);
+
         ListTag colonies = new ListTag();
         for (var colonyEntry : offsets.entrySet()) {
             CompoundTag colonyTag = new CompoundTag();
@@ -122,6 +141,11 @@ public class FestivalSavedData extends SavedData {
         FestivalSavedData data = new FestivalSavedData();
         for (int id : tag.getIntArray("done")) data.doneColonies.add(id);
         for (int id : tag.getIntArray("pendingSwap")) data.pendingTensuraSwap.add(id);
+
+        ListTag gifted = tag.getList("gifted", Tag.TAG_COMPOUND);
+        for (int i = 0; i < gifted.size(); i++) {
+            data.giftedSubordinates.add(gifted.getCompound(i).getUUID("id"));
+        }
 
         ListTag colonies = tag.getList("offsets", Tag.TAG_COMPOUND);
         for (int i = 0; i < colonies.size(); i++) {

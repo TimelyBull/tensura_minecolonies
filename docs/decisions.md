@@ -1337,19 +1337,32 @@ We hook both because not every awakening path routes through
 `enterHarvestFestival`. But the two halves of the buff have different cadences:
 - **Skill prestige** (the tiered MC-skill bonus): **once per colony** (`isDone`
   guard). Idempotent, so it can run on whichever event fires first.
-- **Tensura EP gift** (`applyHarvestFestivalGift` on each IN_COLONY subordinate's
-  snapshot): **every festival** — base Tensura re-gifts a demon lord's
-  subordinates on every festival (each multiplies their EP), so ours mirrors that
-  and is NOT gated by `isDone`. To avoid multiplying twice for one festival, the
-  EP gift runs ONLY on the completion (`AWAKENING_EVENT`) and `/festival run`; the
-  START event applies skill prestige only (`HarvestFestival.applyPrestigeOnly`).
+- **Tensura EP/stat gift** (the demon-lord aura/magicule ×`epMultiplierDemonLord`
+  multiply): **once per SUBORDINATE, ever** — matching base Tensura, where a
+  subordinate upgrades only once. Gated on a per-identity `isGifted` flag in
+  `FestivalSavedData` (keyed by the stable identity UUID), NOT the per-colony
+  `isDone` flag and NOT "every festival". Runs on the completion
+  (`AWAKENING_EVENT`) and `/festival run`; the START event applies skill prestige
+  only (`HarvestFestival.applyPrestigeOnly`).
 
-This was the fix for the reported "awakened, goblin EP didn't change": the colony
-was already-done from an earlier run, and the goblin only joined the colony
-AFTER the festival ran — with the EP gift nested under the once-per-colony guard
-it never fired for a late-joining subordinate. Decoupling it means any IN_COLONY
-subordinate gets the gift on the next awakening regardless of the colony's
-prestige state.
+Why per-identity and not per-colony: the reported bug was a goblin that joined
+the colony AFTER its first festival, so a per-colony `isDone` gate skipped it
+forever. Per-identity means a late-joining subordinate still gets its single
+upgrade the next festival, and an already-gifted one is never re-gifted no matter
+how many festivals fire. A prestige reset clears the per-identity flags (so the
+festival is re-earnable); the gift stats themselves are NOT auto-reverted (a
+Tensura-side buff, like a permanent evolution), so re-running after a reset
+re-applies/compounds them — to verify "once", run `/festival run` twice WITHOUT
+a reset between: the second run logs `EP-gifted 0`.
+
+**EP gift applied directly, not via the Tensura helper.**
+`RaceHelper.applyHarvestFestivalGift`'s EP-multiply branch is gated behind
+`HARVEST_FESTIVAL_REWARD_EVENT.reward().isFalse()`, which vetoes an off-festival
+call (observed: EP 7620→7620). `ExistenceStorage` is trivial — `getEP() == aura +
+magicule`, `setAura/setMagicule` only cap at ~2.1e9 (no max clamp) — so
+`applyFestivalEPGift` multiplies the `MAX_AURA`/`MAX_MAGICULE` attribute bases and
+the existence aura/magicule directly by `epMultiplierDemonLord` (default 3.0),
+persists the snapshot, and pushes onto the live citizen body.
 
 **Prestige reset = Tensura character reset scroll.** The festival reset (subtract
 the tracked skill offsets + clear the once-per-colony flag, so it can be earned

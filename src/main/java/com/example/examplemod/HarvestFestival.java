@@ -93,7 +93,7 @@ public final class HarvestFestival {
                 // Tensura EP gift: every festival (mirrors base Tensura re-gifting
                 // the demon lord's subordinates each time). Not gated by isDone.
                 if (withEpGift) {
-                    gifted += applyTensuraEPGifts(level, colonyId);
+                    gifted += applyTensuraEPGifts(level, colonyId, fest);
                 }
             } catch (Throwable t) {
                 LOGGER.error("[TM] festival: failed on colony {}", colonyId, t);
@@ -106,20 +106,29 @@ public final class HarvestFestival {
     }
 
     /**
-     * Tensura EP track (option A): apply Tensura's own festival gift directly to
-     * each IN_COLONY identity's snapshot (EP multiply; no swap, no proximity, no
-     * demon-lord flag). Works on every owned colony regardless of load state.
-     * (Option B — the in-place swap so base Tensura buffs nearby ones — is noted
-     * in docs/decisions.md as a future alternative.)
+     * Tensura EP track (option A): apply Tensura's festival stat gift directly to
+     * each IN_COLONY subordinate's snapshot (EP multiply; no swap, no proximity,
+     * no demon-lord flag). Works regardless of load state.
+     *
+     * <p><b>Once per subordinate</b> — like base Tensura, a subordinate upgrades
+     * only once. We gate on the per-identity {@code isGifted} flag (NOT the
+     * per-colony done flag), so a subordinate that joins the colony AFTER its
+     * first festival still gets its single upgrade on the next one, and a
+     * subordinate already gifted is never gifted again no matter how many
+     * festivals fire. The flag is cleared by a prestige reset.
      */
-    private static int applyTensuraEPGifts(ServerLevel level, int colonyId) {
+    private static int applyTensuraEPGifts(ServerLevel level, int colonyId, FestivalSavedData fest) {
         RaceIdentitySavedData ids = RaceIdentitySavedData.get(level);
         int gifted = 0;
         for (RaceIdentitySavedData.RaceIdentity id : ids.all()) {
             if (id.colonyId != colonyId) continue;
             if (id.mode != RaceIdentitySavedData.Mode.IN_COLONY) continue;
+            if (fest.isGifted(id.identityId)) continue;   // already had its one upgrade
             try {
-                if (ExampleMod.applyFestivalEPGift(level, ids, id)) gifted++;
+                if (ExampleMod.applyFestivalEPGift(level, ids, id)) {
+                    fest.markGifted(id.identityId);
+                    gifted++;
+                }
             } catch (Throwable t) {
                 LOGGER.warn("[TM] festival: EP gift failed for identity {}", id.identityId, t);
             }
@@ -214,8 +223,21 @@ public final class HarvestFestival {
             }
             cd.markDirty(10);
         }
+        // Clear the per-subordinate one-time gift flags for this colony so the
+        // festival can be earned again after a prestige reset. (The EP/stat gift
+        // itself is a Tensura-side buff and is not auto-reverted — see
+        // docs/decisions.md; re-running after a reset re-applies it.)
+        RaceIdentitySavedData ids = RaceIdentitySavedData.get(level);
+        int clearedGifts = 0;
+        for (RaceIdentitySavedData.RaceIdentity id : ids.all()) {
+            if (id.colonyId == colonyId && fest.isGifted(id.identityId)) {
+                fest.clearGifted(id.identityId);
+                clearedGifts++;
+            }
+        }
         fest.clearColony(colonyId);
-        LOGGER.info("[TM] festival reset: colony {} — reverted {} skill offsets", colonyId, reverted);
+        LOGGER.info("[TM] festival reset: colony {} — reverted {} skill offsets, cleared {} subordinate gift flags",
+                colonyId, reverted, clearedGifts);
     }
 
     /**
