@@ -1298,6 +1298,46 @@ lizardman) at the default setting without raising the cap
 manually. Existing worlds keep their stored gamerule value; new
 worlds start at 4.
 
+## Harvest Festival includes in-colony subordinates
+
+**Hook `ENTER_HARVEST_FESTIVAL_EVENT`; evolve IN_COLONY identities in place
+for SAME-entity-type tiers only.** Tensura's `ExistenceStorage.enterHarvestFestival`
+gathers `getEntitiesOfClass(TamableAnimal, ownerAABB.inflate, owned-by-host)` —
+i.e. only LIVE owned subordinates physically near the awakening player — and
+flags each for evolution. An identity we've sent to a colony has no live
+Tensura body (its body is a MineColonies `EntityCitizen`; its mob form is a
+stored snapshot) and isn't near the player, so it was silently excluded. We
+subscribe to the Architectury `ENTER_HARVEST_FESTIVAL_EVENT` (same pattern as
+`NAMING_EVENT`) and evolve the awakening player's IN_COLONY identities
+ourselves.
+
+**Why same-type only, and the off-world-safety reasoning.** Tensura's full
+gift (`RaceHelper.applyHarvestFestivalGift`) runs `evolveRace` (race + attribute
+recompute — safe) **then** `evolveMobs`, which for a tier that crosses entity
+types (e.g. hobgoblin → ogre) does `entity.discard()` + `level.addFreshEntity(evolved)`.
+Run on a reconstructed off-world snapshot that has no live entity, that would
+**spawn a live duplicate** of the citizen (the citizen still exists in the
+colony). So instead of the full gift we call only `INameEvolution.evolve()`,
+which is verified (Goblin/Orc/Lizardman bytecode) to be a pure
+`setCurrentEvolutionState(state+1)` + stat-gain method that never discards or
+spawns — a same-entity-type tier bump. Detection is just
+`getCurrentEvolutionState() < getMaxEvolutionState()` (both on the
+`INameEvolution` interface). At max same-type tier — or for a body with no
+`INameEvolution` (dwarf) — we skip; that identity resumes normal evolution the
+next time it's summoned to the player's side as a live entity.
+
+**Per-identity flow:** reconstruct from snapshot → `evolve()` → `mob.save(fresh)`
+→ `updateEntitySnapshot` → re-capture the variant and re-stamp the live
+citizen's `RaceTag` (+ broadcast `SyncRaceTagPayload`) so it re-renders evolved.
+Each identity is wrapped in try/catch so one failure can't abort the pass, and
+the handler returns `EventResult.pass()` so Tensura's own festival counts are
+untouched. **Limitation:** the citizen's *appearance* updates immediately only
+if the colony is loaded at festival time (the `RaceTag` lives on the live
+citizen entity's attachment); otherwise the stats/snapshot evolve and the look
+catches up on the next send. (Considered persisting the evolved variant in our
+SavedData with a load-time re-stamp; deferred as not worth the complexity for
+v1 — awakening typically happens at one's own base, where the colony is loaded.)
+
 ## Subordinate command — "Patrol Colony Outskirts"
 
 This is the concrete realisation of the "new direction" that replaced
