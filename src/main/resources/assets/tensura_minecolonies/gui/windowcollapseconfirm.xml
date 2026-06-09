@@ -5,7 +5,7 @@
     <!-- Native MC content panel (same paper as the other menus). -->
     <image source="minecolonies:textures/gui/builderhut/builder_paper_wide2.png" size="400 244"/>
     <!-- Subtle translucent-black overlay to take the edge off the bright paper. -->
-    <gradient gradientstart="671088640" gradientend="671088640" size="400 244" pos="0 0"/>
+    <gradient gradientstart="335544320" gradientend="335544320" size="400 244" pos="0 0"/>
 
     <!-- Title. -->
     <text id="title" size="400 12" pos="0 30" textalign="MIDDLE" color="black" label="§c§lNotice:§r"/>
