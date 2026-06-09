@@ -221,7 +221,14 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         // Harvest Festival (player awakening) → persistent, prestige-resettable
         // colony buff (tiered MC-skill bonus + queued Tensura swap/EP track).
+        // Two triggers, because not every demon-lord awakening routes through
+        // Tensura's enterHarvestFestival (that fires ENTER_HARVEST_FESTIVAL_EVENT
+        // only on the festival code path). AWAKENING_EVENT fires from
+        // RaceHelper.awakening on the actual demon-lord transformation, which is
+        // the reliable "became a demon lord" signal. The per-colony isDone guard
+        // makes a double-fire a harmless no-op.
         TensuraEntityEvents.ENTER_HARVEST_FESTIVAL_EVENT.register(this::onEnterHarvestFestival);
+        TensuraEntityEvents.AWAKENING_EVENT.register(this::onAwakening);
 
         // Veto subordinate target-acquisition on the player's own colony citizens.
         // RetaliateOrTarget.start() fires this ManasCore event before committing,
@@ -1775,10 +1782,27 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     private EventResult onEnterHarvestFestival(LivingEntity host,
             Changeable<Integer> harvestTick, Changeable<Integer> soulPoints) {
         if (host instanceof ServerPlayer player && !player.level().isClientSide()) {
+            LOGGER.info("[TM] festival: ENTER_HARVEST_FESTIVAL_EVENT fired for {}", player.getName().getString());
             try {
                 HarvestFestival.onEnterFestival(player);
             } catch (Throwable t) {
                 LOGGER.error("[TM] festival: entry pass failed", t);
+            }
+        }
+        return EventResult.pass();
+    }
+
+    /** Fires from {@code RaceHelper.awakening} when a player becomes a demon lord
+     *  — the reliable "awakened" signal (covers awakening paths that skip
+     *  enterHarvestFestival). Runs the same once-per-colony buff; idempotent via
+     *  the per-colony done flag. Returns pass() — we never alter the awakening. */
+    private EventResult onAwakening(LivingEntity host, Changeable<Boolean> flag) {
+        if (host instanceof ServerPlayer player && !player.level().isClientSide()) {
+            LOGGER.info("[TM] festival: AWAKENING_EVENT fired for {}", player.getName().getString());
+            try {
+                HarvestFestival.onEnterFestival(player);
+            } catch (Throwable t) {
+                LOGGER.error("[TM] festival: awakening pass failed", t);
             }
         }
         return EventResult.pass();

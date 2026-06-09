@@ -57,10 +57,13 @@ public final class HarvestFestival {
         UUID hostId = host.getUUID();
         double playerEP = ExampleMod.playerEP(host);
 
+        int owned = 0, ran = 0, skipped = 0;
         for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
             if (!hostId.equals(colony.getPermissions().getOwner())) continue;
+            owned++;
             int colonyId = colony.getID();
-            if (fest.isDone(colonyId)) continue;
+            if (fest.isDone(colonyId)) { skipped++; continue; }
+            ran++;
 
             try {
                 applyIndirectBuffs(level, colony, playerEP, fest);
@@ -72,6 +75,8 @@ public final class HarvestFestival {
                 LOGGER.error("[TM] festival: failed on colony {}", colonyId, t);
             }
         }
+        LOGGER.info("[TM] festival: {} owned colony(ies) in {} — ran on {}, already-done {} (playerEP {})",
+                owned, level.dimension().location(), ran, skipped, playerEP);
         // Sync the new bonuses to the owner's client for the "+X" UI.
         ExampleMod.sendFestivalBonus(host);
     }
