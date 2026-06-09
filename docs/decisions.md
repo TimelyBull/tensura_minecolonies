@@ -1298,75 +1298,46 @@ lizardman) at the default setting without raising the cap
 manually. Existing worlds keep their stored gamerule value; new
 worlds start at 4.
 
-## Harvest Festival includes in-colony subordinates
+## Harvest Festival bonus for in-colony subordinates (MC skills only)
 
-**Hook `ENTER_HARVEST_FESTIVAL_EVENT`; evolve IN_COLONY identities in place
-for SAME-entity-type tiers only.** Tensura's `ExistenceStorage.enterHarvestFestival`
-gathers `getEntitiesOfClass(TamableAnimal, ownerAABB.inflate, owned-by-host)` —
-i.e. only LIVE owned subordinates physically near the awakening player — and
-flags each for evolution. An identity we've sent to a colony has no live
-Tensura body (its body is a MineColonies `EntityCitizen`; its mob form is a
-stored snapshot) and isn't near the player, so it was silently excluded. We
-subscribe to the Architectury `ENTER_HARVEST_FESTIVAL_EVENT` (same pattern as
-`NAMING_EVENT`) and evolve the awakening player's IN_COLONY identities
-ourselves.
+**Hook `ENTER_HARVEST_FESTIVAL_EVENT`; give every owned identity a
+MineColonies skill bonus. No Tensura race-evolution — mobs have no race.**
+We subscribe to the Architectury `ENTER_HARVEST_FESTIVAL_EVENT` (same pattern as
+`NAMING_EVENT`); when a player awakens, every named identity they own has its
+**four highest MC skills bumped +4 levels** (clamped to 99; ties for the 4th
+slot broken by `Skill` enum order).
 
-**The festival evolution is a RACE-tier change, applied via `evolveRace` (not
-`evolve()`), and is off-world-safe.** First wrong turn: I called
-`INameEvolution.evolve()`, which only does `setCurrentEvolutionState(state+1)`.
-But `GoblinEntity.getMaxEvolutionState()` is 1 (the `INameEvolution` default),
-and naming already evolves a goblin to a hobgoblin (state 1), so every colony
-goblin is *already maxed* on that axis — `evolve()` no-op'd ("0 evolved" in
-testing). The Harvest Festival evolution is actually a **race-tier** change:
-`TensuraRace.getHarvestFestivalEvolution` returns Goblin→Hobgoblin,
-Hobgoblin→**Enlightened Hobgoblin**, etc. Pivotal find: there is no separate
-hobgoblin/enlightened entity class — the whole goblin chain is one
-`GoblinEntity` — and `RaceHelper.evolveRace(entity, target, true)` changes the
-`ManasRace` + recomputes stats **in place** (verified: `RaceAPI` + attribute
-recompute + a sound; no `convertTo`/`discard`/`addFreshEntity`). So it runs
-safely on the reconstructed off-world snapshot — **no gather/respawn dance
-needed** (the respawn-on-entity-type-change lives only in `evolveMobs`, which we
-never call; for a tier that did cross entity types, `evolveRace` alone keeps our
-renderable entity type and just applies the race + stats). We skip an identity
-only when `getHarvestFestivalEvolution` returns null / the same race (no further
-tier).
+**No double-counting — MC skills live on a single store.** The "one identity,
+two bodies" worry (colonist *and* subordinate) is structurally avoided: MC
+skills exist ONLY on the shared `CitizenData` (the Tensura mob has no MC skills,
+and the send/summon stat-sync copies Tensura EP, never skills). We apply the
+bonus to `CitizenData` once per identity, so it can't be doubled and it
+"transfers" to whichever body is materialized. Applied to ALL the player's
+identities (both modes — `CitizenData` exists in both), so a subordinate
+gathered to your side for the festival still gets the boost it carries when sent
+back.
 
-**Per-identity flow:** reconstruct from snapshot → read race via `RaceAPI` →
-`evolveRace(target)` → `mob.save(fresh)` → `updateEntitySnapshot` → re-capture
-the variant and re-stamp the live citizen's `RaceTag` (+ broadcast
-`SyncRaceTagPayload`).
-Each identity is wrapped in try/catch so one failure can't abort the pass, and
-the handler returns `EventResult.pass()` so Tensura's own festival counts are
-untouched. **Limitation:** the citizen's *appearance* updates immediately only
-if the colony is loaded at festival time (the `RaceTag` lives on the live
-citizen entity's attachment); otherwise the stats/snapshot evolve and the look
-catches up on the next send. (Considered persisting the evolved variant in our
-SavedData with a load-time re-stamp; deferred as not worth the complexity for
-v1 — awakening typically happens at one's own base, where the colony is loaded.)
+**Why there's no Tensura (EP/evolution) track — investigated and abandoned.**
+A long investigation chased evolving the colony mob's Tensura race during the
+festival; it dead-ends because **the `ManasRace` system is player-centric — mob
+entities (goblin/orc/etc.) carry no race.** Confirmed empirically:
+`RaceAPI.getRaceFrom(goblin).getRace()` is empty both for a reconstructed
+snapshot AND after briefly spawning the mob into the world. Consequences:
+- Tensura's own `RaceHelper.applyHarvestFestivalGift` is race-gated
+  (`getRaceFrom(...).getRace().isPresent()`), so it doesn't EP-evolve subordinate
+  goblins either — colony goblins getting no EP boost is *consistent* with
+  subordinates, not a regression.
+- A mob's only evolution axis is `INameEvolution.evolve()` (state bump), capped
+  at `getMaxEvolutionState()` = 1; naming already makes a goblin a hobgoblin
+  (state 1), so it's maxed — nothing further to evolve.
+- "Enlightened Hobgoblin" etc. are `TensuraRace`s (player race tiers), not mob
+  entity states; `evolveRace` needs a race the mob doesn't have.
 
-**MineColonies-side bonus: top-4 skills +4, applied to `CitizenData` (single
-store → no double-count).** Alongside the Tensura evolution, each named
-identity the awakening player owns has its four highest MC skills bumped +4
-levels (clamped to 99; ties for the 4th slot broken by `Skill` enum order). The
-"one identity, two bodies" concern (don't bonus a thing twice because it exists
-as a colonist *and* a subordinate) is structurally avoided: MC skills live ONLY
-on the shared `CitizenData` — the subordinate mob has no MC skills, and the
-send/summon stat-sync only copies Tensura EP, never MC skills — so applying the
-bonus to `CitizenData` once is inherently single-counted and "transfers" to
-whichever body is materialized. Applied to ALL the player's identities (both
-modes; `CitizenData` exists in both), not just currently-in-colony ones, so a
-subordinate you've gathered to your side for the festival still gets the
-colony-skill boost it'll carry when sent back.
-
-**Why no stat is ever double-counted.** The two bonus tracks hit disjoint
-stores, each touched once: (1) MC skills → `CitizenData`, applied once per
-identity by our pass; (2) Tensura evolution → the live mob (Tensura's own pass,
-for SUBORDINATE bodies near the player) XOR the snapshot (our pass, for
-IN_COLONY bodies). The two evolution passes can't overlap because a colony body
-is an `EntityCitizen`, never the `TamableAnimal` Tensura's
-`getEntitiesOfClass` gathers. An IN_COLONY identity legitimately receives both
-tracks (a skill bump *and* a snapshot evolution) — those are the two distinct
-things the festival grants a colonist, not the same bonus twice.
+So the festival gives colony citizens the **MC-skill bonus only**. The
+brief-spawn `evolveRace` path was removed (it spawned/discarded a transient
+entity each festival for nothing). A custom direct EP boost for colony citizens
+is possible but is a deliberate balance decision (left open; the natural
+Tensura mechanic does not apply to mobs).
 
 ## Subordinate command — "Patrol Colony Outskirts"
 
