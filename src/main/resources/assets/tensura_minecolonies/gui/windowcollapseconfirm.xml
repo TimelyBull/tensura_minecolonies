@@ -4,6 +4,8 @@
 
     <!-- Native MC content panel (same paper as the other menus). -->
     <image source="minecolonies:textures/gui/builderhut/builder_paper_wide2.png" size="400 244"/>
+    <!-- Subtle translucent-black overlay to take the edge off the bright paper. -->
+    <gradient gradientstart="671088640" gradientend="671088640" size="400 244" pos="0 0"/>
 
     <!-- Title. -->
     <text id="title" size="400 12" pos="0 30" textalign="MIDDLE" color="black" label="§c§lNotice:§r"/>
@@ -11,7 +13,7 @@
     <!-- Warning + consequence (same content as the old vanilla dialog). The
          goblin-name line and the cost line are filled in at runtime. -->
     <text size="400 11" pos="0 56" textalign="MIDDLE" color="black"
-          label="§cThis would empty your magicule."/>
+          label="§cThis would empty your magicules."/>
     <text id="body1" size="400 11" pos="0 80" textalign="MIDDLE" color="black"/>
     <text size="400 11" pos="0 92" textalign="MIDDLE" color="black"
           label="into Sleep Mode — you'll be defenceless and could die."/>

@@ -377,7 +377,7 @@ public class WindowRoster extends AbstractWindowSkeleton {
 
     private void updateMagCount() {
         if (magCountText != null) {
-            magCountText.setText(Component.literal("Magicule: " + formatBig(playerMagicule)));
+            magCountText.setText(Component.literal("Magicules: " + formatBig(playerMagicule)));
             magCountText.setColors(COLOR_NAME);
         }
     }

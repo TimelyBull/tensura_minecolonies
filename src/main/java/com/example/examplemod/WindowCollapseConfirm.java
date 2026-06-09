@@ -78,7 +78,7 @@ public class WindowCollapseConfirm extends AbstractWindowSkeleton {
         Text costLine = findPaneOfTypeByID(ID_COSTLINE, Text.class);
         if (costLine != null) {
             costLine.setText(Component.literal(String.format(Locale.ROOT,
-                    "Cost: %.1f magicule    You have: %.1f", cost, currentMagicule)));
+                    "Cost: %.1f    You have: %.1f", cost, currentMagicule)));
         }
     }
 
