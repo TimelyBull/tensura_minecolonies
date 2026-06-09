@@ -1518,22 +1518,25 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     }
 
     // ------------------------------------------------------------------
-    // Citizen profession acquisition (Feature C)
+    // Citizen dwarf cosmetic profession (Feature C)
     // ------------------------------------------------------------------
-    // Tensura merchants normally gain a villager profession only while they
-    // are a LIVE subordinate: the brain behaviour AssignProfession claims a
-    // nearby job-site POI and calls setProfession, and getOffers() then
-    // generates that profession's trades. A colony citizen has no merchant
-    // brain, so its snapshot stays jobless. This pass reproduces the vanilla
-    // job-site mechanic for IN_COLONY merchant citizens:
-    //   - jobless + never traded → if a job-site block is near, take that
-    //     profession and generate its trades.
-    //   - has profession + never traded (Xp == 0, not locked) → if no matching
-    //     job-site block is near any more, revert to jobless and drop trades.
-    //   - has traded (Xp > 0) → locked; keep the profession even if the block
-    //     is gone (vanilla rule).
-    // We deliberately don't path/claim the POI exclusively — "near" is enough,
-    // per the request. Snapshot is only rewritten on an actual transition.
+    // A dwarf subordinate gains a villager profession from a nearby job-site
+    // block via Tensura's brain (AssignProfession), which only sets the
+    // profession to drive its profession-clothes render — it does NOT change
+    // trades (DwarfEntity defines its own intrinsic getPossibleTrades and never
+    // reads getProfession). A colony dwarf has no merchant brain, so this pass
+    // reproduces ONLY the cosmetic side for IN_COLONY DWARF citizens:
+    //   - jobless + a job-site block near → take that profession (clothes) and
+    //     anchor to the block.
+    //   - anchored + the block is still a job site → keep (no change).
+    //   - anchored + the block is broken → drop the profession (clothes) and
+    //     the anchor.
+    // It is anchored to the claimed BlockPos (not re-scanned around the
+    // wandering citizen) so the clothes don't flicker. Crucially it NEVER
+    // touches trades — goblin/lizardman/dwarf all have intrinsic,
+    // profession-independent trades, so the shops are identical across the
+    // wild → named → colony stages. Goblins/lizardmen are skipped entirely
+    // (no profession clothes). "near" is enough, no POI claim/pathing.
 
     /** Blocks around the citizen to look for a job-site POI. */
     private static final int CITIZEN_JOB_SCAN_RADIUS = 16;
@@ -1541,10 +1544,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      *  happens on a transition, so the steady-state cost is a cheap NBT read
      *  + one POI scan per merchant citizen. */
     private static final int CITIZEN_PROFESSION_PERIOD_TICKS = 60;
-    /** Cached reflective handle to the protected {@code updateTrades()} — the
-     *  only way to regenerate offers for a freshly-set profession (getOffers()
-     *  lazily generates only when offers is null). */
-    private static java.lang.reflect.Method MERCHANT_UPDATE_TRADES;
     /** Cached reflective handles for applying pending merchant level-ups
      *  citizen-side (they normally only fire from {@code customServerAiStep}
      *  on a live entity, which the citizen form never runs). */
@@ -1595,7 +1594,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 try {
                     if (identity.mode != RaceIdentitySavedData.Mode.IN_COLONY) continue;
                     if (identity.entitySnapshot == null) continue;
-                    if (identity.race == Race.ORC) continue;          // orcs don't trade
+                    // DWARF only: the profession is purely a cosmetic clothes
+                    // signal (Feature B), and only dwarves have profession
+                    // clothes. Goblins/lizardmen have intrinsic trades and no
+                    // profession render, so there is nothing to do for them —
+                    // and not touching them guarantees their trades never
+                    // change across stages.
+                    if (identity.race != Race.DWARF) continue;
                     if (activeTrade.contains(identity.identityId)) continue;
 
                     net.minecraft.nbt.CompoundTag snap = identity.entitySnapshot;
@@ -1696,20 +1701,17 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 || !(created.get() instanceof io.github.manasmods.tensura.entity.template.TensuraMerchantEntity merchant)) {
             return;
         }
+        // COSMETIC ONLY — set the villager profession (drives the dwarf
+        // profession-clothes render, Feature B) but DO NOT touch trades.
+        // GoblinEntity / LizardmanEntity / DwarfEntity all define their own
+        // intrinsic getPossibleTrades (profession-independent — DwarfEntity
+        // never even reads getProfession), so regenerating offers here would
+        // re-roll their trades and make them differ across the
+        // wild → named → colony stages. Tensura's own profession assignment
+        // (the brain's AssignProfession) likewise only calls setProfession and
+        // never updateTrades. The reconstruct→save below round-trips the
+        // existing offers UNCHANGED, so the trades are preserved exactly.
         merchant.setProfession(prof);
-        merchant.setMerchantLevel(1);
-        merchant.setOffers(new net.minecraft.world.item.trading.MerchantOffers()); // clear stale, then regen
-        try {
-            if (MERCHANT_UPDATE_TRADES == null) {
-                MERCHANT_UPDATE_TRADES = io.github.manasmods.tensura.entity.template.TensuraMerchantEntity.class
-                        .getDeclaredMethod("updateTrades");
-                MERCHANT_UPDATE_TRADES.setAccessible(true);
-            }
-            MERCHANT_UPDATE_TRADES.invoke(merchant); // appends this profession's tier-1 trades (none for NONE)
-        } catch (Throwable t) {
-            LOGGER.warn("[TM] citizen profession: updateTrades reflection failed", t);
-            return;
-        }
 
         net.minecraft.nbt.CompoundTag fresh = new net.minecraft.nbt.CompoundTag();
         if (!merchant.save(fresh)) return;
@@ -1728,9 +1730,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             PacketDistributor.sendToPlayersTrackingEntity(citizen,
                     Networking.SyncRaceTagPayload.of(citizen.getUUID(), updated));
         }
-        LOGGER.info("[TM] citizen {} (identity {}) profession -> {}",
+        LOGGER.info("[TM] citizen {} (identity {}) cosmetic profession -> {}",
                 identity.citizenId, identity.identityId,
-                none ? "none (job site removed before first trade)" : profId);
+                none ? "none (job site removed)" : profId);
     }
 
     /** Per-tick envoy scheduler. Called from the existing
@@ -4406,9 +4408,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // stock only refills here, so night browsing is read-only.
         tickDawnRestock(server);
 
-        // Citizen profession pass (Feature C) — let IN_COLONY merchant
-        // citizens gain / lose a villager profession (and its trades) from a
-        // nearby job-site block, the way their subordinate form would.
+        // Citizen dwarf cosmetic-profession pass (Feature C) — let IN_COLONY
+        // dwarf citizens gain / lose a villager profession (for the clothes
+        // render only — never trades) from a nearby job-site block, the way
+        // their subordinate form does.
         if (now > 0 && now % CITIZEN_PROFESSION_PERIOD_TICKS == 0) {
             tickCitizenProfessions(server);
         }

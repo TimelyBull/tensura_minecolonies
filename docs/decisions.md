@@ -1510,3 +1510,38 @@ churn) and the rule is purely block-tied, per the request:
 
 Dawn restock is unaffected — it only resets uses on existing offers and
 never touches the profession or the anchor.
+
+## CORRECTION — citizen merchant professions are COSMETIC ONLY (trades are intrinsic)
+
+The two Feature-C sections above assumed a merchant's trades come from its
+villager profession (vanilla-villager model). They do NOT. Decompiling the
+three merchant races shows **`GoblinEntity`, `LizardmanEntity`, and
+`DwarfEntity` each override `getPossibleTrades()` with their own intrinsic
+trade tables, independent of any villager profession** — `DwarfEntity` never
+even reads `getProfession`. Tensura's own profession assignment (the brain's
+`AssignProfession`) only calls `setProfession`; it never `updateTrades`.
+
+Consequence: Feature C's `setProfession + setMerchantLevel(1) + setOffers(new)
++ updateTrades()` was **re-rolling** these merchants' intrinsic trades (and
+could downgrade the level), so a shop showed different trades across the
+wild → named → colony stages. Fixed:
+
+- **Feature C is now cosmetic-only and DWARF-only.** It sets the villager
+  profession purely to drive the dwarf profession-clothes render (Feature B)
+  and NEVER touches trades — no `setOffers`/`updateTrades`/`setMerchantLevel`.
+  The reconstruct→save round-trips the existing offers unchanged.
+  Goblin/lizardman citizens are skipped entirely (intrinsic trades, no
+  profession clothes), so their shops are byte-identical across stages.
+- The earlier gain/lose/anchor logic is kept but now governs only the
+  cosmetic profession (and thus the clothes): gain a profession from a nearby
+  job block, keep it while the anchored block stays a job site, drop it (and
+  the clothes) when the block is broken. Trades are never affected.
+- The merchant **level-up** path (close hook, `applyPendingMerchantLevelUps`)
+  is unchanged and correct — `increaseMerchantCareer` APPENDS the next tier's
+  intrinsic trades on reaching the XP threshold; it does not re-roll existing
+  trades. This is the only place trades change, and only by growing on a
+  level-up (as intended).
+
+The earlier "lose the trades if the block breaks before first trade" framing
+is therefore moot for these races — there are no profession-gated trades to
+lose; only the cosmetic clothes follow the block.
