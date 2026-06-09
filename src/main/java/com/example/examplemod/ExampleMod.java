@@ -37,8 +37,12 @@ import io.github.manasmods.tensura.entity.monster.LizardmanEntity;
 import io.github.manasmods.tensura.entity.monster.OrcEntity;
 import io.github.manasmods.tensura.entity.variant.MagicCircleVariant;
 import io.github.manasmods.tensura.event.TensuraEntityEvents;
-import io.github.manasmods.tensura.entity.template.subclass.INameEvolution;
+import io.github.manasmods.manascore.race.api.ManasRace;
+import io.github.manasmods.manascore.race.api.ManasRaceInstance;
+import io.github.manasmods.manascore.race.api.RaceAPI;
 import io.github.manasmods.tensura.entity.template.subclass.ISubordinate;
+import io.github.manasmods.tensura.race.RaceHelper;
+import io.github.manasmods.tensura.race.TensuraRace;
 import io.github.manasmods.tensura.util.SubordinateHelper;
 import io.github.manasmods.manascore.skill.api.EntityEvents;
 import io.github.manasmods.manascore.network.api.util.Changeable;
@@ -1796,11 +1800,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      *       mob has no MC skills, and the swap stat-sync never copies skills),
      *       so applying to the {@code CitizenData} once is inherently
      *       single-counted and "transfers" to whichever body is materialized.</li>
-     *   <li><b>Tensura evolution:</b> only the IN_COLONY snapshot is evolved
-     *       here (same-entity-type tiers); live subordinates near the player are
-     *       handled by Tensura's own festival pass, and the two never overlap
-     *       (a colony body is an {@code EntityCitizen}, never a
-     *       {@code TamableAnimal} Tensura would gather).</li>
+     *   <li><b>Tensura evolution:</b> only the IN_COLONY snapshot is race-evolved
+     *       here (one festival tier, e.g. Hobgoblin → Enlightened Hobgoblin);
+     *       live subordinates near the player are handled by Tensura's own
+     *       festival pass, and the two never overlap (a colony body is an
+     *       {@code EntityCitizen}, never a {@code TamableAnimal} Tensura would
+     *       gather).</li>
      * </ul>
      */
     private static void applyHarvestFestivalBonuses(ServerPlayer player) {
@@ -1888,10 +1893,20 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     }
 
     /**
-     * Evolve one IN_COLONY identity by a single same-entity-type tier, persist
-     * the evolved snapshot, and refresh the live citizen's render tag. Returns
-     * false (no change) for non-evolving bodies (e.g. dwarf) or those already at
-     * their max same-type tier.
+     * Evolve one IN_COLONY identity by a single Harvest Festival race tier
+     * (e.g. Hobgoblin → Enlightened Hobgoblin), persist the evolved snapshot,
+     * and refresh the live citizen's render tag. Returns false (no change) when
+     * the body has no further festival evolution.
+     *
+     * <p>The festival evolution is a RACE-tier change, and for the goblin chain
+     * every tier is the same {@code GoblinEntity} (there is no separate
+     * hobgoblin entity class). {@link RaceHelper#evolveRace} changes the race +
+     * recomputes stats <i>in place</i> on the same entity and never
+     * discards/respawns it (verified), so it is safe to run on the reconstructed
+     * off-world snapshot — no gather/respawn dance needed. (We deliberately do
+     * NOT call Tensura's {@code evolveMobs}, which is the part that would
+     * discard+respawn for a tier that crosses entity types; evolveRace alone
+     * applies the race + stats while keeping our renderable entity type.)
      */
     private static boolean evolveColonyCitizenInPlace(ServerLevel level,
             RaceIdentitySavedData saved, RaceIdentitySavedData.RaceIdentity identity) {
@@ -1899,23 +1914,29 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         java.util.Optional<net.minecraft.world.entity.Entity> created =
                 net.minecraft.world.entity.EntityType.create(identity.entitySnapshot, level);
         if (created.isEmpty() || !(created.get() instanceof LivingEntity mob)) return false;
-        if (!(mob instanceof INameEvolution ne)) return false; // e.g. dwarf — no same-type evolve
-        if (ne.getCurrentEvolutionState() >= ne.getMaxEvolutionState()) {
-            return false; // at max same-type tier; next step is cross-type → defer to normal play
+
+        java.util.Optional<ManasRaceInstance> raceOpt = RaceAPI.getRaceFrom(mob).getRace();
+        if (raceOpt.isEmpty()) return false;
+        ManasRaceInstance raceInstance = raceOpt.get();
+        if (!(raceInstance.getRace() instanceof TensuraRace tensuraRace)) return false;
+        ManasRace target = tensuraRace.getHarvestFestivalEvolution(raceInstance, mob);
+        if (target == null || target == raceInstance.getRace()) {
+            return false; // no further festival evolution for this tier
         }
 
-        ne.evolve(); // same-type state bump + stat gains; never discards/spawns
+        RaceHelper.evolveRace(mob, target, true); // race tier + stats, in place, no respawn
 
         // Persist the evolved snapshot.
         CompoundTag fresh = new CompoundTag();
         if (!mob.save(fresh)) return false;
         saved.updateEntitySnapshot(identity, fresh);
 
-        // Refresh the live citizen body's RaceTag so it re-renders evolved.
+        // Refresh the live citizen body's RaceTag (appearance is unchanged for
+        // higher hobgoblin tiers, but keeps the tag in sync).
         RaceVariantData newVariant = captureRaceVariant(mob, identity.race);
         refreshLiveCitizenVariant(level, identity, newVariant);
-        LOGGER.info("[TM] harvest festival: colony citizen {} (identity {}) evolved to state {}",
-                identity.citizenId, identity.identityId, ne.getCurrentEvolutionState());
+        LOGGER.info("[TM] harvest festival: colony citizen {} (identity {}) race-evolved to {}",
+                identity.citizenId, identity.identityId, target);
         return true;
     }
 
