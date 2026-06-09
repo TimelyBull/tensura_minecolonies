@@ -6,7 +6,7 @@
     <image source="minecolonies:textures/gui/builderhut/builder_paper_wide2.png" size="400 244"/>
     <!-- Subtle translucent-black overlay to take the edge off the bright paper.
          Drawn over the panel but under all text/controls (later children). -->
-    <gradient gradientstart="335544320" gradientend="335544320" size="400 244" pos="0 0"/>
+    <gradient gradientstart="134217728" gradientend="134217728" size="400 244" pos="0 0"/>
 
     <!-- Title + a current-magicule counter, nudged down for more top spacing. -->
     <text id="title" size="400 11" pos="0 14" textalign="MIDDLE" color="black"

@@ -9,6 +9,8 @@ import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
+import com.minecolonies.api.entity.citizen.Skill;
+import com.minecolonies.api.entity.citizen.citizenhandlers.ICitizenSkillHandler;
 import com.minecolonies.api.eventbus.events.colony.ColonyCreatedModEvent;
 import com.minecolonies.api.eventbus.events.colony.ColonyDeletedModEvent;
 import com.minecolonies.api.eventbus.events.colony.citizens.CitizenAddedModEvent;
@@ -99,7 +101,9 @@ import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -1772,37 +1776,115 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             Changeable<Integer> harvestTick, Changeable<Integer> soulPoints) {
         if (host instanceof ServerPlayer player && !player.level().isClientSide()) {
             try {
-                evolveColonyCitizensForFestival(player);
+                applyHarvestFestivalBonuses(player);
             } catch (Throwable t) {
-                LOGGER.error("[TM] harvest festival: colony-citizen evolution pass failed", t);
+                LOGGER.error("[TM] harvest festival: bonus pass failed", t);
             }
         }
         return EventResult.pass();
     }
 
-    /** Evolve every IN_COLONY identity owned by {@code player} one same-type tier. */
-    private static void evolveColonyCitizensForFestival(ServerPlayer player) {
+    /**
+     * Apply both Harvest Festival bonus tracks to every named identity the
+     * awakening {@code player} owns — each exactly once, so the "one identity,
+     * two bodies" split can't double-count:
+     *
+     * <ul>
+     *   <li><b>MineColonies skills:</b> the citizen's four highest skills each
+     *       gain {@value #HARVEST_SKILL_GAIN} levels (clamped to the cap). MC
+     *       skills live ONLY on the shared {@code CitizenData} (the subordinate
+     *       mob has no MC skills, and the swap stat-sync never copies skills),
+     *       so applying to the {@code CitizenData} once is inherently
+     *       single-counted and "transfers" to whichever body is materialized.</li>
+     *   <li><b>Tensura evolution:</b> only the IN_COLONY snapshot is evolved
+     *       here (same-entity-type tiers); live subordinates near the player are
+     *       handled by Tensura's own festival pass, and the two never overlap
+     *       (a colony body is an {@code EntityCitizen}, never a
+     *       {@code TamableAnimal} Tensura would gather).</li>
+     * </ul>
+     */
+    private static void applyHarvestFestivalBonuses(ServerPlayer player) {
         ServerLevel level = player.serverLevel();
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
         UUID owner = player.getUUID();
+        int skilled = 0;
         int evolved = 0;
-        int skipped = 0;
+        int notEvolved = 0;
         for (RaceIdentitySavedData.RaceIdentity identity : saved.all()) {
             if (identity.ownerPlayerUUID == null || !owner.equals(identity.ownerPlayerUUID)) continue;
-            if (identity.mode != RaceIdentitySavedData.Mode.IN_COLONY) continue;
             try {
-                if (evolveColonyCitizenInPlace(level, saved, identity)) evolved++;
-                else skipped++;
+                // MineColonies-side bonus — applied to the single CitizenData
+                // store (exists in both modes), so it can't be double-counted.
+                ICitizenData cd = resolveCitizenData(level, identity);
+                if (cd != null && applyHarvestSkillBonus(cd)) skilled++;
+
+                // Tensura-side bonus — same-entity-type evolution of the colony body.
+                if (identity.mode == RaceIdentitySavedData.Mode.IN_COLONY) {
+                    if (evolveColonyCitizenInPlace(level, saved, identity)) evolved++;
+                    else notEvolved++;
+                }
             } catch (Throwable t) {
-                LOGGER.warn("[TM] harvest festival: failed evolving colony citizen {} — skipped",
+                LOGGER.warn("[TM] harvest festival: failed processing identity {}",
                         identity.identityId, t);
-                skipped++;
             }
         }
-        if (evolved > 0 || skipped > 0) {
-            LOGGER.info("[TM] harvest festival: {} colony citizen(s) evolved in place, "
-                    + "{} left for normal play (max/cross-type/non-evolving)", evolved, skipped);
+        LOGGER.info("[TM] harvest festival: +{} to top {} skills on {} citizen(s); "
+                + "{} evolved in place, {} not evolved (max/cross-type/non-evolving)",
+                HARVEST_SKILL_GAIN, HARVEST_SKILL_COUNT, skilled, evolved, notEvolved);
+    }
+
+    /** Harvest Festival MineColonies bonus: the N highest skills each +M, capped. */
+    private static final int HARVEST_SKILL_GAIN  = 4;
+    private static final int HARVEST_SKILL_COUNT = 4;
+    private static final int MC_SKILL_CAP        = 99;
+
+    /**
+     * Add the Harvest Festival skill bonus to one citizen: its
+     * {@value #HARVEST_SKILL_COUNT} highest skills each gain
+     * {@value #HARVEST_SKILL_GAIN} levels, clamped to {@value #MC_SKILL_CAP}
+     * (a skill already at the cap doesn't move). Ties for the Nth slot are
+     * broken by skill enum order so the choice is deterministic.
+     *
+     * @return true if at least one skill changed.
+     */
+    private static boolean applyHarvestSkillBonus(ICitizenData cd) {
+        ICitizenSkillHandler handler = cd.getCitizenSkillHandler();
+        Map<Skill, com.minecolonies.core.entity.citizen.citizenhandlers.CitizenSkillHandler.SkillData> skills
+                = handler.getSkills();
+        List<Map.Entry<Skill, com.minecolonies.core.entity.citizen.citizenhandlers.CitizenSkillHandler.SkillData>> sorted
+                = new ArrayList<>(skills.entrySet());
+        sorted.sort(Comparator
+                .comparingInt((Map.Entry<Skill, com.minecolonies.core.entity.citizen.citizenhandlers.CitizenSkillHandler.SkillData> e)
+                        -> e.getValue().getLevel())
+                .reversed()
+                .thenComparingInt(e -> e.getKey().ordinal()));
+
+        boolean changed = false;
+        StringBuilder summary = new StringBuilder();
+        int n = Math.min(HARVEST_SKILL_COUNT, sorted.size());
+        for (int i = 0; i < n; i++) {
+            var entry = sorted.get(i);
+            int current = entry.getValue().getLevel();
+            int next = Math.min(MC_SKILL_CAP, current + HARVEST_SKILL_GAIN);
+            if (next != current) {
+                entry.getValue().setLevel(next);
+                changed = true;
+                summary.append(entry.getKey()).append(":").append(current).append("->").append(next).append(" ");
+            }
         }
+        if (changed) {
+            cd.markDirty(10);
+            LOGGER.info("[TM] harvest festival: citizen {} skill bonus {}", cd.getId(), summary.toString().trim());
+        }
+        return changed;
+    }
+
+    /** Resolve an identity's {@link ICitizenData} (present in both modes), or null. */
+    private static ICitizenData resolveCitizenData(ServerLevel level,
+            RaceIdentitySavedData.RaceIdentity identity) {
+        IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
+        if (colony == null) return null;
+        return colony.getCitizenManager().getCivilian(identity.citizenId);
     }
 
     /**
@@ -1840,9 +1922,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     /** Re-stamp the live colony citizen's RaceTag variant and broadcast it (if loaded). */
     private static void refreshLiveCitizenVariant(ServerLevel level,
             RaceIdentitySavedData.RaceIdentity identity, RaceVariantData newVariant) {
-        IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
-        if (colony == null) return;
-        ICitizenData cd = colony.getCitizenManager().getCivilian(identity.citizenId);
+        ICitizenData cd = resolveCitizenData(level, identity);
         if (cd == null) return;
         cd.getEntity().ifPresent(citizen -> {
             RaceTag tag = citizen.getData(Attachments.RACE_TAG.get());
