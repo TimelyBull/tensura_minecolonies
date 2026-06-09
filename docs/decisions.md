@@ -1185,17 +1185,28 @@ the clicked pane belongs to. This is MC's own idiom (verified by decompiling
 `WindowHireWorker` + `Button.handleClick`) and avoids re-wiring per-row
 handlers on every refresh.
 
-**Drag-multi-select replaced by native checkbox-style toggles.** The old
-screen's continuous click-and-drag-across-rows gesture has no clean BlockUI
-equivalent (BlockUI dispatches clicks per pane, and `ScrollingList` recycles
-row panes on scroll). Per the investigation, bulk selection is now a per-row
+**Bulk selection: native checkbox toggles AND click-and-drag.** Each row has a
 toggle that swaps `builder_button_mini.png` ↔ `builder_button_mini_check.png`
-(MC's own checkbox texture pair) — more MineColonies-idiomatic than the drag.
-The selection set, the per-batch mode lock (first selected row's mode), the
-9-cap, and the `BulkSummonPayload` / `BulkSendPayload` they fire are all
-unchanged; only the *gesture* changed. The single-identity action
-(`ActOnIdentityPayload`) is now an explicit per-row Summon/Send button instead
-of a bare row click.
+(MC's own checkbox texture pair). The single-identity action
+(`ActOnIdentityPayload`) is an explicit per-row Summon/Send button instead of a
+bare row click. The selection set, the per-batch mode lock (first selected
+row's mode), the 9-cap, and the `BulkSummonPayload` / `BulkSendPayload` they
+fire are all unchanged.
+
+The continuous **click-and-drag-through-rows** gesture from the old screen is
+also reproduced (it turned out to port cleanly after all): `WindowRoster`
+overrides `onMouseDrag`, which BlockUI forwards from `BOScreen` with
+window-relative coords. It maps the point to a row via the list's `getScrollY()`
+offset and the 22px row pitch (the row-template height; `childspacing` is 0),
+then adds every row the drag passes over. Two facts make this clean: (1)
+`super.onMouseDrag` is called first and the `Scrollbar` is the only child that
+*consumes* a drag (returns true), so scrollbar drags still scroll while
+list-body drags fall through to selection — no need to compute the scrollbar's
+width; (2) `Button`/`Text`/`View` don't override `onMouseDrag` (Pane default
+returns false), so the *entire* row rectangle — name, EP, status, and the two
+buttons — is a drag-select surface. `tryAddToSelection` returns whether it
+actually changed the selection, so the list + footer refresh only on a real
+add, not every drag pixel.
 
 **Live refresh routed through a static instance, not `mc.screen instanceof`.**
 The server pushes a fresh roster after every action. `WindowRoster.route`
