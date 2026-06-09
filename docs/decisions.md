@@ -1340,6 +1340,16 @@ run|reset` remain as debug/testing commands. Note: the **Tensura EP gift** is a
 one-time Tensura-side buff and is NOT reverted by the reset (only the tracked
 MC-skill offsets are).
 
+**What counts as a "prestige" depends on the installed Tensura add-ons.** Base
+Tensura's character reset is the `ResetScrollItem` (`RESET_ALL`) we hook here,
+but the notion of a "prestige" / character-reset is not fixed — third-party
+Tensura add-ons can introduce their own reset/prestige mechanics (different
+items, events, or commands). If such an add-on is installed and a different
+trigger should reset the festival, add that trigger alongside the
+`ResetScrollItem` hook (the reset itself is centralised in
+`HarvestFestival.resetColony` + `ExampleMod.sendFestivalBonus`, so wiring a new
+trigger is just calling those from the add-on's reset path).
+
 **Swap-track proximity (chosen: B).** Base Tensura's festival gathers
 subordinates only within a radius of the awakening player, so swapping a colony's
 citizens to subordinates *in place at the colony* only gets them buffed if that
