@@ -576,7 +576,10 @@ applied to the 8 enum getters.
 FacialHair, Top, Bottom, Feet) reusing Tensura's per-overlay
 `ModelLayerLocation` constants from `DwarfLayer.*`. `Chest` (Tensura
 uses `HumanoidChestModel` — not PlayerModel-compatible) and the
-RoyalGuardArmor / ProfessionClothes overlays excluded.
+RoyalGuardArmor overlay are excluded. (ProfessionClothes was also
+excluded originally but was **later added back** as `DwarfProfessionLayer`
+for profession-render parity — see roadmap.md "Citizen merchant shops"
+and decisions.md Feature B.)
 
 **Envoy unlock condition**: PLACEHOLDER — needs ≥30 citizens AND at
 least one Miner / Miner's Hut building in the colony. The real

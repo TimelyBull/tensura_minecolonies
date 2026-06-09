@@ -150,6 +150,14 @@ MDK-1.21.1-ModDevGradle-main/
                                        # cancel+swap for DWARF-tagged citizens.
                                        # Tolerates 5 consecutive render
                                        # failures before invalidating.
+        DwarfProfessionLayer.java      # @OnlyIn(CLIENT). Profession-clothes
+                                       # overlay for dwarf citizens — bakes
+                                       # Tensura's HumanoidModel
+                                       # ProfessionClothesLayer.CLOTHES and draws
+                                       # tensura:textures/entity/dwarf/profession/
+                                       # {name}.png based on the RaceTag's
+                                       # profession string. Cosmetic parity with
+                                       # the subordinate dwarf's profession look.
 
         # — Subordinate trade tab (Stage I4) —
         SubordinateTradeButtonHandler.java # @OnlyIn(CLIENT). ScreenEvent.Init
@@ -472,6 +480,35 @@ the design rationale and design-choice history.
   `Attributes.SCALE`).
 - `tensuraMaxNonColonistEnvoys` gamerule default bumped 2 → 4.
   Existing worlds keep their stored value; new worlds start at 4.
+
+**Citizen merchant shops — native tab, restock, leveling, cosmetic
+profession (latest):**
+- **Trade trigger is a native BlockUI tab** in the citizen window's left
+  strip (`CitizenTradeButtonHandler`, `Init.Post` on `AbstractWindowCitizen`),
+  reusing MC's `tab_left_side3.png` + a shipped `trade.png` icon
+  (dark-brown arrows matched to MC's icon palette). Added at the bottom
+  of the z-order so it tucks behind the content panel like MC's own tabs.
+  Replaces the old vanilla overlay. GOBLIN / LIZARDMAN / DWARF only.
+- **Refresh on open + dawn.** `handleOpenCitizenTrade` calls
+  `restockIfPossible()` before showing trades (sold-out trades refill
+  without summon+resend), on top of the dawn pass-B restock.
+- **Trade level-ups apply citizen-side.** The transient citizen merchant
+  never runs `customServerAiStep`, so the trade close hook
+  (`onPlayerContainerClose`) now calls `applyPendingMerchantLevelUps`
+  (reflective `while shouldIncreaseLevel() (≤ lvl 5): increaseMerchantCareer()`),
+  which APPENDS the next tier's trades on reaching the XP threshold. New
+  trades show on reopen.
+- **Profession is COSMETIC ONLY.** Goblin/lizardman/dwarf each override
+  `getPossibleTrades()` with intrinsic, profession-independent trades, so
+  the citizen profession pass (`tickCitizenProfessions`, DWARF-only) sets
+  a villager profession purely to drive the dwarf profession-clothes
+  render (`DwarfProfessionLayer`) and NEVER touches trades. A dwarf gains
+  the cosmetic profession from a nearby job-site block, anchored to that
+  block (`RaceIdentity.jobSitePos`) so it doesn't flicker as the citizen
+  wanders, and loses it when the block is broken. Goblin/lizardman shops
+  are byte-identical across the wild → named → colony stages. See
+  decisions.md "CORRECTION — citizen merchant professions are COSMETIC
+  ONLY".
 
 **Pending:**
 - Stage G6 — orc lord and orc disaster as separate shadow types in the

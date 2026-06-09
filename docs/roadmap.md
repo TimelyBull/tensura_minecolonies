@@ -834,17 +834,12 @@ Full as-built record: `docs/lizardman-dwarf-and-skills.md`.
 ### Post-Stage-I polish — trade on citizen body + dawn restock fix + skin sync ✅
 
 **Trade button moved to the citizen window.** The original Stage I4
-overlay on `HumanoidMainScreen` is gone; the trade button is now drawn
-on top of MineColonies' `MainWindowCitizen`. Because BlockUI's
-`BOScreen` doesn't extend the vanilla `Screen` render path (it
-overrides both `render` and `mouseClicked` without calling super, and
-clips BlockUI children outside the parent window's interior), the
-button is implemented as a vanilla overlay drawn via
-`ScreenEvent.Render.Post` and routed via
-`ScreenEvent.MouseButtonPressed.Pre` with a manual bounds check.
-Position anchored using `mc.getWindow().getGuiScaledWidth()` because
-`boScreen.width` is unreliable on the BlockUI render path (BOScreen
-installs a framebuffer-pixel projection matrix during its draw).
+overlay on `HumanoidMainScreen` is gone; the trade trigger is now on
+MineColonies' `MainWindowCitizen`. (This was first a vanilla overlay
+drawn via `ScreenEvent.Render.Post` + `MouseButtonPressed.Pre`, because
+BlockUI's `BOScreen` doesn't render/route vanilla widgets and clips
+off-window BlockUI children — but that was **later superseded by a real
+BlockUI tab**; see "Citizen merchant shops" below.)
 
 **Trade works in citizen form — no summon required.** Server
 `handleOpenCitizenTrade` reconstructs a transient
@@ -889,6 +884,52 @@ appearance.
 encounter all four non-colonist races at the default cap without
 raising the gamerule manually. Existing worlds keep their stored
 value; new worlds start at 4.
+
+---
+
+### Citizen merchant shops — native tab, restock, leveling, cosmetic profession ✅
+
+Follow-up polish on the citizen-form merchant. Design rationale in
+`docs/decisions.md` (incl. the "CORRECTION — citizen merchant professions
+are COSMETIC ONLY" entry).
+
+**Native BlockUI tab (replaces the vanilla overlay).** The trade trigger
+is now a real tab in the citizen window's left strip
+(`CitizenTradeButtonHandler`, single `ScreenEvent.Init.Post` on
+`AbstractWindowCitizen`), reusing MC's `tab_left_side3.png` + a shipped
+20×20 `trade.png` icon (dark-brown exchange arrows matched to MC's icon
+palette). Added at the bottom of the window z-order so it tucks behind
+the content panel like MC's own tabs; routed via `registerButton` →
+the unchanged `OpenCitizenTradePayload`. GOBLIN / LIZARDMAN / DWARF only.
+The off-window / vanilla-widget blockers that forced the old overlay
+don't apply to an in-window BlockUI child.
+
+**Refresh on open.** `handleOpenCitizenTrade` calls `restockIfPossible()`
+before showing trades, so sold-out trades refill immediately without the
+summon+resend round-trip (on top of the dawn pass-B restock).
+
+**Trade level-ups apply citizen-side.** Merchants only level up (and
+unlock the next trade tier) inside `customServerAiStep`, which the
+transient citizen merchant never runs. The trade close hook
+(`onPlayerContainerClose`) now calls `applyPendingMerchantLevelUps` —
+reflective `while shouldIncreaseLevel() (capped at lvl 5):
+increaseMerchantCareer()` — which APPENDS the new tier's trades on
+reaching the XP threshold (existing trades preserved). New trades show
+on reopen.
+
+**Citizen dwarf cosmetic profession (Feature C).** Goblin / lizardman /
+dwarf each override `getPossibleTrades()` with intrinsic,
+profession-independent trades (`DwarfEntity` never reads `getProfession`),
+so the profession is purely a render signal. `tickCitizenProfessions`
+(DWARF-only, every 60 ticks) gives a colony dwarf the matching villager
+profession from a nearby job-site block — for the profession-clothes
+render (`DwarfProfessionLayer`, Feature B) ONLY; it never touches trades.
+The claimed block is anchored on `RaceIdentity.jobSitePos` so the clothes
+don't flicker as the citizen wanders; broken block → profession (clothes)
+dropped. Goblin/lizardman are skipped entirely — their shops are
+byte-identical across the wild → named → colony stages. The profession is
+also captured into the `RaceTag` at send time so a sent dwarf renders its
+subordinate profession immediately.
 
 ---
 
