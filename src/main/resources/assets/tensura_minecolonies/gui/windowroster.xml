@@ -14,7 +14,7 @@
     <text id="magCount" size="400 10" pos="0 27" textalign="MIDDLE" color="black"/>
 
     <!-- Name search. -->
-    <text size="60 11" pos="64 42" textalign="RIGHT" color="black" label="Search:"/>
+    <text size="60 11" pos="64 42" textalign="MIDDLE_RIGHT" color="black" label="Search:"/>
     <input id="search" size="170 12" pos="130 41" color="black" maxlength="64"/>
 
     <!-- Roster list. One row template (the single child <view>); the window's
@@ -29,7 +29,7 @@
 
             <text id="name"   size="150 11" pos="24 2"  color="black"/>
             <text id="ep"     size="120 9"  pos="24 12" color="black" textscale="0.8"/>
-            <text id="status" size="86 11"  pos="172 6" textalign="RIGHT" color="black"/>
+            <text id="status" size="86 11"  pos="172 6" textalign="MIDDLE_RIGHT" color="black"/>
 
             <!-- Per-row immediate action: "Summon" (in colony) / "Send" (at side). -->
             <button id="act" size="58 16" pos="264 3" color="black"
