@@ -36,6 +36,7 @@ import io.github.manasmods.tensura.entity.monster.OrcEntity;
 import io.github.manasmods.tensura.entity.variant.MagicCircleVariant;
 import io.github.manasmods.tensura.event.TensuraEntityEvents;
 import io.github.manasmods.tensura.entity.template.subclass.ISubordinate;
+import io.github.manasmods.tensura.race.RaceHelper;
 import io.github.manasmods.tensura.util.SubordinateHelper;
 import io.github.manasmods.manascore.skill.api.EntityEvents;
 import io.github.manasmods.manascore.network.api.util.Changeable;
@@ -1788,6 +1789,64 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             LOGGER.warn("[TM] festival: failed reading EP for citizen {}", citizenId, t);
         }
         return 0.0;
+    }
+
+    /**
+     * Tensura EP gift (festival track, option A): apply Tensura's own
+     * {@code applyHarvestFestivalGift} to a colony identity's stored mob snapshot
+     * (EP ×{@code epMultiplierDemonLord}, race-independent — no demon-lord flag,
+     * no swap). Works off-world from the snapshot; pushes the boosted EP onto the
+     * live citizen body too when it's loaded. Returns the EP before→after for logging.
+     */
+    static boolean applyFestivalEPGift(ServerLevel level,
+            RaceIdentitySavedData saved, RaceIdentitySavedData.RaceIdentity identity) {
+        if (identity.entitySnapshot == null) return false;
+        java.util.Optional<net.minecraft.world.entity.Entity> created =
+                net.minecraft.world.entity.EntityType.create(identity.entitySnapshot, level);
+        if (created.isEmpty() || !(created.get() instanceof LivingEntity mob)) return false;
+        ExistenceStorage mobEx = readExistence(mob);
+        if (mobEx == null) return false;
+
+        double before = mobEx.getEP();
+        mobEx.setHarvestGift(true);                 // applyHarvestFestivalGift consumes this
+        RaceHelper.applyHarvestFestivalGift(mobEx, mob);
+        mobEx.markDirty();
+        double after = mobEx.getEP();
+        LOGGER.info("[TM] festival EP gift: citizen {} (identity {}) EP {} -> {}",
+                identity.citizenId, identity.identityId, before, after);
+
+        // Persist the boosted snapshot (so summon reconstructs the boosted form).
+        CompoundTag fresh = new CompoundTag();
+        if (mob.save(fresh)) saved.updateEntitySnapshot(identity, fresh);
+
+        // Push onto the live citizen body if loaded (the roster reads it).
+        pushFestivalEPToLiveCitizen(level, identity, mob, mobEx);
+        return true;
+    }
+
+    /** Lift the live citizen's max pools to the boosted mob's and copy the EP
+     *  across (the send swap's stat-sync). No-op if the citizen entity isn't
+     *  loaded — the snapshot keeps the boost for the next summon. */
+    private static void pushFestivalEPToLiveCitizen(ServerLevel level,
+            RaceIdentitySavedData.RaceIdentity identity, LivingEntity boostedMob,
+            ExistenceStorage mobEx) {
+        IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
+        if (colony == null) return;
+        ICitizenData cd = colony.getCitizenManager().getCivilian(identity.citizenId);
+        if (cd == null) return;
+        cd.getEntity().ifPresent(citizen -> {
+            try {
+                bumpBodyMaxAttributes(citizen, boostedMob);
+                ExistenceStorage citEx = readExistence(citizen);
+                if (citEx != null) {
+                    copyStats(mobEx, citEx);
+                    copyHealthAbsolute(boostedMob, citizen);
+                }
+            } catch (Throwable t) {
+                LOGGER.warn("[TM] festival EP gift: failed pushing to live citizen {}",
+                        identity.citizenId, t);
+            }
+        });
     }
 
     /** Per-tick envoy scheduler. Called from the existing

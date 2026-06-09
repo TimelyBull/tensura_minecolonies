@@ -64,16 +64,36 @@ public final class HarvestFestival {
 
             try {
                 applyIndirectBuffs(level, colony, playerEP, fest);
+                int gifted = applyTensuraEPGifts(level, colonyId);
                 fest.markDone(colonyId);
-                // Tensura swap/EP-buff/sync track: needs loaded entities. Queue it
-                // (the loaded path consumes the queue immediately via the tick hook).
-                fest.queueSwap(colonyId);
-                LOGGER.info("[TM] festival: ran on colony {} (playerEP {}), Tensura swap queued",
-                        colonyId, playerEP);
+                LOGGER.info("[TM] festival: ran on colony {} (playerEP {}), EP-gifted {} Tensura citizen(s)",
+                        colonyId, playerEP, gifted);
             } catch (Throwable t) {
                 LOGGER.error("[TM] festival: failed on colony {}", colonyId, t);
             }
         }
+    }
+
+    /**
+     * Tensura EP track (option A): apply Tensura's own festival gift directly to
+     * each IN_COLONY identity's snapshot (EP multiply; no swap, no proximity, no
+     * demon-lord flag). Works on every owned colony regardless of load state.
+     * (Option B — the in-place swap so base Tensura buffs nearby ones — is noted
+     * in docs/decisions.md as a future alternative.)
+     */
+    private static int applyTensuraEPGifts(ServerLevel level, int colonyId) {
+        RaceIdentitySavedData ids = RaceIdentitySavedData.get(level);
+        int gifted = 0;
+        for (RaceIdentitySavedData.RaceIdentity id : ids.all()) {
+            if (id.colonyId != colonyId) continue;
+            if (id.mode != RaceIdentitySavedData.Mode.IN_COLONY) continue;
+            try {
+                if (ExampleMod.applyFestivalEPGift(level, ids, id)) gifted++;
+            } catch (Throwable t) {
+                LOGGER.warn("[TM] festival: EP gift failed for identity {}", id.identityId, t);
+            }
+        }
+        return gifted;
     }
 
     /**
