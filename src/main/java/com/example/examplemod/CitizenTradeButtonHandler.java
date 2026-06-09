@@ -140,8 +140,14 @@ public final class CitizenTradeButtonHandler {
         icon.setPosition(ICON_DX, tabY + ICON_DY);
         icon.setHandler(citizenWindow);
 
-        citizenWindow.addChild(tab);
-        citizenWindow.addChild(icon);
+        // Insert at the BOTTOM of the z-order (indices 0/1) so the tab sits
+        // BELOW the rest of the citizen window — same as MC's native tabs,
+        // whose right edge tucks behind the content panel (colonist_paper.png,
+        // the last child) while the left ~20px protrudes. Adding them last
+        // (on top) instead would draw the whole tab over the menu. Tab first
+        // (index 0) then icon (index 1) so the icon still draws over the tab.
+        citizenWindow.addChild(tab, 0);
+        citizenWindow.addChild(icon, 1);
 
         // Route the click exactly as MC's own tabs do: a handler keyed by the
         // button id, dispatched from AbstractWindowSkeleton.onButtonClicked.

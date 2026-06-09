@@ -1951,9 +1951,18 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             sendAdvisoryNotice(player, "Your subordinate isn't trade-ready.");
             return;
         }
+        // Refresh trades citizen-side so the player doesn't have to summon the
+        // merchant back and re-send it. getOffers() regenerates the trade list
+        // from the merchant's profession + level when it's currently empty
+        // (Tensura's lazy updateTrades fires when offers is null), and
+        // restockIfPossible() resets the uses on any depleted offers so
+        // sold-out trades become available again immediately rather than only
+        // at the next dawn restock. (If the merchant has no profession there is
+        // nothing to generate, and the empty check below still applies.)
+        merchant.restockIfPossible();
         net.minecraft.world.item.trading.MerchantOffers offers = merchant.getOffers();
         if (offers.isEmpty()) {
-            sendAdvisoryNotice(player, "They have no trades available.");
+            sendAdvisoryNotice(player, "I don't want to trade right now.");
             return;
         }
 
