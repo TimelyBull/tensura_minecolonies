@@ -47,37 +47,61 @@ public final class HarvestFestival {
     private HarvestFestival() {}
 
     /**
-     * Fires when a player enters a Harvest Festival (awakening). Runs the
-     * once-per-colony festival on every colony the player owns that hasn't had
-     * it yet.
+     * Full festival: the once-per-colony skill prestige AND the Tensura EP gift to
+     * every IN_COLONY subordinate. Called on the awakening COMPLETION
+     * ({@code AWAKENING_EVENT}) and by {@code /festival run}.
+     *
+     * <p><b>Why the EP gift runs every time but the skill prestige only once:</b>
+     * base Tensura re-gifts a demon lord's subordinates on every festival (each
+     * one multiplies their EP), so the EP gift to our colony-form subordinates
+     * mirrors that and is NOT gated by the per-colony flag. The colony-wide skill
+     * bonus is the persistent, prestige-resettable buff — it applies once per
+     * colony ({@code isDone} guard) and is reverted by a reset scroll.
      */
     public static void onEnterFestival(ServerPlayer host) {
+        runFestival(host, true);
+    }
+
+    /**
+     * The festival START hook ({@code ENTER_HARVEST_FESTIVAL_EVENT}) applies only
+     * the once-per-colony skill prestige — NOT the EP gift. The EP gift waits for
+     * the awakening completion so a single festival (which fires both the start
+     * and the completion event) doesn't multiply EP twice.
+     */
+    public static void applyPrestigeOnly(ServerPlayer host) {
+        runFestival(host, false);
+    }
+
+    private static void runFestival(ServerPlayer host, boolean withEpGift) {
         ServerLevel level = host.serverLevel();
         FestivalSavedData fest = FestivalSavedData.get(level);
         UUID hostId = host.getUUID();
         double playerEP = ExampleMod.playerEP(host);
 
-        int owned = 0, ran = 0, skipped = 0;
+        int owned = 0, prestige = 0, gifted = 0;
         for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
             if (!hostId.equals(colony.getPermissions().getOwner())) continue;
             owned++;
             int colonyId = colony.getID();
-            if (fest.isDone(colonyId)) { skipped++; continue; }
-            ran++;
-
             try {
-                applyIndirectBuffs(level, colony, playerEP, fest);
-                int gifted = applyTensuraEPGifts(level, colonyId);
-                fest.markDone(colonyId);
-                LOGGER.info("[TM] festival: ran on colony {} (playerEP {}), EP-gifted {} Tensura citizen(s)",
-                        colonyId, playerEP, gifted);
+                // Skill prestige: once per colony.
+                if (!fest.isDone(colonyId)) {
+                    applyIndirectBuffs(level, colony, playerEP, fest);
+                    fest.markDone(colonyId);
+                    prestige++;
+                }
+                // Tensura EP gift: every festival (mirrors base Tensura re-gifting
+                // the demon lord's subordinates each time). Not gated by isDone.
+                if (withEpGift) {
+                    gifted += applyTensuraEPGifts(level, colonyId);
+                }
             } catch (Throwable t) {
                 LOGGER.error("[TM] festival: failed on colony {}", colonyId, t);
             }
         }
-        LOGGER.info("[TM] festival: {} owned colony(ies) in {} — ran on {}, already-done {} (playerEP {})",
-                owned, level.dimension().location(), ran, skipped, playerEP);
-        // Sync the new bonuses to the owner's client for the "+X" UI.
+        LOGGER.info("[TM] festival: {} owned colony(ies) in {} — skill-prestige applied to {}, EP-gifted {} citizen(s) (epGift={}, playerEP {})",
+                owned, level.dimension().location(), prestige, gifted, withEpGift, playerEP);
+        // Sync the (possibly new) skill bonuses to the owner's client for the "+X" UI.
         ExampleMod.sendFestivalBonus(host);
     }
 

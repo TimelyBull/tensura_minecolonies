@@ -1784,7 +1784,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (host instanceof ServerPlayer player && !player.level().isClientSide()) {
             LOGGER.info("[TM] festival: ENTER_HARVEST_FESTIVAL_EVENT fired for {}", player.getName().getString());
             try {
-                HarvestFestival.onEnterFestival(player);
+                // Festival START: skill prestige only. The EP gift waits for the
+                // awakening completion (AWAKENING_EVENT) so it isn't applied twice.
+                HarvestFestival.applyPrestigeOnly(player);
             } catch (Throwable t) {
                 LOGGER.error("[TM] festival: entry pass failed", t);
             }
