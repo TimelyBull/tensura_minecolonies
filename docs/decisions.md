@@ -1158,6 +1158,74 @@ MC texture `ResourceLocation`s are centralized as constants on
 `WindowRacePicker` (fragility mitigation — the XML references the same MC
 asset paths, so a future MC rename surfaces in one place).
 
+## Citizen roster — rebuilt as a native BlockUI window (validates the list path)
+
+**`RosterScreen` (vanilla `Screen`) replaced by `WindowRoster extends
+AbstractWindowSkeleton`.** Second screen converted (after the picker), and
+the one that exercises BlockUI's *interactive list* support. Layout in
+`assets/tensura_minecolonies/gui/windowroster.xml`: `builder_paper_wide2.png`
+panel, a native `<input>` search field, a BlockUI `<list>` (`ScrollingList`),
+and MC image buttons. The list/search/sort logic ported cleanly — exactly the
+investigation's prediction.
+
+**Roster list → `ScrollingList` with a `DataProvider`.** `getElementCount()`
+returns the filtered+sorted `displayed` size; `updateElement(i, rowPane)`
+binds each row's panes (name / EP / colored status text, the selection-toggle
+image, the action-button label). Same primitive MC uses for every list
+(modelled on `WindowHireWorker`). Search is the native `<input>` with a
+`setHandler(InputHandler)` change listener; the substring filter + EP-desc
+sort are the unchanged helpers from the old screen.
+
+**Per-row buttons share one id across rows; the row is resolved by
+`ScrollingList.getListElementIndexByPane(button)`.** The row template's
+`act`/`sel` buttons carry fixed ids; a click with no explicit handler bubbles
+up the parent chain to the window (`AbstractWindowSkeleton implements
+ButtonHandler`), which dispatches by id. The handler asks the list which row
+the clicked pane belongs to. This is MC's own idiom (verified by decompiling
+`WindowHireWorker` + `Button.handleClick`) and avoids re-wiring per-row
+handlers on every refresh.
+
+**Drag-multi-select replaced by native checkbox-style toggles.** The old
+screen's continuous click-and-drag-across-rows gesture has no clean BlockUI
+equivalent (BlockUI dispatches clicks per pane, and `ScrollingList` recycles
+row panes on scroll). Per the investigation, bulk selection is now a per-row
+toggle that swaps `builder_button_mini.png` ↔ `builder_button_mini_check.png`
+(MC's own checkbox texture pair) — more MineColonies-idiomatic than the drag.
+The selection set, the per-batch mode lock (first selected row's mode), the
+9-cap, and the `BulkSummonPayload` / `BulkSendPayload` they fire are all
+unchanged; only the *gesture* changed. The single-identity action
+(`ActOnIdentityPayload`) is now an explicit per-row Summon/Send button instead
+of a bare row click.
+
+**Live refresh routed through a static instance, not `mc.screen instanceof`.**
+The server pushes a fresh roster after every action. `WindowRoster.route`
+holds a static reference to the open window and refreshes it in place,
+covering three cases that the old `instanceof RosterScreen` chain handled: (a)
+the roster is the active screen; (b) a `ConfirmCollapseScreen` (still vanilla)
+is layered over it on the magicule-overspend path — its `getParent()` is the
+roster's `BOScreen`, so we update the window's data *without* reopening, and
+it shows on dialog dismissal; (c) nothing open → open fresh. The instance is
+deliberately **not** cleared in `onClosed()` (the confirm-dialog layering
+fires `onClosed`, and we still need the window to update behind it); a stale
+reference is harmless because `route` only refreshes while `mc.screen`
+actually matches its `BOScreen`. Search text and selection survive refresh.
+
+**No parent → closes to game on ESC, like MC's own citizen window.** Unlike
+the picker (which stacks on the town hall), the roster opens from the `G`
+keybind in-game with no current screen, so it's a no-parent `.open()` window —
+the *same shape as MineColonies' right-click citizen window*, which closes to
+game on ESC. So `AbstractWindowSkeleton.close()` (with null parent) closing to
+game is the proven behaviour, not a risk.
+
+**Fail-closed, vanilla screen retained.** `route` opens the BlockUI window in
+a `try/catch` and falls back to `mc.setScreen(new RosterScreen(entries))`;
+`ClientRosterHandler` is now a one-line delegate to `route`. The vanilla
+`RosterScreen` stays in the tree as the safety net (its own
+`ConfirmCollapseScreen`-parent refresh branch is kept in `route` too, so a
+fallback session still refreshes correctly). MC texture `ResourceLocation`s
+(panel + the two mini toggle textures) are centralized as constants on
+`WindowRoster`.
+
 The trade itself runs against a **transient merchant** so the
 player no longer has to summon the subordinate back. Server
 `handleOpenCitizenTrade`: reconstruct merchant via
