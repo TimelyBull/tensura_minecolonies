@@ -1,0 +1,44 @@
+<window size="400 244" lightbox="true"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/ldtteam/BlockUI/version/main/src/main/resources/assets/blockui/gui/block_ui.xsd">
+
+    <!-- Native MC content panel (same paper texture the race picker uses). -->
+    <image source="minecolonies:textures/gui/builderhut/builder_paper_wide2.png" size="400 244"/>
+
+    <text id="title" size="400 11" pos="0 12" textalign="MIDDLE" color="black"
+          label="§lCitizen Roster§r"/>
+
+    <!-- Name search. -->
+    <text size="60 11" pos="64 28" textalign="RIGHT" color="black" label="Search:"/>
+    <input id="search" size="170 12" pos="130 27" color="black" maxlength="64"/>
+
+    <!-- Roster list. One row template (the single child <view>); the window's
+         DataProvider fills name/EP/status and the per-row buttons per element. -->
+    <list id="roster" size="360 148" pos="20 44">
+        <view size="100% 22">
+            <!-- Selection toggle: image swapped between the plain / checked mini
+                 button by the window (native MC checkbox pair). -->
+            <button id="sel" size="14 15" pos="4 3"
+                    source="minecolonies:textures/gui/builderhut/builder_button_mini.png"/>
+
+            <text id="name"   size="150 11" pos="24 2"  color="black"/>
+            <text id="ep"     size="120 9"  pos="24 12" color="black" textscale="0.8"/>
+            <text id="status" size="86 11"  pos="172 6" textalign="RIGHT" color="black"/>
+
+            <!-- Per-row immediate action: "Summon" (in colony) / "Send" (at side). -->
+            <button id="act" size="58 16" pos="264 3" color="black"
+                    source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
+                    label="Summon"/>
+        </view>
+    </list>
+
+    <!-- Footer: bulk action + clear, shown only when >= 2 are selected. -->
+    <text id="selCount" size="360 11" pos="20 192" textalign="MIDDLE" color="black"/>
+    <button id="bulk" size="210 18" pos="30 212" color="black"
+            source="minecolonies:textures/gui/builderhut/builder_button_large.png"
+            label="Summon Selected"/>
+    <button id="clear" size="60 18" pos="250 212" color="black"
+            source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
+            label="Clear"/>
+
+</window>
