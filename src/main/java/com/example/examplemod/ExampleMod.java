@@ -1545,6 +1545,41 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      *  only way to regenerate offers for a freshly-set profession (getOffers()
      *  lazily generates only when offers is null). */
     private static java.lang.reflect.Method MERCHANT_UPDATE_TRADES;
+    /** Cached reflective handles for applying pending merchant level-ups
+     *  citizen-side (they normally only fire from {@code customServerAiStep}
+     *  on a live entity, which the citizen form never runs). */
+    private static java.lang.reflect.Method MERCHANT_SHOULD_LEVEL;
+    private static java.lang.reflect.Method MERCHANT_INCREASE_CAREER;
+
+    /**
+     * Apply any merchant level-ups the accrued trade XP has earned. Mirrors
+     * what {@code customServerAiStep} does on a live merchant
+     * ({@code while shouldIncreaseLevel(): increaseMerchantCareer()}), which
+     * raises the merchant level and APPENDS the new tier's trades (existing
+     * offers preserved). Capped at the vanilla max level (5) as a guard in
+     * case the reflective predicate behaves unexpectedly.
+     */
+    private static void applyPendingMerchantLevelUps(
+            io.github.manasmods.tensura.entity.template.TensuraMerchantEntity m) {
+        try {
+            if (MERCHANT_SHOULD_LEVEL == null) {
+                MERCHANT_SHOULD_LEVEL = io.github.manasmods.tensura.entity.template.TensuraMerchantEntity.class
+                        .getDeclaredMethod("shouldIncreaseLevel");
+                MERCHANT_SHOULD_LEVEL.setAccessible(true);
+                MERCHANT_INCREASE_CAREER = io.github.manasmods.tensura.entity.template.TensuraMerchantEntity.class
+                        .getDeclaredMethod("increaseMerchantCareer");
+                MERCHANT_INCREASE_CAREER.setAccessible(true);
+            }
+            int guard = 0;
+            while (guard++ < 6
+                    && m.getMerchantLevel() < 5
+                    && Boolean.TRUE.equals(MERCHANT_SHOULD_LEVEL.invoke(m))) {
+                MERCHANT_INCREASE_CAREER.invoke(m);
+            }
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] citizen trade: merchant level-up reflection failed", t);
+        }
+    }
 
     private static void tickCitizenProfessions(MinecraftServer server) {
         // Skip identities mid-trade — the close hook persists their state and
@@ -1564,13 +1599,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     if (activeTrade.contains(identity.identityId)) continue;
 
                     net.minecraft.nbt.CompoundTag snap = identity.entitySnapshot;
-                    if (snap.getInt("Xp") > 0) continue;              // traded → locked
                     String profId = snap.getString("Profession");
                     boolean jobless = profId.isEmpty() || profId.equals("minecraft:none");
 
                     // Resolve the LIVE citizen so the POI scan is centred on its
                     // real position and only runs in loaded chunks (an unloaded
-                    // citizen would falsely scan empty and revert).
+                    // citizen would falsely scan empty).
                     IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
                     if (colony == null) continue;
                     ICitizenData data = colony.getCitizenManager().getCivilian(identity.citizenId);
@@ -1581,8 +1615,29 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     net.minecraft.core.BlockPos pos = citizen.blockPosition();
                     net.minecraft.world.entity.ai.village.poi.PoiManager poi = level.getPoiManager();
 
+                    if (identity.jobSitePos != null) {
+                        // ANCHORED — the profession is tied to a specific block.
+                        // Keep the trades stable (no regeneration) as long as that
+                        // block is still a job site; only act when it's broken. Skip
+                        // if the block's chunk is unloaded so we never false-revert.
+                        if (!level.isLoaded(identity.jobSitePos)) continue;
+                        boolean stillJobSite = poi.getType(identity.jobSitePos)
+                                .map(h -> professionForPoi(h) != null).orElse(false);
+                        if (!stillJobSite) {
+                            // Block broken → lose the trades and the anchor. If the
+                            // player places a job block again later, the jobless
+                            // branch below regenerates trades like normal.
+                            applyCitizenProfession(level, saved, identity,
+                                    net.minecraft.world.entity.npc.VillagerProfession.NONE, citizen);
+                            identity.jobSitePos = null;
+                            saved.setDirty();
+                        }
+                        continue;
+                    }
+
                     if (jobless) {
-                        // Gain: any nearby job-site POI → its profession + trades.
+                        // GAIN — claim a nearby job-site block, generate its trades
+                        // ONCE, and anchor to that block.
                         java.util.Optional<com.mojang.datafixers.util.Pair<
                                 net.minecraft.core.Holder<net.minecraft.world.entity.ai.village.poi.PoiType>,
                                 net.minecraft.core.BlockPos>> found = poi.findClosestWithType(
@@ -1593,20 +1648,22 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                                 professionForPoi(found.get().getFirst());
                         if (prof == null) continue;
                         applyCitizenProfession(level, saved, identity, prof, citizen);
+                        identity.jobSitePos = found.get().getSecond();
+                        saved.setDirty();
                     } else {
-                        // Revert (not yet locked): if no matching job site remains
-                        // near, drop the profession and its trades.
+                        // Has a profession but no anchor (e.g. captured from its
+                        // subordinate form). Keep its existing trades; just anchor
+                        // opportunistically to a matching nearby block so a future
+                        // break applies. Never regenerate or revert here.
                         net.minecraft.world.entity.npc.VillagerProfession current =
                                 net.minecraft.core.registries.BuiltInRegistries.VILLAGER_PROFESSION
                                         .getOptional(net.minecraft.resources.ResourceLocation.parse(profId))
                                         .orElse(null);
                         if (current == null) continue;
-                        boolean stillThere = poi.findClosest(
-                                h -> current.heldJobSite().test(h), pos, CITIZEN_JOB_SCAN_RADIUS,
-                                net.minecraft.world.entity.ai.village.poi.PoiManager.Occupancy.ANY).isPresent();
-                        if (stillThere) continue;
-                        applyCitizenProfession(level, saved, identity,
-                                net.minecraft.world.entity.npc.VillagerProfession.NONE, citizen);
+                        poi.findClosest(h -> current.heldJobSite().test(h), pos,
+                                        CITIZEN_JOB_SCAN_RADIUS,
+                                        net.minecraft.world.entity.ai.village.poi.PoiManager.Occupancy.ANY)
+                           .ifPresent(site -> { identity.jobSitePos = site; saved.setDirty(); });
                     }
                 } catch (Throwable t) {
                     LOGGER.warn("[TM] citizen profession pass: error for identity {}", identity.identityId, t);
@@ -2188,6 +2245,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         session.identityId());
                 return;
             }
+            // Apply any level-ups the trade XP earned this session, so reaching
+            // a new trade level unlocks the next tier's trades (the citizen
+            // form never runs customServerAiStep, where this normally happens).
+            applyPendingMerchantLevelUps(session.merchant());
+
             net.minecraft.nbt.CompoundTag fresh = new net.minecraft.nbt.CompoundTag();
             if (session.merchant().save(fresh)) {
                 saved.updateEntitySnapshot(identity, fresh);

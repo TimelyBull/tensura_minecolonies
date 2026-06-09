@@ -57,6 +57,16 @@ public class RaceIdentitySavedData extends SavedData {
         public Race race;                   // which worker race this identity is —
                                             // determines renderer + variant
                                             // capture.
+        public net.minecraft.core.BlockPos jobSitePos; // Feature C — the
+                                            // villager job-site block this
+                                            // citizen merchant claimed its
+                                            // profession from. While set, the
+                                            // citizen keeps its profession /
+                                            // trades as long as THIS block
+                                            // stays a job site (independent of
+                                            // the citizen wandering); cleared
+                                            // when the block is broken. null =
+                                            // jobless / not anchored.
 
         public RaceIdentity(UUID identityId, int citizenId, int colonyId,
                             UUID mobEntityUUID, Mode mode,
@@ -92,6 +102,9 @@ public class RaceIdentitySavedData extends SavedData {
             if (race != null) {
                 tag.putByte("race", (byte) race.getId());
             }
+            if (jobSitePos != null) {
+                tag.putLong("jobSitePos", jobSitePos.asLong());
+            }
             return tag;
         }
 
@@ -109,9 +122,13 @@ public class RaceIdentitySavedData extends SavedData {
             Race race = tag.contains("race")
                    ? Race.byId(tag.getByte("race") & 0xFF)
                    : Race.GOBLIN; // legacy records (pre-multi-race-format)
-            return new RaceIdentity(identityId, citizenId, colonyId,
+            RaceIdentity id = new RaceIdentity(identityId, citizenId, colonyId,
                                     mobEntityUUID, mode, entity,
                                     ownerPlayerUUID, race);
+            if (tag.contains("jobSitePos")) {
+                id.jobSitePos = net.minecraft.core.BlockPos.of(tag.getLong("jobSitePos"));
+            }
+            return id;
         }
     }
 

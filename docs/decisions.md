@@ -1465,3 +1465,48 @@ adds the parity:
   — matching Tensura's EMPTY fallback), and draws with
   `RenderType.entityTranslucent`. Reuses Tensura's own textures (no new
   assets). Dwarf-only — Tensura only renders profession clothes on dwarves.
+
+## Citizen merchant: leveling + block-anchored stability (Feature C refinements)
+
+Two corrections after testing the first Feature C cut.
+
+**Trade level-ups now apply citizen-side.** A merchant only levels up (and
+thereby unlocks the next trade tier) inside `customServerAiStep`
+(`while shouldIncreaseLevel(): increaseMerchantCareer()`), which the citizen
+form never runs — so citizen merchants accrued trade XP but never gained
+higher-tier trades. Fix: the trade close hook (`onPlayerContainerClose`) now
+calls `applyPendingMerchantLevelUps` on the just-traded merchant before
+persisting — a reflective `while shouldIncreaseLevel() (capped at vanilla
+level 5): increaseMerchantCareer()`. `increaseMerchantCareer` raises the
+level and APPENDS the new tier's trades (existing offers preserved), so the
+next time the player opens the trade the new trades are there. (Leveling
+applies at close, i.e. visible on reopen, rather than live mid-session —
+the transient citizen merchant is never ticked, and ticking an off-world
+entity is the documented hard-no.)
+
+**Profession/trades are anchored to the claimed block, not the citizen's
+position (fixes trades regenerating).** The first cut re-scanned for a job
+site around the citizen every pass and reverted when none was near — but
+MineColonies citizens wander, so a merchant would repeatedly drift out of
+range, revert, drift back, and **re-roll new random trades**. Now the
+claimed job-site `BlockPos` is stored on the `RaceIdentity` (`jobSitePos`,
+NBT-persisted; the class already had mutable fields, so no constructor
+churn) and the rule is purely block-tied, per the request:
+
+- **Gain** (jobless, unanchored): a nearby job-site block → take its
+  profession, generate trades ONCE, and anchor to that block.
+- **Keep** (anchored): while the anchored block is still a job site, do
+  nothing — trades never regenerate, regardless of the citizen wandering or
+  trading. (Supersedes the earlier "lock after first trade" rule.)
+- **Lose** (anchored): the anchored block is no longer a job site (broken) →
+  drop the profession + trades, clear the anchor. Re-checked only when the
+  block's chunk is loaded, so an unloaded anchor never false-reverts.
+- **Regenerate**: after a loss the merchant is jobless again, so placing a
+  job block re-runs Gain — fresh level-1 trades, like normal. (Levels earned
+  before the break are not preserved — block break is a full reset, matching
+  "lose the trades … regenerate like normal".)
+- A profession captured from the subordinate form (no anchor yet) keeps its
+  trades and is opportunistically anchored to a matching nearby block.
+
+Dawn restock is unaffected — it only resets uses on existing offers and
+never touches the profession or the anchor.
