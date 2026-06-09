@@ -1332,9 +1332,21 @@ load.
 run|reset` (reset = the prestige-reset entry point until a real prestige system
 is wired).
 
+**Swap-track proximity (chosen: B).** Base Tensura's festival gathers
+subordinates only within a radius of the awakening player, so swapping a colony's
+citizens to subordinates *in place at the colony* only gets them buffed if that
+colony is near the player. **Option B (chosen for now):** rely on that proximity
+— only colonies near the player when they awaken receive the Tensura EP buff;
+all colonies still get the indirect skill buff (saved-data). **Option A (future,
+noted for reference):** call Tensura's gift directly on each swapped colony
+subordinate (`RaceHelper.applyHarvestFestivalGift` — the EP-multiply found in the
+prior investigation, race-independent), which would buff every owned colony
+regardless of distance and avoids the multi-tick proximity dependency. Revisit A
+if "every colony benefits" becomes desired.
+
 **Status:** indirect-buff core built (`FestivalSavedData`, `HarvestFestival`,
 event wiring, commands). The Tensura swap → base-festival → stat-sync → return
-track and the blue "+X" client UI are the remaining pieces.
+track (option B) and the blue "+X" client UI are the remaining pieces.
 
 ## Subordinate command — "Patrol Colony Outskirts"
 
