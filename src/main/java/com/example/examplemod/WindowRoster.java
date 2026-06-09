@@ -43,9 +43,14 @@ import java.util.UUID;
  * {@code builder_button_mini_check}). Selecting two or more rows of the same
  * mode reveals the footer bulk action, which fires the unchanged
  * {@link Networking.BulkSummonPayload} / {@link Networking.BulkSendPayload}.
- * The old click-and-drag-across-rows gesture is replaced by these per-row
- * toggles — BlockUI dispatches clicks per pane, so checkbox selection is the
- * clean native equivalent (see {@code docs/decisions.md}).
+ *
+ * <p><b>Click-and-drag selection.</b> Beyond the per-row toggle, the player
+ * can press and drag through the row rectangles: every row the cursor passes
+ * over is added to the bulk selection (mode-locked to the first, capped at the
+ * bulk limit). Handled in {@link #onMouseDrag} — BlockUI forwards drags to the
+ * window with window-relative coordinates, and the scrollbar's own drags are
+ * consumed by {@code super} first, so dragging the list body selects while
+ * dragging the scrollbar still scrolls.
  *
  * <p><b>Live refresh.</b> The server pushes a fresh roster after every action;
  * {@link #route} updates the open window in place (and updates the data behind
@@ -93,6 +98,11 @@ public class WindowRoster extends AbstractWindowSkeleton {
     private static final int COLOR_EP         = 0xFF555555;
 
     private static final int SELECTION_CAP = ExampleMod.BULK_SUMMON_CAP;
+
+    /** Row pitch in the scrolling list — matches the row-template height in
+     *  windowroster.xml ({@code <view size="100% 22">}, childspacing 0). Used
+     *  to map a drag's Y coordinate to a roster row index. */
+    private static final int ROW_PIXEL_HEIGHT = 22;
 
     private static final Comparator<Networking.RosterEntry> EP_DESC =
             Comparator.comparingDouble(Networking.RosterEntry::ep).reversed();
@@ -230,16 +240,60 @@ public class WindowRoster extends AbstractWindowSkeleton {
         return (idx >= 0 && idx < displayed.size()) ? idx : -1;
     }
 
-    /** Add a row to the selection, respecting the cap and the mode lock. */
-    private void tryAddToSelection(Networking.RosterEntry e) {
-        if (selectedIds.contains(e.identityId())) return;
-        if (selectedIds.size() >= SELECTION_CAP) return;
+    /**
+     * Add a row to the selection, respecting the cap and the mode lock.
+     * @return true if the row was newly added (selection changed).
+     */
+    private boolean tryAddToSelection(Networking.RosterEntry e) {
+        if (selectedIds.contains(e.identityId())) return false;
+        if (selectedIds.size() >= SELECTION_CAP) return false;
         if (batchMode == -1) {
             batchMode = e.modeByte();
         } else if (e.modeByte() != batchMode) {
-            return; // mixed-mode selection not allowed — one batch = one payload
+            return false; // mixed-mode selection not allowed — one batch = one payload
         }
         selectedIds.add(e.identityId());
+        return true;
+    }
+
+    // ------------------------------------------------------------------
+    // Click-and-drag selection across the row rectangles.
+    // ------------------------------------------------------------------
+
+    @Override
+    public boolean onMouseDrag(double mx, double my, int button, double dx, double dy) {
+        // Let BlockUI handle its own drags first — notably the scrollbar, which
+        // consumes (returns true); the list body / rows do not, falling through.
+        if (super.onMouseDrag(mx, my, button, dx, dy)) {
+            return true;
+        }
+        if (button == 0 && list != null) {
+            int row = rowIndexAt(mx, my);
+            if (row >= 0) {
+                if (tryAddToSelection(displayed.get(row))) {
+                    list.refreshElementPanes();
+                    refreshFooter();
+                }
+                return true; // consume drags over the list body
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Map a window-relative point to a roster row index, honouring the list's
+     * scroll offset; -1 if the point isn't over a row.
+     */
+    private int rowIndexAt(double mx, double my) {
+        if (list == null) return -1;
+        int lx = list.getX();
+        int ly = list.getY();
+        int lw = list.getWidth();
+        int lh = list.getHeight();
+        if (mx < lx || mx >= lx + lw || my < ly || my >= ly + lh) return -1;
+        double localY = (my - ly) + list.getScrollY();
+        int idx = (int) Math.floor(localY / ROW_PIXEL_HEIGHT);
+        return (idx >= 0 && idx < displayed.size()) ? idx : -1;
     }
 
     private void onBulk() {
