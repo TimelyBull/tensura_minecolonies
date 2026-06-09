@@ -218,6 +218,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // Tensura uses Architectury's event system — register via .register(), NOT @SubscribeEvent.
         TensuraEntityEvents.NAMING_EVENT.register(this::onRaceNamed);
 
+        // Harvest Festival (player awakening) → persistent, prestige-resettable
+        // colony buff (tiered MC-skill bonus + queued Tensura swap/EP track).
+        TensuraEntityEvents.ENTER_HARVEST_FESTIVAL_EVENT.register(this::onEnterHarvestFestival);
+
         // Veto subordinate target-acquisition on the player's own colony citizens.
         // RetaliateOrTarget.start() fires this ManasCore event before committing,
         // so returning interruptFalse() here aborts the assist-target without a mixin.
@@ -1736,6 +1740,54 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         LOGGER.info("[TM] citizen {} (identity {}) cosmetic profession -> {}",
                 identity.citizenId, identity.identityId,
                 none ? "none (job site removed)" : profId);
+    }
+
+    // ------------------------------------------------------------------
+    // Harvest Festival — entry point + EP helpers (logic in HarvestFestival)
+    // ------------------------------------------------------------------
+
+    /** Fires when a player enters a Harvest Festival (awakening). Delegates the
+     *  once-per-colony buff to {@link HarvestFestival}. Returns pass() — we never
+     *  alter Tensura's own festival counts. */
+    private EventResult onEnterHarvestFestival(LivingEntity host,
+            Changeable<Integer> harvestTick, Changeable<Integer> soulPoints) {
+        if (host instanceof ServerPlayer player && !player.level().isClientSide()) {
+            try {
+                HarvestFestival.onEnterFestival(player);
+            } catch (Throwable t) {
+                LOGGER.error("[TM] festival: entry pass failed", t);
+            }
+        }
+        return EventResult.pass();
+    }
+
+    /** Player's Tensura EP (aura + magicule), or 0 if unreadable. */
+    static double playerEP(ServerPlayer player) {
+        ExistenceStorage exist = readExistence(player);
+        return exist == null ? 0.0 : exist.getEP();
+    }
+
+    /**
+     * A colony citizen's Tensura EP for festival ranking: read off the citizen's
+     * race-identity snapshot (works whether or not the citizen entity is loaded —
+     * the EP/existence storage loads off-world). Vanilla citizens (no identity)
+     * are 0.
+     */
+    static double citizenEP(ServerLevel level, int citizenId) {
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
+        RaceIdentitySavedData.RaceIdentity id = saved.getByCitizenId(citizenId);
+        if (id == null || id.entitySnapshot == null) return 0.0;
+        try {
+            java.util.Optional<net.minecraft.world.entity.Entity> created =
+                    net.minecraft.world.entity.EntityType.create(id.entitySnapshot, level);
+            if (created.isPresent() && created.get() instanceof LivingEntity mob) {
+                ExistenceStorage exist = readExistence(mob);
+                return exist == null ? 0.0 : exist.getEP();
+            }
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] festival: failed reading EP for citizen {}", citizenId, t);
+        }
+        return 0.0;
     }
 
     /** Per-tick envoy scheduler. Called from the existing
@@ -3368,6 +3420,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         .then(Commands.argument("name", StringArgumentType.greedyString())
                                 .executes(this::handleSummonCommand))
         );
+        // Harvest Festival debug/testing + the prestige-reset entry point.
+        //   /festival run    — run the once-per-colony festival on your colonies
+        //   /festival reset  — prestige reset (subtract the festival skill bonus)
+        event.getDispatcher().register(
+                Commands.literal("festival")
+                        .requires(src -> src.hasPermission(2))
+                        .then(Commands.literal("run").executes(this::handleFestivalRun))
+                        .then(Commands.literal("reset").executes(this::handleFestivalReset))
+        );
         // Race-system PoC — toggle the race on an IN_COLONY citizen the
         // player owns. Used to flip a goblin-tagged citizen to ORC so the
         // orc shadow-entity render path can be tested with the existing
@@ -3638,6 +3699,44 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 "race flipped: '" + displayName + "' is now " + newRace), false);
         LOGGER.info("[TM] raceflip: '{}' (citizen {}) → race {}",
                 name, matchData.getId(), newRace);
+        return 1;
+    }
+
+    private int handleFestivalRun(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/festival must be run by a player"));
+            return 0;
+        }
+        HarvestFestival.onEnterFestival(player);
+        src.sendSuccess(() -> Component.literal("Harvest festival applied to your colonies (see server log)."), false);
+        return 1;
+    }
+
+    private int handleFestivalReset(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/festival must be run by a player"));
+            return 0;
+        }
+        ServerLevel level = player.serverLevel();
+        FestivalSavedData fest = FestivalSavedData.get(level);
+        UUID owner = player.getUUID();
+        int reset = 0;
+        for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
+            if (owner.equals(colony.getPermissions().getOwner())) {
+                HarvestFestival.resetColony(level, colony, fest);
+                reset++;
+            }
+        }
+        final int n = reset;
+        src.sendSuccess(() -> Component.literal("Festival prestige reset on " + n + " colony(ies)."), false);
         return 1;
     }
 
