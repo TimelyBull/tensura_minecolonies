@@ -1317,14 +1317,20 @@ identities (both modes — `CitizenData` exists in both), so a subordinate
 gathered to your side for the festival still gets the boost it carries when sent
 back.
 
-**Tensura EP track is AWAKENING, not race-evolution.** The festival's EP
-increase on subordinates is `RaceHelper.awakening` — `handleHarvestFestival`
-calls it on each subordinate (gated by `RaceUtils.isAlreadyAwakened`). awakening
-multiplies aura/magicule by `RaceConfig.DemonLord.epMultiplierDemonLord` and
-raises the max pools; crucially it is **race-INDEPENDENT** — its
-race-evolution parts (`getAwakeningEvolution` / `evolveRace` / `evolveMobs`) are
-`Optional`-guarded on `getRaceFrom(...).getRace()`, so they no-op on a raceless
-mob while the EP boost still applies. So we awaken IN_COLONY citizens too.
+**Tensura EP track is the SUBORDINATE GIFT, not awakening, and not
+race-evolution.** `handleHarvestFestival` (ticks on every entity with EP) has
+two branches: the **host** `harvestTick` branch calls `RaceHelper.awakening`
+(awaken into a demon lord — gated by `RaceUtils.isAlreadyAwakened`), and the
+**subordinate** `harvestGiftTick` branch calls
+`RaceHelper.applyHarvestFestivalGift`. An early version wrongly applied the host
+*awakening* to colony goblins (turning them into True Demon Lords — wrong). The
+correct subordinate treatment is `applyHarvestFestivalGift`, which (after the
+race block) **unconditionally** multiplies the `MAX_AURA`/`MAX_MAGICULE` base
+values by `RaceConfig.DemonLord.epMultiplierDemonLord` and refills — its
+evolution + "subordinate_evolve" message are `Optional`-guarded on
+`getRaceFrom(...).getRace()`, so they skip on a raceless goblin while the EP
+multiply still applies (no demon-lord flag, no skills). So we apply
+`applyHarvestFestivalGift` to IN_COLONY citizens.
 
 This also resolves the earlier dead-end. The **race-evolution** chase failed
 because the `ManasRace` system is player-centric — mob entities carry no race
@@ -1336,13 +1342,17 @@ removed. (The "Enlightened Hobgoblin" etc. tiers are player `TensuraRace`s, and
 `INameEvolution.evolve()` is capped at state 1 = a named hobgoblin's max, so
 neither is an available mob evolution.)
 
-**Awakening flow (per IN_COLONY identity):** reconstruct the snapshot →
-`readExistence` → skip if `isAlreadyAwakened` → `RaceHelper.awakening(mob, false)`
+**Gift flow (per IN_COLONY identity):** reconstruct the snapshot →
+`readExistence` → `setHarvestGift(true)` → `RaceHelper.applyHarvestFestivalGift`
 → `mob.save` → `updateEntitySnapshot` → push the boosted EP onto the live citizen
 body (`bumpBodyMaxAttributes` + `copyStats` + `copyHealthAbsolute`, the send
-swap's stat-sync). Gated once (matches the live path), so repeated festivals
-don't re-multiply. The EP carries to the wild form on summon (snapshot saved)
-and shows on the citizen immediately when loaded (live-body push).
+swap's stat-sync). Both the snapshot (dormant subordinate form) and the live
+citizen are written so they stay consistent across send/summon — send copies
+goblin→citizen, summon copies citizen→goblin, so the live citizen's existence is
+the authoritative EP store the roster reads. **Loaded caveat:** the live-citizen
+push needs the citizen entity loaded; if it isn't, the boost is on the snapshot
+only and shows on reload/summon (logged). No once-gate (the subordinate gift is
+per-festival; in normal play awakening fires the festival ~once anyway).
 
 ## Subordinate command — "Patrol Colony Outskirts"
 
