@@ -36,7 +36,6 @@ import io.github.manasmods.tensura.entity.monster.OrcEntity;
 import io.github.manasmods.tensura.entity.variant.MagicCircleVariant;
 import io.github.manasmods.tensura.event.TensuraEntityEvents;
 import io.github.manasmods.tensura.entity.template.subclass.ISubordinate;
-import io.github.manasmods.tensura.race.RaceHelper;
 import io.github.manasmods.tensura.util.SubordinateHelper;
 import io.github.manasmods.manascore.skill.api.EntityEvents;
 import io.github.manasmods.manascore.network.api.util.Changeable;
@@ -1876,13 +1875,25 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         ExistenceStorage mobEx = readExistence(mob);
         if (mobEx == null) return false;
 
+        // We replicate the non-player branch of RaceHelper.applyHarvestFestivalGift
+        // DIRECTLY rather than calling it. That helper is gated behind
+        // HARVEST_FESTIVAL_REWARD_EVENT — which vetoes our off-festival call (it
+        // returned without changing EP: 7620 -> 7620 in testing) — and it reads
+        // max-pool attributes that can be absent on an off-world reconstruction.
+        // The storage is trivial: getEP() == aura + magicule, and setAura/setMagicule
+        // only cap at ~2.1e9 (no max clamp), so a direct multiply is deterministic.
+        double mult = io.github.manasmods.tensura.race.TensuraRace.BASE_CONFIG.DemonLord.epMultiplierDemonLord;
+        if (mult <= 0) mult = 1.0;
+
         double before = mobEx.getEP();
-        mobEx.setHarvestGift(true);                 // applyHarvestFestivalGift consumes this
-        RaceHelper.applyHarvestFestivalGift(mobEx, mob);
+        multiplyAttributeBase(mob, TensuraAttributes.MAX_AURA, mult);
+        multiplyAttributeBase(mob, TensuraAttributes.MAX_MAGICULE, mult);
+        mobEx.setAura(mobEx.getAura() * mult);
+        mobEx.setMagicule(mobEx.getMagicule() * mult);
         mobEx.markDirty();
         double after = mobEx.getEP();
-        LOGGER.info("[TM] festival EP gift: citizen {} (identity {}) EP {} -> {}",
-                identity.citizenId, identity.identityId, before, after);
+        LOGGER.info("[TM] festival EP gift: citizen {} (identity {}) EP {} -> {} (x{})",
+                identity.citizenId, identity.identityId, before, after, mult);
 
         // Persist the boosted snapshot (so summon reconstructs the boosted form).
         CompoundTag fresh = new CompoundTag();
@@ -1891,6 +1902,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // Push onto the live citizen body if loaded (the roster reads it).
         pushFestivalEPToLiveCitizen(level, identity, mob, mobEx);
         return true;
+    }
+
+    /** Multiply an attribute's base value in place (no-op if the entity lacks it). */
+    private static void multiplyAttributeBase(LivingEntity e,
+            net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute> attr, double mult) {
+        net.minecraft.world.entity.ai.attributes.AttributeInstance ai = e.getAttribute(attr);
+        if (ai != null) ai.setBaseValue(ai.getBaseValue() * mult);
     }
 
     /** Lift the live citizen's max pools to the boosted mob's and copy the EP
