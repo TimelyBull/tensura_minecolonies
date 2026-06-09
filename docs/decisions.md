@@ -1317,27 +1317,32 @@ identities (both modes — `CitizenData` exists in both), so a subordinate
 gathered to your side for the festival still gets the boost it carries when sent
 back.
 
-**Why there's no Tensura (EP/evolution) track — investigated and abandoned.**
-A long investigation chased evolving the colony mob's Tensura race during the
-festival; it dead-ends because **the `ManasRace` system is player-centric — mob
-entities (goblin/orc/etc.) carry no race.** Confirmed empirically:
-`RaceAPI.getRaceFrom(goblin).getRace()` is empty both for a reconstructed
-snapshot AND after briefly spawning the mob into the world. Consequences:
-- Tensura's own `RaceHelper.applyHarvestFestivalGift` is race-gated
-  (`getRaceFrom(...).getRace().isPresent()`), so it doesn't EP-evolve subordinate
-  goblins either — colony goblins getting no EP boost is *consistent* with
-  subordinates, not a regression.
-- A mob's only evolution axis is `INameEvolution.evolve()` (state bump), capped
-  at `getMaxEvolutionState()` = 1; naming already makes a goblin a hobgoblin
-  (state 1), so it's maxed — nothing further to evolve.
-- "Enlightened Hobgoblin" etc. are `TensuraRace`s (player race tiers), not mob
-  entity states; `evolveRace` needs a race the mob doesn't have.
+**Tensura EP track is AWAKENING, not race-evolution.** The festival's EP
+increase on subordinates is `RaceHelper.awakening` — `handleHarvestFestival`
+calls it on each subordinate (gated by `RaceUtils.isAlreadyAwakened`). awakening
+multiplies aura/magicule by `RaceConfig.DemonLord.epMultiplierDemonLord` and
+raises the max pools; crucially it is **race-INDEPENDENT** — its
+race-evolution parts (`getAwakeningEvolution` / `evolveRace` / `evolveMobs`) are
+`Optional`-guarded on `getRaceFrom(...).getRace()`, so they no-op on a raceless
+mob while the EP boost still applies. So we awaken IN_COLONY citizens too.
 
-So the festival gives colony citizens the **MC-skill bonus only**. The
-brief-spawn `evolveRace` path was removed (it spawned/discarded a transient
-entity each festival for nothing). A custom direct EP boost for colony citizens
-is possible but is a deliberate balance decision (left open; the natural
-Tensura mechanic does not apply to mobs).
+This also resolves the earlier dead-end. The **race-evolution** chase failed
+because the `ManasRace` system is player-centric — mob entities carry no race
+(`RaceAPI.getRaceFrom(goblin).getRace()` is empty both off-world AND after
+briefly spawning the mob). But a goblin mob *does* have an **EP/existence**
+storage (it loads off-world from the snapshot), which is exactly what awakening
+needs — so no spawn is required, and the brief-spawn `evolveRace` path was
+removed. (The "Enlightened Hobgoblin" etc. tiers are player `TensuraRace`s, and
+`INameEvolution.evolve()` is capped at state 1 = a named hobgoblin's max, so
+neither is an available mob evolution.)
+
+**Awakening flow (per IN_COLONY identity):** reconstruct the snapshot →
+`readExistence` → skip if `isAlreadyAwakened` → `RaceHelper.awakening(mob, false)`
+→ `mob.save` → `updateEntitySnapshot` → push the boosted EP onto the live citizen
+body (`bumpBodyMaxAttributes` + `copyStats` + `copyHealthAbsolute`, the send
+swap's stat-sync). Gated once (matches the live path), so repeated festivals
+don't re-multiply. The EP carries to the wild form on summon (snapshot saved)
+and shows on the citizen immediately when loaded (live-body push).
 
 ## Subordinate command — "Patrol Colony Outskirts"
 
