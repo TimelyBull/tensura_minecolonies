@@ -35,6 +35,7 @@ import io.github.manasmods.tensura.entity.monster.LizardmanEntity;
 import io.github.manasmods.tensura.entity.monster.OrcEntity;
 import io.github.manasmods.tensura.entity.variant.MagicCircleVariant;
 import io.github.manasmods.tensura.event.TensuraEntityEvents;
+import io.github.manasmods.tensura.entity.template.subclass.INameEvolution;
 import io.github.manasmods.tensura.entity.template.subclass.ISubordinate;
 import io.github.manasmods.tensura.util.SubordinateHelper;
 import io.github.manasmods.manascore.skill.api.EntityEvents;
@@ -217,6 +218,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         // Tensura uses Architectury's event system — register via .register(), NOT @SubscribeEvent.
         TensuraEntityEvents.NAMING_EVENT.register(this::onRaceNamed);
+
+        // Harvest Festival (player awakening): Tensura only gifts LIVE owned
+        // subordinates near the host, so our in-colony citizens would be left
+        // out. Evolve them in place for same-entity-type tiers.
+        TensuraEntityEvents.ENTER_HARVEST_FESTIVAL_EVENT.register(this::onEnterHarvestFestival);
 
         // Veto subordinate target-acquisition on the player's own colony citizens.
         // RetaliateOrTarget.start() fires this ManasCore event before committing,
@@ -1736,6 +1742,116 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         LOGGER.info("[TM] citizen {} (identity {}) cosmetic profession -> {}",
                 identity.citizenId, identity.identityId,
                 none ? "none (job site removed)" : profId);
+    }
+
+    // ------------------------------------------------------------------
+    // Harvest Festival — evolve the player's in-colony subordinates too
+    // ------------------------------------------------------------------
+
+    /**
+     * Fires when an entity enters a Harvest Festival (a player awakening to a
+     * Demon Lord). Tensura's own pass gathers only LIVE owned subordinates near
+     * the host and evolves them; an identity we've sent to a colony has no live
+     * Tensura body (its body is a MineColonies citizen, its mob form a stored
+     * snapshot), so it would never participate.
+     *
+     * <p>We evolve those colony citizens in place for <b>same-entity-type</b>
+     * tiers only: {@link INameEvolution#evolve()} just bumps the evolution
+     * state and grants the tier's stat gains — it never discards/respawns the
+     * entity (verified for Goblin / Orc / Lizardman). A citizen already at its
+     * max same-type tier (the next step would change entity type, which can't
+     * be done safely on an off-world snapshot without spawning a duplicate) is
+     * left untouched; it resumes normal evolution once summoned back to the
+     * player's side. Dwarves (no {@code INameEvolution}) are likewise left for
+     * normal play.
+     *
+     * <p>Returns {@link EventResult#pass()} — we never alter Tensura's own
+     * festival counts.
+     */
+    private EventResult onEnterHarvestFestival(LivingEntity host,
+            Changeable<Integer> harvestTick, Changeable<Integer> soulPoints) {
+        if (host instanceof ServerPlayer player && !player.level().isClientSide()) {
+            try {
+                evolveColonyCitizensForFestival(player);
+            } catch (Throwable t) {
+                LOGGER.error("[TM] harvest festival: colony-citizen evolution pass failed", t);
+            }
+        }
+        return EventResult.pass();
+    }
+
+    /** Evolve every IN_COLONY identity owned by {@code player} one same-type tier. */
+    private static void evolveColonyCitizensForFestival(ServerPlayer player) {
+        ServerLevel level = player.serverLevel();
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
+        UUID owner = player.getUUID();
+        int evolved = 0;
+        int skipped = 0;
+        for (RaceIdentitySavedData.RaceIdentity identity : saved.all()) {
+            if (identity.ownerPlayerUUID == null || !owner.equals(identity.ownerPlayerUUID)) continue;
+            if (identity.mode != RaceIdentitySavedData.Mode.IN_COLONY) continue;
+            try {
+                if (evolveColonyCitizenInPlace(level, saved, identity)) evolved++;
+                else skipped++;
+            } catch (Throwable t) {
+                LOGGER.warn("[TM] harvest festival: failed evolving colony citizen {} — skipped",
+                        identity.identityId, t);
+                skipped++;
+            }
+        }
+        if (evolved > 0 || skipped > 0) {
+            LOGGER.info("[TM] harvest festival: {} colony citizen(s) evolved in place, "
+                    + "{} left for normal play (max/cross-type/non-evolving)", evolved, skipped);
+        }
+    }
+
+    /**
+     * Evolve one IN_COLONY identity by a single same-entity-type tier, persist
+     * the evolved snapshot, and refresh the live citizen's render tag. Returns
+     * false (no change) for non-evolving bodies (e.g. dwarf) or those already at
+     * their max same-type tier.
+     */
+    private static boolean evolveColonyCitizenInPlace(ServerLevel level,
+            RaceIdentitySavedData saved, RaceIdentitySavedData.RaceIdentity identity) {
+        if (identity.entitySnapshot == null) return false;
+        java.util.Optional<net.minecraft.world.entity.Entity> created =
+                net.minecraft.world.entity.EntityType.create(identity.entitySnapshot, level);
+        if (created.isEmpty() || !(created.get() instanceof LivingEntity mob)) return false;
+        if (!(mob instanceof INameEvolution ne)) return false; // e.g. dwarf — no same-type evolve
+        if (ne.getCurrentEvolutionState() >= ne.getMaxEvolutionState()) {
+            return false; // at max same-type tier; next step is cross-type → defer to normal play
+        }
+
+        ne.evolve(); // same-type state bump + stat gains; never discards/spawns
+
+        // Persist the evolved snapshot.
+        CompoundTag fresh = new CompoundTag();
+        if (!mob.save(fresh)) return false;
+        saved.updateEntitySnapshot(identity, fresh);
+
+        // Refresh the live citizen body's RaceTag so it re-renders evolved.
+        RaceVariantData newVariant = captureRaceVariant(mob, identity.race);
+        refreshLiveCitizenVariant(level, identity, newVariant);
+        LOGGER.info("[TM] harvest festival: colony citizen {} (identity {}) evolved to state {}",
+                identity.citizenId, identity.identityId, ne.getCurrentEvolutionState());
+        return true;
+    }
+
+    /** Re-stamp the live colony citizen's RaceTag variant and broadcast it (if loaded). */
+    private static void refreshLiveCitizenVariant(ServerLevel level,
+            RaceIdentitySavedData.RaceIdentity identity, RaceVariantData newVariant) {
+        IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
+        if (colony == null) return;
+        ICitizenData cd = colony.getCitizenManager().getCivilian(identity.citizenId);
+        if (cd == null) return;
+        cd.getEntity().ifPresent(citizen -> {
+            RaceTag tag = citizen.getData(Attachments.RACE_TAG.get());
+            if (tag == null) return;
+            RaceTag updated = new RaceTag(identity.identityId, tag.race(), newVariant, tag.profession());
+            citizen.setData(Attachments.RACE_TAG.get(), updated);
+            PacketDistributor.sendToPlayersTrackingEntity(citizen,
+                    Networking.SyncRaceTagPayload.of(citizen.getUUID(), updated));
+        });
     }
 
     /** Per-tick envoy scheduler. Called from the existing
