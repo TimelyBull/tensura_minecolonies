@@ -37,12 +37,7 @@ import io.github.manasmods.tensura.entity.monster.LizardmanEntity;
 import io.github.manasmods.tensura.entity.monster.OrcEntity;
 import io.github.manasmods.tensura.entity.variant.MagicCircleVariant;
 import io.github.manasmods.tensura.event.TensuraEntityEvents;
-import io.github.manasmods.manascore.race.api.ManasRace;
-import io.github.manasmods.manascore.race.api.ManasRaceInstance;
-import io.github.manasmods.manascore.race.api.RaceAPI;
 import io.github.manasmods.tensura.entity.template.subclass.ISubordinate;
-import io.github.manasmods.tensura.race.RaceHelper;
-import io.github.manasmods.tensura.race.TensuraRace;
 import io.github.manasmods.tensura.util.SubordinateHelper;
 import io.github.manasmods.manascore.skill.api.EntityEvents;
 import io.github.manasmods.manascore.network.api.util.Changeable;
@@ -1800,21 +1795,19 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      *       mob has no MC skills, and the swap stat-sync never copies skills),
      *       so applying to the {@code CitizenData} once is inherently
      *       single-counted and "transfers" to whichever body is materialized.</li>
-     *   <li><b>Tensura evolution:</b> only the IN_COLONY snapshot is race-evolved
-     *       here (one festival tier, e.g. Hobgoblin → Enlightened Hobgoblin);
-     *       live subordinates near the player are handled by Tensura's own
-     *       festival pass, and the two never overlap (a colony body is an
-     *       {@code EntityCitizen}, never a {@code TamableAnimal} Tensura would
-     *       gather).</li>
      * </ul>
+     *
+     * <p>There is no Tensura race-evolution track here: the {@code ManasRace}
+     * system is player-centric, so goblin/orc/etc. <i>mobs</i> carry no race —
+     * Tensura's own festival doesn't race-evolve subordinate mobs either, and a
+     * named goblin is already a max-state hobgoblin on the only mob axis
+     * ({@code INameEvolution}). So colony citizens get the MC-skill bonus only.
      */
     private static void applyHarvestFestivalBonuses(ServerPlayer player) {
         ServerLevel level = player.serverLevel();
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
         UUID owner = player.getUUID();
         int skilled = 0;
-        int evolved = 0;
-        int notEvolved = 0;
         for (RaceIdentitySavedData.RaceIdentity identity : saved.all()) {
             if (identity.ownerPlayerUUID == null || !owner.equals(identity.ownerPlayerUUID)) continue;
             try {
@@ -1822,20 +1815,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 // store (exists in both modes), so it can't be double-counted.
                 ICitizenData cd = resolveCitizenData(level, identity);
                 if (cd != null && applyHarvestSkillBonus(cd)) skilled++;
-
-                // Tensura-side bonus — same-entity-type evolution of the colony body.
-                if (identity.mode == RaceIdentitySavedData.Mode.IN_COLONY) {
-                    if (evolveColonyCitizenInPlace(player, level, saved, identity)) evolved++;
-                    else notEvolved++;
-                }
             } catch (Throwable t) {
                 LOGGER.warn("[TM] harvest festival: failed processing identity {}",
                         identity.identityId, t);
             }
         }
-        LOGGER.info("[TM] harvest festival: +{} to top {} skills on {} citizen(s); "
-                + "{} evolved in place, {} not evolved (max/cross-type/non-evolving)",
-                HARVEST_SKILL_GAIN, HARVEST_SKILL_COUNT, skilled, evolved, notEvolved);
+        LOGGER.info("[TM] harvest festival: +{} to top {} skills on {} citizen(s)",
+                HARVEST_SKILL_GAIN, HARVEST_SKILL_COUNT, skilled);
     }
 
     /** Harvest Festival MineColonies bonus: the N highest skills each +M, capped. */
@@ -1890,137 +1876,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
         if (colony == null) return null;
         return colony.getCitizenManager().getCivilian(identity.citizenId);
-    }
-
-    /**
-     * Evolve one IN_COLONY identity by a single Harvest Festival race tier
-     * (e.g. Hobgoblin → Enlightened Hobgoblin), persist the evolved snapshot,
-     * and refresh the live citizen's render tag. Returns false (no change) when
-     * the body has no further festival evolution.
-     *
-     * <p>The festival evolution is a RACE-tier change, and for the goblin chain
-     * every tier is the same {@code GoblinEntity} (there is no separate
-     * hobgoblin entity class). {@link RaceHelper#evolveRace} changes the race +
-     * recomputes stats <i>in place</i> on the same entity and never
-     * discards/respawns it (verified), so it is safe to run on the reconstructed
-     * off-world snapshot — no gather/respawn dance needed. (We deliberately do
-     * NOT call Tensura's {@code evolveMobs}, which is the part that would
-     * discard+respawn for a tier that crosses entity types; evolveRace alone
-     * applies the race + stats while keeping our renderable entity type.)
-     */
-    private static boolean evolveColonyCitizenInPlace(ServerPlayer player, ServerLevel level,
-            RaceIdentitySavedData saved, RaceIdentitySavedData.RaceIdentity identity) {
-        if (identity.entitySnapshot == null) {
-            LOGGER.info("[TM] hf-evolve {}: skip — no snapshot", identity.identityId);
-            return false;
-        }
-        java.util.Optional<net.minecraft.world.entity.Entity> created =
-                net.minecraft.world.entity.EntityType.create(identity.entitySnapshot, level);
-        if (created.isEmpty() || !(created.get() instanceof LivingEntity mob)) {
-            LOGGER.info("[TM] hf-evolve {}: skip — snapshot reconstruct failed", identity.identityId);
-            return false;
-        }
-
-        // A reconstructed-but-unspawned entity has no Tensura race, so evolveRace
-        // can't run on it. Briefly add it to the world (at the player) so the
-        // race initializes, then remove it in the same server tick — never
-        // dispatched to clients (the spawn-then-undo pattern the colony-spawn
-        // code uses). All evolution work happens inside the try, discard in finally.
-        mob.moveTo(player.getX(), player.getY(), player.getZ(), mob.getYRot(), mob.getXRot());
-        boolean added = level.addFreshEntity(mob);
-        try {
-            if (!added) {
-                LOGGER.info("[TM] hf-evolve {}: skip — addFreshEntity failed", identity.identityId);
-                return false;
-            }
-
-            java.util.Optional<ManasRaceInstance> raceOpt = RaceAPI.getRaceFrom(mob).getRace();
-            if (raceOpt.isEmpty()) {
-                LOGGER.info("[TM] hf-evolve {}: skip — {} has NO race even after spawning",
-                        identity.identityId, mob.getType());
-                return false;
-            }
-            ManasRaceInstance raceInstance = raceOpt.get();
-            if (!(raceInstance.getRace() instanceof TensuraRace tensuraRace)) {
-                LOGGER.info("[TM] hf-evolve {}: skip — race {} is not a TensuraRace",
-                        identity.identityId, raceInstance.getRace());
-                return false;
-            }
-            ManasRace current = raceInstance.getRace();
-            ManasRace target = tensuraRace.getHarvestFestivalEvolution(raceInstance, mob);
-            if (target == null || target == current) {
-                LOGGER.info("[TM] hf-evolve {}: skip — race {} has no further festival evolution (target={})",
-                        identity.identityId, current, target);
-                return false;
-            }
-
-            boolean ok = RaceHelper.evolveRace(mob, target, true); // race tier + stats, no respawn
-            LOGGER.info("[TM] hf-evolve {}: race {} -> {} (evolveRace={})",
-                    identity.identityId, current, target, ok);
-
-            // Refill aura/magicule to the new (higher) maxima — the EP gain
-            // Tensura's own gift applies right after evolving.
-            ExistenceStorage mobEx = readExistence(mob);
-            if (mobEx != null) {
-                mobEx.setAura(EnergyHelper.getMaxAura(mob));
-                mobEx.setMagicule(EnergyHelper.getMaxMagicule(mob));
-                mobEx.markDirty();
-            }
-
-            // Persist the evolved snapshot.
-            CompoundTag fresh = new CompoundTag();
-            if (!mob.save(fresh)) {
-                LOGGER.info("[TM] hf-evolve {}: skip — mob.save returned false", identity.identityId);
-                return false;
-            }
-            saved.updateEntitySnapshot(identity, fresh);
-
-            // Push the evolved render-tag AND the boosted EP onto the LIVE citizen
-            // body so the colony goblin's appearance + EP reflect it immediately.
-            RaceVariantData newVariant = captureRaceVariant(mob, identity.race);
-            applyEvolutionToLiveCitizen(level, identity, mob, mobEx, newVariant);
-            LOGGER.info("[TM] harvest festival: colony citizen {} (identity {}) race-evolved to {}",
-                    identity.citizenId, identity.identityId, target);
-            return true;
-        } finally {
-            // Remove the transient mob this same tick so it never reaches clients.
-            if (!mob.isRemoved()) {
-                mob.discard();
-            }
-        }
-    }
-
-    /**
-     * Re-stamp the live colony citizen (if loaded): its RaceTag variant (so it
-     * re-renders) AND its EP — lift its max pools to the evolved mob's and copy
-     * the boosted aura/magicule/HP across, the same way the send-to-colony swap
-     * does, so the colony goblin's EP actually goes up.
-     */
-    private static void applyEvolutionToLiveCitizen(ServerLevel level,
-            RaceIdentitySavedData.RaceIdentity identity, LivingEntity evolvedMob,
-            ExistenceStorage mobEx, RaceVariantData newVariant) {
-        ICitizenData cd = resolveCitizenData(level, identity);
-        if (cd == null) return;
-        cd.getEntity().ifPresent(citizen -> {
-            RaceTag tag = citizen.getData(Attachments.RACE_TAG.get());
-            if (tag != null) {
-                RaceTag updated = new RaceTag(identity.identityId, tag.race(), newVariant, tag.profession());
-                citizen.setData(Attachments.RACE_TAG.get(), updated);
-                PacketDistributor.sendToPlayersTrackingEntity(citizen,
-                        Networking.SyncRaceTagPayload.of(citizen.getUUID(), updated));
-            }
-            try {
-                bumpBodyMaxAttributes(citizen, evolvedMob);
-                ExistenceStorage citEx = readExistence(citizen);
-                if (mobEx != null && citEx != null) {
-                    copyStats(mobEx, citEx);
-                    copyHealthAbsolute(evolvedMob, citizen);
-                }
-            } catch (Throwable t) {
-                LOGGER.warn("[TM] hf-evolve: failed pushing EP to live citizen {}",
-                        identity.citizenId, t);
-            }
-        });
     }
 
     /** Per-tick envoy scheduler. Called from the existing
