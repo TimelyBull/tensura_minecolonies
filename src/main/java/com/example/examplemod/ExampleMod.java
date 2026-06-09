@@ -1046,6 +1046,28 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             LOGGER.info("[TM] envoy: player {} used a character reset scroll — cleared paths (demonLord={}, hero={})",
                     player.getName().getString(), clearedDl, clearedHero);
         }
+
+        // Tensura "prestige" reset — a RESET_ALL character reset scroll also
+        // resets the Harvest Festival bonus on every colony the player owns:
+        // subtract the tracked skill offsets and clear the once-per-colony flag
+        // so the festival can be earned again.
+        try {
+            FestivalSavedData fest = FestivalSavedData.get(level);
+            int reset = 0;
+            for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
+                if (uuid.equals(colony.getPermissions().getOwner())) {
+                    HarvestFestival.resetColony(level, colony, fest);
+                    reset++;
+                }
+            }
+            if (reset > 0) {
+                sendFestivalBonus(player); // clear the citizen-window "+X"
+                LOGGER.info("[TM] festival: reset scroll cleared the festival bonus on {} colony(ies) for {}",
+                        reset, player.getName().getString());
+            }
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] festival: reset-scroll festival reset failed", t);
+        }
     }
 
     /**

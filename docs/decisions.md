@@ -1328,9 +1328,17 @@ load.
 **Tier math:** `tier1Count = round(EP/100k)` below 1M EP, else
 `10 + round((EP−1M)/500k)`. T2/T3/T4 counts = 2×/3×/4× T1. Cumulative slots
 (by EP rank): T1 +4, T2 +3, T3 +2, T4 +1 (all to the top-3 skills); beyond
-10×T1, a minimal +1 to the single top skill. Once per colony; `/festival
-run|reset` (reset = the prestige-reset entry point until a real prestige system
-is wired).
+10×T1, a minimal +1 to the single top skill. Once per colony.
+
+**Prestige reset = Tensura character reset scroll.** The festival reset (subtract
+the tracked skill offsets + clear the once-per-colony flag, so it can be earned
+again) is wired into the existing `LivingEntityUseItemEvent.Finish` handler that
+already detects a `ResetScrollItem` `RESET_ALL` (the envoy demon-lord/hero-path
+clear) — so using a character reset scroll resets the festival on every colony
+the player owns, and re-syncs the cleared "+X" to the client. `/festival
+run|reset` remain as debug/testing commands. Note: the **Tensura EP gift** is a
+one-time Tensura-side buff and is NOT reverted by the reset (only the tracked
+MC-skill offsets are).
 
 **Swap-track proximity (chosen: B).** Base Tensura's festival gathers
 subordinates only within a radius of the awakening player, so swapping a colony's
