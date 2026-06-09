@@ -20,7 +20,13 @@ import java.util.UUID;
  * (race-specific encoding inside). Legacy tags (pre-race-field) decode
  * as {@link Race#GOBLIN} via the byId fallback.
  */
-public record RaceTag(UUID identityId, Race race, RaceVariantData variant) {
+public record RaceTag(UUID identityId, Race race, RaceVariantData variant, String profession) {
+
+    /** 3-arg form — no profession ("" = jobless). Keeps every existing call
+     *  site working; only the dwarf-profession render path sets a profession. */
+    public RaceTag(UUID identityId, Race race, RaceVariantData variant) {
+        this(identityId, race, variant, "");
+    }
 
     /** Convenience for goblin construction with default race=GOBLIN. */
     public static RaceTag of(UUID identityId, GoblinVariantData variant) {
@@ -31,9 +37,16 @@ public record RaceTag(UUID identityId, Race race, RaceVariantData variant) {
         return new RaceTag(identityId, race, variant);
     }
 
+    /** A copy carrying the given villager-profession registry name (e.g.
+     *  {@code "minecraft:butcher"}; {@code ""} = none). Drives the dwarf
+     *  profession-clothes render so the citizen matches its subordinate form. */
+    public RaceTag withProfession(String professionId) {
+        return new RaceTag(identityId, race, variant, professionId == null ? "" : professionId);
+    }
+
     /** Client-side construction from a decoded payload. Dispatches the
      *  byte[] through the race-specific decoder. */
-    public static RaceTag fromWire(UUID identityId, int raceId, byte[] encodedVariant) {
+    public static RaceTag fromWire(UUID identityId, int raceId, byte[] encodedVariant, String profession) {
         Race race = Race.byId(raceId);
         RaceVariantData variant = switch (race) {
             case GOBLIN    -> GoblinVariantData.decode(encodedVariant);
@@ -41,7 +54,7 @@ public record RaceTag(UUID identityId, Race race, RaceVariantData variant) {
             case LIZARDMAN -> LizardmanVariantData.decode(encodedVariant);
             case DWARF     -> DwarfVariantData.decode(encodedVariant);
         };
-        return new RaceTag(identityId, race, variant);
+        return new RaceTag(identityId, race, variant, profession == null ? "" : profession);
     }
 
     /** Polymorphic encode via the sealed interface. */
@@ -61,7 +74,7 @@ public record RaceTag(UUID identityId, Race race, RaceVariantData variant) {
             case LIZARDMAN -> LizardmanVariantData.DEFAULT;
             case DWARF     -> DwarfVariantData.DEFAULT;
         };
-        return new RaceTag(identityId, newRace, fresh);
+        return new RaceTag(identityId, newRace, fresh, profession);
     }
 
     /** NBT serializer — same shape, dispatches on the race byte. */
@@ -83,7 +96,10 @@ public record RaceTag(UUID identityId, Race race, RaceVariantData variant) {
                         case LIZARDMAN -> LizardmanVariantData.decode(variantBytes);
                         case DWARF     -> DwarfVariantData.decode(variantBytes);
                     };
-                    return new RaceTag(id, race, variant);
+                    // profession absent on legacy tags → "" (jobless).
+                    String profession = tag.contains("profession")
+                            ? tag.getString("profession") : "";
+                    return new RaceTag(id, race, variant, profession);
                 }
 
                 @Override
@@ -92,6 +108,7 @@ public record RaceTag(UUID identityId, Race race, RaceVariantData variant) {
                     c.putUUID("identityId", tag.identityId());
                     c.putByte("race", (byte) tag.race().getId());
                     c.putByteArray("variant", tag.variant().encode());
+                    if (!tag.profession().isEmpty()) c.putString("profession", tag.profession());
                     return c;
                 }
             };

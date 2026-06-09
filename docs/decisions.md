@@ -1434,3 +1434,34 @@ state: profession + XP already live in the merchant snapshot, and "is the
 block still there" is answered by re-scanning rather than storing the
 claimed position. (The matching profession-clothes RENDER on the citizen
 is Feature B.)
+
+## Citizen merchant profession render parity (Feature B)
+
+**A dwarf citizen with a villager profession renders the matching
+profession clothes, like its subordinate form.** Tensura's subordinate
+dwarf shows profession-specific clothes via `ProfessionClothesLayer`
+(a `RenderLayer<TensuraMerchantEntity, HumanoidModel>` keyed off
+`getProfession()`, textures at `tensura:textures/entity/dwarf/profession/
+{name}.png`). Our `DwarfCitizenRenderer` previously omitted it. Feature B
+adds the parity:
+
+- **Profession threads through the `RaceTag`** as a stable registry-name
+  string (e.g. `"minecraft:butcher"`; `""` = jobless) — chosen over a byte
+  id in the variant record so it survives mod/registry-id churn. `RaceTag`
+  gained a 4th field with a 3-arg back-compat constructor (every existing
+  call site keeps working) and a `withProfession` copy helper; the NBT
+  serializer and `SyncRaceTagPayload` carry it (absent → `""`, so legacy
+  tags/saves are fine).
+- **Server sets it** at send time (`merchantProfessionId(goblin)` reads the
+  subordinate's `VillagerProfession`) and whenever Feature C changes a
+  citizen's profession (`applyCitizenProfession` rewrites the live citizen's
+  tag and re-broadcasts), so the render updates immediately and persists.
+- **Render** is a new `DwarfProfessionLayer` mirroring `DwarfFacialHairLayer`
+  (Tensura's clothes model is a `HumanoidModel`, not `PlayerModel`, so it's
+  baked from `ProfessionClothesLayer.CLOTHES` and wrapped in a vanilla
+  `HumanoidModel`). It reads the profession from `RaceTagClientStore`,
+  resolves the dwarf texture by registry-path name (gated to the set Tensura
+  actually ships, so unmapped professions / jobless citizens render nothing
+  — matching Tensura's EMPTY fallback), and draws with
+  `RenderType.entityTranslucent`. Reuses Tensura's own textures (no new
+  assets). Dwarf-only — Tensura only renders profession clothes on dwarves.

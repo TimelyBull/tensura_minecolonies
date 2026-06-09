@@ -374,7 +374,8 @@ public final class Networking {
      *       dimension change).
      */
     public record SyncRaceTagPayload(UUID entityUuid, boolean present,
-                                     UUID identityId, byte raceId, byte[] variant)
+                                     UUID identityId, byte raceId, byte[] variant,
+                                     String profession)
             implements CustomPacketPayload {
 
         public static final Type<SyncRaceTagPayload> TYPE = new Type<>(
@@ -386,6 +387,7 @@ public final class Networking {
                 UUIDUtil.STREAM_CODEC,         SyncRaceTagPayload::identityId,
                 ByteBufCodecs.BYTE,            SyncRaceTagPayload::raceId,
                 ByteBufCodecs.byteArray(256),  SyncRaceTagPayload::variant,
+                ByteBufCodecs.STRING_UTF8,     SyncRaceTagPayload::profession,
                 SyncRaceTagPayload::new
         );
 
@@ -393,12 +395,13 @@ public final class Networking {
 
         public static SyncRaceTagPayload of(UUID entityUuid, RaceTag tag) {
             return new SyncRaceTagPayload(entityUuid, true,
-                    tag.identityId(), (byte) tag.race().getId(), tag.encodeVariant());
+                    tag.identityId(), (byte) tag.race().getId(), tag.encodeVariant(),
+                    tag.profession());
         }
 
         public static SyncRaceTagPayload clear(UUID entityUuid) {
             return new SyncRaceTagPayload(entityUuid, false,
-                    new UUID(0L, 0L), (byte) 0, new byte[0]);
+                    new UUID(0L, 0L), (byte) 0, new byte[0], "");
         }
     }
 

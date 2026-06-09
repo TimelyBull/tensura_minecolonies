@@ -37,7 +37,7 @@ public final class RaceTagClientStore {
      *  {@link ClientEvents#init}. {@code present=true} sets; {@code false} clears. */
     public static void onPayload(Networking.SyncRaceTagPayload p) {
         if (p.present()) {
-            RaceTag tag = RaceTag.fromWire(p.identityId(), p.raceId() & 0xFF, p.variant());
+            RaceTag tag = RaceTag.fromWire(p.identityId(), p.raceId() & 0xFF, p.variant(), p.profession());
             TAGS.put(p.entityUuid(), tag);
             LOGGER.info("[TM] client tag SET: entity={} identity={} race={}",
                     p.entityUuid(), p.identityId(), tag.race());
@@ -86,6 +86,14 @@ public final class RaceTagClientStore {
         RaceTag t = TAGS.get(entityUuid);
         if (t != null && t.variant() instanceof DwarfVariantData d) return d;
         return null;
+    }
+
+    /** Villager-profession registry name for this citizen (e.g.
+     *  {@code "minecraft:butcher"}), or {@code ""} if jobless / no tag.
+     *  Drives {@link DwarfProfessionLayer}. */
+    public static String getProfession(UUID entityUuid) {
+        RaceTag t = TAGS.get(entityUuid);
+        return t != null ? t.profession() : "";
     }
 
     /** Called from {@link ClientEvents}' {@code EntityLeaveLevelEvent} hook

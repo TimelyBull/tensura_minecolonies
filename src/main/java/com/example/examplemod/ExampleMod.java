@@ -1577,7 +1577,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     if (data == null) continue;
                     var entOpt = data.getEntity();
                     if (entOpt.isEmpty()) continue;                   // not loaded → skip
-                    net.minecraft.core.BlockPos pos = entOpt.get().blockPosition();
+                    com.minecolonies.api.entity.citizen.AbstractEntityCitizen citizen = entOpt.get();
+                    net.minecraft.core.BlockPos pos = citizen.blockPosition();
                     net.minecraft.world.entity.ai.village.poi.PoiManager poi = level.getPoiManager();
 
                     if (jobless) {
@@ -1591,7 +1592,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         net.minecraft.world.entity.npc.VillagerProfession prof =
                                 professionForPoi(found.get().getFirst());
                         if (prof == null) continue;
-                        applyCitizenProfession(level, saved, identity, prof);
+                        applyCitizenProfession(level, saved, identity, prof, citizen);
                     } else {
                         // Revert (not yet locked): if no matching job site remains
                         // near, drop the profession and its trades.
@@ -1605,7 +1606,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                                 net.minecraft.world.entity.ai.village.poi.PoiManager.Occupancy.ANY).isPresent();
                         if (stillThere) continue;
                         applyCitizenProfession(level, saved, identity,
-                                net.minecraft.world.entity.npc.VillagerProfession.NONE);
+                                net.minecraft.world.entity.npc.VillagerProfession.NONE, citizen);
                     }
                 } catch (Throwable t) {
                     LOGGER.warn("[TM] citizen profession pass: error for identity {}", identity.identityId, t);
@@ -1630,7 +1631,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      *  regenerate its trades, and persist the snapshot. */
     private static void applyCitizenProfession(ServerLevel level, RaceIdentitySavedData saved,
             RaceIdentitySavedData.RaceIdentity identity,
-            net.minecraft.world.entity.npc.VillagerProfession prof) {
+            net.minecraft.world.entity.npc.VillagerProfession prof,
+            com.minecolonies.api.entity.citizen.AbstractEntityCitizen citizen) {
         java.util.Optional<net.minecraft.world.entity.Entity> created =
                 net.minecraft.world.entity.EntityType.create(identity.entitySnapshot, level);
         if (created.isEmpty()
@@ -1653,14 +1655,25 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
 
         net.minecraft.nbt.CompoundTag fresh = new net.minecraft.nbt.CompoundTag();
-        if (merchant.save(fresh)) {
-            saved.updateEntitySnapshot(identity, fresh);
-            boolean none = prof == net.minecraft.world.entity.npc.VillagerProfession.NONE;
-            LOGGER.info("[TM] citizen {} (identity {}) profession -> {}",
-                    identity.citizenId, identity.identityId,
-                    none ? "none (job site removed before first trade)"
-                         : net.minecraft.core.registries.BuiltInRegistries.VILLAGER_PROFESSION.getKey(prof));
+        if (!merchant.save(fresh)) return;
+        saved.updateEntitySnapshot(identity, fresh);
+
+        // Feature B — refresh the live citizen's RaceTag profession so the
+        // dwarf profession-clothes render updates immediately (and persists).
+        boolean none = prof == net.minecraft.world.entity.npc.VillagerProfession.NONE;
+        net.minecraft.resources.ResourceLocation profKey = none ? null
+                : net.minecraft.core.registries.BuiltInRegistries.VILLAGER_PROFESSION.getKey(prof);
+        String profId = profKey == null ? "" : profKey.toString();
+        RaceTag tag = citizen.getData(Attachments.RACE_TAG.get());
+        if (tag != null) {
+            RaceTag updated = tag.withProfession(profId);
+            citizen.setData(Attachments.RACE_TAG.get(), updated);
+            PacketDistributor.sendToPlayersTrackingEntity(citizen,
+                    Networking.SyncRaceTagPayload.of(citizen.getUUID(), updated));
         }
+        LOGGER.info("[TM] citizen {} (identity {}) profession -> {}",
+                identity.citizenId, identity.identityId,
+                none ? "none (job site removed before first trade)" : profId);
     }
 
     /** Per-tick envoy scheduler. Called from the existing
@@ -3152,6 +3165,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // tracking the body. Players who start tracking later get
             // the tag via PlayerEvent.StartTracking.
             RaceTag tag = RaceTag.of(identity.identityId, identity.race, variant);
+            // Capture the subordinate's villager profession so the citizen
+            // renders the matching profession clothes (Feature B; dwarf-only
+            // render, but harmless to carry for any merchant race).
+            tag = tag.withProfession(merchantProfessionId(goblin));
             citizenBody.setData(Attachments.RACE_TAG.get(), tag);
             PacketDistributor.sendToPlayersTrackingEntity(citizenBody,
                     Networking.SyncRaceTagPayload.of(citizenBody.getUUID(), tag));
@@ -4572,6 +4589,19 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      * {@link RaceVariantData} so the call site doesn't have to know
      * which concrete variant a race produces.
      */
+    /** Villager-profession registry name of a merchant entity (e.g.
+     *  {@code "minecraft:butcher"}), or {@code ""} if jobless / not a merchant.
+     *  Carried on the {@link RaceTag} to drive the dwarf profession-clothes
+     *  render (Feature B). */
+    private static String merchantProfessionId(LivingEntity mob) {
+        if (!(mob instanceof io.github.manasmods.tensura.entity.template.TensuraMerchantEntity m)) return "";
+        net.minecraft.world.entity.npc.VillagerProfession prof = m.getProfession();
+        if (prof == null || prof == net.minecraft.world.entity.npc.VillagerProfession.NONE) return "";
+        net.minecraft.resources.ResourceLocation key =
+                net.minecraft.core.registries.BuiltInRegistries.VILLAGER_PROFESSION.getKey(prof);
+        return key == null ? "" : key.toString();
+    }
+
     private static RaceVariantData captureRaceVariant(LivingEntity mob, Race race) {
         return switch (race) {
             case GOBLIN    -> captureGoblinVariant(mob);

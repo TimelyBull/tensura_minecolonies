@@ -122,6 +122,10 @@ public class DwarfCitizenRenderer
                 DwarfTextures::feet,
                 v -> DwarfTextures.tintOrWhite(v.feetColor()),
                 v -> DwarfTextures.feet(v) != null));
+
+        // Profession clothes (Feature B) — drawn over the body so a dwarf
+        // citizen that has a villager profession matches its subordinate form.
+        addLayer(new DwarfProfessionLayer(this));
     }
 
     @Override
