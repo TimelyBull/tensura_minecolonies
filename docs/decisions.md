@@ -1391,3 +1391,46 @@ persisting its own `isWandering`/`behaviour` flags, `EntityTickEvent`
 simply resumes the patrol when the mob reloads. No new save data of our
 own; no client/networking changes (server-authoritative movement
 replicates normally).
+
+## Citizen merchant professions (Feature C)
+
+**Citizen-form merchants gain/lose a villager profession from a nearby
+job-site block, reproducing the subordinate behaviour server-side.**
+Tensura merchants normally gain a profession only as a LIVE subordinate:
+the brain behaviour `AssignProfession` claims a nearby job-site POI and
+calls `setProfession`, and `getOffers()` then lazily generates that
+profession's trades. A colony citizen is an `EntityCitizen` with no
+merchant brain, so its merchant snapshot stays jobless and tradeless.
+A new throttled server pass (`tickCitizenProfessions`, every 60 ticks
+from `onServerTickPost`) reproduces the vanilla job-site mechanic for
+IN_COLONY merchant identities (GOBLIN / LIZARDMAN / DWARF, not orc):
+
+- **Gain:** jobless (`Profession == minecraft:none`) and never traded
+  (`Xp == 0`) → if a job-site POI is within 16 blocks of the live citizen,
+  take the matching `VillagerProfession` and generate its trades.
+- **Lose (before first trade):** has a profession but `Xp == 0` → if no
+  matching job-site POI remains near, revert to NONE and drop the trades.
+- **Keep (after first trade):** `Xp > 0` → locked; never revert (the
+  vanilla "a villager with XP keeps its job" rule). First-trade XP is
+  already persisted by the trade close hook.
+
+**Cheap steady state, reconstruct only on transitions.** The pass reads
+`Profession`/`Xp` straight off the snapshot NBT and does one POI scan
+(`PoiManager.findClosest*`); it only reconstructs the transient merchant
+(`EntityType.create`) when it actually changes the profession. POI→
+profession mapping uses each `VillagerProfession.heldJobSite()` predicate
+(the same one `AssignProfession` uses), so butcher↔smoker etc. come for
+free from vanilla. Generating trades for a freshly-set profession needs
+the protected `updateTrades()` (getOffers only auto-generates when offers
+is null), invoked reflectively after `setProfession` + `setMerchantLevel(1)`
++ `setOffers(new MerchantOffers())`.
+
+**No exclusivity / no pathing.** Per the request, "near" is enough — we
+don't claim the POI or path to it, so several merchant citizens can share
+one workstation. Only runs when the citizen is loaded (so an unloaded
+citizen can't falsely revert from an empty scan), and skips identities
+that are mid-trade (same guard as the dawn restock pass). No new persisted
+state: profession + XP already live in the merchant snapshot, and "is the
+block still there" is answered by re-scanning rather than storing the
+claimed position. (The matching profession-clothes RENDER on the citizen
+is Feature B.)

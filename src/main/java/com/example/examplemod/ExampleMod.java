@@ -1517,6 +1517,152 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
     }
 
+    // ------------------------------------------------------------------
+    // Citizen profession acquisition (Feature C)
+    // ------------------------------------------------------------------
+    // Tensura merchants normally gain a villager profession only while they
+    // are a LIVE subordinate: the brain behaviour AssignProfession claims a
+    // nearby job-site POI and calls setProfession, and getOffers() then
+    // generates that profession's trades. A colony citizen has no merchant
+    // brain, so its snapshot stays jobless. This pass reproduces the vanilla
+    // job-site mechanic for IN_COLONY merchant citizens:
+    //   - jobless + never traded → if a job-site block is near, take that
+    //     profession and generate its trades.
+    //   - has profession + never traded (Xp == 0, not locked) → if no matching
+    //     job-site block is near any more, revert to jobless and drop trades.
+    //   - has traded (Xp > 0) → locked; keep the profession even if the block
+    //     is gone (vanilla rule).
+    // We deliberately don't path/claim the POI exclusively — "near" is enough,
+    // per the request. Snapshot is only rewritten on an actual transition.
+
+    /** Blocks around the citizen to look for a job-site POI. */
+    private static final int CITIZEN_JOB_SCAN_RADIUS = 16;
+    /** Cadence (ticks) for the citizen profession pass. Reconstruction only
+     *  happens on a transition, so the steady-state cost is a cheap NBT read
+     *  + one POI scan per merchant citizen. */
+    private static final int CITIZEN_PROFESSION_PERIOD_TICKS = 60;
+    /** Cached reflective handle to the protected {@code updateTrades()} — the
+     *  only way to regenerate offers for a freshly-set profession (getOffers()
+     *  lazily generates only when offers is null). */
+    private static java.lang.reflect.Method MERCHANT_UPDATE_TRADES;
+
+    private static void tickCitizenProfessions(MinecraftServer server) {
+        // Skip identities mid-trade — the close hook persists their state and
+        // we'd otherwise clobber it (same guard as the dawn restock pass).
+        java.util.Set<UUID> activeTrade = new java.util.HashSet<>();
+        for (TransientMerchantSession s : TRANSIENT_MERCHANTS.values()) {
+            activeTrade.add(s.identityId());
+        }
+
+        for (ServerLevel level : server.getAllLevels()) {
+            RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
+            for (RaceIdentitySavedData.RaceIdentity identity : saved.all()) {
+                try {
+                    if (identity.mode != RaceIdentitySavedData.Mode.IN_COLONY) continue;
+                    if (identity.entitySnapshot == null) continue;
+                    if (identity.race == Race.ORC) continue;          // orcs don't trade
+                    if (activeTrade.contains(identity.identityId)) continue;
+
+                    net.minecraft.nbt.CompoundTag snap = identity.entitySnapshot;
+                    if (snap.getInt("Xp") > 0) continue;              // traded → locked
+                    String profId = snap.getString("Profession");
+                    boolean jobless = profId.isEmpty() || profId.equals("minecraft:none");
+
+                    // Resolve the LIVE citizen so the POI scan is centred on its
+                    // real position and only runs in loaded chunks (an unloaded
+                    // citizen would falsely scan empty and revert).
+                    IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
+                    if (colony == null) continue;
+                    ICitizenData data = colony.getCitizenManager().getCivilian(identity.citizenId);
+                    if (data == null) continue;
+                    var entOpt = data.getEntity();
+                    if (entOpt.isEmpty()) continue;                   // not loaded → skip
+                    net.minecraft.core.BlockPos pos = entOpt.get().blockPosition();
+                    net.minecraft.world.entity.ai.village.poi.PoiManager poi = level.getPoiManager();
+
+                    if (jobless) {
+                        // Gain: any nearby job-site POI → its profession + trades.
+                        java.util.Optional<com.mojang.datafixers.util.Pair<
+                                net.minecraft.core.Holder<net.minecraft.world.entity.ai.village.poi.PoiType>,
+                                net.minecraft.core.BlockPos>> found = poi.findClosestWithType(
+                                h -> professionForPoi(h) != null, pos, CITIZEN_JOB_SCAN_RADIUS,
+                                net.minecraft.world.entity.ai.village.poi.PoiManager.Occupancy.ANY);
+                        if (found.isEmpty()) continue;
+                        net.minecraft.world.entity.npc.VillagerProfession prof =
+                                professionForPoi(found.get().getFirst());
+                        if (prof == null) continue;
+                        applyCitizenProfession(level, saved, identity, prof);
+                    } else {
+                        // Revert (not yet locked): if no matching job site remains
+                        // near, drop the profession and its trades.
+                        net.minecraft.world.entity.npc.VillagerProfession current =
+                                net.minecraft.core.registries.BuiltInRegistries.VILLAGER_PROFESSION
+                                        .getOptional(net.minecraft.resources.ResourceLocation.parse(profId))
+                                        .orElse(null);
+                        if (current == null) continue;
+                        boolean stillThere = poi.findClosest(
+                                h -> current.heldJobSite().test(h), pos, CITIZEN_JOB_SCAN_RADIUS,
+                                net.minecraft.world.entity.ai.village.poi.PoiManager.Occupancy.ANY).isPresent();
+                        if (stillThere) continue;
+                        applyCitizenProfession(level, saved, identity,
+                                net.minecraft.world.entity.npc.VillagerProfession.NONE);
+                    }
+                } catch (Throwable t) {
+                    LOGGER.warn("[TM] citizen profession pass: error for identity {}", identity.identityId, t);
+                }
+            }
+        }
+    }
+
+    /** The villager profession whose held job-site predicate accepts this POI
+     *  type, or null if the POI isn't a profession job site. */
+    private static net.minecraft.world.entity.npc.VillagerProfession professionForPoi(
+            net.minecraft.core.Holder<net.minecraft.world.entity.ai.village.poi.PoiType> holder) {
+        for (net.minecraft.world.entity.npc.VillagerProfession p :
+                net.minecraft.core.registries.BuiltInRegistries.VILLAGER_PROFESSION) {
+            if (p == net.minecraft.world.entity.npc.VillagerProfession.NONE) continue;
+            if (p.heldJobSite().test(holder)) return p;
+        }
+        return null;
+    }
+
+    /** Reconstruct the citizen's merchant snapshot, set {@code prof} (or NONE),
+     *  regenerate its trades, and persist the snapshot. */
+    private static void applyCitizenProfession(ServerLevel level, RaceIdentitySavedData saved,
+            RaceIdentitySavedData.RaceIdentity identity,
+            net.minecraft.world.entity.npc.VillagerProfession prof) {
+        java.util.Optional<net.minecraft.world.entity.Entity> created =
+                net.minecraft.world.entity.EntityType.create(identity.entitySnapshot, level);
+        if (created.isEmpty()
+                || !(created.get() instanceof io.github.manasmods.tensura.entity.template.TensuraMerchantEntity merchant)) {
+            return;
+        }
+        merchant.setProfession(prof);
+        merchant.setMerchantLevel(1);
+        merchant.setOffers(new net.minecraft.world.item.trading.MerchantOffers()); // clear stale, then regen
+        try {
+            if (MERCHANT_UPDATE_TRADES == null) {
+                MERCHANT_UPDATE_TRADES = io.github.manasmods.tensura.entity.template.TensuraMerchantEntity.class
+                        .getDeclaredMethod("updateTrades");
+                MERCHANT_UPDATE_TRADES.setAccessible(true);
+            }
+            MERCHANT_UPDATE_TRADES.invoke(merchant); // appends this profession's tier-1 trades (none for NONE)
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] citizen profession: updateTrades reflection failed", t);
+            return;
+        }
+
+        net.minecraft.nbt.CompoundTag fresh = new net.minecraft.nbt.CompoundTag();
+        if (merchant.save(fresh)) {
+            saved.updateEntitySnapshot(identity, fresh);
+            boolean none = prof == net.minecraft.world.entity.npc.VillagerProfession.NONE;
+            LOGGER.info("[TM] citizen {} (identity {}) profession -> {}",
+                    identity.citizenId, identity.identityId,
+                    none ? "none (job site removed before first trade)"
+                         : net.minecraft.core.registries.BuiltInRegistries.VILLAGER_PROFESSION.getKey(prof));
+        }
+    }
+
     /** Per-tick envoy scheduler. Called from the existing
      *  {@code onServerTickPost} handler so we share the existing periodic
      *  loop instead of adding a second one. */
@@ -4180,6 +4326,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // available 24h (see {@link #handleOpenSubordinateTrade}), but
         // stock only refills here, so night browsing is read-only.
         tickDawnRestock(server);
+
+        // Citizen profession pass (Feature C) — let IN_COLONY merchant
+        // citizens gain / lose a villager profession (and its trades) from a
+        // nearby job-site block, the way their subordinate form would.
+        if (now > 0 && now % CITIZEN_PROFESSION_PERIOD_TICKS == 0) {
+            tickCitizenProfessions(server);
+        }
 
         // Discard expired circles
         pendingCircles.removeIf(p -> {
