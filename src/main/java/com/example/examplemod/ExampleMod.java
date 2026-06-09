@@ -18,7 +18,10 @@ import com.minecolonies.api.util.EntityUtils;
 
 import java.util.EnumSet;
 import io.github.manasmods.manascore.storage.api.StorageHolder;
+import io.github.manasmods.tensura.ability.SkillUtils;
 import io.github.manasmods.tensura.registry.attribute.TensuraAttributes;
+import io.github.manasmods.tensura.registry.skill.ExtraSkills;
+import io.github.manasmods.tensura.registry.skill.UniqueSkills;
 import io.github.manasmods.tensura.storage.ep.ExistenceStorage;
 import io.github.manasmods.tensura.storage.ep.IExistence;
 import io.github.manasmods.tensura.util.EnergyHelper;
@@ -4024,7 +4027,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
         double playerMag = playerExist.getMagicule();
         if (total > playerMag * 1.25) {
-            sendAdvisoryNotice(player, failAdvisory);
+            // The "you lack magicules" warning is only shown to Sage / Great
+            // Sage players; everyone else just sees the batch quietly fail.
+            if (hasMagiculeWarningSkill(player)) {
+                sendAdvisoryNotice(player, failAdvisory);
+            }
             LOGGER.info("[TM] {}: REFUSED — total cost {} > 1.25× magicule ({})",
                     operationLabel, total, playerMag);
             return new BulkCostDecision(false, 0.0, false);
@@ -4092,7 +4099,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         for (double c : costs) total += c;
 
         BulkCostDecision decision = decideBulkCost(player, total,
-                "bulk-summon", "Not enough magicule to summon them all.");
+                "bulk-summon", "Notice: not enough magicules to summon them all.");
         if (!decision.proceed()) return;
 
         // Queue every swap. Per-identity paid = proportional share of actualPaid,
@@ -4176,7 +4183,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         for (double c : costs) total += c;
 
         BulkCostDecision decision = decideBulkCost(player, total,
-                "bulk-send", "Not enough magicule to send them all.");
+                "bulk-send", "Notice: not enough magicules to send them all.");
         if (!decision.proceed()) return;
 
         // Queue each send. materializePos override is null — the SUBORDINATE
@@ -4546,6 +4553,30 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     }
 
     /**
+     * Whether the player should receive low-magicule warnings (the collapse
+     * confirm dialog and the bulk "not enough magicules" advisory). Only
+     * players with Tensura's Sage or Great Sage skill do; everyone else
+     * silently falls through to the fail / overspend-into-Sleep-Mode outcome.
+     * Fails closed (no warning) if the skill state can't be read.
+     */
+    static boolean hasMagiculeWarningSkill(ServerPlayer player) {
+        try {
+            return SkillUtils.hasSkill(player, ExtraSkills.SAGE.get())
+                    || SkillUtils.hasSkill(player, UniqueSkills.GREAT_SAGE.get());
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] could not query Sage/Great Sage; suppressing magicule warning", t);
+            return false;
+        }
+    }
+
+    /** Player's current magicule, or 0 if it can't be read. Used by the roster
+     *  menu's magicule counter. */
+    static double currentMagicule(ServerPlayer player) {
+        ExistenceStorage exist = readExistence(player);
+        return exist == null ? 0.0 : exist.getMagicule();
+    }
+
+    /**
      * The shared cost gate. Returns {@link ChargeOutcome#charged(double)}
      * (with the deducted amount, used for refund-on-abort) if the action
      * should proceed, or {@link ChargeOutcome#notCharged()} if a confirm
@@ -4577,11 +4608,21 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // Sleep Mode entry on `magicule ≤ 0`.
         if (cost > 0.0 && playerMagicule <= cost) {
             String name = resolveDisplayName(player, identity);
-            LOGGER.info("[TM] cost: '{}' has {} magicule, action costs {} for '{}' — would empty or overspend; prompting collapse confirmation",
-                    player.getName().getString(), playerMagicule, cost, name);
-            PacketDistributor.sendToPlayer(player, new Networking.OpenCollapseConfirmPayload(
-                    identity.identityId, name, cost, playerMagicule));
-            return ChargeOutcome.notCharged();
+            // Only players with Sage / Great Sage get the "are you sure" prompt.
+            // Everyone else silently overspends straight into Sleep Mode — the
+            // same outcome as confirming the prompt.
+            if (hasMagiculeWarningSkill(player)) {
+                LOGGER.info("[TM] cost: '{}' has {} magicule, action costs {} for '{}' — would empty or overspend; prompting collapse confirmation",
+                        player.getName().getString(), playerMagicule, cost, name);
+                PacketDistributor.sendToPlayer(player, new Networking.OpenCollapseConfirmPayload(
+                        identity.identityId, name, cost, playerMagicule));
+                return ChargeOutcome.notCharged();
+            }
+            playerExist.setMagicule(0.0); // EXACTLY 0 — Sleep Mode triggers next tick
+            playerExist.markDirty();
+            LOGGER.info("[TM] cost: '{}' has {} magicule (no Sage) — auto-collapsing into Sleep Mode to {} '{}' (cost {})",
+                    player.getName().getString(), playerMagicule, identity.mode, name, cost);
+            return ChargeOutcome.charged(playerMagicule);
         }
 
         // Safe path: charge UP FRONT before queuing the swap. Refund happens

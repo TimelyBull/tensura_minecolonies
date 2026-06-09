@@ -142,8 +142,8 @@ public final class Networking {
      * Using a Consumer field rather than a direct method reference keeps this
      * file loadable on the server JVM — no client-only classes referenced.
      */
-    public static Consumer<List<RosterEntry>> rosterClientHandler = entries -> {
-        LOGGER.info("[TM] roster (no client handler installed): {} entries", entries.size());
+    public static Consumer<RosterResponsePayload> rosterClientHandler = payload -> {
+        LOGGER.info("[TM] roster (no client handler installed): {} entries", payload.entries().size());
     };
 
     /** Client-side delegate for the collapse-confirm prompt. Installed by
@@ -190,8 +190,10 @@ public final class Networking {
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** S2C: server returns the player's roster entries. */
-    public record RosterResponsePayload(List<RosterEntry> entries) implements CustomPacketPayload {
+    /** S2C: server returns the player's roster entries plus the player's
+     *  current magicule (shown as a counter in the roster menu). */
+    public record RosterResponsePayload(List<RosterEntry> entries, double playerMagicule)
+            implements CustomPacketPayload {
         public static final Type<RosterResponsePayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "roster_response"));
 
@@ -199,6 +201,8 @@ public final class Networking {
                 StreamCodec.composite(
                         RosterEntry.STREAM_CODEC.apply(ByteBufCodecs.list()),
                         RosterResponsePayload::entries,
+                        ByteBufCodecs.DOUBLE,
+                        RosterResponsePayload::playerMagicule,
                         RosterResponsePayload::new
                 );
 
@@ -540,8 +544,10 @@ public final class Networking {
             entries.add(new RosterEntry(identity.identityId, name, RosterEntry.encodeMode(identity.mode), ep));
         }
 
-        LOGGER.info("[TM] roster: sending {} entries to {}", entries.size(), sp.getName().getString());
-        PacketDistributor.sendToPlayer(sp, new RosterResponsePayload(entries));
+        double magicule = ExampleMod.currentMagicule(sp);
+        LOGGER.info("[TM] roster: sending {} entries (magicule {}) to {}",
+                entries.size(), magicule, sp.getName().getString());
+        PacketDistributor.sendToPlayer(sp, new RosterResponsePayload(entries, magicule));
     }
 
     // ------------------------------------------------------------------
@@ -605,7 +611,7 @@ public final class Networking {
 
     private static void onRosterResponse(RosterResponsePayload payload, IPayloadContext context) {
         // Registered as playToClient → only fires on the logical client.
-        context.enqueueWork(() -> rosterClientHandler.accept(payload.entries()));
+        context.enqueueWork(() -> rosterClientHandler.accept(payload));
     }
 
     private static void onOpenCollapseConfirm(OpenCollapseConfirmPayload payload, IPayloadContext context) {

@@ -1,0 +1,28 @@
+<window size="400 244" lightbox="true"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/ldtteam/BlockUI/version/main/src/main/resources/assets/blockui/gui/block_ui.xsd">
+
+    <!-- Native MC content panel (same paper as the other menus). -->
+    <image source="minecolonies:textures/gui/builderhut/builder_paper_wide2.png" size="400 244"/>
+
+    <!-- Title. -->
+    <text id="title" size="400 12" pos="0 30" textalign="MIDDLE" color="black" label="§c§lNotice:§r"/>
+
+    <!-- Warning + consequence (same content as the old vanilla dialog). The
+         goblin-name line and the cost line are filled in at runtime. -->
+    <text size="400 11" pos="0 56" textalign="MIDDLE" color="black"
+          label="§cThis would empty your magicule."/>
+    <text id="body1" size="400 11" pos="0 80" textalign="MIDDLE" color="black"/>
+    <text size="400 11" pos="0 92" textalign="MIDDLE" color="black"
+          label="into Sleep Mode — you'll be defenceless and could die."/>
+    <text id="costLine" size="400 11" pos="0 114" textalign="MIDDLE" color="black"/>
+
+    <!-- Cancel (no packet, back to parent) / Proceed (force collapse). -->
+    <button id="cancel" size="130 20" pos="60 152" color="black"
+            source="minecolonies:textures/gui/builderhut/builder_button_large.png"
+            label="Cancel"/>
+    <button id="proceed" size="130 20" pos="210 152" color="black"
+            source="minecolonies:textures/gui/builderhut/builder_button_large.png"
+            label="§cProceed (collapse)"/>
+
+</window>

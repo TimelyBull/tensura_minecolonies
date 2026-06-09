@@ -3,8 +3,6 @@ package com.example.examplemod;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 
-import java.util.List;
-
 /**
  * Routes an incoming RosterResponsePayload — opens a new roster window if none
  * is showing, or refreshes the open one in place (after an action).
@@ -21,7 +19,7 @@ public final class ClientRosterHandler {
 
     private ClientRosterHandler() {}
 
-    public static void handle(List<Networking.RosterEntry> entries) {
-        WindowRoster.route(entries);
+    public static void handle(Networking.RosterResponsePayload payload) {
+        WindowRoster.route(payload.entries(), payload.playerMagicule());
     }
 }

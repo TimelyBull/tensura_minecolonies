@@ -25,8 +25,24 @@ public final class ConfirmCollapseHandler {
 
     public static void handle(Networking.OpenCollapseConfirmPayload payload) {
         Minecraft mc = Minecraft.getInstance();
-        Screen parent = mc.screen; // could be RosterScreen, or null (in-game)
-        LOGGER.info("[TM] opening ConfirmCollapseScreen (parent = {})",
+        Screen parent = mc.screen; // captured up front for the vanilla fallback
+
+        // Native BlockUI window is primary; the vanilla screen is the
+        // fail-closed fallback (missing BlockUI/MC class, XML parse error, etc.).
+        try {
+            if (WindowCollapseConfirm.tryOpen(
+                    payload.identityId(),
+                    payload.goblinName(),
+                    payload.cost(),
+                    payload.currentMagicule())) {
+                return;
+            }
+        } catch (Throwable t) {
+            LOGGER.error("[TM] collapse-confirm: native BlockUI window failed to open; "
+                    + "falling back to the vanilla screen", t);
+        }
+
+        LOGGER.info("[TM] opening vanilla ConfirmCollapseScreen (parent = {})",
                 parent == null ? "<none>" : parent.getClass().getSimpleName());
         mc.setScreen(new ConfirmCollapseScreen(
                 parent,
