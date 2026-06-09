@@ -122,6 +122,13 @@ public final class Networking {
                 SyncRaceTagPayload.CODEC,
                 Networking::onSyncRaceTag
         );
+        // Harvest Festival — per-citizen skill bonuses synced to the owner so the
+        // citizen window can draw the blue "+X".
+        registrar.playToClient(
+                FestivalBonusPayload.TYPE,
+                FestivalBonusPayload.CODEC,
+                Networking::onFestivalBonus
+        );
         // Citizen-side trade button — player clicks "Trade" in
         // MainWindowCitizen → CitizenTradeButtonHandler fires this
         // C2S payload → server opens the merchant trade screen if
@@ -144,6 +151,11 @@ public final class Networking {
      */
     public static Consumer<RosterResponsePayload> rosterClientHandler = payload -> {
         LOGGER.info("[TM] roster (no client handler installed): {} entries", payload.entries().size());
+    };
+
+    /** Client-side delegate for festival skill-bonus sync. Installed by ClientEvents. */
+    public static Consumer<FestivalBonusPayload> festivalBonusClientHandler = payload -> {
+        LOGGER.info("[TM] festival bonus (no client handler): {} entries", payload.entries().size());
     };
 
     /** Client-side delegate for the collapse-confirm prompt. Installed by
@@ -205,6 +217,32 @@ public final class Networking {
                         RosterResponsePayload::playerMagicule,
                         RosterResponsePayload::new
                 );
+
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** One festival skill bonus: colony + citizen + skill (enum ordinal) + amount. */
+    public record FestivalBonusEntry(int colonyId, int citizenId, int skillOrdinal, int bonus) {
+        public static final StreamCodec<ByteBuf, FestivalBonusEntry> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, FestivalBonusEntry::colonyId,
+                ByteBufCodecs.VAR_INT, FestivalBonusEntry::citizenId,
+                ByteBufCodecs.VAR_INT, FestivalBonusEntry::skillOrdinal,
+                ByteBufCodecs.VAR_INT, FestivalBonusEntry::bonus,
+                FestivalBonusEntry::new
+        );
+    }
+
+    /** S2C: the owner's full set of festival per-citizen skill bonuses (replaces
+     *  the client mirror). Drives the blue "+X" in the citizen window. */
+    public record FestivalBonusPayload(List<FestivalBonusEntry> entries) implements CustomPacketPayload {
+        public static final Type<FestivalBonusPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "festival_bonus"));
+
+        public static final StreamCodec<ByteBuf, FestivalBonusPayload> CODEC = StreamCodec.composite(
+                FestivalBonusEntry.STREAM_CODEC.apply(ByteBufCodecs.list()),
+                FestivalBonusPayload::entries,
+                FestivalBonusPayload::new
+        );
 
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
@@ -612,6 +650,10 @@ public final class Networking {
     private static void onRosterResponse(RosterResponsePayload payload, IPayloadContext context) {
         // Registered as playToClient → only fires on the logical client.
         context.enqueueWork(() -> rosterClientHandler.accept(payload));
+    }
+
+    private static void onFestivalBonus(FestivalBonusPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> festivalBonusClientHandler.accept(payload));
     }
 
     private static void onOpenCollapseConfirm(OpenCollapseConfirmPayload payload, IPayloadContext context) {

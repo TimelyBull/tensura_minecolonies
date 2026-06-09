@@ -52,6 +52,9 @@ public final class ClientEvents {
         // Magicule cost — install the collapse-confirm prompt handler.
         Networking.confirmCollapseClientHandler = ConfirmCollapseHandler::handle;
 
+        // Harvest Festival — mirror per-citizen skill bonuses for the "+X" UI.
+        Networking.festivalBonusClientHandler = FestivalBonusClientStore::onPayload;
+
         // Stage F1 — race-tag client mirror. Server sends SyncRaceTagPayload
         // on send/summon and on player tracking start; the store keeps a
         // UUID → RaceTag map that the renderers (goblin / orc / future)
@@ -114,6 +117,7 @@ public final class ClientEvents {
         // hooks are needed. Replaces the subordinate-side trade tab;
         // SubordinateTradeButtonHandler is no longer registered.
         NeoForge.EVENT_BUS.addListener(CitizenTradeButtonHandler::onScreenInitPost);
+        NeoForge.EVENT_BUS.addListener(CitizenSkillBonusHandler::onScreenInitPost);
     }
 
     private static void onRegisterKeys(RegisterKeyMappingsEvent event) {

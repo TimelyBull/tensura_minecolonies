@@ -72,6 +72,8 @@ public final class HarvestFestival {
                 LOGGER.error("[TM] festival: failed on colony {}", colonyId, t);
             }
         }
+        // Sync the new bonuses to the owner's client for the "+X" UI.
+        ExampleMod.sendFestivalBonus(host);
     }
 
     /**

@@ -1762,6 +1762,27 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         return EventResult.pass();
     }
 
+    /** Send the player all their colonies' festival skill bonuses (replaces the
+     *  client mirror) so the citizen window can draw the blue "+X". */
+    static void sendFestivalBonus(ServerPlayer player) {
+        ServerLevel level = player.serverLevel();
+        FestivalSavedData fest = FestivalSavedData.get(level);
+        UUID owner = player.getUUID();
+        java.util.List<Networking.FestivalBonusEntry> entries = new java.util.ArrayList<>();
+        for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
+            if (!owner.equals(colony.getPermissions().getOwner())) continue;
+            int colonyId = colony.getID();
+            for (var citizenEntry : fest.offsetsForColony(colonyId).entrySet()) {
+                int citizenId = citizenEntry.getKey();
+                for (var skillEntry : citizenEntry.getValue().entrySet()) {
+                    entries.add(new Networking.FestivalBonusEntry(
+                            colonyId, citizenId, skillEntry.getKey(), skillEntry.getValue()));
+                }
+            }
+        }
+        PacketDistributor.sendToPlayer(player, new Networking.FestivalBonusPayload(entries));
+    }
+
     /** Player's Tensura EP (aura + magicule), or 0 if unreadable. */
     static double playerEP(ServerPlayer player) {
         ExistenceStorage exist = readExistence(player);
@@ -3004,6 +3025,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         ServerLevel level = sp.serverLevel();
         ColonyRaceConfigSavedData config = ColonyRaceConfigSavedData.get(level);
 
+        // Sync festival skill bonuses so the citizen-window "+X" is present after relog.
+        try { sendFestivalBonus(sp); } catch (Throwable t) { LOGGER.warn("[TM] festival bonus login sync failed", t); }
+
         for (Integer colonyId : config.pendingColonies()) {
             IColony colony = IColonyManager.getInstance().getColonyByWorld(colonyId, level);
             if (colony == null) continue;
@@ -3794,6 +3818,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 reset++;
             }
         }
+        sendFestivalBonus(player); // push the now-cleared set to the client UI
         final int n = reset;
         src.sendSuccess(() -> Component.literal("Festival prestige reset on " + n + " colony(ies)."), false);
         return 1;
