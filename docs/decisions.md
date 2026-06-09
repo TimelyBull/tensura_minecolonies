@@ -1298,6 +1298,44 @@ lizardman) at the default setting without raising the cap
 manually. Existing worlds keep their stored gamerule value; new
 worlds start at 4.
 
+## Harvest Festival — persistent prestige colony buff (rebuilt)
+
+**Three investigation findings (pivotal ones starred):**
+- ★ **Skill-past-cap drives productivity (FEASIBLE).** `SkillData.setLevel` does
+  not clamp; `CitizenSkillHandler.getLevel` returns the raw level (no re-cap, no
+  research add); the productivity formula `0.85^(getPrimarySkillLevel/2)` in
+  `AbstractEntityAIInteract` reads that same raw value. So a level **>99 really
+  increases productivity**. `addXpToSkill`'s level-up is gated `if (level < 99)`
+  and increments `level+1` — it never resets a >99 value, so a baked >99 bonus
+  **persists**. We bake the bonus into the level and record the per-citizen,
+  per-skill offset in `FestivalSavedData` for a clean prestige reset (subtract
+  the offset; correct even if the base grew underneath).
+- ★ **Unloaded-chunk changes — split by stat type.** MC **skills** live on
+  `ICitizenData` (server-side, exists unloaded; `markDirty` persists) → the
+  indirect skill buffs run unloaded. **Tensura EP / the in-place swap** need the
+  live entity → not doable unloaded; queued via `FestivalSavedData.queueSwap`
+  to run on next colony load.
+- **Blue "+X" UI (FEASIBLE).** The citizen window (`MainWindowCitizen`, BlockUI)
+  renders each skill number in a `<text>` pane whose id is the lowercase skill
+  name; a `ScreenEvent.Init.Post` hook (the trade-tab pattern) can `addChild` a
+  blue `+X` sibling. Needs the per-citizen offsets synced to the client.
+
+**Decisions (confirmed with user):** tiers rank ALL citizens by Tensura EP
+descending, strongest first (top → +4); vanilla citizens (EP 0) sink to the
+untiered "minimal" baseline; unloaded colonies queue the Tensura swap for next
+load.
+
+**Tier math:** `tier1Count = round(EP/100k)` below 1M EP, else
+`10 + round((EP−1M)/500k)`. T2/T3/T4 counts = 2×/3×/4× T1. Cumulative slots
+(by EP rank): T1 +4, T2 +3, T3 +2, T4 +1 (all to the top-3 skills); beyond
+10×T1, a minimal +1 to the single top skill. Once per colony; `/festival
+run|reset` (reset = the prestige-reset entry point until a real prestige system
+is wired).
+
+**Status:** indirect-buff core built (`FestivalSavedData`, `HarvestFestival`,
+event wiring, commands). The Tensura swap → base-festival → stat-sync → return
+track and the blue "+X" client UI are the remaining pieces.
+
 ## Subordinate command — "Patrol Colony Outskirts"
 
 This is the concrete realisation of the "new direction" that replaced
