@@ -1338,6 +1338,30 @@ catches up on the next send. (Considered persisting the evolved variant in our
 SavedData with a load-time re-stamp; deferred as not worth the complexity for
 v1 — awakening typically happens at one's own base, where the colony is loaded.)
 
+**MineColonies-side bonus: top-4 skills +4, applied to `CitizenData` (single
+store → no double-count).** Alongside the Tensura evolution, each named
+identity the awakening player owns has its four highest MC skills bumped +4
+levels (clamped to 99; ties for the 4th slot broken by `Skill` enum order). The
+"one identity, two bodies" concern (don't bonus a thing twice because it exists
+as a colonist *and* a subordinate) is structurally avoided: MC skills live ONLY
+on the shared `CitizenData` — the subordinate mob has no MC skills, and the
+send/summon stat-sync only copies Tensura EP, never MC skills — so applying the
+bonus to `CitizenData` once is inherently single-counted and "transfers" to
+whichever body is materialized. Applied to ALL the player's identities (both
+modes; `CitizenData` exists in both), not just currently-in-colony ones, so a
+subordinate you've gathered to your side for the festival still gets the
+colony-skill boost it'll carry when sent back.
+
+**Why no stat is ever double-counted.** The two bonus tracks hit disjoint
+stores, each touched once: (1) MC skills → `CitizenData`, applied once per
+identity by our pass; (2) Tensura evolution → the live mob (Tensura's own pass,
+for SUBORDINATE bodies near the player) XOR the snapshot (our pass, for
+IN_COLONY bodies). The two evolution passes can't overlap because a colony body
+is an `EntityCitizen`, never the `TamableAnimal` Tensura's
+`getEntitiesOfClass` gathers. An IN_COLONY identity legitimately receives both
+tracks (a skill bump *and* a snapshot evolution) — those are the two distinct
+things the festival grants a colonist, not the same bonus twice.
+
 ## Subordinate command — "Patrol Colony Outskirts"
 
 This is the concrete realisation of the "new direction" that replaced
