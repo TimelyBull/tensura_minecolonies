@@ -1330,6 +1330,27 @@ load.
 (by EP rank): T1 +4, T2 +3, T3 +2, T4 +1 (all to the top-3 skills); beyond
 10×T1, a minimal +1 to the single top skill. Once per colony.
 
+**Two triggers, two cadences (fixed 2026-06-09).** A demon-lord awakening fires
+TWO Tensura events for one festival: `ENTER_HARVEST_FESTIVAL_EVENT` at the start
+and `AWAKENING_EVENT` at the completion (~34s later, after the soul countdown).
+We hook both because not every awakening path routes through
+`enterHarvestFestival`. But the two halves of the buff have different cadences:
+- **Skill prestige** (the tiered MC-skill bonus): **once per colony** (`isDone`
+  guard). Idempotent, so it can run on whichever event fires first.
+- **Tensura EP gift** (`applyHarvestFestivalGift` on each IN_COLONY subordinate's
+  snapshot): **every festival** — base Tensura re-gifts a demon lord's
+  subordinates on every festival (each multiplies their EP), so ours mirrors that
+  and is NOT gated by `isDone`. To avoid multiplying twice for one festival, the
+  EP gift runs ONLY on the completion (`AWAKENING_EVENT`) and `/festival run`; the
+  START event applies skill prestige only (`HarvestFestival.applyPrestigeOnly`).
+
+This was the fix for the reported "awakened, goblin EP didn't change": the colony
+was already-done from an earlier run, and the goblin only joined the colony
+AFTER the festival ran — with the EP gift nested under the once-per-colony guard
+it never fired for a late-joining subordinate. Decoupling it means any IN_COLONY
+subordinate gets the gift on the next awakening regardless of the colony's
+prestige state.
+
 **Prestige reset = Tensura character reset scroll.** The festival reset (subtract
 the tracked skill offsets + clear the once-per-colony flag, so it can be earned
 again) is wired into the existing `LivingEntityUseItemEvent.Finish` handler that
