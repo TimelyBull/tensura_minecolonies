@@ -9,8 +9,6 @@ import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
-import com.minecolonies.api.entity.citizen.Skill;
-import com.minecolonies.api.entity.citizen.citizenhandlers.ICitizenSkillHandler;
 import com.minecolonies.api.eventbus.events.colony.ColonyCreatedModEvent;
 import com.minecolonies.api.eventbus.events.colony.ColonyDeletedModEvent;
 import com.minecolonies.api.eventbus.events.colony.citizens.CitizenAddedModEvent;
@@ -38,7 +36,6 @@ import io.github.manasmods.tensura.entity.monster.OrcEntity;
 import io.github.manasmods.tensura.entity.variant.MagicCircleVariant;
 import io.github.manasmods.tensura.event.TensuraEntityEvents;
 import io.github.manasmods.tensura.entity.template.subclass.ISubordinate;
-import io.github.manasmods.tensura.race.RaceHelper;
 import io.github.manasmods.tensura.util.SubordinateHelper;
 import io.github.manasmods.manascore.skill.api.EntityEvents;
 import io.github.manasmods.manascore.network.api.util.Changeable;
@@ -101,9 +98,7 @@ import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -222,11 +217,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         // Tensura uses Architectury's event system — register via .register(), NOT @SubscribeEvent.
         TensuraEntityEvents.NAMING_EVENT.register(this::onRaceNamed);
-
-        // Harvest Festival (player awakening): Tensura only gifts LIVE owned
-        // subordinates near the host, so our in-colony citizens would be left
-        // out. Evolve them in place for same-entity-type tiers.
-        TensuraEntityEvents.ENTER_HARVEST_FESTIVAL_EVENT.register(this::onEnterHarvestFestival);
 
         // Veto subordinate target-acquisition on the player's own colony citizens.
         // RetaliateOrTarget.start() fires this ManasCore event before committing,
@@ -1746,238 +1736,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         LOGGER.info("[TM] citizen {} (identity {}) cosmetic profession -> {}",
                 identity.citizenId, identity.identityId,
                 none ? "none (job site removed)" : profId);
-    }
-
-    // ------------------------------------------------------------------
-    // Harvest Festival — evolve the player's in-colony subordinates too
-    // ------------------------------------------------------------------
-
-    /**
-     * Fires when an entity enters a Harvest Festival (a player awakening to a
-     * Demon Lord). Tensura's own pass gathers only LIVE owned subordinates near
-     * the host and evolves them; an identity we've sent to a colony has no live
-     * Tensura body (its body is a MineColonies citizen, its mob form a stored
-     * snapshot), so it would never participate.
-     *
-     * <p>We evolve those colony citizens in place for <b>same-entity-type</b>
-     * tiers only: {@link INameEvolution#evolve()} just bumps the evolution
-     * state and grants the tier's stat gains — it never discards/respawns the
-     * entity (verified for Goblin / Orc / Lizardman). A citizen already at its
-     * max same-type tier (the next step would change entity type, which can't
-     * be done safely on an off-world snapshot without spawning a duplicate) is
-     * left untouched; it resumes normal evolution once summoned back to the
-     * player's side. Dwarves (no {@code INameEvolution}) are likewise left for
-     * normal play.
-     *
-     * <p>Returns {@link EventResult#pass()} — we never alter Tensura's own
-     * festival counts.
-     */
-    private EventResult onEnterHarvestFestival(LivingEntity host,
-            Changeable<Integer> harvestTick, Changeable<Integer> soulPoints) {
-        if (host instanceof ServerPlayer player && !player.level().isClientSide()) {
-            try {
-                applyHarvestFestivalBonuses(player);
-            } catch (Throwable t) {
-                LOGGER.error("[TM] harvest festival: bonus pass failed", t);
-            }
-        }
-        return EventResult.pass();
-    }
-
-    /**
-     * Apply both Harvest Festival bonus tracks to every named identity the
-     * awakening {@code player} owns — each exactly once, so the "one identity,
-     * two bodies" split can't double-count:
-     *
-     * <ul>
-     *   <li><b>MineColonies skills:</b> the citizen's four highest skills each
-     *       gain {@value #HARVEST_SKILL_GAIN} levels (clamped to the cap). MC
-     *       skills live ONLY on the shared {@code CitizenData} (the subordinate
-     *       mob has no MC skills, and the swap stat-sync never copies skills),
-     *       so applying to the {@code CitizenData} once is inherently
-     *       single-counted and "transfers" to whichever body is materialized.</li>
-     *   <li><b>Tensura EP (the subordinate gift):</b> the IN_COLONY citizen's
-     *       stored mob form gets {@link RaceHelper#applyHarvestFestivalGift} — the
-     *       exact branch Tensura's {@code handleHarvestFestival} runs for a gifted
-     *       SUBORDINATE (not the host's {@code awakening}/demon-lord branch). It
-     *       multiplies aura/magicule by {@code RaceConfig.DemonLord.epMultiplierDemonLord}
-     *       and refills, race-INDEPENDENTLY (the evolution parts are race-gated and
-     *       skip on a raceless goblin — no demon-lord flag, no skills). The boost
-     *       is written to both the snapshot and the live citizen body.</li>
-     * </ul>
-     */
-    private static void applyHarvestFestivalBonuses(ServerPlayer player) {
-        ServerLevel level = player.serverLevel();
-        RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
-        UUID owner = player.getUUID();
-        int skilled = 0;
-        int gifted = 0;
-        for (RaceIdentitySavedData.RaceIdentity identity : saved.all()) {
-            if (identity.ownerPlayerUUID == null || !owner.equals(identity.ownerPlayerUUID)) continue;
-            try {
-                // MineColonies-side bonus — applied to the single CitizenData
-                // store (exists in both modes), so it can't be double-counted.
-                ICitizenData cd = resolveCitizenData(level, identity);
-                if (cd != null && applyHarvestSkillBonus(cd)) skilled++;
-
-                // Tensura EP boost — the subordinate festival gift, applied to the
-                // colony mob. Subordinate-mode identities near the player are
-                // handled by Tensura's own festival pass.
-                if (identity.mode == RaceIdentitySavedData.Mode.IN_COLONY) {
-                    if (giftColonyCitizen(level, saved, identity)) gifted++;
-                }
-            } catch (Throwable t) {
-                LOGGER.warn("[TM] harvest festival: failed processing identity {}",
-                        identity.identityId, t);
-            }
-        }
-        LOGGER.info("[TM] harvest festival: +{} to top {} skills on {} citizen(s); {} colony mob(s) gifted (EP boost)",
-                HARVEST_SKILL_GAIN, HARVEST_SKILL_COUNT, skilled, gifted);
-    }
-
-    /**
-     * Awaken one IN_COLONY identity's stored mob form, mirroring what Tensura's
-     * festival does to a live subordinate: {@link RaceHelper#awakening} multiplies
-     * its aura/magicule by the demon-lord EP multiplier (race-independent — works
-     * on a raceless goblin). The mob's EP/existence loads off-world from the
-     * snapshot (only the race storage doesn't), so no spawn is needed. Persists
-     * the boosted snapshot and pushes the new EP onto the live citizen body.
-     *
-     * @return true if the mob was awakened (false if already awakened or unreadable).
-     */
-    private static boolean giftColonyCitizen(ServerLevel level,
-            RaceIdentitySavedData saved, RaceIdentitySavedData.RaceIdentity identity) {
-        if (identity.entitySnapshot == null) return false;
-        java.util.Optional<net.minecraft.world.entity.Entity> created =
-                net.minecraft.world.entity.EntityType.create(identity.entitySnapshot, level);
-        if (created.isEmpty() || !(created.get() instanceof LivingEntity mob)) {
-            LOGGER.info("[TM] hf-gift {}: skip — snapshot reconstruct failed", identity.identityId);
-            return false;
-        }
-        ExistenceStorage mobEx = readExistence(mob);
-        if (mobEx == null) {
-            LOGGER.info("[TM] hf-gift {}: skip — no existence on reconstructed {}",
-                    identity.identityId, mob.getType());
-            return false;
-        }
-
-        // The subordinate festival treatment (handleHarvestFestival's gift branch)
-        // is applyHarvestFestivalGift, NOT awakening. It multiplies aura/magicule
-        // by RaceConfig.DemonLord.epMultiplierDemonLord and refills — race-INDEPENDENT
-        // (the evolution + "subordinate_evolve" message are race-gated, so they
-        // skip on a raceless goblin, and there is NO demon-lord/awakening flag).
-        double beforeEP = mobEx.getEP();
-        mobEx.setHarvestGift(true); // applyHarvestFestivalGift consumes this
-        RaceHelper.applyHarvestFestivalGift(mobEx, mob);
-        mobEx.markDirty();
-        double afterEP = mobEx.getEP();
-        LOGGER.info("[TM] hf-gift {}: colony citizen {} EP {} -> {}",
-                identity.identityId, identity.citizenId, beforeEP, afterEP);
-
-        // Persist the boosted snapshot (the dormant subordinate form) so it stays
-        // consistent with the live citizen across send/summon swaps.
-        CompoundTag fresh = new CompoundTag();
-        if (mob.save(fresh)) {
-            saved.updateEntitySnapshot(identity, fresh);
-        }
-
-        // Push the boosted EP onto the live citizen body — the authoritative store
-        // the roster reads and that summon copies from.
-        pushEPToLiveCitizen(level, identity, mob, mobEx);
-        return true;
-    }
-
-    /**
-     * Lift the live colony citizen's max pools to the boosted mob's and copy the
-     * aura/magicule/HP across (the send swap's stat-sync), so the colonist's EP
-     * goes up immediately. The citizen entity must be loaded — if it isn't, the
-     * boost is on the snapshot only and shows when the citizen next loads / is
-     * summoned. Logs which path was taken.
-     */
-    private static void pushEPToLiveCitizen(ServerLevel level,
-            RaceIdentitySavedData.RaceIdentity identity, LivingEntity boostedMob,
-            ExistenceStorage mobEx) {
-        ICitizenData cd = resolveCitizenData(level, identity);
-        if (cd == null) {
-            LOGGER.info("[TM] hf-gift {}: no CitizenData — live EP not pushed", identity.identityId);
-            return;
-        }
-        java.util.Optional<AbstractEntityCitizen> entOpt = cd.getEntity();
-        if (entOpt.isEmpty()) {
-            LOGGER.info("[TM] hf-gift {}: citizen {} not loaded — EP boost on snapshot only "
-                    + "(shows on reload/summon)", identity.identityId, identity.citizenId);
-            return;
-        }
-        AbstractEntityCitizen citizen = entOpt.get();
-        try {
-            ExistenceStorage citEx = readExistence(citizen);
-            double before = citEx == null ? -1 : citEx.getEP();
-            bumpBodyMaxAttributes(citizen, boostedMob);
-            if (citEx != null) {
-                copyStats(mobEx, citEx);
-                copyHealthAbsolute(boostedMob, citizen);
-            }
-            double after = citEx == null ? -1 : citEx.getEP();
-            LOGGER.info("[TM] hf-gift {}: pushed EP to live citizen {} ({} -> {})",
-                    identity.identityId, identity.citizenId, before, after);
-        } catch (Throwable t) {
-            LOGGER.warn("[TM] hf-gift: failed pushing EP to live citizen {}",
-                    identity.citizenId, t);
-        }
-    }
-
-    /** Harvest Festival MineColonies bonus: the N highest skills each +M, capped. */
-    private static final int HARVEST_SKILL_GAIN  = 4;
-    private static final int HARVEST_SKILL_COUNT = 4;
-    private static final int MC_SKILL_CAP        = 99;
-
-    /**
-     * Add the Harvest Festival skill bonus to one citizen: its
-     * {@value #HARVEST_SKILL_COUNT} highest skills each gain
-     * {@value #HARVEST_SKILL_GAIN} levels, clamped to {@value #MC_SKILL_CAP}
-     * (a skill already at the cap doesn't move). Ties for the Nth slot are
-     * broken by skill enum order so the choice is deterministic.
-     *
-     * @return true if at least one skill changed.
-     */
-    private static boolean applyHarvestSkillBonus(ICitizenData cd) {
-        ICitizenSkillHandler handler = cd.getCitizenSkillHandler();
-        Map<Skill, com.minecolonies.core.entity.citizen.citizenhandlers.CitizenSkillHandler.SkillData> skills
-                = handler.getSkills();
-        List<Map.Entry<Skill, com.minecolonies.core.entity.citizen.citizenhandlers.CitizenSkillHandler.SkillData>> sorted
-                = new ArrayList<>(skills.entrySet());
-        sorted.sort(Comparator
-                .comparingInt((Map.Entry<Skill, com.minecolonies.core.entity.citizen.citizenhandlers.CitizenSkillHandler.SkillData> e)
-                        -> e.getValue().getLevel())
-                .reversed()
-                .thenComparingInt(e -> e.getKey().ordinal()));
-
-        boolean changed = false;
-        StringBuilder summary = new StringBuilder();
-        int n = Math.min(HARVEST_SKILL_COUNT, sorted.size());
-        for (int i = 0; i < n; i++) {
-            var entry = sorted.get(i);
-            int current = entry.getValue().getLevel();
-            int next = Math.min(MC_SKILL_CAP, current + HARVEST_SKILL_GAIN);
-            if (next != current) {
-                entry.getValue().setLevel(next);
-                changed = true;
-                summary.append(entry.getKey()).append(":").append(current).append("->").append(next).append(" ");
-            }
-        }
-        if (changed) {
-            cd.markDirty(10);
-            LOGGER.info("[TM] harvest festival: citizen {} skill bonus {}", cd.getId(), summary.toString().trim());
-        }
-        return changed;
-    }
-
-    /** Resolve an identity's {@link ICitizenData} (present in both modes), or null. */
-    private static ICitizenData resolveCitizenData(ServerLevel level,
-            RaceIdentitySavedData.RaceIdentity identity) {
-        IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
-        if (colony == null) return null;
-        return colony.getCitizenManager().getCivilian(identity.citizenId);
     }
 
     /** Per-tick envoy scheduler. Called from the existing

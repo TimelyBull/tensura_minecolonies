@@ -1298,62 +1298,6 @@ lizardman) at the default setting without raising the cap
 manually. Existing worlds keep their stored gamerule value; new
 worlds start at 4.
 
-## Harvest Festival bonus for in-colony subordinates (MC skills only)
-
-**Hook `ENTER_HARVEST_FESTIVAL_EVENT`; give every owned identity a
-MineColonies skill bonus. No Tensura race-evolution — mobs have no race.**
-We subscribe to the Architectury `ENTER_HARVEST_FESTIVAL_EVENT` (same pattern as
-`NAMING_EVENT`); when a player awakens, every named identity they own has its
-**four highest MC skills bumped +4 levels** (clamped to 99; ties for the 4th
-slot broken by `Skill` enum order).
-
-**No double-counting — MC skills live on a single store.** The "one identity,
-two bodies" worry (colonist *and* subordinate) is structurally avoided: MC
-skills exist ONLY on the shared `CitizenData` (the Tensura mob has no MC skills,
-and the send/summon stat-sync copies Tensura EP, never skills). We apply the
-bonus to `CitizenData` once per identity, so it can't be doubled and it
-"transfers" to whichever body is materialized. Applied to ALL the player's
-identities (both modes — `CitizenData` exists in both), so a subordinate
-gathered to your side for the festival still gets the boost it carries when sent
-back.
-
-**Tensura EP track is the SUBORDINATE GIFT, not awakening, and not
-race-evolution.** `handleHarvestFestival` (ticks on every entity with EP) has
-two branches: the **host** `harvestTick` branch calls `RaceHelper.awakening`
-(awaken into a demon lord — gated by `RaceUtils.isAlreadyAwakened`), and the
-**subordinate** `harvestGiftTick` branch calls
-`RaceHelper.applyHarvestFestivalGift`. An early version wrongly applied the host
-*awakening* to colony goblins (turning them into True Demon Lords — wrong). The
-correct subordinate treatment is `applyHarvestFestivalGift`, which (after the
-race block) **unconditionally** multiplies the `MAX_AURA`/`MAX_MAGICULE` base
-values by `RaceConfig.DemonLord.epMultiplierDemonLord` and refills — its
-evolution + "subordinate_evolve" message are `Optional`-guarded on
-`getRaceFrom(...).getRace()`, so they skip on a raceless goblin while the EP
-multiply still applies (no demon-lord flag, no skills). So we apply
-`applyHarvestFestivalGift` to IN_COLONY citizens.
-
-This also resolves the earlier dead-end. The **race-evolution** chase failed
-because the `ManasRace` system is player-centric — mob entities carry no race
-(`RaceAPI.getRaceFrom(goblin).getRace()` is empty both off-world AND after
-briefly spawning the mob). But a goblin mob *does* have an **EP/existence**
-storage (it loads off-world from the snapshot), which is exactly what awakening
-needs — so no spawn is required, and the brief-spawn `evolveRace` path was
-removed. (The "Enlightened Hobgoblin" etc. tiers are player `TensuraRace`s, and
-`INameEvolution.evolve()` is capped at state 1 = a named hobgoblin's max, so
-neither is an available mob evolution.)
-
-**Gift flow (per IN_COLONY identity):** reconstruct the snapshot →
-`readExistence` → `setHarvestGift(true)` → `RaceHelper.applyHarvestFestivalGift`
-→ `mob.save` → `updateEntitySnapshot` → push the boosted EP onto the live citizen
-body (`bumpBodyMaxAttributes` + `copyStats` + `copyHealthAbsolute`, the send
-swap's stat-sync). Both the snapshot (dormant subordinate form) and the live
-citizen are written so they stay consistent across send/summon — send copies
-goblin→citizen, summon copies citizen→goblin, so the live citizen's existence is
-the authoritative EP store the roster reads. **Loaded caveat:** the live-citizen
-push needs the citizen entity loaded; if it isn't, the boost is on the snapshot
-only and shows on reload/summon (logged). No once-gate (the subordinate gift is
-per-festival; in normal play awakening fires the festival ~once anyway).
-
 ## Subordinate command — "Patrol Colony Outskirts"
 
 This is the concrete realisation of the "new direction" that replaced
