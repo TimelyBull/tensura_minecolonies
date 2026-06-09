@@ -1,10 +1,12 @@
 package com.example.examplemod;
 
+import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import org.slf4j.Logger;
 
 /**
  * Client-side handler for {@link Networking.OpenRacePickerPayload}.
@@ -38,6 +40,8 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 @OnlyIn(Dist.CLIENT)
 public final class RacePickerClientHandler {
 
+    private static final Logger LOGGER = LogUtils.getLogger();
+
     private static int pendingColonyId = -1;
     private static String pendingColonyName = "";
     private static int ticksUntilOpen = 0;
@@ -61,11 +65,30 @@ public final class RacePickerClientHandler {
         if (ticksUntilOpen <= 0) return;
         ticksUntilOpen--;
         if (ticksUntilOpen == 0 && pendingColonyId >= 0) {
-            Minecraft mc = Minecraft.getInstance();
-            Screen parent = mc.screen;
-            mc.setScreen(new RacePickerScreen(parent, pendingColonyId, pendingColonyName));
+            final int colonyId = pendingColonyId;
+            final String colonyName = pendingColonyName;
             pendingColonyId = -1;
             pendingColonyName = "";
+
+            Minecraft mc = Minecraft.getInstance();
+            // Capture the current screen (MC's town hall window) up front so we
+            // can hand it to the vanilla fallback if the BlockUI open fails —
+            // the native open() replaces mc.screen as a side effect.
+            Screen parent = mc.screen;
+
+            // Native BlockUI window is the primary path; the vanilla screen is
+            // kept in the tree purely as a fail-closed safety net (missing
+            // BlockUI/MC class, XML parse error, etc.).
+            boolean opened = false;
+            try {
+                opened = WindowRacePicker.tryOpen(colonyId, colonyName);
+            } catch (Throwable t) {
+                LOGGER.error("[TM] race picker: native BlockUI window failed to open; "
+                        + "falling back to the vanilla screen", t);
+            }
+            if (!opened) {
+                mc.setScreen(new RacePickerScreen(parent, colonyId, colonyName));
+            }
         }
     }
 }

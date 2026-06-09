@@ -1,0 +1,35 @@
+<window size="400 244" lightbox="true"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/ldtteam/BlockUI/version/main/src/main/resources/assets/blockui/gui/block_ui.xsd">
+
+    <!-- Native MC content panel (same paper texture MC's hire-worker window uses). -->
+    <image source="minecolonies:textures/gui/builderhut/builder_paper_wide2.png" size="400 244"/>
+
+    <!-- Title + subtitle (subtitle = colony name, set at runtime in onOpened). -->
+    <text id="title" size="400 11" pos="0 18" textalign="MIDDLE" color="black"
+          label="§lChoose your colony's race§r"/>
+    <text id="subtitle" size="400 11" pos="0 32" textalign="MIDDLE" color="black"/>
+
+    <!-- Per-race description lines — same content as the old vanilla screen. -->
+    <text size="360 11" pos="20 64"  textalign="MIDDLE" color="black"
+          label="Default citizens — standard MineColonies population."/>
+    <text size="360 11" pos="20 80"  textalign="MIDDLE" color="black"
+          label="Goblin — small, nimble, prolific; quick to grow but fragile."/>
+
+    <text size="360 11" pos="20 104" textalign="MIDDLE" color="black"
+          label="Wild goblins will spawn in your territory once you choose them."/>
+    <text size="360 11" pos="20 118" textalign="MIDDLE" color="black"
+          label="You must name each one to convert them into a citizen."/>
+
+    <text size="360 11" pos="20 142" textalign="MIDDLE" color="black"
+          label="Other races (Orc, Lizardman, Dwarf) arrive later through diplomacy."/>
+
+    <!-- The two STARTER race choices, as native MC image buttons. -->
+    <button id="raceDefault" size="150 20" pos="42 200" color="black"
+            source="minecolonies:textures/gui/builderhut/builder_button_large.png"
+            label="Default citizens"/>
+    <button id="raceGoblin" size="150 20" pos="208 200" color="black"
+            source="minecolonies:textures/gui/builderhut/builder_button_large.png"
+            label="Goblin"/>
+
+</window>
