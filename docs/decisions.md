@@ -1111,6 +1111,53 @@ window's left tab strip:
 Net: pixel-matches MC's tabs, drops all the projection-matrix /
 manual-hit-test fragility, and the server-side trade flow is untouched.
 
+## Race picker — rebuilt as a native BlockUI window (first standalone window)
+
+**`RacePickerScreen` (vanilla `Screen`) replaced by `WindowRacePicker
+extends AbstractWindowSkeleton`.** This is the first of our *own* screens
+converted to a genuine MineColonies-style BlockUI window (the trade tab
+only injected children into MC's existing citizen window; this builds a
+fresh window from our own XML). It validates the standalone-window
+pattern before the heavier roster rebuild. Layout in
+`assets/tensura_minecolonies/gui/windowracepicker.xml`:
+`builder_paper_wide2.png` (400×244) content panel + two
+`builder_button_large.png` image buttons + black-on-paper `<text>` panes
+— same copy as the old screen. The colony-name subtitle is the only
+dynamic text, set in `onOpened` via `findPaneOfTypeByID("subtitle",
+Text.class)`.
+
+**Parent stacking uses `AbstractWindowSkeleton`'s `parent` field + plain
+`.open()`, NOT `openAsLayer()`.** Decompiling confirmed
+`AbstractWindowSkeleton.close()` does `super.close()` (BlockUI's
+`popGuiLayer`) **then `parent.open()`** — so passing the town-hall
+`BOWindow` as parent makes both a race pick and ESC return to the town
+hall, reproducing the old screen's manual `setScreen(parent)` behaviour.
+ESC routes there because BlockUI's `onUnhandledKeyTyped` calls the
+virtual `close()` on key 256. The town-hall UI is itself a `BOScreen`, so
+the parent is grabbed as `((BOScreen) mc.screen).getWindow()`; when
+there's no BlockUI screen current (rare — the 1-tick defer normally lets
+MC's town-hall UI install first) the parent is null and the window simply
+closes to the game, matching the old no-parent path. `openAsLayer()` +
+`close()` (push/pop layer) is the *other* coherent BlockUI idiom but
+would double up against the skeleton's `parent.open()`, so we use the
+skeleton's built-in mechanism, which is what every MC sub-window does.
+
+**Open trigger and payload unchanged.** `OpenRacePickerPayload` →
+`RacePickerClientHandler` still defers one client tick, then calls
+`WindowRacePicker.tryOpen(...)`; the two buttons still fire the unchanged
+`Networking.RaceChoicePayload` (same `colonyId` / choice bytes). Only the
+presentation changed.
+
+**Fail-closed, vanilla screen retained.** `RacePickerClientHandler` opens
+the BlockUI window inside a `try/catch (Throwable)`; on any failure
+(missing BlockUI/MC class — caught as the lazily-resolved
+`WindowRacePicker` reference links —, XML parse error, etc.) it falls
+back to `mc.setScreen(new RacePickerScreen(parent, …))`. The vanilla
+`RacePickerScreen` stays in the source tree purely as that safety net.
+MC texture `ResourceLocation`s are centralized as constants on
+`WindowRacePicker` (fragility mitigation — the XML references the same MC
+asset paths, so a future MC rename surfaces in one place).
+
 The trade itself runs against a **transient merchant** so the
 player no longer has to summon the subordinate back. Server
 `handleOpenCitizenTrade`: reconstruct merchant via
