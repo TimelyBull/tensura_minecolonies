@@ -1311,24 +1311,30 @@ subscribe to the Architectury `ENTER_HARVEST_FESTIVAL_EVENT` (same pattern as
 `NAMING_EVENT`) and evolve the awakening player's IN_COLONY identities
 ourselves.
 
-**Why same-type only, and the off-world-safety reasoning.** Tensura's full
-gift (`RaceHelper.applyHarvestFestivalGift`) runs `evolveRace` (race + attribute
-recompute — safe) **then** `evolveMobs`, which for a tier that crosses entity
-types (e.g. hobgoblin → ogre) does `entity.discard()` + `level.addFreshEntity(evolved)`.
-Run on a reconstructed off-world snapshot that has no live entity, that would
-**spawn a live duplicate** of the citizen (the citizen still exists in the
-colony). So instead of the full gift we call only `INameEvolution.evolve()`,
-which is verified (Goblin/Orc/Lizardman bytecode) to be a pure
-`setCurrentEvolutionState(state+1)` + stat-gain method that never discards or
-spawns — a same-entity-type tier bump. Detection is just
-`getCurrentEvolutionState() < getMaxEvolutionState()` (both on the
-`INameEvolution` interface). At max same-type tier — or for a body with no
-`INameEvolution` (dwarf) — we skip; that identity resumes normal evolution the
-next time it's summoned to the player's side as a live entity.
+**The festival evolution is a RACE-tier change, applied via `evolveRace` (not
+`evolve()`), and is off-world-safe.** First wrong turn: I called
+`INameEvolution.evolve()`, which only does `setCurrentEvolutionState(state+1)`.
+But `GoblinEntity.getMaxEvolutionState()` is 1 (the `INameEvolution` default),
+and naming already evolves a goblin to a hobgoblin (state 1), so every colony
+goblin is *already maxed* on that axis — `evolve()` no-op'd ("0 evolved" in
+testing). The Harvest Festival evolution is actually a **race-tier** change:
+`TensuraRace.getHarvestFestivalEvolution` returns Goblin→Hobgoblin,
+Hobgoblin→**Enlightened Hobgoblin**, etc. Pivotal find: there is no separate
+hobgoblin/enlightened entity class — the whole goblin chain is one
+`GoblinEntity` — and `RaceHelper.evolveRace(entity, target, true)` changes the
+`ManasRace` + recomputes stats **in place** (verified: `RaceAPI` + attribute
+recompute + a sound; no `convertTo`/`discard`/`addFreshEntity`). So it runs
+safely on the reconstructed off-world snapshot — **no gather/respawn dance
+needed** (the respawn-on-entity-type-change lives only in `evolveMobs`, which we
+never call; for a tier that did cross entity types, `evolveRace` alone keeps our
+renderable entity type and just applies the race + stats). We skip an identity
+only when `getHarvestFestivalEvolution` returns null / the same race (no further
+tier).
 
-**Per-identity flow:** reconstruct from snapshot → `evolve()` → `mob.save(fresh)`
-→ `updateEntitySnapshot` → re-capture the variant and re-stamp the live
-citizen's `RaceTag` (+ broadcast `SyncRaceTagPayload`) so it re-renders evolved.
+**Per-identity flow:** reconstruct from snapshot → read race via `RaceAPI` →
+`evolveRace(target)` → `mob.save(fresh)` → `updateEntitySnapshot` → re-capture
+the variant and re-stamp the live citizen's `RaceTag` (+ broadcast
+`SyncRaceTagPayload`).
 Each identity is wrapped in try/catch so one failure can't abort the pass, and
 the handler returns `EventResult.pass()` so Tensura's own festival counts are
 untouched. **Limitation:** the citizen's *appearance* updates immediately only
