@@ -253,6 +253,50 @@ Three fixes from the first in-game raid test:
    2 s while anything presses. Pure presentation — the EP-scaled drain
    IS the damage; literal block HP stays deferred.
 
+### Barrier rework (2026-06-10) — square wall render, square field, spawn prevention
+
+1. **Square wall render replaces the particle shell.** A client
+   `BlockEntityRenderer` (`BarrierFieldRenderer`) draws four translucent
+   textured quads (the player-supplied energy-field texture,
+   `textures/block/barrier_field.png`, reconstructed to 16×16 with true
+   alpha) at the footprint edges, double-winded so visible from both
+   sides, fullbright, tiled per 4 blocks, spanning Y −4..+12 around the
+   block. **Vertex alpha scales with the synced fill ratio**
+   (0.10 near-empty → 0.85 full, on a ~65%-alpha texture) — the wall IS
+   the at-a-glance strength readout. Renders whenever the barrier holds
+   magicule (confirmed choice; the pushback field itself remains
+   raid-only). `storedMagicule` syncs to clients via
+   `getUpdateTag`/`getUpdatePacket` + a once-per-second
+   `sendBlockUpdated` when the value moves >0.5% of capacity.
+2. **The field is now a SQUARE (Chebyshev) footprint** — half-extent
+   `BARRIER_RADIUS` (16), shared verbatim by the pushback/drain, the
+   wall render, and the spawn prevention
+   (`BarrierBlockEntity.isWithinFootprint` is the single definition).
+   Pushback clamps through the NEAREST face. Replaces the v1 cylinder
+   so the render and the functional area match exactly.
+3. **Hostile-only spawn prevention inside a FUELED barrier** (confirmed
+   choice: fuel required — an empty barrier protects nothing).
+   - **Classification finding:** `MobCategory.MONSTER` is NOT a valid
+     "only hostile" signal — Tensura registers goblins/orcs/lizardmen
+     as MONSTER despite being passive/passive-aggressive. The correct
+     classifier is Tensura's own curated **`tensura:hostile_monster`
+     entity-type tag**: vanilla attacks-on-sight monsters
+     (zombie/skeleton/creeper/…, with neutral mobs like endermen
+     deliberately absent) plus Tensura's genuine hostiles
+     (black spider, knight spider, daemons, orc lord/disaster, …) and
+     none of the nameable races. Same tag the patrol targeting already
+     trusts. Data-driven — a datapack can adjust it.
+   - **Hook:** `MobSpawnEvent.PositionCheck` (NATURAL +
+     CHUNK_GENERATION spawn types) → `Result.FAIL` when the type is
+     tagged and (x, z) is inside any fueled barrier's square.
+   - **Raids unaffected by construction:** raid mobs spawn via direct
+     `EntityType.create + addFreshEntity`, which never posts
+     PositionCheck — and they spawn at the colony perimeter regardless.
+4. **Roster UI fix:** the reputation header line was truncating long
+   tier names ("Passive-Aggressive · NN"). `repLine` widened to 126 px
+   at textscale 0.85 (colony name narrowed to 106 px) — all six tier
+   descriptors + value now fit.
+
 ### Deferred (explicit)
 
 Lore variants (Carrion beastmen / clowns / Charybdis / angel), multi-wave

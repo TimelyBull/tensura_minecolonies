@@ -9,9 +9,11 @@
 
     <!-- ===================== HEADER ===================== -->
     <text id="title" size="260 16" pos="16 12" color="black" textscale="1.3" label="§lCitizen Roster§r"/>
-    <text id="colonyName" size="140 10" pos="16 32" color="black" label="[colony name]"/>
-    <!-- Reputation tier + value of the header colony; coloured per tier in Java. -->
-    <text id="repLine" size="92 10" pos="158 32" textalign="MIDDLE_RIGHT" color="black" label=""/>
+    <text id="colonyName" size="106 10" pos="16 32" color="black" label="[colony name]"/>
+    <!-- Reputation tier + value of the header colony; coloured per tier in
+         Java. Wide + slightly downscaled so the longest descriptor
+         ("Passive-Aggressive · NN") fits without truncation. -->
+    <text id="repLine" size="126 10" pos="124 32" textalign="MIDDLE_RIGHT" textscale="0.85" color="black" label=""/>
     <box id="divider" size="368 1" pos="16 48" color="black"/>
 
     <!-- Slime peeking over the top edge, next to the magicule badge.

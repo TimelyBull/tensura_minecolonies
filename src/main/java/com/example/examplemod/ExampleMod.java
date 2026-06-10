@@ -1176,6 +1176,42 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     }
 
     /**
+     * Hostile-only spawn prevention inside a fueled barrier.
+     *
+     * Classification — "only hostile" = the {@code tensura:hostile_monster}
+     * ENTITY TYPE TAG, not {@code MobCategory.MONSTER}. Tensura registers
+     * goblins/orcs/etc. as MONSTER even though they're passive-aggressive,
+     * so the category over-blocks; the tag is Tensura's own curated
+     * attacks-on-sight list (vanilla zombies/skeletons/creepers + Tensura's
+     * genuine hostiles, with neutral mobs like endermen and the nameable
+     * races deliberately absent). Same tag the patrol targeting uses.
+     *
+     * Hook — {@code MobSpawnEvent.PositionCheck}, fired by vanilla's
+     * NaturalSpawner / spawner placement checks. Our raid spawns go
+     * through {@code EntityType.create + addFreshEntity} directly, which
+     * never posts this event — raids are unaffected by construction (and
+     * spawn at the colony perimeter anyway). Only NATURAL-style spawns
+     * are denied; the barrier must be FUELED (the active-barrier registry
+     * only carries barriers with stored magicule > 0).
+     */
+    @SubscribeEvent
+    public void onMobSpawnPositionCheck(
+            net.neoforged.neoforge.event.entity.living.MobSpawnEvent.PositionCheck event) {
+        if (!(event.getLevel() instanceof ServerLevel serverLevel)) return;
+        net.minecraft.world.entity.MobSpawnType type = event.getSpawnType();
+        if (type != net.minecraft.world.entity.MobSpawnType.NATURAL
+                && type != net.minecraft.world.entity.MobSpawnType.CHUNK_GENERATION) {
+            return;
+        }
+        if (!event.getEntity().getType().builtInRegistryHolder().is(TensuraRaids.HOSTILE_MONSTER_TAG)) {
+            return;
+        }
+        if (TensuraRaids.isInsideFueledBarrier(serverLevel, event.getX(), event.getZ())) {
+            event.setResult(net.neoforged.neoforge.event.entity.living.MobSpawnEvent.PositionCheck.Result.FAIL);
+        }
+    }
+
+    /**
      * Reputation mover — building constructed or upgraded (+2). Repairs
      * and removals don't move reputation (maintenance isn't growth).
      * Subscribed on the MineColonies event bus in {@link #commonSetup}.

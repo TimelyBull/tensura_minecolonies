@@ -43,6 +43,11 @@ public final class ClientEvents {
     /** Wire up the client-side listeners. Called once from the mod constructor. */
     public static void init(IEventBus modBus) {
         modBus.addListener(ClientEvents::onRegisterKeys);
+        // Barrier wall visual — square translucent walls around the
+        // barrier block, alpha scaled by the synced magicule fill.
+        modBus.addListener((net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers e) ->
+                e.registerBlockEntityRenderer(ExampleMod.BARRIER_BLOCK_ENTITY.get(),
+                        BarrierFieldRenderer::new));
         NeoForge.EVENT_BUS.addListener(ClientEvents::onClientTickPost);
 
         // Stage C2b — install the Screen-opening handler. Replaces the

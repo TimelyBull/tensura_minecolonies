@@ -75,6 +75,25 @@ public class BarrierBlockEntity extends BlockEntity {
     private boolean fieldWasUp = false;
     /** Per-second cache of "is a raid active for this block's colony". */
     private boolean raidActiveCache = false;
+    /** Last stored value synced to clients — the wall render's alpha
+     *  tracks the fill, so clients get a fresh value whenever it moves
+     *  by more than ~0.5% of capacity (checked once per second). */
+    private double lastSyncedMagicule = -1.0;
+
+    /** Fill fraction 0..1 — read client-side by the wall renderer. */
+    public float getFillRatio() {
+        return (float) Math.max(0.0, Math.min(1.0, storedMagicule / BARRIER_CAPACITY));
+    }
+
+    /** Shared footprint test: is (x, z) inside this barrier's square
+     *  (Chebyshev half-extent {@link #BARRIER_RADIUS} around the block)?
+     *  The field pushback, the wall render, and the hostile-spawn
+     *  prevention all use this same definition. */
+    public static boolean isWithinFootprint(BlockPos barrierPos, double x, double z) {
+        double dx = x - (barrierPos.getX() + 0.5);
+        double dz = z - (barrierPos.getZ() + 0.5);
+        return Math.max(Math.abs(dx), Math.abs(dz)) <= BARRIER_RADIUS;
+    }
 
     public BarrierBlockEntity(BlockPos pos, BlockState state) {
         super(ExampleMod.BARRIER_BLOCK_ENTITY.get(), pos, state);
@@ -157,6 +176,11 @@ public class BarrierBlockEntity extends BlockEntity {
         // which changes storedMagicule every tick during a press).
         if (gameTime % 20 == 0) {
             be.syncChargeState();
+            // Client sync for the wall render's fill-driven alpha.
+            if (Math.abs(be.storedMagicule - be.lastSyncedMagicule) > BARRIER_CAPACITY * 0.005) {
+                be.lastSyncedMagicule = be.storedMagicule;
+                serverLevel.sendBlockUpdated(pos, state, state, 3);
+            }
             be.raidActiveCache = TensuraRaids.isRaidActiveNear(serverLevel, pos);
             if (be.storedMagicule > 0) {
                 // Steering reads this to send raiders at the barrier first.
@@ -181,6 +205,9 @@ public class BarrierBlockEntity extends BlockEntity {
         Vec3 center = Vec3.atCenterOf(pos);
         double drainThisTick = 0.0;
 
+        // SQUARE footprint (Chebyshev distance) — the field, the wall
+        // render (BarrierFieldRenderer), and the hostile-spawn prevention
+        // all share this same BARRIER_RADIUS half-extent square.
         for (Mob mob : serverLevel.getEntitiesOfClass(Mob.class,
                 AABB.ofSize(center, (BARRIER_RADIUS + CONTACT_BAND) * 2 + 2, 64,
                         (BARRIER_RADIUS + CONTACT_BAND) * 2 + 2),
@@ -188,48 +215,46 @@ public class BarrierBlockEntity extends BlockEntity {
 
             double dx = mob.getX() - center.x;
             double dz = mob.getZ() - center.z;
-            double horizDist = Math.sqrt(dx * dx + dz * dz);
+            double cheb = Math.max(Math.abs(dx), Math.abs(dz));
 
-            // Pushback — clamp any raider inside the shell back to the
-            // surface, horizontal velocity zeroed (vertical kept so
-            // gravity still applies; no fall-damage accumulation since
-            // the clamp is horizontal-only).
-            if (horizDist < BARRIER_RADIUS) {
-                double nx, nz;
-                if (horizDist < 0.001) { nx = 1; nz = 0; }
-                else { nx = dx / horizDist; nz = dz / horizDist; }
-                double targetX = center.x + nx * (BARRIER_RADIUS + 0.25);
-                double targetZ = center.z + nz * (BARRIER_RADIUS + 0.25);
-                mob.setPos(targetX, mob.getY(), targetZ);
+            // Pushback — clamp any raider inside the square back out
+            // through the NEAREST face, horizontal velocity zeroed
+            // (vertical kept so gravity still applies).
+            if (cheb < BARRIER_RADIUS) {
+                if (Math.abs(dx) >= Math.abs(dz)) {
+                    double sign = dx >= 0 ? 1 : -1;
+                    mob.setPos(center.x + sign * (BARRIER_RADIUS + 0.25), mob.getY(), mob.getZ());
+                } else {
+                    double sign = dz >= 0 ? 1 : -1;
+                    mob.setPos(mob.getX(), mob.getY(), center.z + sign * (BARRIER_RADIUS + 0.25));
+                }
                 Vec3 vel = mob.getDeltaMovement();
                 mob.setDeltaMovement(0, Math.min(0, vel.y), 0);
-                horizDist = BARRIER_RADIUS + 0.25;
+                cheb = BARRIER_RADIUS + 0.25;
             }
 
-            // EP-scaled contact drain for raiders pressing the shell.
-            if (horizDist <= BARRIER_RADIUS + CONTACT_BAND) {
+            // EP-scaled contact drain for raiders pressing the wall.
+            if (cheb <= BARRIER_RADIUS + CONTACT_BAND) {
                 ExistenceStorage exist = ExampleMod.readExistence(mob);
                 double ep = exist != null && exist.getEP() > 0 ? exist.getEP() : FALLBACK_RAIDER_EP;
                 drainThisTick += ep * BARRIER_DRAIN_COEFFICIENT_PER_SECOND / 20.0;
 
                 // Visible "attacking the barrier": once a second the
                 // presser faces the block, swings, and crit particles
-                // burst at its impact point on the shell. Pure show —
-                // the drain above IS the damage.
+                // burst at its spot on the wall. Pure show — the drain
+                // above IS the damage.
                 if (gameTime % 20 == 0) {
                     mob.getLookControl().setLookAt(center.x, center.y, center.z);
                     mob.swing(net.minecraft.world.InteractionHand.MAIN_HAND, true);
-                    double ix = center.x + (dx / Math.max(horizDist, 0.001)) * BARRIER_RADIUS;
-                    double iz = center.z + (dz / Math.max(horizDist, 0.001)) * BARRIER_RADIUS;
                     serverLevel.sendParticles(ParticleTypes.CRIT,
-                            ix, mob.getY() + mob.getBbHeight() * 0.6, iz,
+                            mob.getX(), mob.getY() + mob.getBbHeight() * 0.6, mob.getZ(),
                             8, 0.2, 0.3, 0.2, 0.05);
                 }
             }
         }
 
         // Pounding audio — one knock per 2 s while ANYTHING presses the
-        // shell (per-mob sounds would stack into noise on big waves).
+        // wall (per-mob sounds would stack into noise on big waves).
         if (drainThisTick > 0 && gameTime % 40 == 0) {
             serverLevel.playSound(null, pos, SoundEvents.ZOMBIE_ATTACK_WOODEN_DOOR,
                     SoundSource.HOSTILE, 1.0f, 0.8f);
@@ -238,27 +263,6 @@ public class BarrierBlockEntity extends BlockEntity {
         if (drainThisTick > 0) {
             be.storedMagicule = Math.max(0, be.storedMagicule - drainThisTick);
             be.setChanged();
-        }
-
-        // Particle shell — once per second while the field is up.
-        if (gameTime % 20 == 0) {
-            spawnShellParticles(serverLevel, center);
-        }
-    }
-
-    /** Three rings of END_ROD particles marking the field's edge. */
-    private static void spawnShellParticles(ServerLevel level, Vec3 center) {
-        double[] heights = { 0.5, 2.5, 4.5 };
-        int points = 16;
-        for (double h : heights) {
-            for (int i = 0; i < points; i++) {
-                double angle = (Math.PI * 2 * i) / points;
-                level.sendParticles(ParticleTypes.END_ROD,
-                        center.x + Math.cos(angle) * BARRIER_RADIUS,
-                        center.y + h,
-                        center.z + Math.sin(angle) * BARRIER_RADIUS,
-                        1, 0, 0.02, 0, 0);
-            }
         }
     }
 
@@ -284,6 +288,22 @@ public class BarrierBlockEntity extends BlockEntity {
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
         storedMagicule = tag.getDouble("storedMagicule");
+    }
+
+    // Client sync — the wall renderer reads getFillRatio() client-side,
+    // so the stored amount travels in the chunk load tag AND in block
+    // updates (sendBlockUpdated → getUpdatePacket → loadAdditional).
+
+    @Override
+    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+        CompoundTag tag = new CompoundTag();
+        saveAdditional(tag, registries);
+        return tag;
+    }
+
+    @Override
+    public net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket getUpdatePacket() {
+        return net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket.create(this);
     }
 
     @Override

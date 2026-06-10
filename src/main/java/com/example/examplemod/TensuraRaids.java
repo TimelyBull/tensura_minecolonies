@@ -127,12 +127,39 @@ public final class TensuraRaids {
     private static final Map<GlobalPos, Long> ACTIVE_BARRIERS = new ConcurrentHashMap<>();
     private static final long BARRIER_STALE_TICKS = 60L;
 
+    /** Tensura's curated "attacks on sight" entity-type tag — the
+     *  classification the hostile-spawn prevention uses (NOT
+     *  MobCategory.MONSTER, which wrongly includes goblins/orcs). */
+    static final net.minecraft.tags.TagKey<EntityType<?>> HOSTILE_MONSTER_TAG =
+            net.minecraft.tags.TagKey.create(
+                    net.minecraft.core.registries.Registries.ENTITY_TYPE,
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("tensura", "hostile_monster"));
+
     static void reportActiveBarrier(ServerLevel level, BlockPos pos) {
         ACTIVE_BARRIERS.put(GlobalPos.of(level.dimension(), pos.immutable()), level.getGameTime());
     }
 
     static void reportBarrierDown(ServerLevel level, BlockPos pos) {
         ACTIVE_BARRIERS.remove(GlobalPos.of(level.dimension(), pos.immutable()));
+    }
+
+    /**
+     * Hostile-only spawn prevention: true when (x, z) lies inside the
+     * square footprint of ANY fueled barrier in this dimension. Uses the
+     * same footprint definition as the field and the wall render
+     * ({@link BarrierBlockEntity#isWithinFootprint}); "fueled" because
+     * the registry only carries barriers with stored magicule > 0.
+     */
+    static boolean isInsideFueledBarrier(ServerLevel level, double x, double z) {
+        long now = level.getGameTime();
+        Iterator<Map.Entry<GlobalPos, Long>> it = ACTIVE_BARRIERS.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<GlobalPos, Long> e = it.next();
+            if (now - e.getValue() > BARRIER_STALE_TICKS) { it.remove(); continue; }
+            if (!e.getKey().dimension().equals(level.dimension())) continue;
+            if (BarrierBlockEntity.isWithinFootprint(e.getKey().pos(), x, z)) return true;
+        }
+        return false;
     }
 
     /** Nearest fueled barrier within 96 blocks of {@code center}, or null. */
