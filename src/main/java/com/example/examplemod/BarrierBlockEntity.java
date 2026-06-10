@@ -95,14 +95,22 @@ public class BarrierBlockEntity extends BlockEntity {
         return accepted;
     }
 
-    /** Push the tank's fill quarter into the {@link BarrierBlock#CHARGE}
-     *  blockstate so the texture tracks the charge (0 faint → 3 full).
+    /** Push the tank's fill stage into the {@link BarrierBlock#CHARGE}
+     *  blockstate so the texture tracks the charge. Mapping (per design
+     *  review): thirds for the first three textures, and the
+     *  fully-charged texture reserved for an actually-FULL tank —
+     *  0–33% → 0, 33–66% → 1, 66–<100% → 2, 100% → 3.
      *  No-op when the stage hasn't changed. */
     private void syncChargeState() {
         if (level == null || level.isClientSide()) return;
         BlockState state = getBlockState();
         if (!state.hasProperty(BarrierBlock.CHARGE)) return;
-        int stage = (int) Math.min(3, Math.floor(storedMagicule / BARRIER_CAPACITY * 4.0));
+        int stage;
+        if (storedMagicule >= BARRIER_CAPACITY) {
+            stage = 3;
+        } else {
+            stage = (int) Math.min(2, Math.floor(storedMagicule / BARRIER_CAPACITY * 3.0));
+        }
         stage = Math.max(0, stage);
         if (state.getValue(BarrierBlock.CHARGE) != stage) {
             level.setBlock(worldPosition, state.setValue(BarrierBlock.CHARGE, stage), 3);
