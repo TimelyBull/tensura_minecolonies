@@ -137,7 +137,18 @@ public class BarrierCoreScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        renderBackground(g, mouseX, mouseY, partialTick);
+        // Widgets only — ALL panel chrome lives in renderBackground.
+        // Screen.render re-applies the blur background internally in
+        // 1.21, so anything drawn before super.render gets blurred;
+        // drawing the panel in renderBackground (after super's blur)
+        // keeps it crisp under the widgets. Same pattern as
+        // ConfirmCollapseScreen.
+        super.render(g, mouseX, mouseY, partialTick);
+    }
+
+    @Override
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        super.renderBackground(g, mouseX, mouseY, partialTick);
         int px = panelX(), py = panelY();
 
         // Panel (placeholder: cream card + border, mirroring the mock)
@@ -196,8 +207,6 @@ public class BarrierCoreScreen extends Screen {
         }
         g.fill(px + 8, py + PANEL_H - 26, px + PANEL_W - 62, py + PANEL_H - 10, 0xFFD9EFC9);
         g.drawString(this.font, status, px + 12, py + PANEL_H - 22, 0xFF2F5A28, false);
-
-        super.render(g, mouseX, mouseY, partialTick);
     }
 
     private static String compact(double v) {
