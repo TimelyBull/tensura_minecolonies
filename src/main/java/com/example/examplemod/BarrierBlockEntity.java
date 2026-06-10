@@ -483,16 +483,15 @@ public class BarrierBlockEntity extends BlockEntity {
             // per extra layer). If the pool can't pay, shed the OUTERMOST
             // layer (graceful degradation) instead of total collapse.
             double upkeep = (be.activeLayers - 1) * LAYER_UPKEEP_PER_SECOND;
+            // Outer layers shed quietly (sound only) — the ONLY chat
+            // alert is the final "barrier has fallen" when the pool
+            // empties and the last layer drops.
             while (upkeep > 0 && be.poolStoredCache < upkeep) {
                 be.activeLayers--;
                 be.setChanged();
                 serverLevel.sendBlockUpdated(pos, state, state, 3);
                 serverLevel.playSound(null, pos, SoundEvents.GLASS_BREAK,
                         SoundSource.BLOCKS, 1.0f, 0.9f);
-                alertNearbyPlayers(serverLevel, pos,
-                        Component.literal("The barrier's outermost layer falls — "
-                                + "not enough magicule to sustain it!")
-                                .withStyle(net.minecraft.ChatFormatting.RED));
                 upkeep = (be.activeLayers - 1) * LAYER_UPKEEP_PER_SECOND;
             }
             if (upkeep > 0) {
