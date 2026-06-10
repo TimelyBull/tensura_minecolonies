@@ -104,20 +104,28 @@ public class BarrierCoreScreen extends Screen {
         return new PaperButton(x, y, w, h, Component.literal(label), b -> send(action));
     }
 
+    /** Center X of the left (magicule) column — the gauge, its ticks,
+     *  the ratio text, and the four buttons all center on this. */
+    private int magColumnCenter() {
+        return panelX() + 66;
+    }
+
     @Override
     protected void init() {
         super.init();
         int px = panelX(), py = panelY();
-        int gaugeX = px + 20, gaugeY = py + 56;
+        int mx = magColumnCenter();
+        int gaugeY = py + 56;
 
-        // Magicule − / + (±3k per click) and MIN / MAX
-        addRenderableWidget(paper(gaugeX - 6, gaugeY + GAUGE_H + 16, 22, 14, "-",
+        // Magicule − / + (±3k per click) and MIN / MAX — symmetric
+        // around the column center so nothing hangs off the panel.
+        addRenderableWidget(paper(mx - 36, gaugeY + GAUGE_H + 16, 22, 14, "-",
                 Networking.BarrierMenuActionPayload.ACTION_TAKE));
-        addRenderableWidget(paper(gaugeX + GAUGE_W - 16, gaugeY + GAUGE_H + 16, 22, 14, "+",
+        addRenderableWidget(paper(mx + 14, gaugeY + GAUGE_H + 16, 22, 14, "+",
                 Networking.BarrierMenuActionPayload.ACTION_ADD));
-        addRenderableWidget(paper(gaugeX - 6, gaugeY + GAUGE_H + 34, 32, 14, "MIN",
+        addRenderableWidget(paper(mx - 36, gaugeY + GAUGE_H + 34, 34, 14, "MIN",
                 Networking.BarrierMenuActionPayload.ACTION_MIN));
-        addRenderableWidget(paper(gaugeX + GAUGE_W - 26, gaugeY + GAUGE_H + 34, 32, 14, "MAX",
+        addRenderableWidget(paper(mx + 2, gaugeY + GAUGE_H + 34, 34, 14, "MAX",
                 Networking.BarrierMenuActionPayload.ACTION_MAX));
 
         // Layers − / + flanking the "N / 3" readout under the preview box.
@@ -176,13 +184,11 @@ public class BarrierCoreScreen extends Screen {
         super.renderBackground(g, mouseX, mouseY, partialTick);
         int px = panelX(), py = panelY();
 
-        // MineColonies builder-paper panel (texture stretched to size),
-        // with a thin ink frame like the roster's card borders.
-        g.blit(PAPER, px, py, 0, 0, 0, PANEL_W, PANEL_H, 400, 260);
-        hline(g, px, px + PANEL_W, py, INK);
-        hline(g, px, px + PANEL_W, py + PANEL_H - 1, INK);
-        vline(g, py, py + PANEL_H, px, INK);
-        vline(g, py, py + PANEL_H, px + PANEL_W - 1, INK);
+        // MineColonies builder-paper panel — the FULL 400×244 texture
+        // stretched to the panel, so its own baked paper border frames
+        // the menu (the earlier partial crop left border lines running
+        // off the panel edge). No extra ink frame needed.
+        g.blit(PAPER, px, py, PANEL_W, PANEL_H, 0f, 0f, 400, 244, 400, 244);
 
         // Header — bold-ish title (drawn twice, 1px apart, the BlockUI
         // look), colony subtitle, CAP badge.
@@ -198,19 +204,27 @@ public class BarrierCoreScreen extends Screen {
         g.drawString(this.font, cap, px + PANEL_W - capW - 5, py + 12, TXT_DARK, false);
         hline(g, px + 12, px + PANEL_W - 12, py + 36, INK);
 
-        // ---- MAGICULES gauge ----
-        int gaugeX = px + 20, gaugeY = py + 56;
-        g.drawString(this.font, "MAGICULES", gaugeX - 6, py + 43, TXT_GRAY, false);
+        // ---- MAGICULES gauge (whole column centered on magColumnCenter) ----
+        int mx = magColumnCenter();
+        int gaugeX = mx - GAUGE_W / 2, gaugeY = py + 56;
+        drawCenteredNoShadow(g, "MAGICULES", mx, py + 43, TXT_GRAY);
         g.fill(gaugeX - 1, gaugeY - 1, gaugeX + GAUGE_W + 1, gaugeY + GAUGE_H + 1, INK);
         g.fill(gaugeX, gaugeY, gaugeX + GAUGE_W, gaugeY + GAUGE_H, GAUGE_BG);
         float fill = data.capacity() <= 0 ? 0f
                 : (float) Math.max(0, Math.min(1, data.stored() / data.capacity()));
         int fillPx = Math.round(GAUGE_H * fill);
         g.fill(gaugeX, gaugeY + GAUGE_H - fillPx, gaugeX + GAUGE_W, gaugeY + GAUGE_H, GAUGE_FILL);
+        // Beaker graduations — a tick every 10% of the bar (the 50% mark
+        // longer), drawn over the fill so they read like etched glass.
+        for (int i = 1; i <= 9; i++) {
+            int ty = gaugeY + GAUGE_H - Math.round(GAUGE_H * i / 10.0f);
+            int len = (i == 5) ? 9 : 5;
+            g.fill(gaugeX, ty, gaugeX + len, ty + 1, 0x802E2616);
+        }
         drawCenteredNoShadow(g, Math.round(fill * 100) + "%",
-                gaugeX + GAUGE_W / 2, gaugeY + GAUGE_H / 2 - 4, TXT_DARK);
+                mx, gaugeY + GAUGE_H / 2 - 4, TXT_DARK);
         drawCenteredNoShadow(g, compact(data.stored()) + " / " + compact(data.capacity()),
-                gaugeX + GAUGE_W / 2, gaugeY + GAUGE_H + 5, TXT_GRAY);
+                mx, gaugeY + GAUGE_H + 5, TXT_GRAY);
 
         // ---- BARRIER LAYERS ----
         int lx = px + 128, boxY = py + 56;
