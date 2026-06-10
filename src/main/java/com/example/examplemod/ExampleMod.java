@@ -207,7 +207,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     BlockBehaviour.Properties.of()
                             .mapColor(MapColor.COLOR_PURPLE)
                             .strength(3.0F)
-                            .lightLevel(s -> 7)));
+                            .lightLevel(s -> 7)
+                            // The texture is semi-transparent; without
+                            // noOcclusion neighbors cull their touching
+                            // faces (full-cube assumption) and you see
+                            // through the world behind them — glass has
+                            // the same need.
+                            .noOcclusion()));
     public static final DeferredItem<BlockItem> BARRIER_BLOCK_ITEM =
             ITEMS.registerSimpleBlockItem("magicule_barrier", BARRIER_BLOCK);
     public static final java.util.function.Supplier<net.minecraft.world.level.block.entity.BlockEntityType<BarrierBlockEntity>> BARRIER_BLOCK_ENTITY =
