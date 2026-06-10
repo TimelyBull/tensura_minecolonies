@@ -1,5 +1,8 @@
 {
   "variants": {
-    "": { "model": "tensura_minecolonies:block/magicule_barrier" }
+    "charge=0": { "model": "tensura_minecolonies:block/magicule_barrier_0" },
+    "charge=1": { "model": "tensura_minecolonies:block/magicule_barrier_1" },
+    "charge=2": { "model": "tensura_minecolonies:block/magicule_barrier_2" },
+    "charge=3": { "model": "tensura_minecolonies:block/magicule_barrier_3" }
   }
 }

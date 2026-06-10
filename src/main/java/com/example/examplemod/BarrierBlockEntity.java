@@ -90,8 +90,23 @@ public class BarrierBlockEntity extends BlockEntity {
         if (accepted > 0) {
             storedMagicule += accepted;
             setChanged();
+            syncChargeState();
         }
         return accepted;
+    }
+
+    /** Push the tank's fill quarter into the {@link BarrierBlock#CHARGE}
+     *  blockstate so the texture tracks the charge (0 faint → 3 full).
+     *  No-op when the stage hasn't changed. */
+    private void syncChargeState() {
+        if (level == null || level.isClientSide()) return;
+        BlockState state = getBlockState();
+        if (!state.hasProperty(BarrierBlock.CHARGE)) return;
+        int stage = (int) Math.min(3, Math.floor(storedMagicule / BARRIER_CAPACITY * 4.0));
+        stage = Math.max(0, stage);
+        if (state.getValue(BarrierBlock.CHARGE) != stage) {
+            level.setBlock(worldPosition, state.setValue(BarrierBlock.CHARGE, stage), 3);
+        }
     }
 
     public boolean isFull() {
@@ -117,6 +132,7 @@ public class BarrierBlockEntity extends BlockEntity {
         exist.markDirty();
         storedMagicule += move;
         setChanged();
+        syncChargeState();
         return move;
     }
 
@@ -128,8 +144,11 @@ public class BarrierBlockEntity extends BlockEntity {
         if (!(level instanceof ServerLevel serverLevel)) return;
         long gameTime = serverLevel.getGameTime();
 
-        // Cache the raid-active check once per second (colony scan).
+        // Cache the raid-active check once per second (colony scan); the
+        // charge-stage texture sync rides the same cadence (covers drain,
+        // which changes storedMagicule every tick during a press).
         if (gameTime % 20 == 0) {
+            be.syncChargeState();
             be.raidActiveCache = TensuraRaids.isRaidActiveNear(serverLevel, pos);
             if (be.storedMagicule > 0) {
                 // Steering reads this to send raiders at the barrier first.

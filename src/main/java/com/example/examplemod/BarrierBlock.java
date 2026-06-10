@@ -39,8 +39,25 @@ import java.util.Locale;
  */
 public class BarrierBlock extends BaseEntityBlock {
 
+    /**
+     * Visual fill stage, driven by the tank: 0 = faint charge (0–25%),
+     * 1 = half (25–50%), 2 = nearly charged (50–75%), 3 = full (75–100%).
+     * {@link BarrierBlockEntity#syncChargeState} writes it whenever the
+     * stored amount crosses a quarter boundary; the four player-supplied
+     * textures map one per stage in the blockstate JSON.
+     */
+    public static final net.minecraft.world.level.block.state.properties.IntegerProperty CHARGE =
+            net.minecraft.world.level.block.state.properties.IntegerProperty.create("charge", 0, 3);
+
     public BarrierBlock(Properties properties) {
         super(properties);
+        registerDefaultState(getStateDefinition().any().setValue(CHARGE, 0));
+    }
+
+    @Override
+    protected void createBlockStateDefinition(
+            net.minecraft.world.level.block.state.StateDefinition.Builder<net.minecraft.world.level.block.Block, BlockState> builder) {
+        builder.add(CHARGE);
     }
 
     @Override
