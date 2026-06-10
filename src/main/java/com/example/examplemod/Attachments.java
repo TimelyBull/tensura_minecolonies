@@ -62,6 +62,18 @@ public final class Attachments {
                             .serialize(PatrolOrder.SERIALIZER)
                             .build());
 
+    /**
+     * Raid-mob marker — see {@link RaidTag} and {@link TensuraRaidEvent}.
+     * Attached to every Tensura mob spawned by a raid; checked by the
+     * steering pass and the barrier block. Default null →
+     * {@code hasData(...)} is the authoritative presence check.
+     */
+    public static final Supplier<AttachmentType<RaidTag>> RAID_TAG =
+            ATTACHMENTS.register("raid_tag",
+                    () -> AttachmentType.<RaidTag>builder(() -> null)
+                            .serialize(RaidTag.SERIALIZER)
+                            .build());
+
     private Attachments() {}
 
     public static void register(IEventBus modBus) {

@@ -28,6 +28,9 @@ public enum ReputationReason {
     THEFT,
     /** Quest-driven adjustment — reserved for quest integration. */
     QUEST,
+    /** A Tensura raid on the colony was repelled (all raiders defeated
+     *  before the timer) — see {@link TensuraRaids}. */
+    RAID_REPELLED,
     /** Admin/debug adjustment (the /reputation command). */
     ADMIN
 }

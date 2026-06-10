@@ -1873,3 +1873,69 @@ policy), not in the manager (storage policy). Expect tuning.
 dialogue stays byte-identical to the pre-reputation copy — zero text
 churn for fresh/legacy colonies; only earned standing (either way)
 changes the envoy's register.
+
+## Raid system v1 — extend MC's raid EVENT framework, own scheduler + Tensura mobs
+
+Full investigation + as-built record: `docs/raid-system.md`. Decisions
+that bind other parts of the codebase:
+
+**Custom `IColonyRaidEvent`, NOT MC's raider entities/AI/scheduler.**
+MC's `RaidManager` hardcodes its raid event types by biome (verified in
+bytecode — direct `new BarbarianRaidEvent` etc., no registry lookup), and
+its raider AI (`RaiderWalkAI` / `RaiderMeleeAI`) is welded to
+`AbstractEntityMinecoloniesRaider`. But `IEventManager.addEvent` is public
+and the `minecolonies:colonyeventtypes` registry is a real NeoForge
+registry. `TensuraRaidEvent implements IColonyRaidEvent` (registered with
+`isRaidEvent=true`) buys MC's citizen flee/hide behavior
+(`RaidManager.isRaided()` scans for active `IColonyRaidEvent`s), event NBT
+persistence, and rehydration — while the mobs stay plain Tensura
+MONSTER-category entities that guard towers auto-list
+(`CompatibilityManager.discoverMobs` filters on `MobCategory.MONSTER`;
+Tensura registers 54 such types).
+
+**Steering = the SubordinatePatrol `WALK_TARGET` technique, plus a
+SmartBrainLib target assist.** Raiders march on the barrier (if fueled)
+else the colony center via per-second `WALK_TARGET` writes; when a raider
+has no live attack target, `BrainUtils.setTargetOfEntity` aims it at the
+nearest citizen of the raided colony. Native Tensura combat owns the mob
+while it has a target — steering never fights the brain.
+
+**Raid mobs are marked with a `RAID_TAG` attachment** `(colonyId, eventId)`
+— the universal raider check for steering, the barrier, and death
+bookkeeping; NBT persistence is what re-links loaded mobs to their
+rehydrated event after save/reload.
+
+**The barrier is a field effect, not physical blocks — and a CYLINDER,
+not a sphere.** Per-tick horizontal position clamp + velocity zero on
+RAID-tagged mobs inside radius 16 of the block (the proven
+direct-entity-driving technique). DIVERGENCE from the investigation
+sketch: a literal 3D-sphere clamp can bury ground mobs on sloped terrain;
+the vertical cylinder reads identically in play. Pushback is
+horizontal-only so gravity still applies (no fall-damage accumulation).
+
+**EP-scaled barrier drain.** Each raider pressing the shell drains
+`EP × BARRIER_DRAIN_COEFFICIENT_PER_SECOND / 20` per tick —
+**coefficient 0.02** (2% of the raider's own EP per second; a 3,000-EP
+mob drains 60/s, so an 8-mob wave of those empties the 100k tank in
+~3.5 min of constant press). Unreadable existence → 1,000-EP fallback.
+All barrier knobs are named constants on `BarrierBlockEntity`.
+
+**Trigger reads ReputationManager — exactly the seam reputation v1
+reserved.** Nightfall (per-dimension `getDayTime()%24000` crossing
+13000) → tier below NEUTRAL → chance per night (WARY 15% /
+PASSIVEAGGRESSIVE 30% / HOSTILE 50%), 3-day cooldown persisted in
+`RaidSavedData`, one-active-raid gate by scanning the event manager.
+Victory pays `+8` through `modifyReputation(..., RAID_REPELLED)` (new
+`ReputationReason` value — the enum extension pattern working as
+designed).
+
+**Roster divergence: Tensura has no Ogre.** Tiers by MC's own
+`getColonyRaidLevel()`: <10 Giant Ant / Black Spider; 10–19 Hound Dog /
+Evil Centipede / Direwolf; ≥20 Knight Spider / Blade Tiger / Evil
+Centipede. Wave size = `calculateRaiderAmount(raidLevel)` × (1 +
+reputation deficit), clamped [3, 12].
+
+**Active-barrier discovery via a refresh registry, not block scanning.**
+`BarrierBlockEntity` re-reports its position every second while fueled;
+readers treat entries stale after 60 ticks as gone — covers chunk
+unload and block break without explicit deregistration edge cases.

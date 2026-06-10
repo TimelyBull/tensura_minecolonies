@@ -207,6 +207,34 @@ MDK-1.21.1-ModDevGradle-main/
                                        # CITIZEN_ATTACKED, CITIZEN_KILLED,
                                        # THEFT, QUEST, ADMIN).
 
+        # — Raid system (v1) —
+        TensuraRaidEvent.java          # IColonyRaidEvent impl registered in
+                                       # minecolonies:colonyeventtypes —
+                                       # raider UUID set, boss bar, timer,
+                                       # NBT persistence. Citizen flee/hide
+                                       # comes free via isRaided().
+        TensuraRaids.java              # Static driver on the 1 s scheduler:
+                                       # nightfall trigger (reputation tier
+                                       # below NEUTRAL → 15/30/50% chance,
+                                       # 3-day cooldown), wave spawn (tiered
+                                       # Tensura MONSTER rosters, raid-level
+                                       # × rep-deficit scaling), WALK_TARGET
+                                       # steering + BrainUtils target assist,
+                                       # victory (+8 RAID_REPELLED) /timeout.
+        RaidTag.java                   # (colonyId, eventId) attachment on
+                                       # every raid mob — the universal
+                                       # "is a raider" check.
+        RaidSavedData.java             # Per-colony raid cooldown anchors.
+        BarrierBlock.java              # Magicule barrier block — status /
+                                       # sneak-channel / crystal refuel
+                                       # interactions.
+        BarrierBlockEntity.java        # 100k magicule tank + field driver:
+                                       # cylinder r=16 pushback on RAID-
+                                       # tagged mobs, EP-scaled contact
+                                       # drain (coef 0.02/s), depletion
+                                       # alarm, particle shell. All tuning
+                                       # knobs are named constants here.
+
         # — Subordinate commands —
         PatrolOrder.java               # Serialized NeoForge attachment —
                                        # standing order for the "Patrol
@@ -545,6 +573,20 @@ profession (latest):**
   `/reputation` + `/reputation set` debug commands.
 - Records: `docs/reputation-system.md` (as-built),
   `docs/decisions.md` → "Reputation system v1" (locked decisions).
+
+**Raid system v1 (latest):**
+- Reputation-triggered Tensura raids: nightfall + tier below NEUTRAL →
+  chance roll (WARY 15% / PASSIVEAGGRESSIVE 30% / HOSTILE 50%), 3-day
+  cooldown. `TensuraRaidEvent implements IColonyRaidEvent` registered in
+  MC's `colonyeventtypes` registry (citizen flee/hide + persistence free);
+  mobs are plain Tensura MONSTER types (guards auto-engage) steered via
+  WALK_TARGET + SmartBrainLib target assist. Single wave, boss bar,
+  one-night timer. Victory → `modifyReputation(+8, RAID_REPELLED)`.
+- Magicule barrier block: fueled BlockEntity (100k), cylinder field r=16,
+  EP-scaled contact drain (`BARRIER_DRAIN_COEFFICIENT_PER_SECOND = 0.02`),
+  player-magicule channel + magic-crystal refuel, falls at 0.
+- Debug: `/tensuraraid`, `/tensuraraid end`. Records:
+  `docs/raid-system.md`, decisions.md → "Raid system v1".
 
 **Pending:**
 - Stage G6 — orc lord and orc disaster as separate shadow types in the

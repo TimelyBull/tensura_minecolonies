@@ -948,7 +948,9 @@ subordinate profession immediately.
   assassins, reclaim, trade effects) remain pending and hook into the
   `ReputationManager` API when built.
 - Money / bank / vault
-- Territory / barrier raids
+- Territory / barrier raids — ✅ **v1 COMPLETE** (see "Raid system v1"
+  below). Lore variants (Carrion/clowns/Charybdis/angel), multi-wave,
+  building damage, raid loot remain deferred.
 - Retainer skill-bestowal
 
 ### Tier 3 (much later)
@@ -1060,6 +1062,48 @@ ONLY — nothing reputation-dependent was built. Full as-built record:
 coupling (`addModifier` channel); trade-quality effects; per-race
 dialogue tone variants; all reputation-DEPENDENT features (crime,
 raids, assassins, reclaim); driving the per-player store.
+
+## Raid system v1 ✅ COMPLETE
+
+Tensura-themed colony raids triggered by LOW REPUTATION, defended with a
+magicule-fueled barrier block. Architecture: extend MineColonies' raid
+EVENT framework (custom `IColonyRaidEvent` in the `colonyeventtypes`
+registry) with our own scheduler + Tensura mobs — MC's raider
+entities/AI/scheduler are closed and unused. Full record:
+`docs/raid-system.md`; binding decisions: `docs/decisions.md` →
+"Raid system v1".
+
+- [x] `TensuraRaidEvent` — IColonyRaidEvent impl (citizen flee/hide via
+      `isRaided` for free), boss bar, timer (one night), NBT persistence
+      through the registry entry; single wave for v1
+- [x] `RaidTag` attachment (colonyId + eventId) on every raid mob
+- [x] Wave scaling: `calculateRaiderAmount(getColonyRaidLevel())` ×
+      (1 + reputation deficit), clamp [3, 12]; tiered rosters
+      (ant/spider → hound/centipede/direwolf → knight spider/blade
+      tiger; Tensura has no Ogre — divergence from sketch)
+- [x] Spawning: `calculateSpawnLocation()` + `EntityUtils.getSpawnPoint`
+      fallback; `EntityType.create` + `finalizeSpawn(SPAWN_EGG)` +
+      persistence + tag
+- [x] Steering: per-second `WALK_TARGET` feed toward barrier-then-center
+      (SubordinatePatrol technique) + SmartBrainLib target assist onto
+      the raided colony's citizens; guards auto-engage (MONSTER category)
+- [x] Trigger: nightfall + `ReputationManager` tier below NEUTRAL →
+      15/30/50% per night by tier; 3-day cooldown (`RaidSavedData`);
+      one active raid per colony
+- [x] Magicule barrier block (`magicule_barrier` + BlockItem + BE):
+      100k-capacity tank, cylinder field r=16 with horizontal clamp
+      pushback, **EP-scaled contact drain (coefficient 0.02/s of each
+      presser's EP)**, sneak-right-click player-magicule channel
+      (2.5k/click) + magic-crystal refuel (2.5k/10k/40k), depletion
+      alarm, END_ROD particle shell
+- [x] Consequences: victory → `modifyReputation(+8, RAID_REPELLED)`;
+      timeout → leftovers poof-despawn; citizen deaths ride existing
+      death handling
+- [x] `/tensuraraid` (force-start) + `/tensuraraid end` debug commands
+
+**Deferred:** lore raid variants (Carrion beastmen / clowns / Charybdis /
+angel raid), multi-wave sieges, building/area damage, raiders physically
+attacking the barrier block, translucent dome render, raid loot.
 
 ## Scrapped — beast-guard (knight-spider) guard-tower citizen approach
 

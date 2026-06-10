@@ -194,18 +194,56 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public static final DeferredItem<Item> EXAMPLE_ITEM =
             ITEMS.registerSimpleItem("example_item", new Item.Properties().food(
                     new FoodProperties.Builder().alwaysEdible().nutrition(1).saturationModifier(2f).build()));
+    // ------------------------------------------------------------------
+    // Raid v1 — magicule barrier block + block entity + MC colony-event
+    // registry entry. See docs/raid-system.md.
+    // ------------------------------------------------------------------
+
+    public static final DeferredRegister<net.minecraft.world.level.block.entity.BlockEntityType<?>> BLOCK_ENTITIES =
+            DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, MODID);
+
+    public static final DeferredBlock<BarrierBlock> BARRIER_BLOCK =
+            BLOCKS.register("magicule_barrier", () -> new BarrierBlock(
+                    BlockBehaviour.Properties.of()
+                            .mapColor(MapColor.COLOR_PURPLE)
+                            .strength(3.0F)
+                            .lightLevel(s -> 7)));
+    public static final DeferredItem<BlockItem> BARRIER_BLOCK_ITEM =
+            ITEMS.registerSimpleBlockItem("magicule_barrier", BARRIER_BLOCK);
+    public static final java.util.function.Supplier<net.minecraft.world.level.block.entity.BlockEntityType<BarrierBlockEntity>> BARRIER_BLOCK_ENTITY =
+            BLOCK_ENTITIES.register("magicule_barrier",
+                    () -> net.minecraft.world.level.block.entity.BlockEntityType.Builder
+                            .of(BarrierBlockEntity::new, BARRIER_BLOCK.get())
+                            .build(null));
+
+    /** Our raid event type in MineColonies' colonyeventtypes registry —
+     *  the entry's deserializer rehydrates a mid-raid TensuraRaidEvent on
+     *  world load; isRaidEvent=true makes RaidManager.isRaided() see it
+     *  (citizen flee/hide behavior). */
+    public static final DeferredRegister<com.minecolonies.api.colony.colonyEvents.registry.ColonyEventTypeRegistryEntry> COLONY_EVENT_TYPES =
+            DeferredRegister.create(com.minecolonies.apiimp.CommonMinecoloniesAPIImpl.COLONY_EVENT_TYPES, MODID);
+    public static final java.util.function.Supplier<com.minecolonies.api.colony.colonyEvents.registry.ColonyEventTypeRegistryEntry> TENSURA_RAID_EVENT_TYPE =
+            COLONY_EVENT_TYPES.register(TensuraRaidEvent.TYPE_ID.getPath(),
+                    () -> new com.minecolonies.api.colony.colonyEvents.registry.ColonyEventTypeRegistryEntry(
+                            TensuraRaidEvent::loadFromNBT, TensuraRaidEvent.TYPE_ID, true));
+
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> EXAMPLE_TAB =
             CREATIVE_MODE_TABS.register("example_tab", () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup.examplemod"))
                     .withTabsBefore(CreativeModeTabs.COMBAT)
                     .icon(() -> EXAMPLE_ITEM.get().getDefaultInstance())
-                    .displayItems((parameters, output) -> output.accept(EXAMPLE_ITEM.get()))
+                    .displayItems((parameters, output) -> {
+                        output.accept(EXAMPLE_ITEM.get());
+                        output.accept(BARRIER_BLOCK_ITEM.get());
+                    })
                     .build());
 
     public ExampleMod(IEventBus modEventBus, ModContainer modContainer) {
         modEventBus.addListener(this::commonSetup);
         BLOCKS.register(modEventBus);
         ITEMS.register(modEventBus);
+        BLOCK_ENTITIES.register(modEventBus);
+        COLONY_EVENT_TYPES.register(modEventBus);
         CREATIVE_MODE_TABS.register(modEventBus);
         NeoForge.EVENT_BUS.register(this);
         // "Patrol Colony Outskirts" subordinate command — per-entity tick
@@ -3325,6 +3363,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // the ReputationManager chokepoint.
         processReputationOnDeath(serverLevel, event);
 
+        // Raid v1 — drop dead raid mobs from their event's roster so the
+        // boss bar and the victory check track precisely.
+        TensuraRaids.onRaidMobDeath(serverLevel, event.getEntity());
+
         UUID entityUUID = event.getEntity().getUUID();
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(serverLevel);
 
@@ -3767,6 +3809,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         .requires(src -> src.hasPermission(0))
                         .executes(this::handleEnvoyResetCooldownCommand)
         );
+        // Raid v1 debug — force-start a raid at the player's colony NOW
+        // (bypasses nightfall/chance/cooldown), or end the active one.
+        event.getDispatcher().register(
+                Commands.literal("tensuraraid")
+                        .requires(src -> src.hasPermission(2))
+                        .executes(this::handleForceRaidCommand)
+                        .then(Commands.literal("end")
+                                .executes(this::handleEndRaidCommand))
+        );
         // Reputation v1 debug — read the player's colony reputation, or
         // set it for testing (set requires op, mirroring /festival).
         //   /reputation               — show value + tier
@@ -3783,6 +3834,54 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                                                 ReputationManager.MAX_REPUTATION))
                                         .executes(this::handleReputationSetCommand)))
         );
+    }
+
+    /** {@code /tensuraraid} — force-start a raid at the player's colony. */
+    private int handleForceRaidCommand(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/tensuraraid must be run by a player"));
+            return 0;
+        }
+        IColony colony = resolveCommandColony(src, player);
+        if (colony == null) return 0;
+        if (TensuraRaids.findActiveRaid(colony) != null) {
+            src.sendFailure(Component.literal("A raid is already active at '" + colony.getName() + "'"));
+            return 0;
+        }
+        TensuraRaidEvent started = TensuraRaids.startRaid(player.serverLevel(), colony);
+        if (started == null) {
+            src.sendFailure(Component.literal("Raid could not start (no raiders spawned — check the log)"));
+            return 0;
+        }
+        src.sendSuccess(() -> Component.literal("Raid started at '" + colony.getName()
+                + "' — " + started.totalSpawned() + " raiders (tier " + started.rosterTier() + ")"), true);
+        return 1;
+    }
+
+    /** {@code /tensuraraid end} — resolve the active raid as a timeout. */
+    private int handleEndRaidCommand(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/tensuraraid must be run by a player"));
+            return 0;
+        }
+        IColony colony = resolveCommandColony(src, player);
+        if (colony == null) return 0;
+        TensuraRaidEvent active = TensuraRaids.findActiveRaid(colony);
+        if (active == null) {
+            src.sendFailure(Component.literal("No active raid at '" + colony.getName() + "'"));
+            return 0;
+        }
+        TensuraRaids.resolveTimeout(player.serverLevel(), colony, active);
+        src.sendSuccess(() -> Component.literal("Raid at '" + colony.getName() + "' ended"), true);
+        return 1;
     }
 
     /** {@code /reputation} — show the player's colony standing (value + tier). */
@@ -4849,6 +4948,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // ticking is what makes /time advancement immediately visible.
         if (now > 0 && now % ENVOY_SCHEDULER_PERIOD_TICKS == 0) {
             runEnvoyScheduler(server);
+            // Raid v1 — same 1 s cadence: drive active raids (steering,
+            // boss bar, resolution) + nightfall trigger checks.
+            TensuraRaids.tick(server);
         }
 
         // Dawn-restock pass — refresh every named subordinate merchant's
@@ -5486,8 +5588,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
     }
 
-    /** Read ExistenceStorage off any LivingEntity via the ManasCore mixin. */
-    private static ExistenceStorage readExistence(LivingEntity entity) {
+    /** Read ExistenceStorage off any LivingEntity via the ManasCore mixin.
+     *  Package-private — also used by the raid system (EP-scaled barrier
+     *  drain) and the barrier block's player-magicule channel. */
+    static ExistenceStorage readExistence(LivingEntity entity) {
         if (entity instanceof StorageHolder holder) {
             return holder.manasCore$getStorage(ExistenceStorage.getKey());
         }
