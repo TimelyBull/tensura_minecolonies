@@ -74,9 +74,28 @@ public final class TensuraRaids {
     static final double RAID_CHANCE_WARY    = 0.15;
     static final double RAID_CHANCE_PASSIVE = 0.30;
     static final double RAID_CHANCE_HOSTILE = 0.50;
-    /** Wave size clamps after scaling. */
+    // ------------------------------------------------------------------
+    // Difficulty levels — colony strength → raid level 1/2/3
+    // ------------------------------------------------------------------
+
+    /** Raid budget = colony strength × this — the raid targets SLIGHTLY
+     *  above the colony's measured strength (real but winnable). */
+    static final double RAID_STRENGTH_COEFFICIENT = 1.15;
+    /** Colony strength = total citizen EP (PRIMARY) + these secondaries. */
+    static final double STRENGTH_PER_RAID_LEVEL = 200.0;  // MC building development
+    static final double STRENGTH_PER_CITIZEN   = 100.0;   // population
+    /** EP assumed for an UNLOADED vanilla citizen (no Tensura snapshot). */
+    static final double UNLOADED_CITIZEN_EP = 200.0;
+    /** Strength band thresholds: below L2 → Level 1, below L3 → Level 2,
+     *  else Level 3. Tuning values. */
+    static final double LEVEL_2_STRENGTH = 15_000.0;
+    static final double LEVEL_3_STRENGTH = 60_000.0;
+    /** Wave size clamps per raid level (index = level − 1). */
     static final int WAVE_MIN = 3;
-    static final int WAVE_MAX = 12;
+    static final int[] LEVEL_WAVE_MAX = { 6, 10, 14 };
+    /** EP assumed for a spawned raider whose existence can't be read
+     *  (budget accounting fallback). */
+    static final double FALLBACK_SPAWN_EP = 1_000.0;
     /** Day-time tick (mod 24000) at which night "begins" for the trigger. */
     private static final long NIGHT_START = 13_000L;
     /** Steering walk speed / close-enough, mirroring SubordinatePatrol. */
@@ -88,16 +107,11 @@ public final class TensuraRaids {
     private static final double TARGET_ASSIST_RADIUS = 64.0;
 
     // ------------------------------------------------------------------
-    // Mob rosters by colony raid level (MobCategory.MONSTER types only,
-    // so MineColonies guard towers auto-list them).
-    //
-    // DIVERGENCE from the investigation sketch: Tensura has no Ogre
-    // entity — the top tier uses Knight Spider / Blade Tiger instead.
+    // Mob rosters by raid difficulty LEVEL (index = level − 1).
+    // MobCategory.MONSTER types only, so MineColonies guard towers
+    // auto-list them. (Tensura has no Ogre entity — the top tier uses
+    // Knight Spider / Blade Tiger instead.)
     // ------------------------------------------------------------------
-
-    /** Colony raid level below which tier 0 applies; below 2× → tier 1. */
-    private static final int TIER_1_RAID_LEVEL = 10;
-    private static final int TIER_2_RAID_LEVEL = 20;
 
     @SuppressWarnings("unchecked")
     private static EntityType<? extends Mob>[][] rosters() {
@@ -272,24 +286,77 @@ public final class TensuraRaids {
     }
 
     /**
+     * Colony strength — the difficulty metric. PRIMARY: total citizen EP
+     * (live entity reads for loaded citizens; transient snapshot
+     * reconstruction for unloaded race-citizens — the dawn-restock /
+     * citizen-trade pattern; a flat default for unloaded vanilla
+     * citizens). SECONDARY: MC's building-development raid level and the
+     * population, weighted in.
+     */
+    static double computeColonyStrength(ServerLevel level, IColony colony) {
+        RaceIdentitySavedData identities = RaceIdentitySavedData.get(level);
+        double totalEP = 0;
+        int citizens = 0;
+        for (com.minecolonies.api.colony.ICitizenData data
+                : colony.getCitizenManager().getCitizens()) {
+            citizens++;
+            net.minecraft.world.entity.LivingEntity live = data.getEntity().orElse(null);
+            if (live != null) {
+                ExistenceStorage exist = ExampleMod.readExistence(live);
+                totalEP += exist != null && exist.getEP() > 0 ? exist.getEP() : UNLOADED_CITIZEN_EP;
+                continue;
+            }
+            // Unloaded: our race-citizens carry a full entity snapshot —
+            // reconstruct transiently (never added to the world) and read
+            // the EP off the ManasCore storage, like the trade restock does.
+            RaceIdentitySavedData.RaceIdentity identity = identities.getByCitizenId(data.getId());
+            double ep = UNLOADED_CITIZEN_EP;
+            if (identity != null && identity.entitySnapshot != null) {
+                net.minecraft.world.entity.Entity ghost =
+                        EntityType.create(identity.entitySnapshot, level).orElse(null);
+                if (ghost instanceof net.minecraft.world.entity.LivingEntity ghostLiving) {
+                    ExistenceStorage exist = ExampleMod.readExistence(ghostLiving);
+                    if (exist != null && exist.getEP() > 0) ep = exist.getEP();
+                    ghost.discard();
+                }
+            }
+            totalEP += ep;
+        }
+        int raidLevel = colony.getRaiderManager().getColonyRaidLevel();
+        double strength = totalEP
+                + STRENGTH_PER_RAID_LEVEL * raidLevel
+                + STRENGTH_PER_CITIZEN * citizens;
+        LOGGER.info("[TM] raid: colony {} strength = {} (EP {} + raidLevel {}×{} + pop {}×{})",
+                colony.getID(), String.format("%.0f", strength),
+                String.format("%.0f", totalEP), raidLevel, (int) STRENGTH_PER_RAID_LEVEL,
+                citizens, (int) STRENGTH_PER_CITIZEN);
+        return strength;
+    }
+
+    /** Strength → raid difficulty level 1..3 (band thresholds above). */
+    static int raidLevelForStrength(double strength) {
+        if (strength >= LEVEL_3_STRENGTH) return 3;
+        if (strength >= LEVEL_2_STRENGTH) return 2;
+        return 1;
+    }
+
+    /**
      * Start a raid NOW (trigger roll already passed, or forced via
-     * {@code /tensuraraid}). Spawns the single v1 wave, registers the
-     * event with MC's event manager, and announces it.
+     * {@code /tensuraraid}). Difficulty is read from the colony's CURRENT
+     * strength at trigger time: the strength picks the level (roster +
+     * wave cap), and the wave is spawned mob by mob until the spawned
+     * EP total reaches {@code strength × RAID_STRENGTH_COEFFICIENT} —
+     * the raid meets and slightly exceeds the colony. Reputation governs
+     * only WHETHER a raid fires, not its contents.
      */
     static TensuraRaidEvent startRaid(ServerLevel level, IColony colony) {
         BlockPos spawnPos = computeSpawnPos(level, colony);
-        int raidLevel = colony.getRaiderManager().getColonyRaidLevel();
-        int tier = raidLevel >= TIER_2_RAID_LEVEL ? 2
-                 : raidLevel >= TIER_1_RAID_LEVEL ? 1 : 0;
 
-        // Wave size: MC's own raid math × the reputation deficit (how far
-        // below the NEUTRAL floor the colony sits → ×1.0 .. ×2.0).
-        int base = Math.max(WAVE_MIN, colony.getRaiderManager().calculateRaiderAmount(raidLevel));
-        double rep = ReputationManager.getReputation(colony);
-        double neutralFloor = ReputationTier.NEUTRAL.minInclusive();
-        double deficit = Math.max(0.0, Math.min(1.0, (neutralFloor - rep) / neutralFloor));
-        int waveSize = (int) Math.round(base * (1.0 + deficit));
-        waveSize = Math.max(WAVE_MIN, Math.min(WAVE_MAX, waveSize));
+        double strength = computeColonyStrength(level, colony);
+        int raidLevel = raidLevelForStrength(strength);
+        int tier = raidLevel - 1; // roster index
+        double budget = strength * RAID_STRENGTH_COEFFICIENT;
+        int waveCap = LEVEL_WAVE_MAX[tier];
 
         TensuraRaidEvent event = new TensuraRaidEvent(colony);
         event.setup(colony.getEventManager().getAndTakeNextEventID(),
@@ -299,13 +366,15 @@ public final class TensuraRaids {
 
         EntityType<? extends Mob>[] roster = rosters()[tier];
         int spawned = 0;
-        for (int i = 0; i < waveSize; i++) {
-            EntityType<? extends Mob> type = roster[i % roster.length];
+        double spawnedEP = 0;
+        while (spawned < waveCap && (spawnedEP < budget || spawned < WAVE_MIN)) {
+            EntityType<? extends Mob> type = roster[spawned % roster.length];
             Mob mob = spawnRaider(level, type, spawnPos, colony.getID(), event.getID());
-            if (mob != null) {
-                event.addRaider(mob);
-                spawned++;
-            }
+            if (mob == null) break;
+            event.addRaider(mob);
+            spawned++;
+            ExistenceStorage exist = ExampleMod.readExistence(mob);
+            spawnedEP += exist != null && exist.getEP() > 0 ? exist.getEP() : FALLBACK_SPAWN_EP;
         }
         if (spawned == 0) {
             LOGGER.warn("[TM] raid: colony {} — no raiders could spawn, aborting raid", colony.getID());
@@ -315,12 +384,13 @@ public final class TensuraRaids {
         colony.getEventManager().addEvent(event);
         event.setStatus(EventStatus.PROGRESSING);
 
-        LOGGER.info("[TM] raid: STARTED at colony {} ('{}') — wave {} (tier {}, raidLevel {}, rep {})",
-                colony.getID(), colony.getName(), spawned, tier, raidLevel,
+        LOGGER.info("[TM] raid: STARTED at colony {} ('{}') — LEVEL {} — wave {} ({} EP vs budget {}, rep {})",
+                colony.getID(), colony.getName(), raidLevel, spawned,
+                String.format("%.0f", spawnedEP), String.format("%.0f", budget),
                 String.format("%.1f", ReputationManager.getReputation(colony)));
         messageColonyOwner(level, colony,
                 Component.literal("Hostile monsters are massing against " + colony.getName()
-                        + "! The colony's low standing has drawn a raid.")
+                        + "! (Level " + raidLevel + " raid — the colony's low standing has drawn them.)")
                         .withStyle(net.minecraft.ChatFormatting.RED));
         return event;
     }

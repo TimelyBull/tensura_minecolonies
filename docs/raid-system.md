@@ -385,6 +385,44 @@ final art swaps in later:
   re-sent after every action — the roster live-refresh pattern); C2S
   `BarrierMenuActionPayload(pos, action)` with reach + gate validation.
 
+### Difficulty levels 1–3 by colony strength (2026-06-10)
+
+Raids now come in three difficulty LEVELS of the same raid type, read
+from the colony's CURRENT strength at trigger time. Reputation still
+governs only WHETHER a raid fires.
+
+**EP computation (the investigated unknown):** total citizen EP =
+- loaded citizens → live `IExistence` read off the citizen entity (every
+  LivingEntity is a ManasCore StorageHolder; the swap stat-sync keeps
+  race-citizens' EP current);
+- unloaded RACE-citizens → transient reconstruction from the identity's
+  full `entitySnapshot` (`EntityType.create(snapshot, level)`, never
+  added to the world — the dawn-restock / citizen-trade pattern), EP
+  read off the ghost, then discarded;
+- unloaded VANILLA citizens (no snapshot) → flat
+  `UNLOADED_CITIZEN_EP = 200`.
+
+**`getColonyRaidLevel()` finding:** it sums BUILDING LEVELS across the
+colony (plus citizen-count terms) — a development metric, not strength.
+Kept as a SECONDARY contributor; `calculateRaiderAmount` is no longer
+used (the EP budget supersedes it).
+
+**Strength formula:**
+`strength = totalCitizenEP + 200 × getColonyRaidLevel() + 100 × citizenCount`
+(total EP primary — it captures size AND strength, e.g. festival-buffed
+colonies; the secondaries keep early vanilla colonies from reading as
+zero).
+
+**Bands (tuning values):** Level 1 < 15,000 ≤ Level 2 < 60,000 ≤ Level 3.
+
+**Per-level scaling:** roster by level (the former tier rosters:
+ant/spider → hound/centipede/direwolf → knight spider/blade tiger) and
+wave cap 6 / 10 / 14. The wave is spawned mob-by-mob until the spawned
+mobs' ACTUAL summed EP reaches
+`strength × RAID_STRENGTH_COEFFICIENT (1.15)` — the raid meets and
+slightly exceeds the colony — clamped [3, cap]. The old
+reputation-deficit size multiplier is removed (levels supersede it).
+
 ### Deferred (explicit)
 
 Lore variants (Carrion beastmen / clowns / Charybdis / angel), multi-wave
