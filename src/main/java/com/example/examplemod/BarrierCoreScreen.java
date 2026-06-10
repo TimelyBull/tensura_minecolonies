@@ -201,9 +201,9 @@ public class BarrierCoreScreen extends Screen {
         int capTextW = this.font.width(cap);
         int badgeW = capTextW + 12;
         int badgeH = 16;
-        int badgeX1 = px + PANEL_W - 12;          // matches the divider inset
+        int badgeX1 = px + PANEL_W - 18;          // nudged in from the divider inset
         int badgeX0 = badgeX1 - badgeW;
-        int badgeY0 = py + 10;                    // header band is ~py+8..py+28
+        int badgeY0 = py + 14;                    // nudged down within the header band
         g.fill(badgeX0, badgeY0, badgeX1, badgeY0 + badgeH, INK);
         g.fill(badgeX0 + 1, badgeY0 + 1, badgeX1 - 1, badgeY0 + badgeH - 1, BADGE_BG);
         g.drawString(this.font, cap, badgeX0 + 6, badgeY0 + (badgeH - 8) / 2 + 1, TXT_DARK, false);
