@@ -170,6 +170,37 @@ tuning knobs.
    (permission 2) routes through `setReputation(..., ADMIN)`. Mirrors
    the `/envoystate` diagnostic convention.
 
+### Daily happiness drift + weighted buildings (2026-06-10)
+
+**Drift (new `ReputationReason.DRIFT`):** once per in-game day per
+dimension (day-rollover detection on the 1 s scheduler, the dawn-restock
+idiom), every colony's reputation moves TOWARD a resting point set by
+its overall happiness — self-limiting, NOT a flat nudge:
+
+- Resting point = `30 + 4 × IColony.getOverallHappiness()` →
+  happiness 0 → 30, 5 → 50, 10 → 70 (moderate spread; never pins to
+  the extremes).
+- Step = 15% of the gap per day (`DRIFT_FRACTION_PER_DAY`), hard-capped
+  at ±2.0/day (`DRIFT_MAX_STEP_PER_DAY`), skipped inside a 0.5 dead
+  zone (`DRIFT_DEADZONE`). Settles at the resting point in roughly 1–2
+  in-game weeks from neutral; events (boss +10, raid +8, kill −15)
+  clearly dominate and drift just normalizes between them.
+- Routed through `modifyReputation(..., DRIFT)` like every mover, so
+  it's clamped + logged. All constants live beside the movers in
+  `ExampleMod` (tuning-friendly names).
+
+**Weighted BUILDING_COMPLETED (user-confirmed classification):**
+construction + upgrades now pay by building category — repairs/removals
+still pay nothing:
+
+| Category | Buildings (schematic names) | Reputation |
+|---|---|---|
+| AMENITY | tavern, cook (restaurant), hospital, library, school, university, mysticalsite, florist, graveyard | **+4** |
+| BASIC | everything else (homes, town hall, production, logistics, military, quarries) | **+2** |
+
+Classification key = `IBuilding.getSchematicName()` against the
+`AMENITY_BUILDINGS` set.
+
 ### Extension contract for future features
 
 Crime, raids, assassins, reclaim, settlement systems, dialogue, trades:

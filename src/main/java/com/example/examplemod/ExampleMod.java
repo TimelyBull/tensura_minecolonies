@@ -1145,8 +1145,33 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
     /** Boss kill near a colony. */
     private static final double REP_BOSS_KILL        = +10.0;
-    /** A colony building finished construction or an upgrade. */
-    private static final double REP_BUILDING_DONE    = +2.0;
+    /** A BASIC colony building finished construction or an upgrade. */
+    private static final double REP_BUILDING_BASIC   = +2.0;
+    /** An AMENITY building (quality-of-life: tavern, restaurant, hospital,
+     *  library, school, university, mystical site, florist, graveyard)
+     *  finished construction or an upgrade — comfort earns more standing. */
+    private static final double REP_BUILDING_AMENITY = +4.0;
+    /** Schematic names counted as amenities (lowercase). User-confirmed
+     *  classification; everything else is basic. */
+    private static final java.util.Set<String> AMENITY_BUILDINGS = java.util.Set.of(
+            "tavern", "cook", "hospital", "library", "school",
+            "university", "mysticalsite", "florist", "graveyard");
+
+    // --- Daily happiness drift (self-limiting normalization) ---
+    /** Resting point = DRIFT_REST_BASE + DRIFT_REST_PER_HAPPINESS × overall
+     *  happiness (0–10): happiness 0 → 30, 5 → 50, 10 → 70. */
+    private static final double DRIFT_REST_BASE = 30.0;
+    private static final double DRIFT_REST_PER_HAPPINESS = 4.0;
+    /** Fraction of the gap to the resting point covered per in-game day. */
+    private static final double DRIFT_FRACTION_PER_DAY = 0.15;
+    /** Hard cap on a single day's drift step (keeps events dominant:
+     *  boss kill +10, raid repelled +8, citizen kill −15 vs ≤ ±2). */
+    private static final double DRIFT_MAX_STEP_PER_DAY = 2.0;
+    /** No drift when already within this distance of the resting point. */
+    private static final double DRIFT_DEADZONE = 0.5;
+    /** Per-dimension day index for the once-per-day drift trigger. */
+    private static final java.util.Map<ResourceKey<Level>, Long> lastDriftDay =
+            new java.util.HashMap<>();
     /** Player damaged one of the colony's citizens (per swing, deduped
      *  by {@link #REP_ATTACK_DEDUP_TICKS}). */
     private static final double REP_CITIZEN_ATTACKED = -5.0;
@@ -1287,7 +1312,48 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
         IColony colony = event.getColony();
         if (colony == null) return;
-        ReputationManager.modifyReputation(colony, REP_BUILDING_DONE, ReputationReason.BUILDING_COMPLETED);
+        // WEIGHTED: amenity buildings (quality-of-life) earn more standing
+        // than basic infrastructure. Schematic name is the stable type key.
+        String schematic = event.getBuilding().getSchematicName();
+        boolean amenity = schematic != null
+                && AMENITY_BUILDINGS.contains(schematic.toLowerCase(java.util.Locale.ROOT));
+        ReputationManager.modifyReputation(colony,
+                amenity ? REP_BUILDING_AMENITY : REP_BUILDING_BASIC,
+                ReputationReason.BUILDING_COMPLETED);
+    }
+
+    /**
+     * Daily reputation drift — once per in-game day per dimension, every
+     * colony's reputation moves a FRACTION of the way toward a resting
+     * point set by its overall happiness (self-limiting: it settles AT
+     * the resting point rather than compounding). Gentle by design —
+     * capped at ±{@link #DRIFT_MAX_STEP_PER_DAY}/day so event movers
+     * stay clearly dominant; it normalizes BETWEEN player actions.
+     * Routed through the ReputationManager chokepoint with the DRIFT
+     * reason like every other mover.
+     */
+    private static void tickReputationDrift(MinecraftServer server) {
+        for (ServerLevel level : server.getAllLevels()) {
+            long day = level.getDayTime() / 24_000L;
+            Long prev = lastDriftDay.put(level.dimension(), day);
+            if (prev == null || prev.longValue() == day) continue; // first observation / same day
+
+            for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
+                try {
+                    double happiness = Math.max(0.0, Math.min(10.0, colony.getOverallHappiness()));
+                    double restingPoint = DRIFT_REST_BASE + DRIFT_REST_PER_HAPPINESS * happiness;
+                    double current = ReputationManager.getReputation(colony);
+                    double gap = restingPoint - current;
+                    if (Math.abs(gap) < DRIFT_DEADZONE) continue;
+                    double step = gap * DRIFT_FRACTION_PER_DAY;
+                    step = Math.max(-DRIFT_MAX_STEP_PER_DAY,
+                            Math.min(DRIFT_MAX_STEP_PER_DAY, step));
+                    ReputationManager.modifyReputation(colony, step, ReputationReason.DRIFT);
+                } catch (Throwable t) {
+                    LOGGER.warn("[TM] reputation drift failed for colony {}", colony.getID(), t);
+                }
+            }
+        }
     }
 
     /** Character reset scroll Finish hook. Clears both demon-lord and
@@ -5055,6 +5121,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // Raid v1 — same 1 s cadence: drive active raids (steering,
             // boss bar, resolution) + nightfall trigger checks.
             TensuraRaids.tick(server);
+            // Reputation — once-per-day drift toward each colony's
+            // happiness-determined resting point (day-rollover detected
+            // inside, same idiom as the dawn restock).
+            tickReputationDrift(server);
         }
 
         // Dawn-restock pass — refresh every named subordinate merchant's

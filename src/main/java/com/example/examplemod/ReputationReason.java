@@ -31,6 +31,10 @@ public enum ReputationReason {
     /** A Tensura raid on the colony was repelled (all raiders defeated
      *  before the timer) — see {@link TensuraRaids}. */
     RAID_REPELLED,
+    /** Daily normalization toward the colony's happiness-determined
+     *  resting point — gentle, self-limiting (see the drift pass in
+     *  ExampleMod). */
+    DRIFT,
     /** Admin/debug adjustment (the /reputation command). */
     ADMIN
 }
