@@ -47,10 +47,6 @@ public class BarrierBlockEntity extends BlockEntity {
     // Tuning constants (v1 starting values — see docs for the math)
     // ------------------------------------------------------------------
 
-    /** Maximum magicule the tank holds. */
-    public static final double BARRIER_CAPACITY = 100_000.0;
-    /** Field radius (horizontal, blocks). */
-    public static final double BARRIER_RADIUS = 16.0;
     /**
      * THE drain knob: fraction of a raider's EP drained from the barrier
      * PER SECOND while that raider presses the shell. 0.02 = each raider
@@ -70,6 +66,9 @@ public class BarrierBlockEntity extends BlockEntity {
     public static final double CRYSTAL_MEDIUM_MAGICULE = 10_000.0;
     public static final double CRYSTAL_HIGH_MAGICULE   = 40_000.0;
 
+    /** Flood-fill cap on a storage network — performance guard. */
+    public static final int MAX_STORAGE_NETWORK = 128;
+
     private double storedMagicule = 0.0;
     /** Edge-detect for the "barrier has fallen" alarm. */
     private boolean fieldWasUp = false;
@@ -79,24 +78,98 @@ public class BarrierBlockEntity extends BlockEntity {
      *  tracks the fill, so clients get a fresh value whenever it moves
      *  by more than ~0.5% of capacity (checked once per second). */
     private double lastSyncedMagicule = -1.0;
+    /** Capacity added by the connected Magicule Storage network.
+     *  Recomputed once per second by {@link #recomputeStorageBonus} and
+     *  synced to clients inside the update tag (for readouts/render). */
+    private double storageBonus = 0.0;
+
+    // ------------------------------------------------------------------
+    // Tier plumbing — radius and capacity come from the core's tier
+    // (BarrierBlock.TIER_RADIUS / TIER_BASE_CAPACITY) plus the connected
+    // storage network.
+    // ------------------------------------------------------------------
+
+    /** This core's tier (1..4); falls back to 1 if the blockstate is
+     *  somehow not a BarrierBlock (defensive). */
+    public int getTier() {
+        return getBlockState().getBlock() instanceof BarrierBlock b ? b.tier() : 1;
+    }
+
+    /** Field radius (square half-extent) — by tier. */
+    public double getRadius() {
+        return getBlockState().getBlock() instanceof BarrierBlock b
+                ? b.radius() : BarrierBlock.TIER_RADIUS[0];
+    }
+
+    /** Total tank capacity = tier base + connected storage bonuses. */
+    public double getCapacity() {
+        double base = getBlockState().getBlock() instanceof BarrierBlock b
+                ? b.baseCapacity() : BarrierBlock.TIER_BASE_CAPACITY[0];
+        return base + storageBonus;
+    }
 
     /** Fill fraction 0..1 — read client-side by the wall renderer. */
     public float getFillRatio() {
-        return (float) Math.max(0.0, Math.min(1.0, storedMagicule / BARRIER_CAPACITY));
+        return (float) Math.max(0.0, Math.min(1.0, storedMagicule / getCapacity()));
     }
 
-    /** Shared footprint test: is (x, z) inside this barrier's square
-     *  (Chebyshev half-extent {@link #BARRIER_RADIUS} around the block)?
-     *  The field pushback, the wall render, and the hostile-spawn
-     *  prevention all use this same definition. */
-    public static boolean isWithinFootprint(BlockPos barrierPos, double x, double z) {
+    /** Shared footprint test: is (x, z) inside a square of half-extent
+     *  {@code radius} around {@code barrierPos}? The field pushback, the
+     *  wall render, and the hostile-spawn prevention all use this same
+     *  definition. */
+    public static boolean isWithinFootprint(BlockPos barrierPos, double radius, double x, double z) {
         double dx = x - (barrierPos.getX() + 0.5);
         double dz = z - (barrierPos.getZ() + 0.5);
-        return Math.max(Math.abs(dx), Math.abs(dz)) <= BARRIER_RADIUS;
+        return Math.max(Math.abs(dx), Math.abs(dz)) <= radius;
     }
 
     public BarrierBlockEntity(BlockPos pos, BlockState state) {
         super(ExampleMod.BARRIER_BLOCK_ENTITY.get(), pos, state);
+    }
+
+    // ------------------------------------------------------------------
+    // Storage network — flood-fill over adjacent MagiculeStorageBlocks
+    // ------------------------------------------------------------------
+
+    /**
+     * Recompute the connected-storage capacity bonus: BFS from the core
+     * over 6-way-adjacent {@link MagiculeStorageBlock}s (a storage block
+     * counts if reachable from the core through other storage blocks),
+     * capped at {@link #MAX_STORAGE_NETWORK} blocks. Runs once per
+     * second from the ticker — placing/breaking storage anywhere in the
+     * network is picked up within a second, no neighbor events needed.
+     * If capacity shrank below the stored amount (storage broken), the
+     * stored magicule clamps down to the new capacity.
+     */
+    private void recomputeStorageBonus(ServerLevel level) {
+        double bonus = 0.0;
+        java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<>();
+        java.util.HashSet<BlockPos> visited = new java.util.HashSet<>();
+        queue.add(worldPosition);
+        visited.add(worldPosition);
+        int storageCount = 0;
+        while (!queue.isEmpty() && storageCount < MAX_STORAGE_NETWORK) {
+            BlockPos cur = queue.poll();
+            for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
+                BlockPos next = cur.relative(dir);
+                if (!visited.add(next)) continue;
+                if (level.getBlockState(next).getBlock() instanceof MagiculeStorageBlock storage) {
+                    bonus += storage.capacityBonus();
+                    storageCount++;
+                    queue.add(next);
+                }
+            }
+        }
+        if (bonus != storageBonus) {
+            storageBonus = bonus;
+            if (storedMagicule > getCapacity()) {
+                storedMagicule = getCapacity();
+            }
+            setChanged();
+            syncChargeState();
+            // Capacity changed → fill ratio changed → resync the render.
+            lastSyncedMagicule = -1.0;
+        }
     }
 
     // ------------------------------------------------------------------
@@ -105,7 +178,7 @@ public class BarrierBlockEntity extends BlockEntity {
 
     /** Add magicule; returns the amount actually accepted. */
     public double addMagicule(double amount) {
-        double accepted = Math.max(0, Math.min(amount, BARRIER_CAPACITY - storedMagicule));
+        double accepted = Math.max(0, Math.min(amount, getCapacity() - storedMagicule));
         if (accepted > 0) {
             storedMagicule += accepted;
             setChanged();
@@ -125,10 +198,10 @@ public class BarrierBlockEntity extends BlockEntity {
         BlockState state = getBlockState();
         if (!state.hasProperty(BarrierBlock.CHARGE)) return;
         int stage;
-        if (storedMagicule >= BARRIER_CAPACITY) {
+        if (storedMagicule >= getCapacity()) {
             stage = 3;
         } else {
-            stage = (int) Math.min(2, Math.floor(storedMagicule / BARRIER_CAPACITY * 3.0));
+            stage = (int) Math.min(2, Math.floor(storedMagicule / getCapacity() * 3.0));
         }
         stage = Math.max(0, stage);
         if (state.getValue(BarrierBlock.CHARGE) != stage) {
@@ -137,12 +210,15 @@ public class BarrierBlockEntity extends BlockEntity {
     }
 
     public boolean isFull() {
-        return storedMagicule >= BARRIER_CAPACITY;
+        return storedMagicule >= getCapacity();
     }
 
     public String fillReadout() {
-        return String.format(Locale.ROOT, "%,.0f / %,.0f magicule",
-                storedMagicule, BARRIER_CAPACITY);
+        String base = String.format(Locale.ROOT, "%,.0f / %,.0f magicule",
+                storedMagicule, getCapacity());
+        return storageBonus > 0
+                ? base + String.format(Locale.ROOT, " (+%,.0f from storage)", storageBonus)
+                : base;
     }
 
     /** Sneak-right-click refuel — move up to {@link #PLAYER_CHANNEL_PER_CLICK}
@@ -153,7 +229,7 @@ public class BarrierBlockEntity extends BlockEntity {
         if (exist == null) return 0;
         double available = Math.max(0, exist.getMagicule());
         double move = Math.min(PLAYER_CHANNEL_PER_CLICK,
-                Math.min(available, BARRIER_CAPACITY - storedMagicule));
+                Math.min(available, getCapacity() - storedMagicule));
         if (move <= 0) return 0;
         exist.setMagicule(available - move);
         exist.markDirty();
@@ -175,16 +251,20 @@ public class BarrierBlockEntity extends BlockEntity {
         // charge-stage texture sync rides the same cadence (covers drain,
         // which changes storedMagicule every tick during a press).
         if (gameTime % 20 == 0) {
+            // Storage network — connected MagiculeStorageBlocks expand
+            // the capacity; placing/breaking is picked up here.
+            be.recomputeStorageBonus(serverLevel);
             be.syncChargeState();
             // Client sync for the wall render's fill-driven alpha.
-            if (Math.abs(be.storedMagicule - be.lastSyncedMagicule) > BARRIER_CAPACITY * 0.005) {
+            if (Math.abs(be.storedMagicule - be.lastSyncedMagicule) > be.getCapacity() * 0.005) {
                 be.lastSyncedMagicule = be.storedMagicule;
                 serverLevel.sendBlockUpdated(pos, state, state, 3);
             }
             be.raidActiveCache = TensuraRaids.isRaidActiveNear(serverLevel, pos);
             if (be.storedMagicule > 0) {
-                // Steering reads this to send raiders at the barrier first.
-                TensuraRaids.reportActiveBarrier(serverLevel, pos);
+                // Steering reads this to send raiders at the barrier first;
+                // the per-tier radius rides along for footprint checks.
+                TensuraRaids.reportActiveBarrier(serverLevel, pos, be.getRadius());
             } else {
                 TensuraRaids.reportBarrierDown(serverLevel, pos);
             }
@@ -204,13 +284,14 @@ public class BarrierBlockEntity extends BlockEntity {
 
         Vec3 center = Vec3.atCenterOf(pos);
         double drainThisTick = 0.0;
+        double radius = be.getRadius();
 
         // SQUARE footprint (Chebyshev distance) — the field, the wall
         // render (BarrierFieldRenderer), and the hostile-spawn prevention
-        // all share this same BARRIER_RADIUS half-extent square.
+        // all share this same per-tier half-extent square.
         for (Mob mob : serverLevel.getEntitiesOfClass(Mob.class,
-                AABB.ofSize(center, (BARRIER_RADIUS + CONTACT_BAND) * 2 + 2, 64,
-                        (BARRIER_RADIUS + CONTACT_BAND) * 2 + 2),
+                AABB.ofSize(center, (radius + CONTACT_BAND) * 2 + 2, 64,
+                        (radius + CONTACT_BAND) * 2 + 2),
                 m -> m.isAlive() && m.hasData(Attachments.RAID_TAG.get()))) {
 
             double dx = mob.getX() - center.x;
@@ -220,21 +301,21 @@ public class BarrierBlockEntity extends BlockEntity {
             // Pushback — clamp any raider inside the square back out
             // through the NEAREST face, horizontal velocity zeroed
             // (vertical kept so gravity still applies).
-            if (cheb < BARRIER_RADIUS) {
+            if (cheb < radius) {
                 if (Math.abs(dx) >= Math.abs(dz)) {
                     double sign = dx >= 0 ? 1 : -1;
-                    mob.setPos(center.x + sign * (BARRIER_RADIUS + 0.25), mob.getY(), mob.getZ());
+                    mob.setPos(center.x + sign * (radius + 0.25), mob.getY(), mob.getZ());
                 } else {
                     double sign = dz >= 0 ? 1 : -1;
-                    mob.setPos(mob.getX(), mob.getY(), center.z + sign * (BARRIER_RADIUS + 0.25));
+                    mob.setPos(mob.getX(), mob.getY(), center.z + sign * (radius + 0.25));
                 }
                 Vec3 vel = mob.getDeltaMovement();
                 mob.setDeltaMovement(0, Math.min(0, vel.y), 0);
-                cheb = BARRIER_RADIUS + 0.25;
+                cheb = radius + 0.25;
             }
 
             // EP-scaled contact drain for raiders pressing the wall.
-            if (cheb <= BARRIER_RADIUS + CONTACT_BAND) {
+            if (cheb <= radius + CONTACT_BAND) {
                 ExistenceStorage exist = ExampleMod.readExistence(mob);
                 double ep = exist != null && exist.getEP() > 0 ? exist.getEP() : FALLBACK_RAIDER_EP;
                 drainThisTick += ep * BARRIER_DRAIN_COEFFICIENT_PER_SECOND / 20.0;
@@ -282,12 +363,17 @@ public class BarrierBlockEntity extends BlockEntity {
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         tag.putDouble("storedMagicule", storedMagicule);
+        // storageBonus is recomputed server-side every second, but it
+        // rides the save/update tag so CLIENTS have the true capacity
+        // (fill ratio for the wall alpha, readouts).
+        tag.putDouble("storageBonus", storageBonus);
     }
 
     @Override
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
         storedMagicule = tag.getDouble("storedMagicule");
+        storageBonus = tag.getDouble("storageBonus");
     }
 
     // Client sync — the wall renderer reads getFillRatio() client-side,

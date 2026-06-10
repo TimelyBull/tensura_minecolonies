@@ -202,24 +202,67 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public static final DeferredRegister<net.minecraft.world.level.block.entity.BlockEntityType<?>> BLOCK_ENTITIES =
             DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, MODID);
 
+    private static BlockBehaviour.Properties barrierProps() {
+        return BlockBehaviour.Properties.of()
+                .mapColor(MapColor.COLOR_PURPLE)
+                .strength(3.0F)
+                .lightLevel(s -> 7)
+                // The texture is semi-transparent; without noOcclusion
+                // neighbors cull their touching faces (full-cube
+                // assumption) and you see through the world behind
+                // them — glass has the same need.
+                .noOcclusion();
+    }
+
+    // Barrier Core blocks — 4 tiers (radius 16/28/42/60, base capacity
+    // 100k/150k/200k/250k). Tier 1 keeps the original "magicule_barrier"
+    // registry id for save compatibility with pre-tier worlds.
     public static final DeferredBlock<BarrierBlock> BARRIER_BLOCK =
-            BLOCKS.register("magicule_barrier", () -> new BarrierBlock(
-                    BlockBehaviour.Properties.of()
-                            .mapColor(MapColor.COLOR_PURPLE)
-                            .strength(3.0F)
-                            .lightLevel(s -> 7)
-                            // The texture is semi-transparent; without
-                            // noOcclusion neighbors cull their touching
-                            // faces (full-cube assumption) and you see
-                            // through the world behind them — glass has
-                            // the same need.
-                            .noOcclusion()));
+            BLOCKS.register("magicule_barrier", () -> new BarrierBlock(1, barrierProps()));
+    public static final DeferredBlock<BarrierBlock> BARRIER_BLOCK_T2 =
+            BLOCKS.register("magicule_barrier_tier2", () -> new BarrierBlock(2, barrierProps()));
+    public static final DeferredBlock<BarrierBlock> BARRIER_BLOCK_T3 =
+            BLOCKS.register("magicule_barrier_tier3", () -> new BarrierBlock(3, barrierProps()));
+    public static final DeferredBlock<BarrierBlock> BARRIER_BLOCK_T4 =
+            BLOCKS.register("magicule_barrier_tier4", () -> new BarrierBlock(4, barrierProps()));
     public static final DeferredItem<BlockItem> BARRIER_BLOCK_ITEM =
             ITEMS.registerSimpleBlockItem("magicule_barrier", BARRIER_BLOCK);
+    public static final DeferredItem<BlockItem> BARRIER_BLOCK_T2_ITEM =
+            ITEMS.registerSimpleBlockItem("magicule_barrier_tier2", BARRIER_BLOCK_T2);
+    public static final DeferredItem<BlockItem> BARRIER_BLOCK_T3_ITEM =
+            ITEMS.registerSimpleBlockItem("magicule_barrier_tier3", BARRIER_BLOCK_T3);
+    public static final DeferredItem<BlockItem> BARRIER_BLOCK_T4_ITEM =
+            ITEMS.registerSimpleBlockItem("magicule_barrier_tier4", BARRIER_BLOCK_T4);
+
+    // Magicule Storage blocks — 4 tiers (+25k/+75k/+150k/+300k capacity to
+    // a connected core; flood-fill chaining, see MagiculeStorageBlock).
+    public static final DeferredBlock<MagiculeStorageBlock> STORAGE_BLOCK_T1 =
+            BLOCKS.register("magicule_storage_tier1", () -> new MagiculeStorageBlock(1,
+                    BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLUE).strength(3.0F)));
+    public static final DeferredBlock<MagiculeStorageBlock> STORAGE_BLOCK_T2 =
+            BLOCKS.register("magicule_storage_tier2", () -> new MagiculeStorageBlock(2,
+                    BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLUE).strength(3.0F)));
+    public static final DeferredBlock<MagiculeStorageBlock> STORAGE_BLOCK_T3 =
+            BLOCKS.register("magicule_storage_tier3", () -> new MagiculeStorageBlock(3,
+                    BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLUE).strength(3.0F)));
+    public static final DeferredBlock<MagiculeStorageBlock> STORAGE_BLOCK_T4 =
+            BLOCKS.register("magicule_storage_tier4", () -> new MagiculeStorageBlock(4,
+                    BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLUE).strength(3.0F)));
+    public static final DeferredItem<BlockItem> STORAGE_T1_ITEM =
+            ITEMS.registerSimpleBlockItem("magicule_storage_tier1", STORAGE_BLOCK_T1);
+    public static final DeferredItem<BlockItem> STORAGE_T2_ITEM =
+            ITEMS.registerSimpleBlockItem("magicule_storage_tier2", STORAGE_BLOCK_T2);
+    public static final DeferredItem<BlockItem> STORAGE_T3_ITEM =
+            ITEMS.registerSimpleBlockItem("magicule_storage_tier3", STORAGE_BLOCK_T3);
+    public static final DeferredItem<BlockItem> STORAGE_T4_ITEM =
+            ITEMS.registerSimpleBlockItem("magicule_storage_tier4", STORAGE_BLOCK_T4);
+
     public static final java.util.function.Supplier<net.minecraft.world.level.block.entity.BlockEntityType<BarrierBlockEntity>> BARRIER_BLOCK_ENTITY =
             BLOCK_ENTITIES.register("magicule_barrier",
                     () -> net.minecraft.world.level.block.entity.BlockEntityType.Builder
-                            .of(BarrierBlockEntity::new, BARRIER_BLOCK.get())
+                            .of(BarrierBlockEntity::new,
+                                    BARRIER_BLOCK.get(), BARRIER_BLOCK_T2.get(),
+                                    BARRIER_BLOCK_T3.get(), BARRIER_BLOCK_T4.get())
                             .build(null));
 
     /** Our raid event type in MineColonies' colonyeventtypes registry —
@@ -241,6 +284,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     .displayItems((parameters, output) -> {
                         output.accept(EXAMPLE_ITEM.get());
                         output.accept(BARRIER_BLOCK_ITEM.get());
+                        output.accept(BARRIER_BLOCK_T2_ITEM.get());
+                        output.accept(BARRIER_BLOCK_T3_ITEM.get());
+                        output.accept(BARRIER_BLOCK_T4_ITEM.get());
+                        output.accept(STORAGE_T1_ITEM.get());
+                        output.accept(STORAGE_T2_ITEM.get());
+                        output.accept(STORAGE_T3_ITEM.get());
+                        output.accept(STORAGE_T4_ITEM.get());
                     })
                     .build());
 

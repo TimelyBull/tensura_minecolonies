@@ -297,6 +297,52 @@ Three fixes from the first in-game raid test:
    at textscale 0.85 (colony name narrowed to 106 px) — all six tier
    descriptors + value now fit.
 
+### Tiered cores + Magicule Storage (2026-06-10)
+
+The single barrier block became the **Barrier Core** family (4 blocks)
+plus the **Magicule Storage** family (4 blocks):
+
+| Core tier | Registry id | Radius | Base capacity |
+|---|---|---|---|
+| 1 | `magicule_barrier` (id unchanged — save compat) | 16 | 100k |
+| 2 | `magicule_barrier_tier2` | 28 | 150k |
+| 3 | `magicule_barrier_tier3` | 42 | 200k |
+| 4 | `magicule_barrier_tier4` | 60 | 250k |
+
+- One `BarrierBlock` class with a `tier` field; one shared
+  `BlockEntityType` valid for all four. Radius/base capacity live in
+  `BarrierBlock.TIER_RADIUS` / `TIER_BASE_CAPACITY`.
+- The per-tier radius flows through everything that used the old
+  constant: field pushback/drain scan, wall render, raid steering, and
+  spawn prevention (the active-barrier registry now carries each
+  barrier's radius in a `BarrierEntry` record).
+- **Fill-gauge sprites kept per tier**: same `charge` 0–3 blockstate
+  property (name kept for save compat; thresholds 33/66/<100/100%),
+  each tier's blockstate maps to its own 4 sprites (16 total).
+  Tier 2–4 sprites are currently PROGRAMMATIC PLACEHOLDERS — hue-shifted
+  recolors of the tier-1 art (T2 green, T3 gold, T4 red); drop real
+  sprites over `textures/block/magicule_barrier_tier{2,3,4}_{0..3}.png`
+  with no code change.
+
+| Storage tier | Registry id | Capacity bonus |
+|---|---|---|
+| 1 | `magicule_storage_tier1` | +25k |
+| 2 | `magicule_storage_tier2` | +75k |
+| 3 | `magicule_storage_tier3` | +150k |
+| 4 | `magicule_storage_tier4` | +300k |
+
+- `MagiculeStorageBlock` — no BlockEntity, pure passive capacity; one
+  sprite per tier (darkened placeholder recolors).
+- **Network rule (confirmed):** flood-fill — a storage block counts if
+  reachable from the core through any chain of 6-way-adjacent storage
+  blocks, capped at 128 blocks per network.
+  `BarrierBlockEntity.recomputeStorageBonus` BFSes once per second, so
+  placing/breaking anywhere in the network updates capacity within 1 s
+  with no neighbor-event plumbing. Capacity shrinking below the stored
+  amount clamps the stored magicule down. The bonus rides the BE's
+  client-sync tag so readouts and wall alpha use the true capacity
+  ("X / Y magicule (+Z from storage)").
+
 ### Deferred (explicit)
 
 Lore variants (Carrion beastmen / clowns / Charybdis / angel), multi-wave

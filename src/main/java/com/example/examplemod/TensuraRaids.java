@@ -124,7 +124,11 @@ public final class TensuraRaids {
     // deregistration).
     // ------------------------------------------------------------------
 
-    private static final Map<GlobalPos, Long> ACTIVE_BARRIERS = new ConcurrentHashMap<>();
+    /** One fueled barrier's registry entry — refresh time + field radius
+     *  (per-tier, needed for footprint checks). */
+    record BarrierEntry(long lastSeen, double radius) {}
+
+    private static final Map<GlobalPos, BarrierEntry> ACTIVE_BARRIERS = new ConcurrentHashMap<>();
     private static final long BARRIER_STALE_TICKS = 60L;
 
     /** Tensura's curated "attacks on sight" entity-type tag — the
@@ -135,8 +139,9 @@ public final class TensuraRaids {
                     net.minecraft.core.registries.Registries.ENTITY_TYPE,
                     net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("tensura", "hostile_monster"));
 
-    static void reportActiveBarrier(ServerLevel level, BlockPos pos) {
-        ACTIVE_BARRIERS.put(GlobalPos.of(level.dimension(), pos.immutable()), level.getGameTime());
+    static void reportActiveBarrier(ServerLevel level, BlockPos pos, double radius) {
+        ACTIVE_BARRIERS.put(GlobalPos.of(level.dimension(), pos.immutable()),
+                new BarrierEntry(level.getGameTime(), radius));
     }
 
     static void reportBarrierDown(ServerLevel level, BlockPos pos) {
@@ -152,25 +157,27 @@ public final class TensuraRaids {
      */
     static boolean isInsideFueledBarrier(ServerLevel level, double x, double z) {
         long now = level.getGameTime();
-        Iterator<Map.Entry<GlobalPos, Long>> it = ACTIVE_BARRIERS.entrySet().iterator();
+        Iterator<Map.Entry<GlobalPos, BarrierEntry>> it = ACTIVE_BARRIERS.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<GlobalPos, Long> e = it.next();
-            if (now - e.getValue() > BARRIER_STALE_TICKS) { it.remove(); continue; }
+            Map.Entry<GlobalPos, BarrierEntry> e = it.next();
+            if (now - e.getValue().lastSeen() > BARRIER_STALE_TICKS) { it.remove(); continue; }
             if (!e.getKey().dimension().equals(level.dimension())) continue;
-            if (BarrierBlockEntity.isWithinFootprint(e.getKey().pos(), x, z)) return true;
+            if (BarrierBlockEntity.isWithinFootprint(e.getKey().pos(), e.getValue().radius(), x, z)) {
+                return true;
+            }
         }
         return false;
     }
 
-    /** Nearest fueled barrier within 96 blocks of {@code center}, or null. */
+    /** Nearest fueled barrier within 160 blocks of {@code center}, or null. */
     static BlockPos nearestActiveBarrier(ServerLevel level, BlockPos center) {
         long now = level.getGameTime();
         BlockPos best = null;
-        double bestDist = 96 * 96;
-        Iterator<Map.Entry<GlobalPos, Long>> it = ACTIVE_BARRIERS.entrySet().iterator();
+        double bestDist = 160 * 160;
+        Iterator<Map.Entry<GlobalPos, BarrierEntry>> it = ACTIVE_BARRIERS.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<GlobalPos, Long> e = it.next();
-            if (now - e.getValue() > BARRIER_STALE_TICKS) { it.remove(); continue; }
+            Map.Entry<GlobalPos, BarrierEntry> e = it.next();
+            if (now - e.getValue().lastSeen() > BARRIER_STALE_TICKS) { it.remove(); continue; }
             if (!e.getKey().dimension().equals(level.dimension())) continue;
             double d = e.getKey().pos().distSqr(center);
             if (d < bestDist) { bestDist = d; best = e.getKey().pos(); }

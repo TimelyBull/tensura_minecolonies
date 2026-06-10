@@ -40,18 +40,40 @@ import java.util.Locale;
 public class BarrierBlock extends BaseEntityBlock {
 
     /**
-     * Visual fill stage, driven by the tank: 0 = faint charge (0–25%),
-     * 1 = half (25–50%), 2 = nearly charged (50–75%), 3 = full (75–100%).
-     * {@link BarrierBlockEntity#syncChargeState} writes it whenever the
-     * stored amount crosses a quarter boundary; the four player-supplied
-     * textures map one per stage in the blockstate JSON.
+     * Visual fill stage, driven by the tank: 0–33% → 0, 33–66% → 1,
+     * 66–<100% → 2, exactly full → 3.
+     * {@link BarrierBlockEntity#syncChargeState} writes it as stored
+     * magicule moves; the blockstate JSON maps each stage to a sprite
+     * (4 sprites per tier). Property name kept as {@code charge} for
+     * save compatibility with pre-tier worlds.
      */
     public static final net.minecraft.world.level.block.state.properties.IntegerProperty CHARGE =
             net.minecraft.world.level.block.state.properties.IntegerProperty.create("charge", 0, 3);
 
-    public BarrierBlock(Properties properties) {
+    /** Barrier field radius (square half-extent, blocks) by tier 1..4. */
+    public static final double[] TIER_RADIUS = { 16.0, 28.0, 42.0, 60.0 };
+    /** Base tank capacity (magicule) by tier 1..4 — before any connected
+     *  {@link MagiculeStorageBlock} bonuses. */
+    public static final double[] TIER_BASE_CAPACITY = { 100_000.0, 150_000.0, 200_000.0, 250_000.0 };
+
+    private final int tier; // 1..4
+
+    public BarrierBlock(int tier, Properties properties) {
         super(properties);
+        this.tier = tier;
         registerDefaultState(getStateDefinition().any().setValue(CHARGE, 0));
+    }
+
+    public int tier() {
+        return tier;
+    }
+
+    public double radius() {
+        return TIER_RADIUS[tier - 1];
+    }
+
+    public double baseCapacity() {
+        return TIER_BASE_CAPACITY[tier - 1];
     }
 
     @Override
@@ -62,7 +84,7 @@ public class BarrierBlock extends BaseEntityBlock {
 
     @Override
     protected com.mojang.serialization.MapCodec<? extends BaseEntityBlock> codec() {
-        return simpleCodec(BarrierBlock::new);
+        return simpleCodec(props -> new BarrierBlock(this.tier, props));
     }
 
     @Override
@@ -111,8 +133,9 @@ public class BarrierBlock extends BaseEntityBlock {
             player.displayClientMessage(Component.literal(
                     "The barrier is fully charged (" + barrier.fillReadout() + ")"), true);
         } else {
-            player.displayClientMessage(Component.literal(
-                    "You have no magicule to channel — barrier: " + barrier.fillReadout()), true);
+            player.displayClientMessage(Component.literal(String.format(Locale.ROOT,
+                    "You have no magicule to channel — Tier %d core (radius %.0f): %s",
+                    tier, radius(), barrier.fillReadout())), true);
         }
         return InteractionResult.CONSUME;
     }

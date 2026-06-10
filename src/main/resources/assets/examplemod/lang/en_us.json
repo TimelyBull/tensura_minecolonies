@@ -1,6 +1,13 @@
 {
   "itemGroup.examplemod": "Example Mod Tab",
-  "block.tensura_minecolonies.magicule_barrier": "Magicule Barrier",
+  "block.tensura_minecolonies.magicule_barrier": "Barrier Core (Tier 1)",
+  "block.tensura_minecolonies.magicule_barrier_tier2": "Barrier Core (Tier 2)",
+  "block.tensura_minecolonies.magicule_barrier_tier3": "Barrier Core (Tier 3)",
+  "block.tensura_minecolonies.magicule_barrier_tier4": "Barrier Core (Tier 4)",
+  "block.tensura_minecolonies.magicule_storage_tier1": "Magicule Storage (Tier 1)",
+  "block.tensura_minecolonies.magicule_storage_tier2": "Magicule Storage (Tier 2)",
+  "block.tensura_minecolonies.magicule_storage_tier3": "Magicule Storage (Tier 3)",
+  "block.tensura_minecolonies.magicule_storage_tier4": "Magicule Storage (Tier 4)",
   "block.examplemod.example_block": "Example Block",
   "item.examplemod.example_item": "Example Item",
 

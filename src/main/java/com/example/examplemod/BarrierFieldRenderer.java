@@ -57,7 +57,7 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
         if (fill <= 0f) return;
         float alpha = ALPHA_MIN + (ALPHA_MAX - ALPHA_MIN) * fill;
 
-        float r = (float) BarrierBlockEntity.BARRIER_RADIUS;
+        float r = (float) be.getRadius(); // per-tier footprint
         // PoseStack origin = the block's corner; walls centre on the block.
         float cx = 0.5f, cz = 0.5f;
         float x0 = cx - r, x1 = cx + r;
@@ -134,12 +134,12 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
 
     @Override
     public int getViewDistance() {
-        return 128;
+        return 192; // tier-4 walls reach 60 blocks out
     }
 
     @Override
     public net.minecraft.world.phys.AABB getRenderBoundingBox(BarrierBlockEntity be) {
-        double r = BarrierBlockEntity.BARRIER_RADIUS + 1;
+        double r = be.getRadius() + 1;
         return new net.minecraft.world.phys.AABB(be.getBlockPos()).inflate(r, 16, r);
     }
 }
