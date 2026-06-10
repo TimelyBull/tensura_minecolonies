@@ -201,9 +201,12 @@ public class BarrierCoreScreen extends Screen {
         int capTextW = this.font.width(cap);
         int badgeW = capTextW + 12;
         int badgeH = 16;
-        int badgeX1 = px + PANEL_W - 18;          // nudged in from the divider inset
-        int badgeX0 = badgeX1 - badgeW;
-        int badgeY0 = py + 14;                    // nudged down within the header band
+        // Horizontally centered on the layer-preview box below it
+        // (the box spans px+128 .. px+238 → center px+183).
+        int previewCenter = px + 128 + 110 / 2;
+        int badgeX0 = previewCenter - badgeW / 2;
+        int badgeX1 = badgeX0 + badgeW;
+        int badgeY0 = py + 14;                    // vertical position confirmed good
         g.fill(badgeX0, badgeY0, badgeX1, badgeY0 + badgeH, INK);
         g.fill(badgeX0 + 1, badgeY0 + 1, badgeX1 - 1, badgeY0 + badgeH - 1, BADGE_BG);
         g.drawString(this.font, cap, badgeX0 + 6, badgeY0 + (badgeH - 8) / 2 + 1, TXT_DARK, false);
