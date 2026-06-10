@@ -371,7 +371,8 @@ public final class Networking {
      */
     public record OpenBarrierMenuPayload(net.minecraft.core.BlockPos pos, double stored,
                                          double capacity, int layers, boolean canMultiLayer,
-                                         double drainPerSec, int tier, String colonyName)
+                                         double drainPerSec, int tier, String colonyName,
+                                         boolean wallVisible)
             implements CustomPacketPayload {
         public static final Type<OpenBarrierMenuPayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "open_barrier_menu"));
@@ -385,6 +386,7 @@ public final class Networking {
                     buf.writeDouble(p.drainPerSec);
                     buf.writeByte(p.tier);
                     ByteBufCodecs.STRING_UTF8.encode(buf, p.colonyName);
+                    buf.writeBoolean(p.wallVisible);
                 },
                 buf -> new OpenBarrierMenuPayload(
                         net.minecraft.core.BlockPos.STREAM_CODEC.decode(buf),
@@ -394,7 +396,8 @@ public final class Networking {
                         buf.readBoolean(),
                         buf.readDouble(),
                         buf.readByte(),
-                        ByteBufCodecs.STRING_UTF8.decode(buf)));
+                        ByteBufCodecs.STRING_UTF8.decode(buf),
+                        buf.readBoolean()));
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
@@ -404,7 +407,8 @@ public final class Networking {
     public record BarrierMenuActionPayload(net.minecraft.core.BlockPos pos, byte action)
             implements CustomPacketPayload {
         public static final byte ACTION_ADD = 0, ACTION_TAKE = 1, ACTION_MIN = 2,
-                ACTION_MAX = 3, ACTION_LAYER_PLUS = 4, ACTION_LAYER_MINUS = 5;
+                ACTION_MAX = 3, ACTION_LAYER_PLUS = 4, ACTION_LAYER_MINUS = 5,
+                ACTION_TOGGLE_VISIBLE = 6;
         public static final Type<BarrierMenuActionPayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "barrier_menu_action"));
         public static final StreamCodec<ByteBuf, BarrierMenuActionPayload> CODEC = StreamCodec.composite(
@@ -437,7 +441,8 @@ public final class Networking {
                 BarrierBlockEntity.isDemonLordOrHero(player),
                 be.getLastDrainPerSecond(),
                 be.getTier(),
-                colony != null ? colony.getName() : ""));
+                colony != null ? colony.getName() : "",
+                be.isWallVisible()));
     }
 
     private static void onBarrierMenuAction(BarrierMenuActionPayload payload, IPayloadContext context) {
@@ -462,6 +467,8 @@ public final class Networking {
                         be.trySetLayers(be.getActiveLayers() + 1, sp);
                 case BarrierMenuActionPayload.ACTION_LAYER_MINUS ->
                         be.trySetLayers(be.getActiveLayers() - 1, sp);
+                case BarrierMenuActionPayload.ACTION_TOGGLE_VISIBLE ->
+                        be.setWallVisible(!be.isWallVisible());
                 default -> { }
             }
             sendBarrierMenuTo(sp, be); // live refresh

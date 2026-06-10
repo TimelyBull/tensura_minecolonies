@@ -49,6 +49,7 @@ public class BarrierCoreScreen extends Screen {
 
     private Button layerPlus;
     private Button layerMinus;
+    private Button visibilityToggle;
 
     public BarrierCoreScreen(Networking.OpenBarrierMenuPayload data) {
         super(Component.literal("Barrier Core"));
@@ -98,14 +99,29 @@ public class BarrierCoreScreen extends Screen {
                         b -> send(Networking.BarrierMenuActionPayload.ACTION_LAYER_PLUS))
                 .bounds(lx + 78, ly, 20, 16).build());
 
+        // Wall visibility toggle — visual only; the field and spawn
+        // protection keep working while hidden.
+        visibilityToggle = addRenderableWidget(Button.builder(visibilityLabel(),
+                        b -> send(Networking.BarrierMenuActionPayload.ACTION_TOGGLE_VISIBLE))
+                .bounds(lx, ly + 52, 98, 16)
+                .tooltip(Tooltip.create(Component.literal(
+                        "Show or hide the barrier walls. The protective field "
+                        + "keeps working either way.")))
+                .build());
+
         addRenderableWidget(Button.builder(Component.literal("Close"), b -> onClose())
                 .bounds(px + PANEL_W - 58, py + PANEL_H - 24, 50, 16).build());
 
         updateButtonStates();
     }
 
+    private Component visibilityLabel() {
+        return Component.literal(data.wallVisible() ? "Wall: Visible" : "Wall: Hidden");
+    }
+
     private void updateButtonStates() {
         if (layerPlus == null) return;
+        if (visibilityToggle != null) visibilityToggle.setMessage(visibilityLabel());
         boolean canRaise = data.layers() < BarrierBlockEntity.MAX_LAYERS
                 && (data.layers() < 1 || data.canMultiLayer());
         layerPlus.active = canRaise;
@@ -165,6 +181,7 @@ public class BarrierCoreScreen extends Screen {
                 : "Drain — none";
         g.drawString(this.font, drain, lx, ly + 24, 0xFF7A6E58, false);
         g.drawString(this.font, "Tier " + data.tier() + " core", lx, ly + 38, 0xFF7A6E58, false);
+        // (visibility toggle button sits at ly + 52)
 
         // Status strip
         String status;

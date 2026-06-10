@@ -98,6 +98,10 @@ public class BarrierBlockEntity extends BlockEntity {
      *  re-checked once per second while they're online; observed loss
      *  collapses back to 1 layer. Null until layers are raised. */
     private java.util.UUID layerSetterUuid = null;
+    /** Player toggle from the core menu: render the wall shells or keep
+     *  the barrier invisible (the FIELD/spawn-protection still works —
+     *  this is purely visual). Synced via the update tag. */
+    private boolean wallVisible = true;
     /** Last second's TOTAL drain (upkeep + raider contact), magicule/s —
      *  for the menu's "drain / time-to-empty" readout. Synced. */
     private double lastDrainPerSecond = 0.0;
@@ -139,6 +143,21 @@ public class BarrierBlockEntity extends BlockEntity {
 
     public double getLastDrainPerSecond() {
         return lastDrainPerSecond;
+    }
+
+    public boolean isWallVisible() {
+        return wallVisible;
+    }
+
+    /** Menu toggle — show/hide the wall render (visual only). */
+    public void setWallVisible(boolean visible) {
+        if (this.wallVisible != visible) {
+            this.wallVisible = visible;
+            setChanged();
+            if (level != null && !level.isClientSide()) {
+                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            }
+        }
     }
 
     /** Radius of layer {@code index} (0-based): tier radius + 5 per ring. */
@@ -521,6 +540,7 @@ public class BarrierBlockEntity extends BlockEntity {
         tag.putDouble("storageBonus", storageBonus);
         tag.putInt("activeLayers", activeLayers);
         if (layerSetterUuid != null) tag.putUUID("layerSetter", layerSetterUuid);
+        tag.putBoolean("wallVisible", wallVisible);
     }
 
     @Override
@@ -531,6 +551,8 @@ public class BarrierBlockEntity extends BlockEntity {
         activeLayers = tag.contains("activeLayers") ? Math.max(1,
                 Math.min(MAX_LAYERS, tag.getInt("activeLayers"))) : 1;
         layerSetterUuid = tag.hasUUID("layerSetter") ? tag.getUUID("layerSetter") : null;
+        // Absent on pre-toggle saves → visible (the original behavior).
+        wallVisible = !tag.contains("wallVisible") || tag.getBoolean("wallVisible");
     }
 
     // Client sync — the wall renderer reads getFillRatio() client-side,

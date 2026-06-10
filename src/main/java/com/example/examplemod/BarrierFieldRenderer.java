@@ -53,6 +53,7 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
     @Override
     public void render(BarrierBlockEntity be, float partialTick, PoseStack poseStack,
                        MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
+        if (!be.isWallVisible()) return; // player toggled the render off
         float fill = be.getFillRatio();
         if (fill <= 0f) return;
         float alpha = ALPHA_MIN + (ALPHA_MAX - ALPHA_MIN) * fill;
