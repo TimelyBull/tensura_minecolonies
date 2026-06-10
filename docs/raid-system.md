@@ -226,6 +226,33 @@ colony immediately, bypassing nightfall/chance/cooldown (mirrors
 `/spawnenvoy`). `/tensuraraid end` resolves the active raid as a
 timeout for cleanup.
 
+### Post-v1 playtest fixes (2026-06-09)
+
+Three fixes from the first in-game raid test:
+
+1. **Barrier channel is now plain right-click (empty hand), not
+   sneak-right-click.** Vanilla's interaction pipeline skips block
+   interactions entirely when a sneaking player holds ANY item in either
+   hand (`ServerPlayerGameMode` checks `isSecondaryUseActive` before the
+   block sees the click) — with a torch/shield in the offhand the channel
+   never fired. Plain right-click is the reliable path; the fill readout
+   rides along in every message, replacing the old status-only click.
+2. **Target assist searches the colony's citizen ROSTER, not a 24-block
+   AABB.** Small colonies put citizens outside the old scan radius for
+   the entire approach, so raiders never aggroed. Now: nearest LOADED
+   citizen from `colony.getCitizenManager().getCitizens()` within 64
+   blocks, written to BOTH the SmartBrain `ATTACK_TARGET` memory AND
+   vanilla `Mob#setTarget` — Tensura's target-invalidation predicate
+   (`ISubordinate.shouldTarget`) short-circuits TRUE when
+   `mob.getTarget() == target`, so the vanilla write is what stops the
+   brain dropping a citizen it wouldn't normally treat as prey.
+   Re-asserted every second by the steering pass.
+3. **Raiders visibly attack the barrier.** While pressing the shell:
+   face the block + swing once a second with CRIT particles at the
+   impact point on the shell, plus a wooden-door-pounding knock every
+   2 s while anything presses. Pure presentation — the EP-scaled drain
+   IS the damage; literal block HP stays deferred.
+
 ### Deferred (explicit)
 
 Lore variants (Carrion beastmen / clowns / Charybdis / angel), multi-wave

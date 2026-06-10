@@ -184,7 +184,28 @@ public class BarrierBlockEntity extends BlockEntity {
                 ExistenceStorage exist = ExampleMod.readExistence(mob);
                 double ep = exist != null && exist.getEP() > 0 ? exist.getEP() : FALLBACK_RAIDER_EP;
                 drainThisTick += ep * BARRIER_DRAIN_COEFFICIENT_PER_SECOND / 20.0;
+
+                // Visible "attacking the barrier": once a second the
+                // presser faces the block, swings, and crit particles
+                // burst at its impact point on the shell. Pure show —
+                // the drain above IS the damage.
+                if (gameTime % 20 == 0) {
+                    mob.getLookControl().setLookAt(center.x, center.y, center.z);
+                    mob.swing(net.minecraft.world.InteractionHand.MAIN_HAND, true);
+                    double ix = center.x + (dx / Math.max(horizDist, 0.001)) * BARRIER_RADIUS;
+                    double iz = center.z + (dz / Math.max(horizDist, 0.001)) * BARRIER_RADIUS;
+                    serverLevel.sendParticles(ParticleTypes.CRIT,
+                            ix, mob.getY() + mob.getBbHeight() * 0.6, iz,
+                            8, 0.2, 0.3, 0.2, 0.05);
+                }
             }
+        }
+
+        // Pounding audio — one knock per 2 s while ANYTHING presses the
+        // shell (per-mob sounds would stack into noise on big waves).
+        if (drainThisTick > 0 && gameTime % 40 == 0) {
+            serverLevel.playSound(null, pos, SoundEvents.ZOMBIE_ATTACK_WOODEN_DOOR,
+                    SoundSource.HOSTILE, 1.0f, 0.8f);
         }
 
         if (drainThisTick > 0) {

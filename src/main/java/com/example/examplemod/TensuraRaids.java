@@ -27,7 +27,6 @@ import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
-import net.minecraft.world.phys.AABB;
 import net.tslat.smartbrainlib.util.BrainUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,8 +82,10 @@ public final class TensuraRaids {
     /** Steering walk speed / close-enough, mirroring SubordinatePatrol. */
     private static final float RAID_WALK_SPEED = 1.1f;
     private static final int RAID_CLOSE_ENOUGH = 2;
-    /** Target-assist scan radius for citizens around a raider. */
-    private static final double TARGET_ASSIST_RADIUS = 24.0;
+    /** Target-assist range — max distance (blocks) from a raider to a
+     *  roster citizen for the assist to lock on. Generous on purpose:
+     *  small colonies put every citizen well inside one wave-approach. */
+    private static final double TARGET_ASSIST_RADIUS = 64.0;
 
     // ------------------------------------------------------------------
     // Mob rosters by colony raid level (MobCategory.MONSTER types only,
@@ -372,30 +373,45 @@ public final class TensuraRaids {
 
     /**
      * One raider's per-second drive. Combat first: if the mob has no
-     * live attack target, assist it onto the nearest colony citizen in
-     * range (SmartBrainLib's {@code BrainUtils} — the same brain memory
-     * Tensura's own combat reads). Otherwise keep its {@code WALK_TARGET}
-     * fed toward the destination, exactly like SubordinatePatrol does —
-     * Tensura's idle wander only fires when WALK_TARGET is absent.
+     * live attack target, aim it at the nearest LOADED citizen of the
+     * raided colony — searched through the colony's own citizen ROSTER
+     * (not a small AABB scan, which missed citizens in compact colonies
+     * where the wave spawns well outside the houses). The target is
+     * written to BOTH the SmartBrain {@code ATTACK_TARGET} memory
+     * (what Tensura's combat behaviours read) AND the vanilla
+     * {@code Mob#setTarget} — Tensura's target-invalidation predicate
+     * ({@code ISubordinate.shouldTarget}) short-circuits TRUE when
+     * {@code mob.getTarget() == target}, so the vanilla write is what
+     * keeps the brain from dropping a citizen it wouldn't normally
+     * consider prey. Re-asserted every second by this pass.
+     *
+     * <p>Otherwise keep its {@code WALK_TARGET} fed toward the
+     * destination (barrier first, else colony center), exactly like
+     * SubordinatePatrol — Tensura's idle wander only fires when
+     * WALK_TARGET is absent.
      */
     private static void steerRaider(ServerLevel level, Mob mob, IColony colony, BlockPos destination) {
         LivingEntity target = BrainUtils.getTargetOfEntity(mob);
         if (target != null && target.isAlive()) {
+            // Keep the vanilla slot in sync so Tensura's invalidation
+            // check (getTarget() == target) keeps approving the target.
+            if (mob.getTarget() != target) mob.setTarget(target);
             return; // native combat owns the mob while it has a live target
         }
 
-        // Target assist — nearest citizen of THIS colony within range.
+        // Target assist — nearest loaded citizen from the colony ROSTER.
         AbstractEntityCitizen nearest = null;
         double bestDist = TARGET_ASSIST_RADIUS * TARGET_ASSIST_RADIUS;
-        for (AbstractEntityCitizen citizen : level.getEntitiesOfClass(
-                AbstractEntityCitizen.class,
-                AABB.ofSize(mob.position(), TARGET_ASSIST_RADIUS * 2, 16, TARGET_ASSIST_RADIUS * 2),
-                c -> c.isAlive() && c.getCitizenColonyHandler().getColonyId() == colony.getID())) {
+        for (com.minecolonies.api.colony.ICitizenData data
+                : colony.getCitizenManager().getCitizens()) {
+            AbstractEntityCitizen citizen = data.getEntity().orElse(null);
+            if (citizen == null || !citizen.isAlive()) continue;
             double d = citizen.distanceToSqr(mob);
             if (d < bestDist) { bestDist = d; nearest = citizen; }
         }
         if (nearest != null) {
             BrainUtils.setTargetOfEntity(mob, nearest);
+            mob.setTarget(nearest);
             return;
         }
 
