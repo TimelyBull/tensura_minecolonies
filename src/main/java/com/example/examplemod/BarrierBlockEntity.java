@@ -80,8 +80,6 @@ public class BarrierBlockEntity extends BlockEntity {
     private double storedMagicule = 0.0;
     /** Edge-detect for the "barrier has fallen" alarm. */
     private boolean fieldWasUp = false;
-    /** Per-second cache of "is a raid active for this block's colony". */
-    private boolean raidActiveCache = false;
     /** Last stored value synced to clients — the wall render's alpha
      *  tracks the fill, so clients get a fresh value whenever it moves
      *  by more than ~0.5% of capacity (checked once per second). */
@@ -239,17 +237,17 @@ public class BarrierBlockEntity extends BlockEntity {
         double bonus = 0.0;
         java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<>();
         java.util.HashSet<BlockPos> visited = new java.util.HashSet<>();
+        java.util.ArrayList<BlockPos> networkStorage = new java.util.ArrayList<>();
         queue.add(worldPosition);
         visited.add(worldPosition);
-        int storageCount = 0;
-        while (!queue.isEmpty() && storageCount < MAX_STORAGE_NETWORK) {
+        while (!queue.isEmpty() && networkStorage.size() < MAX_STORAGE_NETWORK) {
             BlockPos cur = queue.poll();
             for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
                 BlockPos next = cur.relative(dir);
                 if (!visited.add(next)) continue;
                 if (level.getBlockState(next).getBlock() instanceof MagiculeStorageBlock storage) {
                     bonus += storage.capacityBonus();
-                    storageCount++;
+                    networkStorage.add(next.immutable());
                     queue.add(next);
                 }
             }
@@ -264,6 +262,25 @@ public class BarrierBlockEntity extends BlockEntity {
             // Capacity changed → fill ratio changed → resync the render.
             lastSyncedMagicule = -1.0;
         }
+
+        // Mirror the shared pool's fill stage onto the network's storage
+        // blocks (their FILL blockstate drives the per-tier fill sprites:
+        // base under 33%, then 33/66/full).
+        int stage = currentChargeStage();
+        for (BlockPos sp : networkStorage) {
+            BlockState ss = level.getBlockState(sp);
+            if (ss.hasProperty(MagiculeStorageBlock.FILL)
+                    && ss.getValue(MagiculeStorageBlock.FILL) != stage) {
+                level.setBlock(sp, ss.setValue(MagiculeStorageBlock.FILL, stage), 3);
+            }
+        }
+    }
+
+    /** The 0..3 fill stage shared by the core's charge sprite and the
+     *  network storage blocks' FILL state. */
+    private int currentChargeStage() {
+        if (storedMagicule >= getCapacity()) return 3;
+        return Math.max(0, (int) Math.min(2, Math.floor(storedMagicule / getCapacity() * 3.0)));
     }
 
     // ------------------------------------------------------------------
@@ -291,13 +308,7 @@ public class BarrierBlockEntity extends BlockEntity {
         if (level == null || level.isClientSide()) return;
         BlockState state = getBlockState();
         if (!state.hasProperty(BarrierBlock.CHARGE)) return;
-        int stage;
-        if (storedMagicule >= getCapacity()) {
-            stage = 3;
-        } else {
-            stage = (int) Math.min(2, Math.floor(storedMagicule / getCapacity() * 3.0));
-        }
-        stage = Math.max(0, stage);
+        int stage = currentChargeStage();
         if (state.getValue(BarrierBlock.CHARGE) != stage) {
             level.setBlock(worldPosition, state.setValue(BarrierBlock.CHARGE, stage), 3);
         }
@@ -424,7 +435,6 @@ public class BarrierBlockEntity extends BlockEntity {
                 be.lastSyncedMagicule = be.storedMagicule;
                 serverLevel.sendBlockUpdated(pos, state, state, 3);
             }
-            be.raidActiveCache = TensuraRaids.isRaidActiveNear(serverLevel, pos);
             if (be.storedMagicule > 0) {
                 // Steering reads this to send raiders at the barrier first;
                 // the OUTERMOST active shell's radius rides along for
@@ -435,10 +445,14 @@ public class BarrierBlockEntity extends BlockEntity {
             }
         }
 
-        boolean fieldUp = be.storedMagicule > 0 && be.raidActiveCache;
+        // The field is up whenever FUELED — it blocks raid mobs AND wild
+        // hostile-tagged mobs at all times, not just during raids. (The
+        // original raid-only gate let everyday zombies/spiders walk
+        // straight through, which read as "the barrier doesn't work".)
+        boolean fieldUp = be.storedMagicule > 0;
 
-        // Depletion alarm — fires once on the up→down edge during a raid.
-        if (be.fieldWasUp && !fieldUp && be.raidActiveCache) {
+        // Depletion alarm — fires once on the up→down edge.
+        if (be.fieldWasUp && !fieldUp) {
             serverLevel.playSound(null, pos, SoundEvents.GLASS_BREAK, SoundSource.BLOCKS, 1.5f, 0.6f);
             alertNearbyPlayers(serverLevel, pos,
                     Component.literal("The magicule barrier has fallen!")
@@ -460,7 +474,11 @@ public class BarrierBlockEntity extends BlockEntity {
         for (Mob mob : serverLevel.getEntitiesOfClass(Mob.class,
                 AABB.ofSize(center, (radius + CONTACT_BAND) * 2 + 2, 64,
                         (radius + CONTACT_BAND) * 2 + 2),
-                m -> m.isAlive() && m.hasData(Attachments.RAID_TAG.get()))) {
+                m -> m.isAlive() && (m.hasData(Attachments.RAID_TAG.get())
+                        || m.getType().builtInRegistryHolder()
+                               .is(TensuraRaids.HOSTILE_MONSTER_TAG)))) {
+
+            boolean isRaider = mob.hasData(Attachments.RAID_TAG.get());
 
             double dx = mob.getX() - center.x;
             double dz = mob.getZ() - center.z;
@@ -482,8 +500,11 @@ public class BarrierBlockEntity extends BlockEntity {
                 cheb = radius + 0.25;
             }
 
-            // EP-scaled contact drain for raiders pressing the wall.
-            if (cheb <= radius + CONTACT_BAND) {
+            // EP-scaled contact drain — RAID mobs only. Wild hostiles are
+            // blocked for free, so the peacetime barrier doesn't bleed
+            // from a stray zombie leaning on it; raids stay the drain
+            // mechanic.
+            if (isRaider && cheb <= radius + CONTACT_BAND) {
                 ExistenceStorage exist = ExampleMod.readExistence(mob);
                 double ep = exist != null && exist.getEP() > 0 ? exist.getEP() : FALLBACK_RAIDER_EP;
                 double drain = ep * BARRIER_DRAIN_COEFFICIENT_PER_SECOND / 20.0;

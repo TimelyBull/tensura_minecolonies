@@ -129,8 +129,11 @@ public class BarrierBlock extends BaseEntityBlock {
                                               BlockHitResult hitResult) {
         double value = crystalValue(stack);
         if (value <= 0) {
-            // Not a crystal — fall through to useWithoutItem (status/channel).
-            return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+            // Not a crystal — fall through to useWithoutItem (the menu).
+            // PASS, not SKIP: SKIP_DEFAULT_BLOCK_INTERACTION suppresses
+            // useWithoutItem entirely, which made the menu unopenable
+            // while holding ANY non-crystal item.
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
         if (level.isClientSide()) return ItemInteractionResult.SUCCESS;
         if (!(level.getBlockEntity(pos) instanceof BarrierBlockEntity barrier)) {

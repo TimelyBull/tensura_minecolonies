@@ -1,8 +1,4 @@
 {
-  "parent": "minecraft:block/cube_bottom_top",
-  "textures": {
-    "side": "tensura_minecolonies:block/magicule_storage_tier2_side",
-    "top": "tensura_minecolonies:block/magicule_storage_tier2_top",
-    "bottom": "tensura_minecolonies:block/magicule_storage_tier2_top"
-  }
+  "parent": "minecraft:block/cube_all",
+  "textures": { "all": "tensura_minecolonies:block/magicule_storage_tier2_side" }
 }

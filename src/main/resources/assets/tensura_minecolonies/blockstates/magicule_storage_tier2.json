@@ -1,1 +1,8 @@
-{ "variants": { "": { "model": "tensura_minecolonies:block/magicule_storage_tier2" } } }
+{
+  "variants": {
+    "fill=0": { "model": "tensura_minecolonies:block/magicule_storage_tier2" },
+    "fill=1": { "model": "tensura_minecolonies:block/magicule_storage_tier2_fill1" },
+    "fill=2": { "model": "tensura_minecolonies:block/magicule_storage_tier2_fill2" },
+    "fill=3": { "model": "tensura_minecolonies:block/magicule_storage_tier2_fill3" }
+  }
+}

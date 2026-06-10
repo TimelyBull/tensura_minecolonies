@@ -41,9 +41,10 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
     private static final float WALL_TOP    = 12.0f;
     /** Vertex alpha range across 0..100% fill. The texture itself is
      *  ~65% alpha, so the effective on-screen opacity tops out around
-     *  0.65 × MAX. */
-    private static final float ALPHA_MIN = 0.10f;
-    private static final float ALPHA_MAX = 0.85f;
+     *  0.65 × MAX. Tuned DOWN by request — the wall should read as a
+     *  light shimmer, not a curtain. */
+    private static final float ALPHA_MIN = 0.05f;
+    private static final float ALPHA_MAX = 0.40f;
     /** Texture tiling: one texture repeat per this many blocks. */
     private static final float TILE_SIZE = 4.0f;
     private static final int FULL_BRIGHT = 0xF000F0;
@@ -78,7 +79,23 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
             wall(vc, pose, x0, y0, z1, x1, y1, z1, uLen, vLen, alpha, 0, 0, 1);
             wallX(vc, pose, x0, y0, z0, x0, y1, z1, uLen, vLen, alpha, -1, 0, 0);
             wallX(vc, pose, x1, y0, z0, x1, y1, z1, uLen, vLen, alpha, 1, 0, 0);
+
+            // Roof — same texture, capping the shell at the wall top
+            // (both windings, visible from below and above).
+            roof(vc, pose, x0, y1, z0, x1, z1, uLen, alpha);
         }
+    }
+
+    /** Horizontal roof quad at height {@code y}, both windings. */
+    private static void roof(VertexConsumer vc, Matrix4f pose,
+                             float x0, float y, float z0, float x1, float z1,
+                             float uvLen, float alpha) {
+        quad(vc, pose,
+                x0, y, z0,  x1, y, z0,  x1, y, z1,  x0, y, z1,
+                uvLen, uvLen, alpha, 0, 1, 0);
+        quad(vc, pose,
+                x0, y, z1,  x1, y, z1,  x1, y, z0,  x0, y, z0,
+                uvLen, uvLen, alpha, 0, -1, 0);
     }
 
     /** A wall quad spanning X at fixed Z, emitted in both windings so it

@@ -1,0 +1,4 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": { "all": "tensura_minecolonies:block/magicule_storage_tier2_fill2" }
+}

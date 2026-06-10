@@ -32,11 +32,30 @@ public class MagiculeStorageBlock extends Block {
     /** Capacity added to a connected core, by tier index 0..3. */
     public static final double[] STORAGE_BONUS = { 25_000.0, 75_000.0, 150_000.0, 300_000.0 };
 
+    /**
+     * Visual fill stage mirroring the CONNECTED CORE's pool (the storage
+     * has no tank of its own — it displays the shared pool's level):
+     * 0 = base sprite (under 33%), 1 = 33%+, 2 = 66%+, 3 = full.
+     * Written by the core's once-per-second network walk
+     * ({@code BarrierBlockEntity.recomputeStorageBonus}); a block cut off
+     * from its network keeps its last stage until reconnected (cosmetic
+     * quirk, no gameplay effect).
+     */
+    public static final net.minecraft.world.level.block.state.properties.IntegerProperty FILL =
+            net.minecraft.world.level.block.state.properties.IntegerProperty.create("fill", 0, 3);
+
     private final int tier; // 1..4
 
     public MagiculeStorageBlock(int tier, Properties properties) {
         super(properties);
         this.tier = tier;
+        registerDefaultState(getStateDefinition().any().setValue(FILL, 0));
+    }
+
+    @Override
+    protected void createBlockStateDefinition(
+            net.minecraft.world.level.block.state.StateDefinition.Builder<Block, BlockState> builder) {
+        builder.add(FILL);
     }
 
     public int tier() {
