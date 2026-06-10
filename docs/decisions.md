@@ -1158,6 +1158,42 @@ MC texture `ResourceLocation`s are centralized as constants on
 `WindowRacePicker` (fragility mitigation — the XML references the same MC
 asset paths, so a future MC rename surfaces in one place).
 
+## Roster restyled to the flat cream mockup (2026-06-09)
+
+**`WindowRoster` rebuilt to the flat paper mockup** (vanilla `RosterScreen` kept
+as fail-closed fallback). Window **400×260**; compressed **24px row-card pitch**
+(card 21 + 3 gap → ~6 rows visible, scroll for more — the `ScrollingList`/
+`ScrollingView` `Scrollbar` renders on overflow, wheel + drag, natively).
+
+Layout (`windowroster.xml`): title "Citizen Roster" + "[colony name]" subtitle +
+divider; a magicule **badge** (`<box>` border + purple-diamond placeholder +
+count) with a **slime** peeking over the top edge; a full-width search field with
+a toggled "Search citizens…" hint; a `ScrollingList` of bordered row-cards
+(`<box>` + name + "EP …" + status **pill** + Summon/Send button); footer
+"N citizens" / "N at your side" counts.
+
+**Key BlockUI gotcha — XML `color` is unreliable.** The XML `color` attr parses
+only named colours cleanly; hex needs `#`+UPPERCASE and 6-digit → alpha 0
+(invisible), 8-digit → `parseInt` overflow. So **every custom colour is set in
+Java** (`Box.setColor(r,g,b)`, `Text.setColors(argb)`), and the flat green/blue
+pills + green/tan buttons are **placeholder PNG textures** (`textures/gui/roster/`)
+swapped per row via `Image.setImage`/`ButtonImage.setImage` — no gradient colour
+attrs. `<box>` (border outline, recoloured at runtime) draws the card/badge/
+search/divider borders.
+
+**Decisions (confirmed with the user):**
+- Per-row stat labelled **EP** (not the mockup's "CP") — same underlying value.
+- **Bulk kept visible**: per-row checkbox toggles (mode-locked) + a Group
+  Summon/Send bar that appears when ≥2 are checked (only the button matching the
+  selection's mode shows). Reuses `BulkSummon`/`BulkSend`; drag-paint dropped.
+- Action semantics kept: In colony → Summon (back); At side → Send.
+- Colony name added as one `String` on `RosterResponsePayload` (primary owned
+  colony via `getIColonyByOwner`). Magicule + EP + counts already available.
+
+Placeholder textures (to be replaced by final art): `roster/pill_green.png`,
+`pill_blue.png`, `btn_green.png`, `btn_tan.png`, `diamond.png`, `slime.png`.
+UNTESTED in-game — flag for playtest (G opens it; vanilla fallback intact).
+
 ## Citizen roster — rebuilt as a native BlockUI window (validates the list path)
 
 **`RosterScreen` (vanilla `Screen`) replaced by `WindowRoster extends

@@ -202,9 +202,10 @@ public final class Networking {
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** S2C: server returns the player's roster entries plus the player's
-     *  current magicule (shown as a counter in the roster menu). */
-    public record RosterResponsePayload(List<RosterEntry> entries, double playerMagicule)
+    /** S2C: server returns the player's roster entries, the player's current
+     *  magicule (counter), and the player's primary colony name (subtitle). */
+    public record RosterResponsePayload(List<RosterEntry> entries, double playerMagicule,
+                                        String colonyName)
             implements CustomPacketPayload {
         public static final Type<RosterResponsePayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "roster_response"));
@@ -215,6 +216,8 @@ public final class Networking {
                         RosterResponsePayload::entries,
                         ByteBufCodecs.DOUBLE,
                         RosterResponsePayload::playerMagicule,
+                        ByteBufCodecs.STRING_UTF8,
+                        RosterResponsePayload::colonyName,
                         RosterResponsePayload::new
                 );
 
@@ -583,9 +586,11 @@ public final class Networking {
         }
 
         double magicule = ExampleMod.currentMagicule(sp);
+        IColony primary = IColonyManager.getInstance().getIColonyByOwner(level, playerUUID);
+        String colonyName = primary != null ? primary.getName() : "";
         LOGGER.info("[TM] roster: sending {} entries (magicule {}) to {}",
                 entries.size(), magicule, sp.getName().getString());
-        PacketDistributor.sendToPlayer(sp, new RosterResponsePayload(entries, magicule));
+        PacketDistributor.sendToPlayer(sp, new RosterResponsePayload(entries, magicule, colonyName));
     }
 
     // ------------------------------------------------------------------

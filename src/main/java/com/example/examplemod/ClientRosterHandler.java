@@ -20,6 +20,6 @@ public final class ClientRosterHandler {
     private ClientRosterHandler() {}
 
     public static void handle(Networking.RosterResponsePayload payload) {
-        WindowRoster.route(payload.entries(), payload.playerMagicule());
+        WindowRoster.route(payload.entries(), payload.playerMagicule(), payload.colonyName());
     }
 }
