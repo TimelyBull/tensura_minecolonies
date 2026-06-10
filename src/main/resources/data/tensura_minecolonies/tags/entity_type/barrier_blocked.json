@@ -1,0 +1,13 @@
+{
+  "replace": false,
+  "values": [
+    "#tensura:hostile_monster",
+    "minecraft:pillager",
+    "minecraft:vindicator",
+    "minecraft:evoker",
+    "minecraft:illusioner",
+    "minecraft:witch",
+    "minecraft:phantom",
+    "minecraft:piglin_brute"
+  ]
+}

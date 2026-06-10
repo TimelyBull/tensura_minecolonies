@@ -549,7 +549,10 @@ public class BarrierBlockEntity extends BlockEntity {
                         (radius + CONTACT_BAND) * 2 + 2),
                 m -> m.isAlive() && (m.hasData(Attachments.RAID_TAG.get())
                         || m.getType().builtInRegistryHolder()
-                               .is(TensuraRaids.HOSTILE_MONSTER_TAG)))) {
+                               .is(TensuraRaids.HOSTILE_MONSTER_TAG)
+                        // MineColonies' own raiders (barbarians/pirates/…)
+                        // are blocked too.
+                        || m instanceof com.minecolonies.api.entity.mobs.AbstractEntityMinecoloniesRaider))) {
 
             boolean isRaider = mob.hasData(Attachments.RAID_TAG.get());
 
@@ -599,13 +602,8 @@ public class BarrierBlockEntity extends BlockEntity {
             }
         }
 
-        // Pounding audio — one knock per 2 s while ANYTHING presses the
-        // wall (per-mob sounds would stack into noise on big waves).
-        if (drainThisTick > 0 && gameTime % 40 == 0) {
-            serverLevel.playSound(null, pos, SoundEvents.ZOMBIE_ATTACK_WOODEN_DOOR,
-                    SoundSource.HOSTILE, 1.0f, 0.8f);
-        }
-
+        // (No recurring drain audio — the pounding knock was removed by
+        // request; the CRIT particles remain the drain telegraph.)
         if (drainThisTick > 0) {
             be.drainFromPool(drainThisTick);
         }

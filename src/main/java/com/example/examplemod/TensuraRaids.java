@@ -131,13 +131,18 @@ public final class TensuraRaids {
     private static final Map<GlobalPos, BarrierEntry> ACTIVE_BARRIERS = new ConcurrentHashMap<>();
     private static final long BARRIER_STALE_TICKS = 60L;
 
-    /** Tensura's curated "attacks on sight" entity-type tag — the
-     *  classification the hostile-spawn prevention uses (NOT
-     *  MobCategory.MONSTER, which wrongly includes goblins/orcs). */
+    /** The barrier's "blocked hostiles" entity-type tag — our own
+     *  {@code tensura_minecolonies:barrier_blocked}, which includes
+     *  Tensura's curated attacks-on-sight {@code tensura:hostile_monster}
+     *  tag PLUS the vanilla hostiles Tensura's tag omits (illagers,
+     *  witches, phantoms, piglin brutes). Used by the field pushback AND
+     *  the hostile-spawn prevention. NOT MobCategory.MONSTER, which
+     *  wrongly includes goblins/orcs. */
     static final net.minecraft.tags.TagKey<EntityType<?>> HOSTILE_MONSTER_TAG =
             net.minecraft.tags.TagKey.create(
                     net.minecraft.core.registries.Registries.ENTITY_TYPE,
-                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("tensura", "hostile_monster"));
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+                            ExampleMod.MODID, "barrier_blocked"));
 
     static void reportActiveBarrier(ServerLevel level, BlockPos pos, double radius) {
         ACTIVE_BARRIERS.put(GlobalPos.of(level.dimension(), pos.immutable()),
