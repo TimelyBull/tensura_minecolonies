@@ -202,9 +202,34 @@ public final class Networking {
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    /** S2C: server returns the player's roster entries plus the player's
-     *  current magicule (shown as a counter in the roster menu). */
-    public record RosterResponsePayload(List<RosterEntry> entries, double playerMagicule)
+    /** Header info shown in the roster window's top strip. Colony-scoped values
+     *  (name/townhall/population/races) come from the player's PRIMARY owned
+     *  colony; {@code awakeningTitle} is "True Demon Lord" / "True Hero" / "".
+     *  Grouped into one record to keep {@link RosterResponsePayload}'s codec
+     *  within the composite arity limit. */
+    public record RosterHeader(String colonyName, String awakeningTitle,
+                               int townHallLevel, int population, int maxPopulation,
+                               String racesText) {
+        public static final StreamCodec<ByteBuf, RosterHeader> STREAM_CODEC =
+                StreamCodec.composite(
+                        ByteBufCodecs.STRING_UTF8, RosterHeader::colonyName,
+                        ByteBufCodecs.STRING_UTF8, RosterHeader::awakeningTitle,
+                        ByteBufCodecs.VAR_INT,     RosterHeader::townHallLevel,
+                        ByteBufCodecs.VAR_INT,     RosterHeader::population,
+                        ByteBufCodecs.VAR_INT,     RosterHeader::maxPopulation,
+                        ByteBufCodecs.STRING_UTF8, RosterHeader::racesText,
+                        RosterHeader::new
+                );
+
+        public static RosterHeader empty() {
+            return new RosterHeader("", "", 0, 0, 0, "");
+        }
+    }
+
+    /** S2C: server returns the player's roster entries plus the player's current
+     *  magicule (counter) and the colony header strip data. */
+    public record RosterResponsePayload(List<RosterEntry> entries, double playerMagicule,
+                                        RosterHeader header)
             implements CustomPacketPayload {
         public static final Type<RosterResponsePayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "roster_response"));
@@ -215,6 +240,8 @@ public final class Networking {
                         RosterResponsePayload::entries,
                         ByteBufCodecs.DOUBLE,
                         RosterResponsePayload::playerMagicule,
+                        RosterHeader.STREAM_CODEC,
+                        RosterResponsePayload::header,
                         RosterResponsePayload::new
                 );
 
@@ -583,9 +610,10 @@ public final class Networking {
         }
 
         double magicule = ExampleMod.currentMagicule(sp);
+        RosterHeader header = ExampleMod.buildRosterHeader(sp);
         LOGGER.info("[TM] roster: sending {} entries (magicule {}) to {}",
                 entries.size(), magicule, sp.getName().getString());
-        PacketDistributor.sendToPlayer(sp, new RosterResponsePayload(entries, magicule));
+        PacketDistributor.sendToPlayer(sp, new RosterResponsePayload(entries, magicule, header));
     }
 
     // ------------------------------------------------------------------
