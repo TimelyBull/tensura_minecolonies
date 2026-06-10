@@ -133,14 +133,17 @@ public class BarrierCoreScreen extends Screen {
         layerPlus = addRenderableWidget(paper(lx + 88, ly, 22, 14, "+",
                 Networking.BarrierMenuActionPayload.ACTION_LAYER_PLUS));
 
-        // Wall visibility toggle (visual only).
-        visibilityToggle = addRenderableWidget(new PaperButton(px + PANEL_W - 120, py + PANEL_H - 24,
+        // Wall visibility toggle (visual only) + Close — together they
+        // span exactly the BARRIER LAYERS column: toggle's left edge on
+        // the preview box's left (px+128), Close's right edge on its
+        // right (px+238).
+        visibilityToggle = addRenderableWidget(new PaperButton(px + 128, py + PANEL_H - 24,
                 70, 14, visibilityLabel(),
                 b -> send(Networking.BarrierMenuActionPayload.ACTION_TOGGLE_VISIBLE)));
         visibilityToggle.setTooltip(Tooltip.create(Component.literal(
                 "Show or hide the barrier walls. The protective field keeps working either way.")));
 
-        addRenderableWidget(new PaperButton(px + PANEL_W - 44, py + PANEL_H - 24, 36, 14,
+        addRenderableWidget(new PaperButton(px + 238 - 36, py + PANEL_H - 24, 36, 14,
                 Component.literal("Close"), b -> onClose()));
 
         updateButtonStates();
