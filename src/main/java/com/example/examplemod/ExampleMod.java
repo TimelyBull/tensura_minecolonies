@@ -236,18 +236,19 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
     // Magicule Storage blocks — 4 tiers (+25k/+75k/+150k/+300k capacity to
     // a connected core; flood-fill chaining, see MagiculeStorageBlock).
+    // Light level 3/4/5/6 by tier — the texture set's glowing-core look.
     public static final DeferredBlock<MagiculeStorageBlock> STORAGE_BLOCK_T1 =
             BLOCKS.register("magicule_storage_tier1", () -> new MagiculeStorageBlock(1,
-                    BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLUE).strength(3.0F)));
+                    BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLUE).strength(3.0F).lightLevel(s -> 3)));
     public static final DeferredBlock<MagiculeStorageBlock> STORAGE_BLOCK_T2 =
             BLOCKS.register("magicule_storage_tier2", () -> new MagiculeStorageBlock(2,
-                    BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLUE).strength(3.0F)));
+                    BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLUE).strength(3.0F).lightLevel(s -> 4)));
     public static final DeferredBlock<MagiculeStorageBlock> STORAGE_BLOCK_T3 =
             BLOCKS.register("magicule_storage_tier3", () -> new MagiculeStorageBlock(3,
-                    BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLUE).strength(3.0F)));
+                    BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLUE).strength(3.0F).lightLevel(s -> 5)));
     public static final DeferredBlock<MagiculeStorageBlock> STORAGE_BLOCK_T4 =
             BLOCKS.register("magicule_storage_tier4", () -> new MagiculeStorageBlock(4,
-                    BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLUE).strength(3.0F)));
+                    BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLUE).strength(3.0F).lightLevel(s -> 6)));
     public static final DeferredItem<BlockItem> STORAGE_T1_ITEM =
             ITEMS.registerSimpleBlockItem("magicule_storage_tier1", STORAGE_BLOCK_T1);
     public static final DeferredItem<BlockItem> STORAGE_T2_ITEM =
