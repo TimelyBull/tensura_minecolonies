@@ -138,6 +138,18 @@ public final class Networking {
                 OpenCitizenTradePayload.CODEC,
                 Networking::onOpenCitizenTrade
         );
+        // Barrier Core menu — server opens/refreshes the menu with live
+        // tank + layer state; client buttons fire actions back.
+        registrar.playToClient(
+                OpenBarrierMenuPayload.TYPE,
+                OpenBarrierMenuPayload.CODEC,
+                Networking::onOpenBarrierMenu
+        );
+        registrar.playToServer(
+                BarrierMenuActionPayload.TYPE,
+                BarrierMenuActionPayload.CODEC,
+                Networking::onBarrierMenuAction
+        );
     }
 
     /**
@@ -349,6 +361,111 @@ public final class Networking {
                 OpenEnvoyDialoguePayload::new
         );
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /**
+     * S2C: open (or live-refresh) the Barrier Core menu. Carries the full
+     * tank + layer snapshot; the client renders the gauge and buttons
+     * from this and never computes anything itself. Re-sent by the server
+     * after every menu action (roster-refresh pattern).
+     */
+    public record OpenBarrierMenuPayload(net.minecraft.core.BlockPos pos, double stored,
+                                         double capacity, int layers, boolean canMultiLayer,
+                                         double drainPerSec, int tier, String colonyName)
+            implements CustomPacketPayload {
+        public static final Type<OpenBarrierMenuPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "open_barrier_menu"));
+        public static final StreamCodec<ByteBuf, OpenBarrierMenuPayload> CODEC = StreamCodec.of(
+                (buf, p) -> {
+                    net.minecraft.core.BlockPos.STREAM_CODEC.encode(buf, p.pos);
+                    buf.writeDouble(p.stored);
+                    buf.writeDouble(p.capacity);
+                    buf.writeByte(p.layers);
+                    buf.writeBoolean(p.canMultiLayer);
+                    buf.writeDouble(p.drainPerSec);
+                    buf.writeByte(p.tier);
+                    ByteBufCodecs.STRING_UTF8.encode(buf, p.colonyName);
+                },
+                buf -> new OpenBarrierMenuPayload(
+                        net.minecraft.core.BlockPos.STREAM_CODEC.decode(buf),
+                        buf.readDouble(),
+                        buf.readDouble(),
+                        buf.readByte(),
+                        buf.readBoolean(),
+                        buf.readDouble(),
+                        buf.readByte(),
+                        ByteBufCodecs.STRING_UTF8.decode(buf)));
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** C2S: a Barrier Core menu button. Actions: 0 add 3k, 1 take 3k,
+     *  2 MIN (withdraw all), 3 MAX (fill from player), 4 layer +,
+     *  5 layer −. Server validates reach + gate and re-sends the menu. */
+    public record BarrierMenuActionPayload(net.minecraft.core.BlockPos pos, byte action)
+            implements CustomPacketPayload {
+        public static final byte ACTION_ADD = 0, ACTION_TAKE = 1, ACTION_MIN = 2,
+                ACTION_MAX = 3, ACTION_LAYER_PLUS = 4, ACTION_LAYER_MINUS = 5;
+        public static final Type<BarrierMenuActionPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "barrier_menu_action"));
+        public static final StreamCodec<ByteBuf, BarrierMenuActionPayload> CODEC = StreamCodec.composite(
+                net.minecraft.core.BlockPos.STREAM_CODEC, BarrierMenuActionPayload::pos,
+                ByteBufCodecs.BYTE, BarrierMenuActionPayload::action,
+                BarrierMenuActionPayload::new
+        );
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** Client-side delegate for the barrier menu open/refresh. Installed
+     *  by ClientEvents (server-safe default logs). */
+    public static Consumer<OpenBarrierMenuPayload> barrierMenuClientHandler = payload ->
+            LOGGER.info("[TM] barrier menu (no client handler): {} {}/{}",
+                    payload.pos(), payload.stored(), payload.capacity());
+
+    private static void onOpenBarrierMenu(OpenBarrierMenuPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> barrierMenuClientHandler.accept(payload));
+    }
+
+    /** Build + send the menu snapshot for {@code be} to {@code player}. */
+    static void sendBarrierMenuTo(ServerPlayer player, BarrierBlockEntity be) {
+        ServerLevel level = player.serverLevel();
+        IColony colony = IColonyManager.getInstance().getClosestColony(level, be.getBlockPos());
+        PacketDistributor.sendToPlayer(player, new OpenBarrierMenuPayload(
+                be.getBlockPos(),
+                be.getStoredMagicule(),
+                be.getCapacity(),
+                be.getActiveLayers(),
+                BarrierBlockEntity.isDemonLordOrHero(player),
+                be.getLastDrainPerSecond(),
+                be.getTier(),
+                colony != null ? colony.getName() : ""));
+    }
+
+    private static void onBarrierMenuAction(BarrierMenuActionPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> {
+            if (!(context.player() instanceof ServerPlayer sp)) return;
+            ServerLevel level = sp.serverLevel();
+            // Reach + existence validation — the menu is a remote control
+            // for a block; standard interaction distance applies.
+            if (payload.pos().distToCenterSqr(sp.position()) > 8 * 8) return;
+            if (!(level.getBlockEntity(payload.pos()) instanceof BarrierBlockEntity be)) return;
+
+            switch (payload.action()) {
+                case BarrierMenuActionPayload.ACTION_ADD ->
+                        be.channelFromPlayer(sp);
+                case BarrierMenuActionPayload.ACTION_TAKE ->
+                        be.withdrawToPlayer(sp, BarrierBlockEntity.PLAYER_CHANNEL_PER_CLICK);
+                case BarrierMenuActionPayload.ACTION_MIN ->
+                        be.withdrawToPlayer(sp, Double.MAX_VALUE);
+                case BarrierMenuActionPayload.ACTION_MAX ->
+                        be.channelFromPlayer(sp, Double.MAX_VALUE);
+                case BarrierMenuActionPayload.ACTION_LAYER_PLUS ->
+                        be.trySetLayers(be.getActiveLayers() + 1, sp);
+                case BarrierMenuActionPayload.ACTION_LAYER_MINUS ->
+                        be.trySetLayers(be.getActiveLayers() - 1, sp);
+                default -> { }
+            }
+            sendBarrierMenuTo(sp, be); // live refresh
+        });
     }
 
     /**

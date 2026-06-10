@@ -59,8 +59,16 @@ public class BarrierBlockEntity extends BlockEntity {
     public static final double FALLBACK_RAIDER_EP = 1_000.0;
     /** How far past the shell surface still counts as "pressing" it. */
     public static final double CONTACT_BAND = 1.5;
-    /** Player magicule moved per sneak-right-click channel. */
-    public static final double PLAYER_CHANNEL_PER_CLICK = 2_500.0;
+    /** Player magicule moved per channel/withdraw click (the menu's ±). */
+    public static final double PLAYER_CHANNEL_PER_CLICK = 3_000.0;
+    /** Max concentric barrier layers. */
+    public static final int MAX_LAYERS = 3;
+    /** Ring spacing — each extra layer sits this much further out. */
+    public static final double LAYER_SPACING = 5.0;
+    /** Passive upkeep per EXTRA layer (magicule/sec). Layer 1 is free —
+     *  the base barrier keeps its no-peacetime-bleed behavior; layers 2
+     *  and 3 each burn this on top of raider contact drain. */
+    public static final double LAYER_UPKEEP_PER_SECOND = 50.0;
     /** Crystal refuel values (low / medium / high quality magic crystal). */
     public static final double CRYSTAL_LOW_MAGICULE    = 2_500.0;
     public static final double CRYSTAL_MEDIUM_MAGICULE = 10_000.0;
@@ -82,6 +90,19 @@ public class BarrierBlockEntity extends BlockEntity {
      *  Recomputed once per second by {@link #recomputeStorageBonus} and
      *  synced to clients inside the update tag (for readouts/render). */
     private double storageBonus = 0.0;
+    /** Active concentric barrier layers (1..MAX_LAYERS). Layer 1 at the
+     *  tier radius; each extra layer +LAYER_SPACING outward. Layers 2–3
+     *  are Demon-Lord/Hero-gated (see {@link #trySetLayers}). */
+    private int activeLayers = 1;
+    /** Who raised the layers above 1 — their DL/Hero status is
+     *  re-checked once per second while they're online; observed loss
+     *  collapses back to 1 layer. Null until layers are raised. */
+    private java.util.UUID layerSetterUuid = null;
+    /** Last second's TOTAL drain (upkeep + raider contact), magicule/s —
+     *  for the menu's "drain / time-to-empty" readout. Synced. */
+    private double lastDrainPerSecond = 0.0;
+    /** Accumulates this second's contact drain for the readout. */
+    private double contactDrainAccumulator = 0.0;
 
     // ------------------------------------------------------------------
     // Tier plumbing — radius and capacity come from the core's tier
@@ -106,6 +127,60 @@ public class BarrierBlockEntity extends BlockEntity {
         double base = getBlockState().getBlock() instanceof BarrierBlock b
                 ? b.baseCapacity() : BarrierBlock.TIER_BASE_CAPACITY[0];
         return base + storageBonus;
+    }
+
+    public int getActiveLayers() {
+        return activeLayers;
+    }
+
+    public double getStoredMagicule() {
+        return storedMagicule;
+    }
+
+    public double getLastDrainPerSecond() {
+        return lastDrainPerSecond;
+    }
+
+    /** Radius of layer {@code index} (0-based): tier radius + 5 per ring. */
+    public double getLayerRadius(int index) {
+        return getRadius() + LAYER_SPACING * index;
+    }
+
+    /** The OUTERMOST active shell's radius — what the pushback field,
+     *  the raid steering, and the spawn prevention act on. */
+    public double getEffectiveRadius() {
+        return getLayerRadius(activeLayers - 1);
+    }
+
+    /** True when the player bears the true-demon-lord or true-hero
+     *  status — the gate for layers 2–3. Same IExistence read the envoy
+     *  conditions use. */
+    static boolean isDemonLordOrHero(Player player) {
+        io.github.manasmods.tensura.storage.ep.IExistence ex = ExampleMod.readExistenceSafe(player);
+        return ex != null && (ex.isTrueDemonLord() || ex.isTrueHero());
+    }
+
+    /**
+     * Menu request to set the layer count. Clamps to 1..MAX_LAYERS;
+     * raising above 1 requires the requesting player to be a true demon
+     * lord or true hero (checked HERE server-side — the client's +
+     * button being enabled is cosmetic). Records the setter for the
+     * per-second status re-check. Returns the applied count.
+     */
+    public int trySetLayers(int requested, Player who) {
+        int clamped = Math.max(1, Math.min(MAX_LAYERS, requested));
+        if (clamped > 1 && !isDemonLordOrHero(who)) {
+            clamped = 1;
+        }
+        if (clamped != activeLayers) {
+            activeLayers = clamped;
+            layerSetterUuid = clamped > 1 ? who.getUUID() : null;
+            setChanged();
+            if (level != null && !level.isClientSide()) {
+                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            }
+        }
+        return activeLayers;
     }
 
     /** Fill fraction 0..1 — read client-side by the wall renderer. */
@@ -221,19 +296,44 @@ public class BarrierBlockEntity extends BlockEntity {
                 : base;
     }
 
-    /** Sneak-right-click refuel — move up to {@link #PLAYER_CHANNEL_PER_CLICK}
-     *  of the PLAYER'S own magicule into the tank. Same read/write the
-     *  swap-cost code uses everywhere. Returns the amount moved. */
+    /** One-click refuel — move up to {@link #PLAYER_CHANNEL_PER_CLICK}
+     *  of the PLAYER'S own magicule into the tank. */
     public double channelFromPlayer(Player player) {
+        return channelFromPlayer(player, PLAYER_CHANNEL_PER_CLICK);
+    }
+
+    /** Move up to {@code amount} of the player's magicule into the tank
+     *  (the menu's + and MAX buttons). Same read/write the swap-cost
+     *  code uses everywhere. Returns the amount moved. */
+    public double channelFromPlayer(Player player, double amount) {
         ExistenceStorage exist = ExampleMod.readExistence(player);
         if (exist == null) return 0;
         double available = Math.max(0, exist.getMagicule());
-        double move = Math.min(PLAYER_CHANNEL_PER_CLICK,
+        double move = Math.min(amount,
                 Math.min(available, getCapacity() - storedMagicule));
         if (move <= 0) return 0;
         exist.setMagicule(available - move);
         exist.markDirty();
         storedMagicule += move;
+        setChanged();
+        syncChargeState();
+        return move;
+    }
+
+    /** Move up to {@code amount} magicule BACK to the player (the menu's
+     *  − and MIN buttons), capped at the player's own max magicule —
+     *  same cap the swap refund path uses. Returns the amount moved. */
+    public double withdrawToPlayer(Player player, double amount) {
+        ExistenceStorage exist = ExampleMod.readExistence(player);
+        if (exist == null) return 0;
+        double cur = Math.max(0, exist.getMagicule());
+        double room = Math.max(0,
+                io.github.manasmods.tensura.util.EnergyHelper.getMaxMagicule(player) - cur);
+        double move = Math.min(amount, Math.min(storedMagicule, room));
+        if (move <= 0) return 0;
+        exist.setMagicule(cur + move);
+        exist.markDirty();
+        storedMagicule -= move;
         setChanged();
         syncChargeState();
         return move;
@@ -254,6 +354,51 @@ public class BarrierBlockEntity extends BlockEntity {
             // Storage network — connected MagiculeStorageBlocks expand
             // the capacity; placing/breaking is picked up here.
             be.recomputeStorageBonus(serverLevel);
+
+            // Layer gate re-check: if the player who raised the layers is
+            // ONLINE and has lost Demon Lord / Hero status, collapse to 1.
+            // (Logging off does NOT collapse — only an observed loss.)
+            if (be.activeLayers > 1 && be.layerSetterUuid != null) {
+                ServerPlayer setter = serverLevel.getServer().getPlayerList()
+                        .getPlayer(be.layerSetterUuid);
+                if (setter != null && !isDemonLordOrHero(setter)) {
+                    be.activeLayers = 1;
+                    be.layerSetterUuid = null;
+                    be.setChanged();
+                    serverLevel.sendBlockUpdated(pos, state, state, 3);
+                    setter.sendSystemMessage(Component.literal(
+                            "Your barrier collapses to a single layer — the power that "
+                            + "sustained the outer rings is gone.")
+                            .withStyle(net.minecraft.ChatFormatting.RED));
+                }
+            }
+
+            // Passive layer upkeep (layer 1 free; +LAYER_UPKEEP_PER_SECOND
+            // per extra layer). If the pool can't pay, shed the OUTERMOST
+            // layer (graceful degradation) instead of total collapse.
+            double upkeep = (be.activeLayers - 1) * LAYER_UPKEEP_PER_SECOND;
+            while (upkeep > 0 && be.storedMagicule < upkeep) {
+                be.activeLayers--;
+                be.setChanged();
+                serverLevel.sendBlockUpdated(pos, state, state, 3);
+                serverLevel.playSound(null, pos, SoundEvents.GLASS_BREAK,
+                        SoundSource.BLOCKS, 1.0f, 0.9f);
+                alertNearbyPlayers(serverLevel, pos,
+                        Component.literal("The barrier's outermost layer falls — "
+                                + "not enough magicule to sustain it!")
+                                .withStyle(net.minecraft.ChatFormatting.RED));
+                upkeep = (be.activeLayers - 1) * LAYER_UPKEEP_PER_SECOND;
+            }
+            if (upkeep > 0) {
+                be.storedMagicule = Math.max(0, be.storedMagicule - upkeep);
+                be.setChanged();
+                be.syncChargeState();
+            }
+
+            // Drain readout: upkeep + last second's accumulated contact drain.
+            be.lastDrainPerSecond = upkeep + be.contactDrainAccumulator;
+            be.contactDrainAccumulator = 0.0;
+
             be.syncChargeState();
             // Client sync for the wall render's fill-driven alpha.
             if (Math.abs(be.storedMagicule - be.lastSyncedMagicule) > be.getCapacity() * 0.005) {
@@ -263,8 +408,9 @@ public class BarrierBlockEntity extends BlockEntity {
             be.raidActiveCache = TensuraRaids.isRaidActiveNear(serverLevel, pos);
             if (be.storedMagicule > 0) {
                 // Steering reads this to send raiders at the barrier first;
-                // the per-tier radius rides along for footprint checks.
-                TensuraRaids.reportActiveBarrier(serverLevel, pos, be.getRadius());
+                // the OUTERMOST active shell's radius rides along for
+                // footprint checks.
+                TensuraRaids.reportActiveBarrier(serverLevel, pos, be.getEffectiveRadius());
             } else {
                 TensuraRaids.reportBarrierDown(serverLevel, pos);
             }
@@ -284,7 +430,10 @@ public class BarrierBlockEntity extends BlockEntity {
 
         Vec3 center = Vec3.atCenterOf(pos);
         double drainThisTick = 0.0;
-        double radius = be.getRadius();
+        // The field acts on the OUTERMOST active shell — raiders meet the
+        // outer ring first; inner rings are reserve (they take over as
+        // outer layers shed).
+        double radius = be.getEffectiveRadius();
 
         // SQUARE footprint (Chebyshev distance) — the field, the wall
         // render (BarrierFieldRenderer), and the hostile-spawn prevention
@@ -318,7 +467,10 @@ public class BarrierBlockEntity extends BlockEntity {
             if (cheb <= radius + CONTACT_BAND) {
                 ExistenceStorage exist = ExampleMod.readExistence(mob);
                 double ep = exist != null && exist.getEP() > 0 ? exist.getEP() : FALLBACK_RAIDER_EP;
-                drainThisTick += ep * BARRIER_DRAIN_COEFFICIENT_PER_SECOND / 20.0;
+                double drain = ep * BARRIER_DRAIN_COEFFICIENT_PER_SECOND / 20.0;
+                drainThisTick += drain;
+                // Summed over the second = magicule/s for the readout.
+                be.contactDrainAccumulator += drain;
 
                 // Visible "attacking the barrier": once a second the
                 // presser faces the block, swings, and crit particles
@@ -367,6 +519,8 @@ public class BarrierBlockEntity extends BlockEntity {
         // rides the save/update tag so CLIENTS have the true capacity
         // (fill ratio for the wall alpha, readouts).
         tag.putDouble("storageBonus", storageBonus);
+        tag.putInt("activeLayers", activeLayers);
+        if (layerSetterUuid != null) tag.putUUID("layerSetter", layerSetterUuid);
     }
 
     @Override
@@ -374,6 +528,9 @@ public class BarrierBlockEntity extends BlockEntity {
         super.loadAdditional(tag, registries);
         storedMagicule = tag.getDouble("storedMagicule");
         storageBonus = tag.getDouble("storageBonus");
+        activeLayers = tag.contains("activeLayers") ? Math.max(1,
+                Math.min(MAX_LAYERS, tag.getInt("activeLayers"))) : 1;
+        layerSetterUuid = tag.hasUUID("layerSetter") ? tag.getUUID("layerSetter") : null;
     }
 
     // Client sync — the wall renderer reads getFillRatio() client-side,

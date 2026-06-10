@@ -57,24 +57,27 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
         if (fill <= 0f) return;
         float alpha = ALPHA_MIN + (ALPHA_MAX - ALPHA_MIN) * fill;
 
-        float r = (float) be.getRadius(); // per-tier footprint
-        // PoseStack origin = the block's corner; walls centre on the block.
-        float cx = 0.5f, cz = 0.5f;
-        float x0 = cx - r, x1 = cx + r;
-        float z0 = cz - r, z1 = cz + r;
-        float y0 = WALL_BOTTOM, y1 = WALL_TOP;
-
         VertexConsumer vc = bufferSource.getBuffer(RenderType.entityTranslucent(WALL_TEXTURE));
         Matrix4f pose = poseStack.last().pose();
-
-        float uLen = (2 * r) / TILE_SIZE;          // horizontal repeats per wall
+        float y0 = WALL_BOTTOM, y1 = WALL_TOP;
         float vLen = (y1 - y0) / TILE_SIZE;        // vertical repeats
 
-        // North wall (z = z0), South (z = z1), West (x = x0), East (x = x1).
-        wall(vc, pose, x0, y0, z0, x1, y1, z0, uLen, vLen, alpha, 0, 0, -1);
-        wall(vc, pose, x0, y0, z1, x1, y1, z1, uLen, vLen, alpha, 0, 0, 1);
-        wallX(vc, pose, x0, y0, z0, x0, y1, z1, uLen, vLen, alpha, -1, 0, 0);
-        wallX(vc, pose, x1, y0, z0, x1, y1, z1, uLen, vLen, alpha, 1, 0, 0);
+        // One square shell per ACTIVE layer — layer 0 at the tier radius,
+        // each further ring +LAYER_SPACING out (concentric).
+        for (int layer = 0; layer < be.getActiveLayers(); layer++) {
+            float r = (float) be.getLayerRadius(layer);
+            // PoseStack origin = the block's corner; walls centre on the block.
+            float cx = 0.5f, cz = 0.5f;
+            float x0 = cx - r, x1 = cx + r;
+            float z0 = cz - r, z1 = cz + r;
+            float uLen = (2 * r) / TILE_SIZE;      // horizontal repeats per wall
+
+            // North wall (z = z0), South (z = z1), West (x = x0), East (x = x1).
+            wall(vc, pose, x0, y0, z0, x1, y1, z0, uLen, vLen, alpha, 0, 0, -1);
+            wall(vc, pose, x0, y0, z1, x1, y1, z1, uLen, vLen, alpha, 0, 0, 1);
+            wallX(vc, pose, x0, y0, z0, x0, y1, z1, uLen, vLen, alpha, -1, 0, 0);
+            wallX(vc, pose, x1, y0, z0, x1, y1, z1, uLen, vLen, alpha, 1, 0, 0);
+        }
     }
 
     /** A wall quad spanning X at fixed Z, emitted in both windings so it
@@ -139,7 +142,7 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
 
     @Override
     public net.minecraft.world.phys.AABB getRenderBoundingBox(BarrierBlockEntity be) {
-        double r = be.getRadius() + 1;
+        double r = be.getEffectiveRadius() + 1; // outermost active ring
         return new net.minecraft.world.phys.AABB(be.getBlockPos()).inflate(r, 16, r);
     }
 }

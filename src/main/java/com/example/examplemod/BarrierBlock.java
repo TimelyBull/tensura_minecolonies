@@ -110,33 +110,16 @@ public class BarrierBlock extends BaseEntityBlock {
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos,
                                                Player player, BlockHitResult hitResult) {
-        // Channel on ANY empty-hand right-click (sneaking or not).
-        //
-        // The original design gated channeling behind sneak-right-click,
-        // but vanilla's interaction pipeline skips block interactions
-        // entirely when a sneaking player holds ANY item in either hand
-        // (ServerPlayerGameMode checks isSecondaryUseActive before the
-        // block ever sees the click) — so with a torch/shield in the
-        // offhand the channel never fired. Plain right-click is the
-        // reliable path; the fill readout rides along in every message,
-        // which also covers the old status-only readout.
+        // Right-click (empty hand) opens the Barrier Core menu — gauge,
+        // channel/withdraw buttons, and the layers control. The earlier
+        // direct-channel click is superseded by the menu's +/MAX buttons;
+        // crystal refuel via useItemOn still works without the menu.
         if (level.isClientSide()) return InteractionResult.SUCCESS;
-        if (!(level.getBlockEntity(pos) instanceof BarrierBlockEntity barrier)) {
+        if (!(level.getBlockEntity(pos) instanceof BarrierBlockEntity barrier)
+                || !(player instanceof net.minecraft.server.level.ServerPlayer sp)) {
             return InteractionResult.PASS;
         }
-        double moved = barrier.channelFromPlayer(player);
-        if (moved > 0) {
-            player.displayClientMessage(Component.literal(String.format(Locale.ROOT,
-                    "Channeled %,.0f magicule into the barrier (%s)",
-                    moved, barrier.fillReadout())), true);
-        } else if (barrier.isFull()) {
-            player.displayClientMessage(Component.literal(
-                    "The barrier is fully charged (" + barrier.fillReadout() + ")"), true);
-        } else {
-            player.displayClientMessage(Component.literal(String.format(Locale.ROOT,
-                    "You have no magicule to channel — Tier %d core (radius %.0f): %s",
-                    tier, radius(), barrier.fillReadout())), true);
-        }
+        Networking.sendBarrierMenuTo(sp, barrier);
         return InteractionResult.CONSUME;
     }
 

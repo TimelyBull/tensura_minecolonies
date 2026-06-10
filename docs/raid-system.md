@@ -343,6 +343,48 @@ plus the **Magicule Storage** family (4 blocks):
   client-sync tag so readouts and wall alpha use the true capacity
   ("X / Y magicule (+Z from storage)").
 
+### Concentric layers + Barrier Core menu (2026-06-10)
+
+**Layers (confirmed design):** up to 3 concentric square shells per
+core, expanding OUTWARD — layer 1 at the tier radius, +5 blocks per
+extra ring (`LAYER_SPACING`). All active rings render; the
+pushback/drain field, raid steering, and spawn prevention act on the
+OUTERMOST active shell (`getEffectiveRadius`).
+
+- **Gate:** layer 1 for everyone; raising to 2–3 requires the requesting
+  player to be a true Demon Lord or true Hero (the same `IExistence`
+  read the envoy conditions use; validated SERVER-side in
+  `trySetLayers` — the menu button state is cosmetic). The setter's UUID
+  is recorded; once per second, if the setter is ONLINE and has lost the
+  status, layers collapse to 1 with an alert. Logging off does not
+  collapse.
+- **Upkeep (confirmed):** layer 1 free — the base barrier keeps its
+  no-peacetime-bleed behavior; each EXTRA layer costs
+  `LAYER_UPKEEP_PER_SECOND` (50 mag/s) from the core's ONE shared pool
+  (storage-boosted), on top of the EP-scaled raider contact drain.
+- **Fall order (confirmed):** graceful outermost-first shedding — when
+  the pool can't pay the upkeep, the outermost ring falls (alert +
+  glass-break), repeating down to 1 layer; the last layer only falls
+  when the pool truly hits 0 (the existing depletion alarm).
+
+**Barrier Core menu:** right-click (empty hand) now opens a menu
+(crystal refuel via item-click still works without it). Placeholder
+visuals matching the supplied mock (`tensura_barrier_core_UI.jpeg`) —
+final art swaps in later:
+
+- Vertical magicule gauge (blue fill, %, stored/capacity, CAP badge,
+  closest-colony name).
+- `−`/`+` move ±3,000 magicule between PLAYER and core (the channel
+  click moved here; `PLAYER_CHANNEL_PER_CLICK` 2,500 → 3,000 to match
+  the mock); `MIN` withdraws everything (capped at the player's own max
+  magicule, like the swap refund), `MAX` fills from the player.
+- Layers `− N / 3 +` with the DL/Hero lock tooltip on `+`.
+- Drain readout (upkeep + last second's contact drain) and a
+  time-to-empty status strip.
+- Wire shape: S2C `OpenBarrierMenuPayload` snapshot (server-computed,
+  re-sent after every action — the roster live-refresh pattern); C2S
+  `BarrierMenuActionPayload(pos, action)` with reach + gate validation.
+
 ### Deferred (explicit)
 
 Lore variants (Carrion beastmen / clowns / Charybdis / angel), multi-wave

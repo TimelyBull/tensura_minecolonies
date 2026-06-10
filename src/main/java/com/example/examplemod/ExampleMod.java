@@ -1413,7 +1413,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
     /** Defensive wrapper around the existence storage read — Tensura's
      *  attachment isn't guaranteed to be present on every entity. */
-    private static IExistence readExistenceSafe(net.minecraft.world.entity.LivingEntity entity) {
+    /** Package-private — also used by the barrier layer gate (DL/Hero). */
+    static IExistence readExistenceSafe(net.minecraft.world.entity.LivingEntity entity) {
         try {
             return io.github.manasmods.tensura.storage.TensuraStorages.getExistenceFrom(entity);
         } catch (Throwable t) {

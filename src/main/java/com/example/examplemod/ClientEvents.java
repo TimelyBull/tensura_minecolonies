@@ -43,6 +43,8 @@ public final class ClientEvents {
     /** Wire up the client-side listeners. Called once from the mod constructor. */
     public static void init(IEventBus modBus) {
         modBus.addListener(ClientEvents::onRegisterKeys);
+        // Barrier Core menu — open/refresh on the server's snapshot payload.
+        Networking.barrierMenuClientHandler = BarrierCoreScreen::openOrRefresh;
         // Barrier wall visual — square translucent walls around the
         // barrier block, alpha scaled by the synced magicule fill.
         modBus.addListener((net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers e) ->
