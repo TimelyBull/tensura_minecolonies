@@ -74,6 +74,18 @@ public final class Attachments {
                             .serialize(RaidTag.SERIALIZER)
                             .build());
 
+    /**
+     * Activated-assassin marker — see {@link AssassinTag} and
+     * {@link Assassins}. Attached to the boss body so death cleanup and
+     * the per-second driver re-link after save/reload. Default null →
+     * {@code hasData(...)} is the authoritative presence check.
+     */
+    public static final Supplier<AttachmentType<AssassinTag>> ASSASSIN_TAG =
+            ATTACHMENTS.register("assassin_tag",
+                    () -> AttachmentType.<AssassinTag>builder(() -> null)
+                            .serialize(AssassinTag.SERIALIZER)
+                            .build());
+
     private Attachments() {}
 
     public static void register(IEventBus modBus) {

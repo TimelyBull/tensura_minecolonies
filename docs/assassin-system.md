@@ -1,6 +1,54 @@
 # Investigation: Assassin system — technical foundations
 
-**Status:** investigation only, no code written (2026-06-10).
+**Status:** v1 BUILT (2026-06-10) — the social/manifestation layer below.
+v2 (EP theft + skill copy/use) remains PENDING; the investigation
+findings for it stay valid.
+
+## v1 as-built
+
+- **State machine** (`AssassinSavedData`, overworld; separate from the
+  identity NBT, stale entries pruned): determination per identityId +
+  state NONE/LURKING/ARMED/ACTIVE + per-colony cold-shoulder set.
+- **Tuning (user-confirmed):** +1 determination/day while reputation
+  tier below WARY AND avg happiness < 4.0; −1/day decay pre-LURKING;
+  LURKING at 2; ARMED at 4; defuse = instant clear (flag off) when the
+  colony stops qualifying while LURKING/ARMED. One candidate per colony,
+  picked randomly from its named race-identities. Rides the daily
+  reputation-drift pass.
+- **Great Sage tell:** `SyncAssassinFlagPayload` (+ StartTracking
+  resync) feeds a client flag store; `AssassinClientHandler` draws a
+  red "Assassin" line above the flagged body via
+  `RenderLivingEvent.Post` ONLY when the local player has
+  `UniqueSkills.GREAT_SAGE` (client self-check, 1 s cache).
+- **Strike (ANY one window, checked 1/s while ARMED):** owner low HP
+  (≤35%), sleeping, all armor slots empty, festival start, or
+  just-prestiged (60 s windows marked by our own festival/prestige
+  hooks). Activation: IN_COLONY → citizen discarded + travelling-marked,
+  Tensura body rebuilt from the snapshot BEHIND the player (no
+  circles/cost), identity flipped to SUBORDINATE; SUBORDINATE → flipped
+  in place (waits for the body to be loaded). Ownership stripped
+  (`setPermanentOwner/TemporaryOwner(null)` + TamableAnimal owner) and
+  the target locked with the dual-write (setTarget + brain
+  ATTACK_TARGET), re-asserted per second.
+- **Boss (v1 power = stats only):** ×3 max health (healed), ×2.5
+  spiritual health, ×1.4 speed, ×2.5 attack damage (stable-id ADD
+  modifiers, the stat-sync pattern); dark-red "<name>, the Betrayer"
+  custom name; purple `ServerBossEvent` HP bar shown within 64 blocks;
+  `ASSASSIN_TAG` attachment (identityId, colonyId, target) for
+  reload re-linking.
+- **Cold shoulder (our surfaces):** citizen trade refuses ("the citizen
+  turns away…"), envoy scheduling pauses for the colony. Cleared when
+  the assassin dies. MC's internal worker behaviors untouched (per the
+  investigation's honest limit).
+- **Death cleanup:** confirmed free — the existing case-A race-mob death
+  hook removes the citizen-data + identity; the assassin hook only
+  clears the bar + cold shoulder first. No reward in v1.
+
+---
+
+## Original investigation (v2 findings remain authoritative)
+
+**Status when written:** investigation only (2026-06-10).
 
 **Concept:** a mistreated colony (low reputation + low happiness) breeds a
 secret assassin among the player's own citizens; it strikes when the

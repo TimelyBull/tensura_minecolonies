@@ -138,6 +138,13 @@ public final class Networking {
                 OpenCitizenTradePayload.CODEC,
                 Networking::onOpenCitizenTrade
         );
+        // Assassin LURKING flag — drives the Great-Sage-only red
+        // nameplate on the client.
+        registrar.playToClient(
+                SyncAssassinFlagPayload.TYPE,
+                SyncAssassinFlagPayload.CODEC,
+                Networking::onSyncAssassinFlag
+        );
         // Barrier Core menu — server opens/refreshes the menu with live
         // tank + layer state; client buttons fire actions back.
         registrar.playToClient(
@@ -417,6 +424,30 @@ public final class Networking {
                 BarrierMenuActionPayload::new
         );
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** S2C: mark/unmark an entity as a LURKING assassin on the client
+     *  (the red nameplate shows only if the viewing player has Great
+     *  Sage — that check is client-side). */
+    public record SyncAssassinFlagPayload(UUID entityUuid, boolean lurking)
+            implements CustomPacketPayload {
+        public static final Type<SyncAssassinFlagPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "sync_assassin_flag"));
+        public static final StreamCodec<ByteBuf, SyncAssassinFlagPayload> CODEC = StreamCodec.composite(
+                UUIDUtil.STREAM_CODEC, SyncAssassinFlagPayload::entityUuid,
+                ByteBufCodecs.BOOL, SyncAssassinFlagPayload::lurking,
+                SyncAssassinFlagPayload::new
+        );
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** Client-side delegate for the assassin flag (server-safe default). */
+    public static Consumer<SyncAssassinFlagPayload> assassinFlagClientHandler = payload ->
+            LOGGER.info("[TM] assassin flag (no client handler): {} {}",
+                    payload.entityUuid(), payload.lurking());
+
+    private static void onSyncAssassinFlag(SyncAssassinFlagPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> assassinFlagClientHandler.accept(payload));
     }
 
     /** Client-side delegate for the barrier menu open/refresh. Installed

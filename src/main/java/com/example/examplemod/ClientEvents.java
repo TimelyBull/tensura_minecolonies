@@ -45,6 +45,12 @@ public final class ClientEvents {
         modBus.addListener(ClientEvents::onRegisterKeys);
         // Barrier Core menu — open/refresh on the server's snapshot payload.
         Networking.barrierMenuClientHandler = BarrierCoreScreen::openOrRefresh;
+        // Assassin LURKING tell — flag store + Great-Sage-gated red
+        // nameplate drawn after the entity renders.
+        Networking.assassinFlagClientHandler = AssassinClientHandler::onPayload;
+        NeoForge.EVENT_BUS.addListener(RenderLivingEvent.Post.class,
+                AssassinClientHandler::onRenderLivingPost);
+        NeoForge.EVENT_BUS.addListener(AssassinClientHandler::onClientLoggingOut);
         // Barrier wall visual — square translucent walls around the
         // barrier block, alpha scaled by the synced magicule fill.
         modBus.addListener((net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers e) ->

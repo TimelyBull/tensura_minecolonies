@@ -1361,7 +1361,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
             for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
                 try {
-                    double restingPoint = driftRestingPoint(colony.getOverallHappiness());
+                    double happiness = colony.getOverallHappiness();
+                    // Assassin determination rides the same daily pass —
+                    // it reads the SAME rep + happiness signals.
+                    Assassins.tickDaily(level, colony, happiness);
+
+                    double restingPoint = driftRestingPoint(happiness);
                     double current = ReputationManager.getReputation(colony);
                     double gap = restingPoint - current;
                     if (Math.abs(gap) < DRIFT_DEADZONE) continue;
@@ -1400,6 +1405,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             LOGGER.info("[TM] envoy: player {} used a character reset scroll — cleared paths (demonLord={}, hero={})",
                     player.getName().getString(), clearedDl, clearedHero);
         }
+
+        // Just-prestiged is an assassin vulnerability window — the player
+        // is at their weakest right after a full reset.
+        Assassins.markPrestiged(player);
 
         // Tensura "prestige" reset — a RESET_ALL character reset scroll also
         // resets the Harvest Festival bonus on every colony the player owns:
@@ -1552,6 +1561,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     private static void tryScheduleEnvoy(ServerLevel level, IColony colony,
                                          ColonyRaceConfigSavedData config) {
         int colonyId = colony.getID();
+
+        // Gate 0: no diplomacy while the colony's assassin is active —
+        // the cold shoulder extends to envoys (our-surfaces scope).
+        if (Assassins.isColdShouldered(level, colonyId)) return;
 
         // Gate 1: at most one active envoy per colony.
         UUID active = config.getActiveEnvoyUuid(colonyId);
@@ -2672,6 +2685,14 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             sendAdvisoryNotice(player, "Citizen identity not found.");
             return;
         }
+        // Cold shoulder — while the colony's assassin is active, citizens
+        // refuse to trade with the player (our-surfaces scope; MC's own
+        // worker behaviors are untouched by design).
+        if (Assassins.isColdShouldered(level, identity.colonyId)) {
+            sendAdvisoryNotice(player,
+                    "The citizen turns away from you. The colony has not forgotten.");
+            return;
+        }
         if (identity.ownerPlayerUUID == null
                 || !identity.ownerPlayerUUID.equals(player.getUUID())) {
             sendAdvisoryNotice(player, "That citizen isn't yours.");
@@ -3557,6 +3578,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // boss bar and the victory check track precisely.
         TensuraRaids.onRaidMobDeath(serverLevel, event.getEntity());
 
+        // Assassin death — clear bar + cold shoulder BEFORE the case-A
+        // identity cleanup below removes the identity record.
+        Assassins.onAssassinDeath(serverLevel, event.getEntity());
+
         UUID entityUUID = event.getEntity().getUUID();
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(serverLevel);
 
@@ -4343,6 +4368,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             return 0;
         }
         HarvestFestival.onEnterFestival(player);
+        // Festival start is an assassin vulnerability window — the player
+        // is celebrating, guard down.
+        Assassins.markFestivalStart(player);
         src.sendSuccess(() -> Component.literal("Harvest festival applied to your colonies (see server log)."), false);
         return 1;
     }
@@ -5145,6 +5173,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // happiness-determined resting point (day-rollover detected
             // inside, same idiom as the dawn restock).
             tickReputationDrift(server);
+            // Assassins — ARMED strike checks (vulnerability windows) +
+            // ACTIVE boss upkeep (bar, hostility re-assert).
+            Assassins.tick(server);
         }
 
         // Dawn-restock pass — refresh every named subordinate merchant's
@@ -6226,8 +6257,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     // ------------------------------------------------------------------
     @SubscribeEvent
     public void onStartTracking(PlayerEvent.StartTracking event) {
-        if (!(event.getTarget() instanceof AbstractEntityCitizen citizen)) return;
         if (!(event.getEntity() instanceof ServerPlayer sp)) return;
+
+        // Assassin LURKING flag re-sync (citizen OR subordinate body) —
+        // the Great Sage red tell must survive relog/chunk re-enter.
+        if (sp.serverLevel() != null) {
+            Assassins.resyncFlagOnTracking(sp, event.getTarget(), sp.serverLevel());
+        }
+
+        if (!(event.getTarget() instanceof AbstractEntityCitizen citizen)) return;
 
         // Race-tag re-sync (worker races).
         if (citizen.hasData(Attachments.RACE_TAG.get())) {
