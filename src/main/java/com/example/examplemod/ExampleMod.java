@@ -266,6 +266,16 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                                     BARRIER_BLOCK_T3.get(), BARRIER_BLOCK_T4.get())
                             .build(null));
 
+    /** Storage blocks' own tanks — the literal overflow storage behind
+     *  the core's expanded capacity. */
+    public static final java.util.function.Supplier<net.minecraft.world.level.block.entity.BlockEntityType<StorageBlockEntity>> STORAGE_BLOCK_ENTITY =
+            BLOCK_ENTITIES.register("magicule_storage",
+                    () -> net.minecraft.world.level.block.entity.BlockEntityType.Builder
+                            .of(StorageBlockEntity::new,
+                                    STORAGE_BLOCK_T1.get(), STORAGE_BLOCK_T2.get(),
+                                    STORAGE_BLOCK_T3.get(), STORAGE_BLOCK_T4.get())
+                            .build(null));
+
     /** Our raid event type in MineColonies' colonyeventtypes registry —
      *  the entry's deserializer rehydrates a mid-raid TensuraRaidEvent on
      *  world load; isRaidEvent=true makes RaidManager.isRaided() see it

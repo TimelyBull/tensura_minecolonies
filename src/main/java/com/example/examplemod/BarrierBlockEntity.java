@@ -77,7 +77,18 @@ public class BarrierBlockEntity extends BlockEntity {
     /** Flood-fill cap on a storage network — performance guard. */
     public static final int MAX_STORAGE_NETWORK = 128;
 
+    /** The CORE's OWN base tank (up to {@code baseCapacity()}). The UI
+     *  shows the combined POOL (core + connected storage tanks); this
+     *  field is just the core's share. Fill order: core first, overflow
+     *  disbursed into the storage network; drain pulls core first, then
+     *  the storage reserves. */
     private double storedMagicule = 0.0;
+    /** Cached combined pool (core + network storage contents). Refreshed
+     *  by every pool op + the per-second walk; synced to clients (wall
+     *  alpha, menu gauge). */
+    private double poolStoredCache = 0.0;
+    /** Network storage positions from the last per-second walk. */
+    private final java.util.List<BlockPos> networkStorageCache = new java.util.ArrayList<>();
     /** Edge-detect for the "barrier has fallen" alarm. */
     private boolean fieldWasUp = false;
     /** Last stored value synced to clients — the wall render's alpha
@@ -124,19 +135,25 @@ public class BarrierBlockEntity extends BlockEntity {
                 ? b.radius() : BarrierBlock.TIER_RADIUS[0];
     }
 
-    /** Total tank capacity = tier base + connected storage bonuses. */
-    public double getCapacity() {
-        double base = getBlockState().getBlock() instanceof BarrierBlock b
+    /** The core's OWN tank size (tier base, without storage). */
+    public double getBaseCapacity() {
+        return getBlockState().getBlock() instanceof BarrierBlock b
                 ? b.baseCapacity() : BarrierBlock.TIER_BASE_CAPACITY[0];
-        return base + storageBonus;
+    }
+
+    /** Total POOL capacity = tier base + connected storage capacities. */
+    public double getCapacity() {
+        return getBaseCapacity() + storageBonus;
     }
 
     public int getActiveLayers() {
         return activeLayers;
     }
 
-    public double getStoredMagicule() {
-        return storedMagicule;
+    /** Combined pool contents (core + network storage). What the UI
+     *  gauge, the wall alpha, and the field's "fueled" check read. */
+    public double getPoolStored() {
+        return poolStoredCache;
     }
 
     public double getLastDrainPerSecond() {
@@ -200,9 +217,9 @@ public class BarrierBlockEntity extends BlockEntity {
         return activeLayers;
     }
 
-    /** Fill fraction 0..1 — read client-side by the wall renderer. */
+    /** POOL fill fraction 0..1 — read client-side by the wall renderer. */
     public float getFillRatio() {
-        return (float) Math.max(0.0, Math.min(1.0, storedMagicule / getCapacity()));
+        return (float) Math.max(0.0, Math.min(1.0, poolStoredCache / getCapacity()));
     }
 
     /** Shared footprint test: is (x, z) inside a square of half-extent
@@ -252,50 +269,105 @@ public class BarrierBlockEntity extends BlockEntity {
                 }
             }
         }
+        networkStorageCache.clear();
+        networkStorageCache.addAll(networkStorage);
+
         if (bonus != storageBonus) {
             storageBonus = bonus;
-            if (storedMagicule > getCapacity()) {
-                storedMagicule = getCapacity();
-            }
             setChanged();
-            syncChargeState();
             // Capacity changed → fill ratio changed → resync the render.
             lastSyncedMagicule = -1.0;
         }
+        // Core's own tank never exceeds its base — overflow lives in the
+        // storage blocks themselves.
+        if (storedMagicule > getBaseCapacity()) {
+            storedMagicule = getBaseCapacity();
+            setChanged();
+        }
+        refreshPoolCache(level);
+        syncChargeState();
+    }
 
-        // Mirror the shared pool's fill stage onto the network's storage
-        // blocks (their FILL blockstate drives the per-tier fill sprites:
-        // base under 33%, then 33/66/full).
-        int stage = currentChargeStage();
-        for (BlockPos sp : networkStorage) {
-            BlockState ss = level.getBlockState(sp);
-            if (ss.hasProperty(MagiculeStorageBlock.FILL)
-                    && ss.getValue(MagiculeStorageBlock.FILL) != stage) {
-                level.setBlock(sp, ss.setValue(MagiculeStorageBlock.FILL, stage), 3);
+    /** Recompute the combined pool from the core + live network tanks. */
+    private void refreshPoolCache(ServerLevel level) {
+        double pool = storedMagicule;
+        for (BlockPos sp : networkStorageCache) {
+            if (level.getBlockEntity(sp) instanceof StorageBlockEntity sbe) {
+                pool += sbe.getStored();
             }
         }
+        poolStoredCache = pool;
     }
 
-    /** The 0..3 fill stage shared by the core's charge sprite and the
-     *  network storage blocks' FILL state. */
+    /** The 0..3 fill stage of the POOL — drives the core's charge sprite. */
     private int currentChargeStage() {
-        if (storedMagicule >= getCapacity()) return 3;
-        return Math.max(0, (int) Math.min(2, Math.floor(storedMagicule / getCapacity() * 3.0)));
+        if (poolStoredCache >= getCapacity()) return 3;
+        return Math.max(0, (int) Math.min(2, Math.floor(poolStoredCache / getCapacity() * 3.0)));
     }
 
     // ------------------------------------------------------------------
-    // Tank
+    // Pool operations — core tank fills FIRST; overflow disburses into
+    // the connected storage blocks (literal overflow storage). Drain
+    // pulls the core first, then the storage reserves.
     // ------------------------------------------------------------------
 
-    /** Add magicule; returns the amount actually accepted. */
-    public double addMagicule(double amount) {
-        double accepted = Math.max(0, Math.min(amount, getCapacity() - storedMagicule));
+    /** Add magicule to the POOL (core first, then storage overflow).
+     *  Returns the amount actually accepted. */
+    public double addToPool(double amount) {
+        if (amount <= 0) return 0;
+        double remaining = amount;
+        // 1) the core's own tank, up to its base capacity
+        double coreRoom = Math.max(0, getBaseCapacity() - storedMagicule);
+        double toCore = Math.min(remaining, coreRoom);
+        if (toCore > 0) {
+            storedMagicule += toCore;
+            remaining -= toCore;
+        }
+        // 2) overflow into the network storage tanks, walk order
+        if (remaining > 0 && level instanceof ServerLevel serverLevel) {
+            for (BlockPos sp : networkStorageCache) {
+                if (remaining <= 0) break;
+                if (serverLevel.getBlockEntity(sp) instanceof StorageBlockEntity sbe) {
+                    remaining -= sbe.fill(remaining);
+                }
+            }
+        }
+        double accepted = amount - remaining;
         if (accepted > 0) {
-            storedMagicule += accepted;
             setChanged();
+            if (level instanceof ServerLevel serverLevel) refreshPoolCache(serverLevel);
+            else poolStoredCache += accepted;
             syncChargeState();
         }
         return accepted;
+    }
+
+    /** Drain magicule from the POOL (core first, then storage reserves —
+     *  the storage "supplies the core"). Returns the amount removed. */
+    public double drainFromPool(double amount) {
+        if (amount <= 0) return 0;
+        double remaining = amount;
+        double fromCore = Math.min(remaining, storedMagicule);
+        if (fromCore > 0) {
+            storedMagicule -= fromCore;
+            remaining -= fromCore;
+        }
+        if (remaining > 0 && level instanceof ServerLevel serverLevel) {
+            for (BlockPos sp : networkStorageCache) {
+                if (remaining <= 0) break;
+                if (serverLevel.getBlockEntity(sp) instanceof StorageBlockEntity sbe) {
+                    remaining -= sbe.drain(remaining);
+                }
+            }
+        }
+        double removed = amount - remaining;
+        if (removed > 0) {
+            setChanged();
+            if (level instanceof ServerLevel serverLevel) refreshPoolCache(serverLevel);
+            else poolStoredCache = Math.max(0, poolStoredCache - removed);
+            syncChargeState();
+        }
+        return removed;
     }
 
     /** Push the tank's fill stage into the {@link BarrierBlock#CHARGE}
@@ -315,12 +387,12 @@ public class BarrierBlockEntity extends BlockEntity {
     }
 
     public boolean isFull() {
-        return storedMagicule >= getCapacity();
+        return poolStoredCache >= getCapacity();
     }
 
     public String fillReadout() {
         String base = String.format(Locale.ROOT, "%,.0f / %,.0f magicule",
-                storedMagicule, getCapacity());
+                poolStoredCache, getCapacity());
         return storageBonus > 0
                 ? base + String.format(Locale.ROOT, " (+%,.0f from storage)", storageBonus)
                 : base;
@@ -332,41 +404,41 @@ public class BarrierBlockEntity extends BlockEntity {
         return channelFromPlayer(player, PLAYER_CHANNEL_PER_CLICK);
     }
 
-    /** Move up to {@code amount} of the player's magicule into the tank
-     *  (the menu's + and MAX buttons). Same read/write the swap-cost
-     *  code uses everywhere. Returns the amount moved. */
+    /** Move up to {@code amount} of the player's magicule into the POOL
+     *  (the menu's + and MAX buttons): the player is debited EXACTLY what
+     *  the pool accepted — core first, overflow into storage. Same
+     *  read/write the swap-cost code uses everywhere. */
     public double channelFromPlayer(Player player, double amount) {
         ExistenceStorage exist = ExampleMod.readExistence(player);
         if (exist == null) return 0;
         double available = Math.max(0, exist.getMagicule());
-        double move = Math.min(amount,
-                Math.min(available, getCapacity() - storedMagicule));
-        if (move <= 0) return 0;
-        exist.setMagicule(available - move);
+        double offer = Math.min(amount, available);
+        if (offer <= 0) return 0;
+        double accepted = addToPool(offer);
+        if (accepted <= 0) return 0;
+        // Debit the player by exactly what the pool took.
+        exist.setMagicule(available - accepted);
         exist.markDirty();
-        storedMagicule += move;
-        setChanged();
-        syncChargeState();
-        return move;
+        return accepted;
     }
 
-    /** Move up to {@code amount} magicule BACK to the player (the menu's
-     *  − and MIN buttons), capped at the player's own max magicule —
-     *  same cap the swap refund path uses. Returns the amount moved. */
+    /** Move up to {@code amount} magicule from the POOL back to the
+     *  player (the menu's − and MIN buttons): drained core-first, then
+     *  storage; the player is credited EXACTLY what came out, capped at
+     *  their own max magicule (the swap-refund cap). */
     public double withdrawToPlayer(Player player, double amount) {
         ExistenceStorage exist = ExampleMod.readExistence(player);
         if (exist == null) return 0;
         double cur = Math.max(0, exist.getMagicule());
         double room = Math.max(0,
                 io.github.manasmods.tensura.util.EnergyHelper.getMaxMagicule(player) - cur);
-        double move = Math.min(amount, Math.min(storedMagicule, room));
-        if (move <= 0) return 0;
-        exist.setMagicule(cur + move);
+        double take = Math.min(amount, room);
+        if (take <= 0) return 0;
+        double removed = drainFromPool(take);
+        if (removed <= 0) return 0;
+        exist.setMagicule(cur + removed);
         exist.markDirty();
-        storedMagicule -= move;
-        setChanged();
-        syncChargeState();
-        return move;
+        return removed;
     }
 
     // ------------------------------------------------------------------
@@ -407,7 +479,7 @@ public class BarrierBlockEntity extends BlockEntity {
             // per extra layer). If the pool can't pay, shed the OUTERMOST
             // layer (graceful degradation) instead of total collapse.
             double upkeep = (be.activeLayers - 1) * LAYER_UPKEEP_PER_SECOND;
-            while (upkeep > 0 && be.storedMagicule < upkeep) {
+            while (upkeep > 0 && be.poolStoredCache < upkeep) {
                 be.activeLayers--;
                 be.setChanged();
                 serverLevel.sendBlockUpdated(pos, state, state, 3);
@@ -420,9 +492,7 @@ public class BarrierBlockEntity extends BlockEntity {
                 upkeep = (be.activeLayers - 1) * LAYER_UPKEEP_PER_SECOND;
             }
             if (upkeep > 0) {
-                be.storedMagicule = Math.max(0, be.storedMagicule - upkeep);
-                be.setChanged();
-                be.syncChargeState();
+                be.drainFromPool(upkeep);
             }
 
             // Drain readout: upkeep + last second's accumulated contact drain.
@@ -431,11 +501,11 @@ public class BarrierBlockEntity extends BlockEntity {
 
             be.syncChargeState();
             // Client sync for the wall render's fill-driven alpha.
-            if (Math.abs(be.storedMagicule - be.lastSyncedMagicule) > be.getCapacity() * 0.005) {
-                be.lastSyncedMagicule = be.storedMagicule;
+            if (Math.abs(be.poolStoredCache - be.lastSyncedMagicule) > be.getCapacity() * 0.005) {
+                be.lastSyncedMagicule = be.poolStoredCache;
                 serverLevel.sendBlockUpdated(pos, state, state, 3);
             }
-            if (be.storedMagicule > 0) {
+            if (be.poolStoredCache > 0) {
                 // Steering reads this to send raiders at the barrier first;
                 // the OUTERMOST active shell's radius rides along for
                 // footprint checks.
@@ -445,11 +515,10 @@ public class BarrierBlockEntity extends BlockEntity {
             }
         }
 
-        // The field is up whenever FUELED — it blocks raid mobs AND wild
-        // hostile-tagged mobs at all times, not just during raids. (The
-        // original raid-only gate let everyday zombies/spiders walk
-        // straight through, which read as "the barrier doesn't work".)
-        boolean fieldUp = be.storedMagicule > 0;
+        // The field is up whenever the POOL is fueled — it blocks raid
+        // mobs AND wild hostile-tagged mobs at all times, not just during
+        // raids.
+        boolean fieldUp = be.poolStoredCache > 0;
 
         // Depletion alarm — fires once on the up→down edge.
         if (be.fieldWasUp && !fieldUp) {
@@ -534,8 +603,7 @@ public class BarrierBlockEntity extends BlockEntity {
         }
 
         if (drainThisTick > 0) {
-            be.storedMagicule = Math.max(0, be.storedMagicule - drainThisTick);
-            be.setChanged();
+            be.drainFromPool(drainThisTick);
         }
     }
 
@@ -555,10 +623,11 @@ public class BarrierBlockEntity extends BlockEntity {
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         tag.putDouble("storedMagicule", storedMagicule);
-        // storageBonus is recomputed server-side every second, but it
-        // rides the save/update tag so CLIENTS have the true capacity
+        // storageBonus + poolStored are recomputed server-side, but ride
+        // the save/update tag so CLIENTS have the true capacity + pool
         // (fill ratio for the wall alpha, readouts).
         tag.putDouble("storageBonus", storageBonus);
+        tag.putDouble("poolStored", poolStoredCache);
         tag.putInt("activeLayers", activeLayers);
         if (layerSetterUuid != null) tag.putUUID("layerSetter", layerSetterUuid);
         tag.putBoolean("wallVisible", wallVisible);
@@ -569,6 +638,10 @@ public class BarrierBlockEntity extends BlockEntity {
         super.loadAdditional(tag, registries);
         storedMagicule = tag.getDouble("storedMagicule");
         storageBonus = tag.getDouble("storageBonus");
+        // Legacy saves (pre-pool) have no poolStored — the core's own
+        // tank IS the pool until the first network walk refreshes it.
+        poolStoredCache = tag.contains("poolStored")
+                ? tag.getDouble("poolStored") : storedMagicule;
         activeLayers = tag.contains("activeLayers") ? Math.max(1,
                 Math.min(MAX_LAYERS, tag.getInt("activeLayers"))) : 1;
         layerSetterUuid = tag.hasUUID("layerSetter") ? tag.getUUID("layerSetter") : null;

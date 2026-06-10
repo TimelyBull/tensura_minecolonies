@@ -139,7 +139,7 @@ public class BarrierBlock extends BaseEntityBlock {
         if (!(level.getBlockEntity(pos) instanceof BarrierBlockEntity barrier)) {
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
-        double accepted = barrier.addMagicule(value);
+        double accepted = barrier.addToPool(value);
         if (accepted <= 0) {
             player.displayClientMessage(Component.literal("The barrier is fully charged."), true);
             return ItemInteractionResult.CONSUME;
@@ -153,8 +153,9 @@ public class BarrierBlock extends BaseEntityBlock {
         return ItemInteractionResult.CONSUME;
     }
 
-    /** Refuel value of a Tensura magic crystal, or 0 for any other item. */
-    private static double crystalValue(ItemStack stack) {
+    /** Refuel value of a Tensura magic crystal, or 0 for any other item.
+     *  Package-visible — MagiculeStorageBlock accepts crystals too. */
+    static double crystalValue(ItemStack stack) {
         if (stack.isEmpty()) return 0;
         if (stack.is(TensuraMobDropItems.LOW_QUALITY_MAGIC_CRYSTAL.get()))    return BarrierBlockEntity.CRYSTAL_LOW_MAGICULE;
         if (stack.is(TensuraMobDropItems.MEDIUM_QUALITY_MAGIC_CRYSTAL.get())) return BarrierBlockEntity.CRYSTAL_MEDIUM_MAGICULE;

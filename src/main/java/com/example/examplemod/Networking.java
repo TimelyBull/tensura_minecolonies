@@ -435,7 +435,7 @@ public final class Networking {
         IColony colony = IColonyManager.getInstance().getClosestColony(level, be.getBlockPos());
         PacketDistributor.sendToPlayer(player, new OpenBarrierMenuPayload(
                 be.getBlockPos(),
-                be.getStoredMagicule(),
+                be.getPoolStored(),
                 be.getCapacity(),
                 be.getActiveLayers(),
                 BarrierBlockEntity.isDemonLordOrHero(player),
