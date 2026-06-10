@@ -183,6 +183,7 @@ public class WindowRoster extends AbstractWindowSkeleton {
 
         if (this.searchField != null) {
             this.searchField.setText(this.searchText);
+            this.searchField.setTextColor(TXT_HINT); // match the "Search citizens…" hint
             this.searchField.setHandler(tf -> onSearchChanged(tf.getText()));
         }
 

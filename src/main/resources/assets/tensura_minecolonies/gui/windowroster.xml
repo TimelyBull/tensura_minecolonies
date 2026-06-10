@@ -14,7 +14,7 @@
 
     <!-- Slime peeking over the top edge, next to the magicule badge.
          Source is 640x512 (1.25:1) — keep that ratio so it isn't squished. -->
-    <image id="slime" source="tensura_minecolonies:textures/gui/roster/slime.png" size="36 29" pos="256 -8"/>
+    <image id="slime" source="tensura_minecolonies:textures/gui/roster/slime.png" size="36 29" pos="256 -3"/>
 
     <!-- Magicule badge: bordered box + purple diamond + count.
          Nudged down so it sits vertically centred against the title/subtitle. -->
@@ -23,9 +23,12 @@
     <text id="magCount" size="64 12" pos="322 21" color="black" label="0"/>
 
     <!-- ===================== SEARCH ===================== -->
+    <!-- Hint is BEHIND the input so the input covers the whole bar: clicking
+         anywhere in the box focuses the field. Input text colour is set to the
+         hint colour in Java. -->
     <box id="searchBox" size="368 18" pos="16 54" color="black"/>
-    <input id="search" size="358 12" pos="21 57" color="black" maxlength="64"/>
     <text id="searchHint" size="200 10" pos="24 58" color="black" label="Search citizens…"/>
+    <input id="search" size="362 15" pos="18 55" color="black" maxlength="64"/>
 
     <!-- ===================== LIST ===================== -->
     <!-- One compressed row card (24px pitch). DataProvider fills each element. -->
