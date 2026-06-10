@@ -115,22 +115,29 @@ public class BarrierCoreScreen extends Screen {
         int mx = magColumnCenter();
         int gaugeY = py + 56;
 
+        // Shared row grid for BOTH columns:
+        //   text row (ratio / drain)  → py + 153
+        //   −/+ button row            → py + 166
+        //   MIN/MAX row (mag only)    → py + 184
+        int buttonRowY = py + 166;
+
         // Magicule − / + (±3k per click) and MIN / MAX — symmetric
         // around the column center so nothing hangs off the panel.
-        addRenderableWidget(paper(mx - 36, gaugeY + GAUGE_H + 16, 22, 14, "-",
+        addRenderableWidget(paper(mx - 36, buttonRowY, 22, 14, "-",
                 Networking.BarrierMenuActionPayload.ACTION_TAKE));
-        addRenderableWidget(paper(mx + 14, gaugeY + GAUGE_H + 16, 22, 14, "+",
+        addRenderableWidget(paper(mx + 14, buttonRowY, 22, 14, "+",
                 Networking.BarrierMenuActionPayload.ACTION_ADD));
-        addRenderableWidget(paper(mx - 36, gaugeY + GAUGE_H + 34, 34, 14, "MIN",
+        addRenderableWidget(paper(mx - 36, py + 184, 34, 14, "MIN",
                 Networking.BarrierMenuActionPayload.ACTION_MIN));
-        addRenderableWidget(paper(mx + 2, gaugeY + GAUGE_H + 34, 34, 14, "MAX",
+        addRenderableWidget(paper(mx + 2, py + 184, 34, 14, "MAX",
                 Networking.BarrierMenuActionPayload.ACTION_MAX));
 
-        // Layers − / + flanking the "N / 3" readout under the preview box.
-        int lx = px + 128, ly = py + 158;
-        layerMinus = addRenderableWidget(paper(lx, ly, 22, 14, "-",
+        // Layers − / + flanking the "N / 3" readout — same row as the
+        // magicule −/+ so the two sections line up.
+        int lx = px + 128;
+        layerMinus = addRenderableWidget(paper(lx, buttonRowY, 22, 14, "-",
                 Networking.BarrierMenuActionPayload.ACTION_LAYER_MINUS));
-        layerPlus = addRenderableWidget(paper(lx + 88, ly, 22, 14, "+",
+        layerPlus = addRenderableWidget(paper(lx + 88, buttonRowY, 22, 14, "+",
                 Networking.BarrierMenuActionPayload.ACTION_LAYER_PLUS));
 
         // Wall visibility toggle (visual only) + Close — together they
@@ -254,15 +261,15 @@ public class BarrierCoreScreen extends Screen {
         }
         g.fill(pcx - 3, pcy - 3, pcx + 3, pcy + 3, PREVIEW_RING); // the core
 
-        // Layer count between the −/+ buttons.
-        drawCenteredNoShadow(g, data.layers() + " / " + BarrierBlockEntity.MAX_LAYERS,
-                lx + 55, py + 161, TXT_DARK);
-        // Drain line.
+        // Drain line — ABOVE the layer −/+ buttons, on the same text row
+        // as the magicule ratio (py+153), centered on the layers column.
         String drain = data.drainPerSec() > 0
                 ? String.format(Locale.ROOT, "Drain ▼ %,.0f mag/s", data.drainPerSec())
                 : "Drain: none";
-        g.drawString(this.font, drain, lx, py + 178, TXT_GRAY, false);
-
+        drawCenteredNoShadow(g, drain, lx + 55, py + 153, TXT_GRAY);
+        // Layer count between the −/+ buttons (button row py+166).
+        drawCenteredNoShadow(g, data.layers() + " / " + BarrierBlockEntity.MAX_LAYERS,
+                lx + 55, py + 169, TXT_DARK);
     }
 
     private static void hline(GuiGraphics g, int x0, int x1, int y, int color) {
