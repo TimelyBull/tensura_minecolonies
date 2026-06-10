@@ -42,8 +42,6 @@ public class BarrierCoreScreen extends Screen {
     private static final int GAUGE_BG  = 0xFFE9E2D0;
     private static final int GAUGE_FILL= 0xFF4FA8E0;
     private static final int BADGE_BG  = 0xFFE3D7B8;
-    private static final int STATUS_BG = 0xFFDDEACB;
-    private static final int STATUS_TXT= 0xFF2F5A28;
     private static final int PREVIEW_BG= 0xFF1E2433;   // dark layer-preview box
     private static final int PREVIEW_RING = 0xFF7FD4FF;
 
@@ -197,11 +195,18 @@ public class BarrierCoreScreen extends Screen {
         if (!data.colonyName().isEmpty()) {
             g.drawString(this.font, data.colonyName(), px + 14, py + 24, TXT_GRAY, false);
         }
+        // CAP badge — right-aligned to the divider's right edge, and
+        // vertically centered on the header band (title + subtitle rows).
         String cap = "◆ CAP " + compact(data.capacity());
-        int capW = this.font.width(cap) + 10;
-        g.fill(px + PANEL_W - capW - 11, py + 8, px + PANEL_W - 9, py + 23, INK);
-        g.fill(px + PANEL_W - capW - 10, py + 9, px + PANEL_W - 10, py + 22, BADGE_BG);
-        g.drawString(this.font, cap, px + PANEL_W - capW - 5, py + 12, TXT_DARK, false);
+        int capTextW = this.font.width(cap);
+        int badgeW = capTextW + 12;
+        int badgeH = 16;
+        int badgeX1 = px + PANEL_W - 12;          // matches the divider inset
+        int badgeX0 = badgeX1 - badgeW;
+        int badgeY0 = py + 10;                    // header band is ~py+8..py+28
+        g.fill(badgeX0, badgeY0, badgeX1, badgeY0 + badgeH, INK);
+        g.fill(badgeX0 + 1, badgeY0 + 1, badgeX1 - 1, badgeY0 + badgeH - 1, BADGE_BG);
+        g.drawString(this.font, cap, badgeX0 + 6, badgeY0 + (badgeH - 8) / 2 + 1, TXT_DARK, false);
         hline(g, px + 12, px + PANEL_W - 12, py + 36, INK);
 
         // ---- MAGICULES gauge (whole column centered on magColumnCenter) ----
@@ -252,23 +257,6 @@ public class BarrierCoreScreen extends Screen {
                 : "Drain: none";
         g.drawString(this.font, drain, lx, py + 178, TXT_GRAY, false);
 
-        // ---- status strip ----
-        String status;
-        if (data.stored() <= 0) {
-            status = "Barrier DOWN — no magicule";
-        } else if (data.drainPerSec() > 0) {
-            long secs = (long) (data.stored() / data.drainPerSec());
-            status = String.format(Locale.ROOT, "Barrier stable — ~%dm %02ds to empty",
-                    secs / 60, secs % 60);
-        } else {
-            status = "Barrier stable";
-        }
-        g.fill(px + 11, py + PANEL_H - 27, px + PANEL_W - 125, py + PANEL_H - 11, INK);
-        g.fill(px + 12, py + PANEL_H - 26, px + PANEL_W - 126, py + PANEL_H - 12, STATUS_BG);
-        g.drawString(this.font, status, px + 16, py + PANEL_H - 23, STATUS_TXT, false);
-
-        // "Tier N core" footnote, left of the toggle.
-        g.drawString(this.font, "Tier " + data.tier(), px + 14, py + 165, TXT_GRAY, false);
     }
 
     private static void hline(GuiGraphics g, int x0, int x1, int y, int color) {

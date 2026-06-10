@@ -111,9 +111,10 @@ public class BarrierBlockEntity extends BlockEntity {
      *  the barrier invisible (the FIELD/spawn-protection still works —
      *  this is purely visual). Synced via the update tag. */
     private boolean wallVisible = true;
-    /** Last second's TOTAL drain (upkeep + raider contact), magicule/s —
-     *  for the menu's "drain / time-to-empty" readout. Synced. */
-    private double lastDrainPerSecond = 0.0;
+    /** Last second's RAIDER-CONTACT drain (magicule/s) — the upkeep part
+     *  of the readout is computed live from the CURRENT layer count so
+     *  the menu reflects a layer change immediately. */
+    private double lastContactDrainPerSecond = 0.0;
     /** Accumulates this second's contact drain for the readout. */
     private double contactDrainAccumulator = 0.0;
 
@@ -156,8 +157,11 @@ public class BarrierBlockEntity extends BlockEntity {
         return poolStoredCache;
     }
 
+    /** Menu drain readout, magicule/s: the CURRENT layer upkeep (live —
+     *  reflects a layer +/− immediately, not at the next tick) plus the
+     *  last second's measured raider-contact drain. */
     public double getLastDrainPerSecond() {
-        return lastDrainPerSecond;
+        return (activeLayers - 1) * LAYER_UPKEEP_PER_SECOND + lastContactDrainPerSecond;
     }
 
     public boolean isWallVisible() {
@@ -495,8 +499,9 @@ public class BarrierBlockEntity extends BlockEntity {
                 be.drainFromPool(upkeep);
             }
 
-            // Drain readout: upkeep + last second's accumulated contact drain.
-            be.lastDrainPerSecond = upkeep + be.contactDrainAccumulator;
+            // Drain readout: latch the second's measured contact drain
+            // (the upkeep part is computed live in getLastDrainPerSecond).
+            be.lastContactDrainPerSecond = be.contactDrainAccumulator;
             be.contactDrainAccumulator = 0.0;
 
             be.syncChargeState();
