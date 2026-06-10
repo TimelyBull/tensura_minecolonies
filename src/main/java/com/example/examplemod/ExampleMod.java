@@ -4826,52 +4826,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     }
 
     /**
-     * Build the roster window's header strip from the player's PRIMARY owned
-     * colony (name / town-hall level / population / races) plus the player's
-     * Tensura awakening title ("True Demon Lord" / "True Hero" / ""). Returns an
-     * empty header if the player owns no colony in this level.
-     */
-    static Networking.RosterHeader buildRosterHeader(ServerPlayer sp) {
-        ServerLevel level = sp.serverLevel();
-        IColony colony = IColonyManager.getInstance().getIColonyByOwner(level, sp.getUUID());
-
-        String colonyName = "";
-        int townHallLevel = 0, population = 0, maxPopulation = 0;
-        String racesText = "";
-        if (colony != null) {
-            colonyName = colony.getName();
-            try {
-                var townHall = colony.getServerBuildingManager().getTownHall();
-                if (townHall != null) townHallLevel = townHall.getBuildingLevel();
-            } catch (Throwable ignored) { /* no town hall yet */ }
-            population = colony.getCitizenManager().getCurrentCitizenCount();
-            maxPopulation = colony.getCitizenManager().getMaxCitizens();
-            racesText = rosterRacesText(level, colony.getID());
-        }
-
-        String awakening = "";
-        ExistenceStorage ex = readExistence(sp);
-        if (ex != null) {
-            if (ex.isTrueDemonLord()) awakening = "True Demon Lord";
-            else if (ex.isTrueHero()) awakening = "True Hero";
-        }
-        return new Networking.RosterHeader(
-                colonyName, awakening, townHallLevel, population, maxPopulation, racesText);
-    }
-
-    /** Comma-joined display names of the colony's member races (e.g. "Colonist, Goblin"). */
-    private static String rosterRacesText(ServerLevel level, int colonyId) {
-        EnumSet<ColonyMember> members = ColonyRaceConfigSavedData.get(level).getMembers(colonyId);
-        if (members == null || members.isEmpty()) return "Colonist";
-        List<String> names = new ArrayList<>(members.size());
-        for (ColonyMember m : members) {
-            String s = m.name().toLowerCase(Locale.ROOT);
-            names.add(Character.toUpperCase(s.charAt(0)) + s.substring(1));
-        }
-        return String.join(", ", names);
-    }
-
-    /**
      * The shared cost gate. Returns {@link ChargeOutcome#charged(double)}
      * (with the deducted amount, used for refund-on-abort) if the action
      * should proceed, or {@link ChargeOutcome#notCharged()} if a confirm

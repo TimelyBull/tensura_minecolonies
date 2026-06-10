@@ -1158,53 +1158,6 @@ MC texture `ResourceLocation`s are centralized as constants on
 `WindowRacePicker` (fragility mitigation — the XML references the same MC
 asset paths, so a future MC rename surfaces in one place).
 
-## Roster restyle to concept art — custom background + header strip (2026-06-09)
-
-**`WindowRoster` restyled toward the concept art.** The roster is still the
-native BlockUI `WindowRoster` (vanilla `RosterScreen` kept as the fail-closed
-fallback), but rebuilt to match a provided concept: a **custom painted
-background** (`tensura_minecolonies:textures/gui/roster_bg.png`, **448×280**, a
-PLACEHOLDER dark/gold panel generated programmatically — to be replaced by a
-final painted texture) with BlockUI panes on top. The realism constraint holds:
-BlockUI can't render gradients/glows/filigree, so all visual richness lives in
-the PNG; panes only place functional content. A placeholder slime header icon
-lives at `textures/gui/roster_slime.png` (32×32 drawn).
-
-**Window structure** (`windowroster.xml`): HEADER strip (slime icon, colony
-name, awakening + player line, town-hall level, population, magicule counter,
-races) → "SUBORDINATES" title + a compact search field → column headers
-(Name / Location / EP / Action) → `ScrollingList` rows → footer "Group Summon" /
-"Group Send".
-
-**Header data is wired through a new `RosterHeader` sub-record** on
-`RosterResponsePayload` (grouped into one record to stay within the
-`StreamCodec.composite` arity limit). Built server-side in
-`ExampleMod.buildRosterHeader` from the player's PRIMARY owned colony
-(`getIColonyByOwner`): colony name, `getTownHall().getBuildingLevel()`,
-`getCurrentCitizenCount()/getMaxCitizens()`, races from
-`ColonyRaceConfigSavedData.getMembers`, plus the awakening title from the
-player's existence (`isTrueDemonLord()` → "True Demon Lord", `isTrueHero()` →
-"True Hero", else ""). Player name is read client-side. Magicule was already sent.
-
-**Decisions (confirmed with the user):**
-- **Action semantics kept** (concept art's labels were inverted): At The Colony →
-  **Summon** (bring back); By Your Side → **Send** (send out).
-- **Awakening field**: show "True Demon Lord" / "True Hero" only when awakened,
-  else empty.
-- **Multi-select → per-row checkbox toggles** replacing the old drag-paint
-  gesture (`click`/`onMouseDrag` removed). Each checkbox is a clickable
-  `ButtonImage` (the `<button>` tag instantiates `ButtonImage`) swapping the
-  mini / mini-check textures; selection stays **mode-locked** (one batch = one
-  payload), surfaced via the two always-visible footer group buttons (the one
-  matching the selection's mode is the live one).
-- EP column shows the full comma-grouped number (e.g. `100,000`) to match the
-  concept, not the compact `k`/`M` form (that's kept for the magicule counter).
-- Light text colours throughout (white/cyan/purple/gold) for the dark panel;
-  only BlockUI-supported named colours (`white`/`black`) used in XML, the rest
-  set via `setColors` in Java.
-
-UNTESTED in-game — flag for playtest (G keybind opens it; vanilla fallback intact).
-
 ## Citizen roster — rebuilt as a native BlockUI window (validates the list path)
 
 **`RosterScreen` (vanilla `Screen`) replaced by `WindowRoster extends

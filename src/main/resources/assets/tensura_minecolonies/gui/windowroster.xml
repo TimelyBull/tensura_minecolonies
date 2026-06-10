@@ -1,66 +1,50 @@
-<window size="448 280" lightbox="true"
+<window size="400 244" lightbox="true"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/ldtteam/BlockUI/version/main/src/main/resources/assets/blockui/gui/block_ui.xsd">
 
-    <!-- Custom painted background: dark panel + gold frame + header band.
-         BlockUI can't render gradients/glows, so all visual richness lives in
-         this PNG; functional panes sit on top. PLACEHOLDER — replace with the
-         final painted texture (keep it 448x280). -->
-    <image source="tensura_minecolonies:textures/gui/roster_bg.png" size="448 280"/>
+    <!-- Native MC content panel (same paper texture the race picker uses). -->
+    <image source="minecolonies:textures/gui/builderhut/builder_paper_wide2.png" size="400 244"/>
+    <!-- Subtle translucent-black overlay to take the edge off the bright paper.
+         Drawn over the panel but under all text/controls (later children). -->
+    <gradient gradientstart="134217728" gradientend="134217728" size="400 244" pos="0 0"/>
 
-    <!-- ===================== HEADER STRIP ===================== -->
-    <image id="slime" source="tensura_minecolonies:textures/gui/roster_slime.png" size="32 32" pos="12 11"/>
+    <!-- Title + a current-magicule counter, nudged down for more top spacing. -->
+    <text id="title" size="400 11" pos="0 14" textalign="MIDDLE" color="black"
+          label="§lCitizen Roster§r"/>
+    <text id="magCount" size="400 10" pos="0 27" textalign="MIDDLE" color="black"/>
 
-    <text id="colonyName" size="150 14" pos="50 9"  label="[Colony Name]"/>
-    <text id="awakening"  size="92 10"  pos="50 29"/>
-    <text id="playerName" size="120 10" pos="146 29"/>
+    <!-- Name search. -->
+    <text size="60 11" pos="64 42" textalign="MIDDLE_RIGHT" color="black" label="Search:"/>
+    <input id="search" size="170 12" pos="130 41" color="black" maxlength="64"/>
 
-    <text id="townhall"   size="110 10" pos="196 12"/>
-    <text id="population" size="110 10" pos="196 30"/>
-    <text id="magCount"   size="128 10" pos="314 12"/>
-    <text id="races"      size="128 10" pos="314 30"/>
-
-    <!-- ===================== TITLE + SEARCH ===================== -->
-    <text id="title" size="448 12" pos="0 60" textalign="MIDDLE" label="§lSUBORDINATES§r"/>
-
-    <text  size="44 10"  pos="266 61" textalign="MIDDLE_RIGHT" color="white" label="Search"/>
-    <input id="search" size="116 12" pos="316 60" color="white" maxlength="64"/>
-
-    <!-- ===================== COLUMN HEADERS ===================== -->
-    <text size="120 10" pos="42 72"  color="white" label="Name"/>
-    <text size="110 10" pos="166 72" color="white" label="Location"/>
-    <text size="56 10"  pos="300 72" textalign="MIDDLE_RIGHT" color="white" label="EP"/>
-    <text size="60 10"  pos="362 72" color="white" label="Action"/>
-
-    <!-- ===================== ROSTER LIST ===================== -->
-    <!-- One row template (the single child <view>); the window's DataProvider
-         fills each element's name/location/EP, checkbox image and action label. -->
-    <list id="roster" size="416 156" pos="16 86">
+    <!-- Roster list. One row template (the single child <view>); the window's
+         DataProvider fills name/EP/status and the per-row buttons per element. -->
+    <list id="roster" size="360 152" pos="20 56">
         <view size="100% 22">
-            <!-- Clickable selection checkbox (image button); the window swaps it
-                 between the plain / checked mini textures and toggles selection. -->
-            <button id="sel" size="16 16" pos="6 3"
-                    source="minecolonies:textures/gui/builderhut/builder_button_mini.png"/>
+            <!-- Selection indicator: a plain (non-clickable) image; the window
+                 swaps it between the plain / checked mini button (native MC
+                 checkbox pair) and owns all selection via click + drag paint. -->
+            <image id="sel" size="14 15" pos="4 3"
+                   source="minecolonies:textures/gui/builderhut/builder_button_mini.png"/>
 
-            <text id="name"     size="120 11" pos="26 6"  color="white"/>
-            <text id="location" size="110 11" pos="150 6" color="white"/>
-            <text id="ep"       size="76 11"  pos="264 6" textalign="MIDDLE_RIGHT" color="white"/>
+            <text id="name"   size="150 11" pos="24 2"  color="black"/>
+            <text id="ep"     size="120 9"  pos="24 12" color="black" textscale="0.8"/>
+            <text id="status" size="86 11"  pos="172 6" textalign="MIDDLE_RIGHT" color="black"/>
 
             <!-- Per-row immediate action: "Summon" (in colony) / "Send" (at side). -->
-            <button id="act" size="58 16" pos="346 3" color="black"
+            <button id="act" size="58 16" pos="264 3" color="black"
                     source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
                     label="Summon"/>
         </view>
     </list>
 
-    <!-- ===================== FOOTER ===================== -->
-    <text id="selCount" size="416 10" pos="16 245" textalign="MIDDLE" color="white"/>
-
-    <button id="groupSummon" size="190 18" pos="24 258" color="black"
+    <!-- Footer: bulk action + clear, shown only when >= 2 are selected. -->
+    <text id="selCount" size="360 11" pos="20 209" textalign="MIDDLE" color="black"/>
+    <button id="bulk" size="210 18" pos="30 222" color="black"
             source="minecolonies:textures/gui/builderhut/builder_button_large.png"
-            label="Group Summon"/>
-    <button id="groupSend" size="190 18" pos="234 258" color="black"
-            source="minecolonies:textures/gui/builderhut/builder_button_large.png"
-            label="Group Send"/>
+            label="Summon Selected"/>
+    <button id="clear" size="60 18" pos="250 222" color="black"
+            source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
+            label="Clear"/>
 
 </window>
