@@ -943,7 +943,10 @@ subordinate profession immediately.
 - Quest / skill-unlock rewrites
 
 ### Tier 2 (later)
-- Reputation system
+- Reputation system — ✅ **v1 COMPLETE** (see "Reputation system v1"
+  section below). Reputation-DEPENDENT features (crime, raids,
+  assassins, reclaim, trade effects) remain pending and hook into the
+  `ReputationManager` API when built.
 - Money / bank / vault
 - Territory / barrier raids
 - Retainer skill-bestowal
@@ -1015,6 +1018,48 @@ combat. It does NOT become a citizen or guard.
     surface and rejected if over water. No hardcoded radius.
 
 Lang: `tensura_minecolonies.command.patrol`.
+
+## Reputation system v1 ✅ COMPLETE
+
+Foundational per-colony standing that many future features (crime,
+raids, assassins, reclaim, settlement systems, dialogue, trades) will
+read and write. v1 is the spine + starter movers + two visible effects
+ONLY — nothing reputation-dependent was built. Full as-built record:
+`docs/reputation-system.md`; locked decisions: `docs/decisions.md` →
+"Reputation system v1".
+
+- [x] `ReputationSavedData` — overworld SavedData
+      (`tensura_minecolonies_reputation`), `Map<colonyId, Double>` +
+      reserved `Map<UUID, Double>` player store; missing key → 50.0;
+      `ColonyDeletedModEvent` cleanup
+- [x] `ReputationTier` — 0–9 HOSTILE / 10–19 PASSIVEAGGRESSIVE /
+      20–39 WARY / 40–59 NEUTRAL / 60–79 LOYAL / 80–100 DEVOTED; all
+      thresholds in the one enum; per-tier display name + colour
+- [x] `ReputationManager` — THE API (sole storage door): get / getTier /
+      modifyReputation(colony, amount, reason) / setReputation /
+      isAtLeast / isBelow + per-player twins; clamps 0–100; logs every
+      change
+- [x] `ReputationReason` — BOSS_KILL, BUILDING_COMPLETED,
+      CITIZEN_ATTACKED, CITIZEN_KILLED, THEFT, QUEST, ADMIN
+- [x] Movers: boss kill +10 (`LivingDeathEvent`, Orc Disaster / Ifrit,
+      nearest colony); building built/upgraded +2
+      (`BuildingConstructionModEvent`, REPAIR/REMOVE excluded); citizen
+      attacked −5 (`LivingDamageEvent.Post`, 5 s combo dedupe); citizen
+      killed by player −15 (`LivingDeathEvent`; chosen over
+      `CitizenDiedModEvent` which lacks the killer). Envoys exempt.
+- [x] Visible effect 1: roster header reputation line ("Loyal · 72",
+      tier-coloured) — `colonyReputation` field on
+      `RosterResponsePayload`, `repLine` pane in `windowroster.xml`
+- [x] Visible effect 2: envoy dialogue tone by tier —
+      `reputationTierId` byte on `OpenEnvoyDialoguePayload`, one tone
+      sentence appended in `EnvoyDialogue.body`; NEUTRAL appends nothing
+- [x] `/reputation` (show value + tier) and `/reputation set <0..100>`
+      (op-only, ADMIN reason) debug commands
+
+**Pending (deferred, hook the API later):** theft mover; happiness
+coupling (`addModifier` channel); trade-quality effects; per-race
+dialogue tone variants; all reputation-DEPENDENT features (crime,
+raids, assassins, reclaim); driving the per-player store.
 
 ## Scrapped — beast-guard (knight-spider) guard-tower citizen approach
 

@@ -1813,3 +1813,63 @@ wild → named → colony stages. Fixed:
 The earlier "lose the trades if the block breaks before first trade" framing
 is therefore moot for these races — there are no profession-gated trades to
 lose; only the cosmetic clothes follow the block.
+
+## Reputation system v1 — foundational spine (LOCKED API)
+
+Full investigation + as-built record: `docs/reputation-system.md`. This
+entry records the decisions that bind future features.
+
+**Reputation is a NEW system — MineColonies' two standing metrics were
+investigated and rejected as bases.** Happiness is per-citizen internal
+morale (0–10, recomputed authoritatively every MC day, already
+load-bearing for skill level caps) — wrong semantics, and injected values
+get clobbered. The quest system's `IQuestManager.getReputation()` is an
+unbounded, tier-less, effect-less quest-gating currency — overloading it
+would two-way-entangle our standing with datapack quests. Ours lives in
+its own store; happiness remains the sanctioned post-v1 effect CHANNEL
+(`ICitizenHappinessHandler.addModifier`, the `"quest"` precedent).
+
+**`ReputationManager` is the SOLE door to storage — LOCKED.** Every
+feature (crime, raids, assassins, reclaim, dialogue, trades, …) reads
+via `getReputation`/`getTier`/`isAtLeast`/`isBelow` and writes via
+`modifyReputation(colony, amount, ReputationReason)` ONLY.
+`ReputationSavedData` is package-private and policy-free (no clamping,
+no defaults); all policy — clamp, default, logging, and any future HUD
+sync / throttling / per-reason multipliers — lives in the manager.
+Touching the SavedData from a feature is a design violation, not a
+shortcut.
+
+**Scale: clamped double 0–100, default 50, with DERIVED tiers.** Bands
+(0–9 HOSTILE / 10–19 PASSIVEAGGRESSIVE / 20–39 WARY / 40–59 NEUTRAL /
+60–79 LOYAL / 80–100 DEVOTED) live exclusively in the ordered
+`ReputationTier` enum so gates are `isBelow(colony, WARY)` one-liners
+and rebanding is a one-file change. Absent storage key = 50 = NEUTRAL —
+legacy worlds and fresh colonies need zero migration.
+
+**Per-colony is the v1 scope; per-player (ruler) standing is plumbed but
+undriven.** Storage + API twins (`getPlayerReputation` /
+`modifyPlayerReputation`) exist now so future ruler-level features
+(assassins, reclaim) don't force a storage migration; no v1 mover writes
+them.
+
+**Citizen-kill mover hooks `LivingDeathEvent`, NOT `CitizenDiedModEvent`.**
+The MC event doesn't carry the killer, so it can't distinguish a player
+murder from a raider/fall/starvation death — and reputation tracks how
+the colony regards the PLAYER. `LivingDeathEvent` carries the damage
+source; attribution mirrors the envoy boss-flag pattern (source entity,
+then `getKillCredit()`).
+
+**Citizen-attack mover dedupes combos.** −5 per `LivingDamageEvent.Post`
+with a 100-tick in-memory per-(attacker, citizen) window, so a sword
+combo is one offence, not three. Envoys are exempt from both citizen
+movers (diplomatic visitors; the kill-gate owns those semantics).
+
+**Mover magnitudes are STARTING values** (+10 boss kill, +2 building
+built/upgraded — REPAIR/REMOVE excluded, −5 citizen attack, −15 citizen
+kill), kept as constants in `ExampleMod` beside the movers (mover
+policy), not in the manager (storage policy). Expect tuning.
+
+**NEUTRAL tier appends NO envoy-dialogue tone line.** Default-reputation
+dialogue stays byte-identical to the pre-reputation copy — zero text
+churn for fresh/legacy colonies; only earned standing (either way)
+changes the envoy's register.

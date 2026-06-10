@@ -434,7 +434,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         event.getTarget().getId(),
                         (byte) tag.member().getId(),
                         tag.colonyId(),
-                        tag.conditionMask()));
+                        tag.conditionMask(),
+                        ReputationManager.getTier(sp.serverLevel(), tag.colonyId()).id()));
                 return;
             }
         }
@@ -1026,6 +1027,126 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         killer.getName().getString());
             }
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Reputation v1 — starter movers
+    //
+    // Every mover routes through ReputationManager.modifyReputation (the
+    // sole storage door). Magnitudes below are STARTING values, expected
+    // to be tuned; they live here (mover policy) rather than in the
+    // manager (storage policy).
+    // ------------------------------------------------------------------
+
+    /** Boss kill near a colony. */
+    private static final double REP_BOSS_KILL        = +10.0;
+    /** A colony building finished construction or an upgrade. */
+    private static final double REP_BUILDING_DONE    = +2.0;
+    /** Player damaged one of the colony's citizens (per swing, deduped
+     *  by {@link #REP_ATTACK_DEDUP_TICKS}). */
+    private static final double REP_CITIZEN_ATTACKED = -5.0;
+    /** Player killed one of the colony's citizens. */
+    private static final double REP_CITIZEN_KILLED   = -15.0;
+
+    /** A repeated hit by the same player on the same citizen within this
+     *  window counts once — otherwise a 3-hit sword combo would read as
+     *  three separate offences. In-memory only (not persisted): a reload
+     *  mid-combo at worst counts one extra offence. */
+    private static final int REP_ATTACK_DEDUP_TICKS = 100; // 5s
+    /** (attackerUUID, citizenUUID) → game tick of the last counted hit. */
+    private static final java.util.Map<UUID, java.util.Map<UUID, Long>> recentCitizenHits =
+            new java.util.HashMap<>();
+
+    /**
+     * Reputation movers driven by {@link LivingDeathEvent}:
+     * <ul>
+     *   <li><b>Boss kill (+10)</b> — a player kills a Tensura hostile boss
+     *       (Orc Disaster / Ifrit — the same boss set the envoy system
+     *       already detects). Credited to the colony NEAREST the kill via
+     *       {@code getClosestColony}; no colony nearby → no change.</li>
+     *   <li><b>Citizen killed (−15)</b> — a player kills a colony citizen.
+     *       Attribution via the citizen's own colony handler. Detected here
+     *       (LivingDeathEvent carries the killer) rather than in
+     *       {@code CitizenDiedModEvent} (which doesn't), so raider /
+     *       environmental citizen deaths correctly do NOT move reputation —
+     *       reputation tracks how the colony regards the PLAYER.</li>
+     * </ul>
+     * Same killer-attribution pattern as {@link #processBossKillFlags}.
+     */
+    private static void processReputationOnDeath(ServerLevel level, LivingDeathEvent event) {
+        LivingEntity victim = event.getEntity();
+
+        ServerPlayer killer = null;
+        Entity sourceEntity = event.getSource().getEntity();
+        if (sourceEntity instanceof ServerPlayer sp) killer = sp;
+        if (killer == null && victim.getKillCredit() instanceof ServerPlayer sp) killer = sp;
+        if (killer == null) return;
+
+        boolean isBoss = victim instanceof io.github.manasmods.tensura.entity.monster.OrcDisasterEntity
+                || victim instanceof io.github.manasmods.tensura.entity.monster.IfritEntity;
+        if (isBoss) {
+            IColony nearest = IColonyManager.getInstance()
+                    .getClosestColony(level, victim.blockPosition());
+            if (nearest != null) {
+                ReputationManager.modifyReputation(nearest, REP_BOSS_KILL, ReputationReason.BOSS_KILL);
+            }
+            return;
+        }
+
+        if (victim instanceof AbstractEntityCitizen citizen
+                && !victim.hasData(Attachments.ENVOY_TAG.get())) {
+            IColony colony = citizen.getCitizenColonyHandler().getColony();
+            if (colony != null) {
+                ReputationManager.modifyReputation(colony, REP_CITIZEN_KILLED, ReputationReason.CITIZEN_KILLED);
+            }
+        }
+    }
+
+    /**
+     * Reputation mover — player damages a colony citizen (−5). Fires on
+     * {@code LivingDamageEvent.Post} (damage actually applied, after
+     * absorption/armor) so cancelled or fully-blocked hits don't count.
+     * Envoy entities are exempt (they're diplomatic visitors, handled by
+     * the envoy kill-gate semantics instead).
+     */
+    @SubscribeEvent
+    public void onLivingDamagePost(net.neoforged.neoforge.event.entity.living.LivingDamageEvent.Post event) {
+        if (!(event.getEntity().level() instanceof ServerLevel level)) return;
+        if (!(event.getEntity() instanceof AbstractEntityCitizen citizen)) return;
+        if (event.getNewDamage() <= 0f) return;
+        if (!(event.getSource().getEntity() instanceof ServerPlayer attacker)) return;
+        if (citizen.hasData(Attachments.ENVOY_TAG.get())) return;
+
+        // Dedupe rapid combos: one offence per (attacker, citizen) per window.
+        long now = level.getGameTime();
+        java.util.Map<UUID, Long> byVictim =
+                recentCitizenHits.computeIfAbsent(attacker.getUUID(), k -> new java.util.HashMap<>());
+        Long last = byVictim.get(citizen.getUUID());
+        if (last != null && now - last < REP_ATTACK_DEDUP_TICKS) return;
+        byVictim.put(citizen.getUUID(), now);
+
+        IColony colony = citizen.getCitizenColonyHandler().getColony();
+        if (colony != null) {
+            ReputationManager.modifyReputation(colony, REP_CITIZEN_ATTACKED, ReputationReason.CITIZEN_ATTACKED);
+        }
+    }
+
+    /**
+     * Reputation mover — building constructed or upgraded (+2). Repairs
+     * and removals don't move reputation (maintenance isn't growth).
+     * Subscribed on the MineColonies event bus in {@link #commonSetup}.
+     */
+    private void onBuildingConstruction(
+            com.minecolonies.api.eventbus.events.colony.buildings.BuildingConstructionModEvent event) {
+        com.minecolonies.api.colony.workorders.WorkOrderType type =
+                event.getWorkOrder().getWorkOrderType();
+        if (type != com.minecolonies.api.colony.workorders.WorkOrderType.BUILD
+                && type != com.minecolonies.api.colony.workorders.WorkOrderType.UPGRADE) {
+            return;
+        }
+        IColony colony = event.getColony();
+        if (colony == null) return;
+        ReputationManager.modifyReputation(colony, REP_BUILDING_DONE, ReputationReason.BUILDING_COMPLETED);
     }
 
     /** Character reset scroll Finish hook. Clears both demon-lord and
@@ -3002,6 +3123,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         ColonyRaceConfigSavedData config = ColonyRaceConfigSavedData.get(serverLevel);
         config.clearMembers(colony.getID());
         config.clearPending(colony.getID());
+        // Reputation cleanup — a re-created colony under the same id
+        // starts back at the neutral default.
+        ReputationManager.onColonyDeleted(serverLevel, colony.getID());
         LOGGER.info("[TM] colony '{}' deleted — cleared its race config entry",
                 colony.getName());
     }
@@ -3195,6 +3319,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         //   (c) Ifrit killed by a player → per-player flag set.
         processColonyOwnerDeath(serverLevel, event);
         processBossKillFlags(serverLevel, event);
+
+        // Reputation v1 movers — boss kill (+, nearest colony) and
+        // player-kills-citizen (−, the citizen's colony). Runs through
+        // the ReputationManager chokepoint.
+        processReputationOnDeath(serverLevel, event);
 
         UUID entityUUID = event.getEntity().getUUID();
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(serverLevel);
@@ -3638,6 +3767,70 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         .requires(src -> src.hasPermission(0))
                         .executes(this::handleEnvoyResetCooldownCommand)
         );
+        // Reputation v1 debug — read the player's colony reputation, or
+        // set it for testing (set requires op, mirroring /festival).
+        //   /reputation               — show value + tier
+        //   /reputation set <0..100>  — absolute set via the admin path
+        event.getDispatcher().register(
+                Commands.literal("reputation")
+                        .requires(src -> src.hasPermission(0))
+                        .executes(this::handleReputationShowCommand)
+                        .then(Commands.literal("set")
+                                .requires(src -> src.hasPermission(2))
+                                .then(Commands.argument("value",
+                                        com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(
+                                                ReputationManager.MIN_REPUTATION,
+                                                ReputationManager.MAX_REPUTATION))
+                                        .executes(this::handleReputationSetCommand)))
+        );
+    }
+
+    /** {@code /reputation} — show the player's colony standing (value + tier). */
+    private int handleReputationShowCommand(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/reputation must be run by a player"));
+            return 0;
+        }
+        IColony colony = resolveCommandColony(src, player);
+        if (colony == null) return 0;
+
+        double value = ReputationManager.getReputation(colony);
+        ReputationTier tier = ReputationManager.getTier(colony);
+        src.sendSuccess(() -> Component.literal(
+                        "Reputation of '" + colony.getName() + "': ")
+                .append(Component.literal(tier.displayName()).withStyle(tier.color()))
+                .append(Component.literal(String.format(java.util.Locale.ROOT, " (%.1f / %.0f)",
+                        value, ReputationManager.MAX_REPUTATION))), false);
+        return 1;
+    }
+
+    /** {@code /reputation set <value>} — absolute set through the admin path. */
+    private int handleReputationSetCommand(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/reputation must be run by a player"));
+            return 0;
+        }
+        IColony colony = resolveCommandColony(src, player);
+        if (colony == null) return 0;
+
+        double requested = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
+        double applied = ReputationManager.setReputation(colony, requested, ReputationReason.ADMIN);
+        ReputationTier tier = ReputationTier.forValue(applied);
+        src.sendSuccess(() -> Component.literal(
+                        "Reputation of '" + colony.getName() + "' set to ")
+                .append(Component.literal(String.format(java.util.Locale.ROOT, "%.1f", applied))
+                        .withStyle(ChatFormatting.WHITE))
+                .append(Component.literal(" — "))
+                .append(Component.literal(tier.displayName()).withStyle(tier.color())), true);
+        return 1;
     }
 
     /** Resolve the player's colony for /setcolonyrace, using the same
@@ -5703,6 +5896,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // same id doesn't inherit the prior race.
             IMinecoloniesAPI.getInstance().getEventBus()
                     .subscribe(ColonyDeletedModEvent.class, this::onColonyDeleted);
+
+            // Reputation v1 mover — building constructed / upgraded (+2).
+            IMinecoloniesAPI.getInstance().getEventBus()
+                    .subscribe(com.minecolonies.api.eventbus.events.colony.buildings.BuildingConstructionModEvent.class,
+                            this::onBuildingConstruction);
         });
     }
 

@@ -75,8 +75,9 @@ public final class ClientEvents {
             ColonyMember member = ColonyMember.byId(payload.memberId() & 0xFF);
             java.util.EnumSet<EnvoyCondition> conditions =
                     EnvoyCondition.fromMask(payload.conditionMask());
+            ReputationTier tier = ReputationTier.byId(payload.reputationTierId());
             net.minecraft.client.Minecraft.getInstance()
-                    .setScreen(new EnvoyDialogueScreen(payload.entityId(), member, conditions));
+                    .setScreen(new EnvoyDialogueScreen(payload.entityId(), member, conditions, tier));
         };
 
         // Stage F3 — render-path interception. Cancels the default citizen

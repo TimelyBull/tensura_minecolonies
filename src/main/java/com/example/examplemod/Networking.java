@@ -203,9 +203,10 @@ public final class Networking {
     }
 
     /** S2C: server returns the player's roster entries, the player's current
-     *  magicule (counter), and the player's primary colony name (subtitle). */
+     *  magicule (counter), the player's primary colony name (subtitle), and
+     *  that colony's reputation (header tier line; 50.0 when no colony). */
     public record RosterResponsePayload(List<RosterEntry> entries, double playerMagicule,
-                                        String colonyName)
+                                        String colonyName, double colonyReputation)
             implements CustomPacketPayload {
         public static final Type<RosterResponsePayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "roster_response"));
@@ -218,6 +219,8 @@ public final class Networking {
                         RosterResponsePayload::playerMagicule,
                         ByteBufCodecs.STRING_UTF8,
                         RosterResponsePayload::colonyName,
+                        ByteBufCodecs.DOUBLE,
+                        RosterResponsePayload::colonyReputation,
                         RosterResponsePayload::new
                 );
 
@@ -332,7 +335,8 @@ public final class Networking {
      * client-side from {@link EnvoyDialogue} keyed on memberId — keeping
      * the wire small and the dialogue copy single-sourced.
      */
-    public record OpenEnvoyDialoguePayload(int entityId, byte memberId, int colonyId, byte conditionMask)
+    public record OpenEnvoyDialoguePayload(int entityId, byte memberId, int colonyId,
+                                           byte conditionMask, byte reputationTierId)
             implements CustomPacketPayload {
         public static final Type<OpenEnvoyDialoguePayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "open_envoy_dialogue"));
@@ -341,6 +345,7 @@ public final class Networking {
                 ByteBufCodecs.BYTE,    OpenEnvoyDialoguePayload::memberId,
                 ByteBufCodecs.VAR_INT, OpenEnvoyDialoguePayload::colonyId,
                 ByteBufCodecs.BYTE,    OpenEnvoyDialoguePayload::conditionMask,
+                ByteBufCodecs.BYTE,    OpenEnvoyDialoguePayload::reputationTierId,
                 OpenEnvoyDialoguePayload::new
         );
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
@@ -588,9 +593,15 @@ public final class Networking {
         double magicule = ExampleMod.currentMagicule(sp);
         IColony primary = IColonyManager.getInstance().getIColonyByOwner(level, playerUUID);
         String colonyName = primary != null ? primary.getName() : "";
+        // Reputation of the header colony — read through the manager (the
+        // sole storage door). No colony → neutral default, hidden client-side.
+        double reputation = primary != null
+                ? ReputationManager.getReputation(primary)
+                : ReputationManager.DEFAULT_REPUTATION;
         LOGGER.info("[TM] roster: sending {} entries (magicule {}) to {}",
                 entries.size(), magicule, sp.getName().getString());
-        PacketDistributor.sendToPlayer(sp, new RosterResponsePayload(entries, magicule, colonyName));
+        PacketDistributor.sendToPlayer(sp,
+                new RosterResponsePayload(entries, magicule, colonyName, reputation));
     }
 
     // ------------------------------------------------------------------

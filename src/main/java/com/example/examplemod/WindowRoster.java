@@ -75,6 +75,7 @@ public class WindowRoster extends AbstractWindowSkeleton {
     private static final String ID_SEARCH_HINT  = "searchHint";
     private static final String ID_LIST         = "roster";
     private static final String ID_COLONY_NAME  = "colonyName";
+    private static final String ID_REPUTATION   = "repLine";
     private static final String ID_MAGCOUNT     = "magCount";
     private static final String ID_DIVIDER      = "divider";
     private static final String ID_MAGBADGE     = "magBadge";
@@ -121,6 +122,10 @@ public class WindowRoster extends AbstractWindowSkeleton {
     private String searchText = "";
     private double playerMagicule;
     private String colonyName;
+    /** Header-colony reputation (0–100); rendered as "Tier · N" next to the
+     *  colony name, coloured per {@link ReputationTier}. Hidden when the
+     *  player has no colony. */
+    private double colonyReputation;
 
     /** Bulk-selection set, insertion-ordered (drives fan placement server-side). */
     private final Set<UUID> selectedIds = new LinkedHashSet<>();
@@ -144,12 +149,14 @@ public class WindowRoster extends AbstractWindowSkeleton {
     private Text countCitizensText;
     private Text countAtSideText;
 
-    public WindowRoster(List<Networking.RosterEntry> entries, double playerMagicule, String colonyName) {
+    public WindowRoster(List<Networking.RosterEntry> entries, double playerMagicule,
+                        String colonyName, double colonyReputation) {
         super(XML);
         instance = this;
         this.entries = entries;
         this.playerMagicule = playerMagicule;
         this.colonyName = colonyName == null ? "" : colonyName;
+        this.colonyReputation = colonyReputation;
         this.displayed = filterAndSort(entries, this.searchText);
 
         // Per-row action button; group/clear footer. Selection has no button
@@ -180,6 +187,7 @@ public class WindowRoster extends AbstractWindowSkeleton {
         setBoxColor(ID_MAGBADGE, BORDER_BADGE);
         setTextColor(ID_COLONY_NAME, colonyName.isEmpty() ? "[no colony]" : colonyName, TXT_GRAY);
         setTextColor(ID_MAGCOUNT, formatBig(playerMagicule), TXT_DARK);
+        refreshReputationLine();
 
         if (this.searchField != null) {
             this.searchField.setText(this.searchText);
@@ -404,10 +412,12 @@ public class WindowRoster extends AbstractWindowSkeleton {
     }
 
     /** Apply a fresh server roster, preserving search text + live selection. */
-    public void setEntries(List<Networking.RosterEntry> newEntries, double magicule, String newColonyName) {
+    public void setEntries(List<Networking.RosterEntry> newEntries, double magicule,
+                           String newColonyName, double newReputation) {
         this.entries = newEntries;
         this.playerMagicule = magicule;
         if (newColonyName != null) this.colonyName = newColonyName;
+        this.colonyReputation = newReputation;
         this.displayed = filterAndSort(newEntries, this.searchText);
         Set<UUID> live = new HashSet<>(newEntries.size());
         for (Networking.RosterEntry e : newEntries) live.add(e.identityId());
@@ -415,6 +425,7 @@ public class WindowRoster extends AbstractWindowSkeleton {
         if (selectedIds.isEmpty()) batchMode = -1;
         setTextColor(ID_COLONY_NAME, colonyName.isEmpty() ? "[no colony]" : colonyName, TXT_GRAY);
         setTextColor(ID_MAGCOUNT, formatBig(playerMagicule), TXT_DARK);
+        refreshReputationLine();
         applyEmptyText();
         refreshCounts();
         if (list != null) list.refreshElementPanes();
@@ -451,6 +462,22 @@ public class WindowRoster extends AbstractWindowSkeleton {
         return String.format(Locale.ROOT, "%.0f", v);
     }
 
+    /** Header reputation line — "Loyal · 72", coloured per tier. Hidden
+     *  when the player has no colony (the subtitle shows "[no colony]"). */
+    private void refreshReputationLine() {
+        Text pane = findPaneOfTypeByID(ID_REPUTATION, Text.class);
+        if (pane == null) return;
+        if (colonyName.isEmpty()) {
+            pane.setVisible(false);
+            return;
+        }
+        ReputationTier tier = ReputationTier.forValue(colonyReputation);
+        pane.setVisible(true);
+        pane.setText(Component.literal(
+                tier.displayName() + " · " + Math.round(colonyReputation)));
+        pane.setColors(tier.argb());
+    }
+
     // ---- small helpers ----
 
     private void setTextColor(String id, String text, int color) {
@@ -467,7 +494,8 @@ public class WindowRoster extends AbstractWindowSkeleton {
     // Open + live-refresh routing
     // ------------------------------------------------------------------
 
-    public static void route(List<Networking.RosterEntry> entries, double playerMagicule, String colonyName) {
+    public static void route(List<Networking.RosterEntry> entries, double playerMagicule,
+                             String colonyName, double colonyReputation) {
         Minecraft mc = Minecraft.getInstance();
 
         BOScreen rosterScreen = (instance != null) ? safeScreen(instance) : null;
@@ -479,7 +507,7 @@ public class WindowRoster extends AbstractWindowSkeleton {
 
         if (rosterScreen != null
                 && (mc.screen == rosterScreen || blockUiConfirm || vanillaConfirmOverBlockUiRoster)) {
-            instance.setEntries(entries, playerMagicule, colonyName);
+            instance.setEntries(entries, playerMagicule, colonyName, colonyReputation);
             return;
         }
 
@@ -496,7 +524,7 @@ public class WindowRoster extends AbstractWindowSkeleton {
         if (blockUiConfirm) return;
 
         try {
-            new WindowRoster(entries, playerMagicule, colonyName).open();
+            new WindowRoster(entries, playerMagicule, colonyName, colonyReputation).open();
         } catch (Throwable t) {
             LOGGER.error("[TM] roster: native BlockUI window failed to open; "
                     + "falling back to the vanilla screen", t);

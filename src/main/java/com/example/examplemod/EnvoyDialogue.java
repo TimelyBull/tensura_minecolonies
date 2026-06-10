@@ -160,18 +160,69 @@ public final class EnvoyDialogue {
      */
     public static String body(ColonyMember member,
                               java.util.Set<EnvoyCondition> conditions) {
+        return body(member, conditions, ReputationTier.NEUTRAL);
+    }
+
+    /**
+     * Reputation-aware dialogue body. Same composition as the
+     * condition-aware overload, with one extra tone sentence appended at
+     * the end reflecting the colony's {@link ReputationTier} — a DEVOTED
+     * colony's envoy closes warm, a WARY one closes guarded.
+     * {@code NEUTRAL} appends nothing, so default-reputation dialogue is
+     * byte-identical to the pre-reputation text.
+     */
+    public static String body(ColonyMember member,
+                              java.util.Set<EnvoyCondition> conditions,
+                              ReputationTier tier) {
         StringBuilder out = new StringBuilder();
         out.append(DIALOGUE_BODY.getOrDefault(member,
                 "An envoy seeks to join your colony."));
-        if (conditions == null || conditions.isEmpty()) return out.toString();
-        // Enum-declaration order is the stable presentation order.
-        for (EnvoyCondition c : EnvoyCondition.values()) {
-            if (!conditions.contains(c)) continue;
-            String snippet = conditionSnippet(member, c);
-            if (snippet == null || snippet.isEmpty()) continue;
-            out.append(' ').append(snippet);
+        if (conditions != null && !conditions.isEmpty()) {
+            // Enum-declaration order is the stable presentation order.
+            for (EnvoyCondition c : EnvoyCondition.values()) {
+                if (!conditions.contains(c)) continue;
+                String snippet = conditionSnippet(member, c);
+                if (snippet == null || snippet.isEmpty()) continue;
+                out.append(' ').append(snippet);
+            }
+        }
+        String tone = reputationTone(tier);
+        if (tone != null) {
+            out.append(' ').append(tone);
         }
         return out.toString();
+    }
+
+    /**
+     * Per-tier tone sentence appended after the base + condition snippets.
+     * Written race-neutrally in the envoys' shared reverent register so
+     * one line per tier covers all five races (per-race tone variants are
+     * a future polish pass, not a v1 requirement).
+     *
+     * <p>NEUTRAL returns {@code null} — no tone line — which keeps
+     * default-reputation dialogue identical to the pre-reputation copy
+     * (and means legacy / fresh colonies see no text change at all).
+     */
+    public static String reputationTone(ReputationTier tier) {
+        return switch (tier) {
+            case HOSTILE ->
+                    "I will not pretend otherwise — dark things are said of this "
+                    + "place, and many counselled against my coming at all.";
+            case PASSIVEAGGRESSIVE ->
+                    "I will say only that not all we hear of this colony is kind "
+                    + "— though we chose to come regardless.";
+            case WARY ->
+                    "I confess we have heard mixed accounts of this place. We "
+                    + "watch, and we hope to be proven wrong.";
+            case NEUTRAL -> null;
+            case LOYAL ->
+                    "Word of this colony's good name travels far — it is no small "
+                    + "part of why we came.";
+            case DEVOTED ->
+                    "Your colony's name is spoken with reverence in every camp "
+                    + "from here to the far hills — it is an honour simply to "
+                    + "stand within its walls.";
+        };
     }
 
     /**

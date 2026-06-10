@@ -54,16 +54,29 @@ public class EnvoyDialogueScreen extends Screen {
      *  {@link EnvoyTag}). Drives condition-flavoured snippets appended
      *  to the base dialogue. */
     private final java.util.Set<EnvoyCondition> conditions;
+    /** The colony's reputation tier at open time — drives the tone
+     *  sentence appended to the body (NEUTRAL appends nothing). */
+    private final ReputationTier reputationTier;
     private List<FormattedCharSequence> wrappedBody;
 
+    /** Tier-less overload — debug / legacy callers; reads as NEUTRAL. */
     public EnvoyDialogueScreen(int entityId, ColonyMember member,
                                java.util.Set<EnvoyCondition> conditions) {
+        this(entityId, member, conditions, ReputationTier.NEUTRAL);
+    }
+
+    public EnvoyDialogueScreen(int entityId, ColonyMember member,
+                               java.util.Set<EnvoyCondition> conditions,
+                               ReputationTier reputationTier) {
         super(Component.literal(EnvoyDialogue.title(member)));
         this.entityId = entityId;
         this.member = member;
         this.conditions = conditions == null
                 ? java.util.EnumSet.noneOf(EnvoyCondition.class)
                 : conditions;
+        this.reputationTier = reputationTier == null
+                ? ReputationTier.NEUTRAL
+                : reputationTier;
     }
 
     @Override
@@ -74,7 +87,8 @@ public class EnvoyDialogueScreen extends Screen {
         // padding. Condition-aware body — appends per-condition snippets
         // in EnvoyCondition declaration order so multi-condition envoys
         // read as a stable sequence of observations.
-        Component body = Component.literal(EnvoyDialogue.body(this.member, this.conditions));
+        Component body = Component.literal(
+                EnvoyDialogue.body(this.member, this.conditions, this.reputationTier));
         this.wrappedBody = this.font.split(body, DIALOG_WIDTH - 32);
 
         // Grow the panel to fit body line-count when condition snippets

@@ -187,6 +187,26 @@ MDK-1.21.1-ModDevGradle-main/
                                        # tick()'d. Animation-driver state
                                        # mirroring + variant + equipment sync.
 
+        # — Reputation system (v1 spine) —
+        ReputationManager.java         # THE reputation API — sole door to
+                                       # storage. get/getTier/modifyReputation
+                                       # (colony, amount, reason)/setReputation/
+                                       # isAtLeast/isBelow + per-player twins.
+                                       # Clamps 0–100, default 50, logs changes.
+        ReputationSavedData.java       # Package-private overworld SavedData
+                                       # ("tensura_minecolonies_reputation").
+                                       # Map<colonyId,Double> + reserved
+                                       # Map<UUID,Double> player store. ONLY
+                                       # ReputationManager touches it.
+        ReputationTier.java            # Derived ordered tiers (HOSTILE/
+                                       # PASSIVEAGGRESSIVE/WARY/NEUTRAL/LOYAL/
+                                       # DEVOTED); ALL band thresholds live
+                                       # here; per-tier name + colour.
+        ReputationReason.java          # Why-enum every modifyReputation call
+                                       # passes (BOSS_KILL, BUILDING_COMPLETED,
+                                       # CITIZEN_ATTACKED, CITIZEN_KILLED,
+                                       # THEFT, QUEST, ADMIN).
+
         # — Subordinate commands —
         PatrolOrder.java               # Serialized NeoForge attachment —
                                        # standing order for the "Patrol
@@ -509,6 +529,22 @@ profession (latest):**
   are byte-identical across the wild → named → colony stages. See
   decisions.md "CORRECTION — citizen merchant professions are COSMETIC
   ONLY".
+
+**Reputation system v1 (foundational spine — latest):**
+- Per-colony standing 0–100 (default 50 NEUTRAL) with derived tiers;
+  `ReputationManager` is the LOCKED sole-door API every future feature
+  (crime/raids/assassins/reclaim/trades) reads and writes through —
+  `modifyReputation(colony, amount, ReputationReason)` is the only
+  mutator. Per-player (ruler) store plumbed but driven by no v1 mover.
+- Movers: boss kill +10 (Orc Disaster/Ifrit, nearest colony), building
+  built/upgraded +2, citizen attacked −5 (5 s combo dedupe), citizen
+  killed by player −15 (via `LivingDeathEvent`, NOT
+  `CitizenDiedModEvent` — that event lacks the killer). Envoys exempt.
+- Visible: roster header tier line ("Loyal · 72", tier-coloured),
+  envoy-dialogue tone sentence by tier (NEUTRAL appends nothing),
+  `/reputation` + `/reputation set` debug commands.
+- Records: `docs/reputation-system.md` (as-built),
+  `docs/decisions.md` → "Reputation system v1" (locked decisions).
 
 **Pending:**
 - Stage G6 — orc lord and orc disaster as separate shadow types in the
