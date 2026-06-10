@@ -105,6 +105,10 @@ public class WindowRoster extends AbstractWindowSkeleton {
 
     private static final int SELECTION_CAP = ExampleMod.BULK_SUMMON_CAP;
 
+    /** Row pitch — matches the row-template height in windowroster.xml
+     *  ({@code <view size="100% 24">}). Used to map a drag's Y to a row index. */
+    private static final int ROW_PIXEL_HEIGHT = 24;
+
     private static final Comparator<Networking.RosterEntry> EP_DESC =
             Comparator.comparingDouble(Networking.RosterEntry::ep).reversed();
 
@@ -123,12 +127,22 @@ public class WindowRoster extends AbstractWindowSkeleton {
     /** Mode the batch is locked to (first selected row's mode); -1 = none. */
     private int batchMode = -1;
 
+    // ---- click-and-drag paint state ----
+    /** True while a press-and-drag selection gesture is in progress. */
+    private boolean dragActive = false;
+    /** Paint mode for the active gesture: true = deselecting, false = selecting. */
+    private boolean dragDeselect = false;
+    /** Rows already painted this gesture, so a wiggle within a row doesn't re-toggle. */
+    private final Set<UUID> dragPainted = new HashSet<>();
+
     private ScrollingList list;
     private TextField searchField;
     private Text searchHint;
     private Button groupSummonButton;
     private Button groupSendButton;
     private Button clearButton;
+    private Text countCitizensText;
+    private Text countAtSideText;
 
     public WindowRoster(List<Networking.RosterEntry> entries, double playerMagicule, String colonyName) {
         super(XML);
@@ -138,10 +152,11 @@ public class WindowRoster extends AbstractWindowSkeleton {
         this.colonyName = colonyName == null ? "" : colonyName;
         this.displayed = filterAndSort(entries, this.searchText);
 
+        // Per-row action button; group/clear footer. Selection has no button
+        // handler — it's owned by click()/onMouseDrag() (paint model).
         registerButton(ROW_ACT, (Button b) -> onRowAction(b));
-        registerButton(ROW_SEL, (Button b) -> onToggleRow(b));
-        registerButton(ID_GROUP_SUM, (Button b) -> onGroup(1));   // summon checked at-colony
-        registerButton(ID_GROUP_SEND, (Button b) -> onGroup(0));  // send checked at-side
+        registerButton(ID_GROUP_SUM, (Button b) -> onGroup(1));   // summon selected at-colony
+        registerButton(ID_GROUP_SEND, (Button b) -> onGroup(0));  // send selected at-side
         registerButton(ID_CLEAR, (Button b) -> clearSelection());
     }
 
@@ -155,6 +170,8 @@ public class WindowRoster extends AbstractWindowSkeleton {
         this.groupSummonButton = findPaneOfTypeByID(ID_GROUP_SUM, Button.class);
         this.groupSendButton   = findPaneOfTypeByID(ID_GROUP_SEND, Button.class);
         this.clearButton       = findPaneOfTypeByID(ID_CLEAR, Button.class);
+        this.countCitizensText = findPaneOfTypeByID(ID_CNT_CITIZENS, Text.class);
+        this.countAtSideText   = findPaneOfTypeByID(ID_CNT_ATSIDE, Text.class);
         this.list              = findPaneOfTypeByID(ID_LIST, ScrollingList.class);
 
         // Recolour the static border boxes + the dynamic header texts.
@@ -207,8 +224,8 @@ public class WindowRoster extends AbstractWindowSkeleton {
             pillText.setColors(inColony ? TXT_GREEN : TXT_BLUE);
         }
 
-        ButtonImage sel = rowPane.findPaneOfTypeByID(ROW_SEL, ButtonImage.class);
-        if (sel != null) sel.setImage(selectedIds.contains(e.identityId()) ? SEL_CHECKED : SEL_UNCHECKED);
+        Image sel = rowPane.findPaneOfTypeByID(ROW_SEL, Image.class);
+        if (sel != null) sel.setImage(selectedIds.contains(e.identityId()) ? SEL_CHECKED : SEL_UNCHECKED, false);
 
         ButtonImage act = rowPane.findPaneOfTypeByID(ROW_ACT, ButtonImage.class);
         if (act != null) {
@@ -224,19 +241,77 @@ public class WindowRoster extends AbstractWindowSkeleton {
         PacketDistributor.sendToServer(new Networking.ActOnIdentityPayload(displayed.get(idx).identityId()));
     }
 
-    private void onToggleRow(Button button) {
-        int idx = rowIndexOf(button);
-        if (idx < 0) return;
-        Networking.RosterEntry e = displayed.get(idx);
-        UUID id = e.identityId();
-        if (selectedIds.contains(id)) {
-            selectedIds.remove(id);
-            if (selectedIds.isEmpty()) batchMode = -1;
-        } else {
-            tryAddToSelection(e);
+    // ------------------------------------------------------------------
+    // Selection: click a row to toggle one, press-and-drag to paint many.
+    // ------------------------------------------------------------------
+
+    @Override
+    public boolean click(double mx, double my) {
+        // Let real controls (action button, search, footer, scrollbar) take the
+        // press first. Anything they consume is NOT a selection gesture.
+        boolean consumed = super.click(mx, my);
+        dragActive = false;
+        dragPainted.clear();
+        if (!consumed && list != null) {
+            int row = rowIndexAt(mx, my);
+            if (row >= 0) {
+                Networking.RosterEntry e = displayed.get(row);
+                // Paint mode: deselect if the pressed row is already selected.
+                dragDeselect = selectedIds.contains(e.identityId());
+                dragActive = true;
+                paintRow(e);
+                return true;
+            }
         }
-        if (list != null) list.refreshElementPanes();
-        refreshFooter();
+        return consumed;
+    }
+
+    @Override
+    public boolean onMouseDrag(double mx, double my, int button, double dx, double dy) {
+        // Scrollbar (and any other child) consumes its own drag first.
+        if (super.onMouseDrag(mx, my, button, dx, dy)) return true;
+        if (dragActive && button == 0 && list != null) {
+            int row = rowIndexAt(mx, my);
+            if (row >= 0) {
+                paintRow(displayed.get(row));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean onMouseReleased(double mx, double my) {
+        dragActive = false;
+        dragPainted.clear();
+        return super.onMouseReleased(mx, my);
+    }
+
+    /** Apply the active paint mode to one row (once per gesture). */
+    private void paintRow(Networking.RosterEntry e) {
+        UUID id = e.identityId();
+        if (!dragPainted.add(id)) return; // already painted this gesture
+        boolean changed;
+        if (dragDeselect) {
+            changed = selectedIds.remove(id);
+            if (changed && selectedIds.isEmpty()) batchMode = -1;
+        } else {
+            changed = tryAddToSelection(e);
+        }
+        if (changed) {
+            if (list != null) list.refreshElementPanes();
+            refreshFooter();
+        }
+    }
+
+    /** Map a window-relative point to a roster row index (honouring scroll); -1 if none. */
+    private int rowIndexAt(double mx, double my) {
+        if (list == null) return -1;
+        int lx = list.getX(), ly = list.getY(), lw = list.getWidth(), lh = list.getHeight();
+        if (mx < lx || mx >= lx + lw || my < ly || my >= ly + lh) return -1;
+        double localY = (my - ly) + list.getScrollY();
+        int idx = (int) Math.floor(localY / ROW_PIXEL_HEIGHT);
+        return (idx >= 0 && idx < displayed.size()) ? idx : -1;
     }
 
     private int rowIndexOf(Button button) {
@@ -293,6 +368,10 @@ public class WindowRoster extends AbstractWindowSkeleton {
             groupSendButton.setText(Component.literal("Group Send (" + selectedIds.size() + ")"));
         }
         if (clearButton != null) clearButton.setVisible(show);
+        // The counts share the footer band with the bulk bar — hide them while
+        // selecting so they don't draw under the buttons.
+        if (countCitizensText != null) countCitizensText.setVisible(!show);
+        if (countAtSideText != null) countAtSideText.setVisible(!show);
     }
 
     /** Footer counts reflect the WHOLE roster (not the search filter). */

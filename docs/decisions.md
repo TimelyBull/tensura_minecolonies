@@ -1183,9 +1183,13 @@ search/divider borders.
 
 **Decisions (confirmed with the user):**
 - Per-row stat labelled **EP** (not the mockup's "CP") — same underlying value.
-- **Bulk kept visible**: per-row checkbox toggles (mode-locked) + a Group
-  Summon/Send bar that appears when ≥2 are checked (only the button matching the
-  selection's mode shows). Reuses `BulkSummon`/`BulkSend`; drag-paint dropped.
+- **Bulk kept visible**: click a row to toggle, **press-and-drag to paint**
+  select/deselect (deselect mode when the anchor row is already selected) —
+  `click()`/`onMouseDrag()`/`onMouseReleased()` paint model; the row's `sel`
+  image is a non-clickable indicator. Mode-locked; reuses `BulkSummon`/`BulkSend`.
+  A Group Summon/Send bar appears when ≥2 are selected (only the button matching
+  the selection's mode shows) and shares the footer band with the counts (counts
+  hide while selecting).
 - Action semantics kept: In colony → Summon (back); At side → Send.
 - Colony name added as one `String` on `RosterResponsePayload` (primary owned
   colony via `getIColonyByOwner`). Magicule + EP + counts already available.

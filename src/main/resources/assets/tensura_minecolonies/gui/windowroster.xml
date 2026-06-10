@@ -12,13 +12,15 @@
     <text id="colonyName" size="220 10" pos="16 32" color="black" label="[colony name]"/>
     <box id="divider" size="368 1" pos="16 48" color="black"/>
 
-    <!-- Slime peeking over the top edge, next to the magicule badge. -->
-    <image id="slime" source="tensura_minecolonies:textures/gui/roster/slime.png" size="30 30" pos="260 -6"/>
+    <!-- Slime peeking over the top edge, next to the magicule badge.
+         Source is 640x512 (1.25:1) — keep that ratio so it isn't squished. -->
+    <image id="slime" source="tensura_minecolonies:textures/gui/roster/slime.png" size="36 29" pos="256 -8"/>
 
-    <!-- Magicule badge: bordered box + purple diamond + count. -->
-    <box id="magBadge" size="92 26" pos="296 8" color="black"/>
-    <image source="tensura_minecolonies:textures/gui/roster/diamond.png" size="14 14" pos="304 14"/>
-    <text id="magCount" size="64 12" pos="322 15" color="black" label="0"/>
+    <!-- Magicule badge: bordered box + purple diamond + count.
+         Nudged down so it sits vertically centred against the title/subtitle. -->
+    <box id="magBadge" size="92 26" pos="296 14" color="black"/>
+    <image source="tensura_minecolonies:textures/gui/roster/diamond.png" size="14 14" pos="304 20"/>
+    <text id="magCount" size="64 12" pos="322 21" color="black" label="0"/>
 
     <!-- ===================== SEARCH ===================== -->
     <box id="searchBox" size="368 18" pos="16 54" color="black"/>
@@ -31,16 +33,19 @@
         <view size="100% 24">
             <box id="card" size="100% 21" pos="0 0" color="black"/>
 
-            <button id="sel" size="13 13" pos="7 4"
-                    source="minecolonies:textures/gui/builderhut/builder_button_mini.png"/>
+            <!-- Selection indicator: a plain (non-clickable) image; the window
+                 swaps it plain/checked and owns all selection via click + drag. -->
+            <image id="sel" size="13 13" pos="7 4"
+                   source="minecolonies:textures/gui/builderhut/builder_button_mini.png"/>
 
-            <text id="name" size="100 11" pos="26 5"  color="black"/>
-            <text id="ep"   size="72 11"  pos="124 6" color="black" textscale="0.9"/>
+            <!-- Row text: same scale + baseline so the columns line up. -->
+            <text id="name" size="96 11" pos="26 6"  color="black"/>
+            <text id="ep"   size="68 11" pos="126 6" color="black"/>
 
             <!-- Status pill: bg image (green/blue, swapped per row) + label. -->
             <image id="pillBg" size="92 15" pos="196 3"
                    source="tensura_minecolonies:textures/gui/roster/pill_green.png"/>
-            <text  id="pillText" size="92 11" pos="196 5" textalign="MIDDLE" color="black" label="In colony"/>
+            <text  id="pillText" size="92 11" pos="196 6" textalign="MIDDLE" color="black" label="In colony"/>
 
             <!-- Action: source swapped green(Summon)/tan(Send), label set per row. -->
             <button id="act" size="60 16" pos="296 3" color="black"
@@ -61,8 +66,8 @@
             source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
             label="Clear"/>
 
-    <!-- Counts (always visible). -->
-    <text id="countCitizens" size="180 10" pos="16 244" color="black" label="0 citizens"/>
-    <text id="countAtSide" size="180 10" pos="204 244" textalign="MIDDLE_RIGHT" color="black" label="0 at your side"/>
+    <!-- Counts (hidden while the bulk bar is showing). Moved up off the edge. -->
+    <text id="countCitizens" size="180 10" pos="16 226" color="black" label="0 citizens"/>
+    <text id="countAtSide" size="180 10" pos="204 226" textalign="MIDDLE_RIGHT" color="black" label="0 at your side"/>
 
 </window>
