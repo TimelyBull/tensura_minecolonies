@@ -1158,10 +1158,31 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             "university", "mysticalsite", "florist", "graveyard");
 
     // --- Daily happiness drift (self-limiting normalization) ---
-    /** Resting point = DRIFT_REST_BASE + DRIFT_REST_PER_HAPPINESS × overall
-     *  happiness (0–10): happiness 0 → 30, 5 → 50, 10 → 70. */
-    private static final double DRIFT_REST_BASE = 30.0;
-    private static final double DRIFT_REST_PER_HAPPINESS = 4.0;
+    //
+    // Piecewise resting-point mapping (user-revised): the old linear
+    // curve is COMPRESSED so its former floor (rest 30, at happiness 0)
+    // now sits at happiness 2; below 2 is a PUNITIVE zone where the
+    // resting point falls steeply — "reputation decreases similarly to
+    // how it increases" (a 20-point fall across h2→0, mirroring the
+    // 20-point rise of the upper half):
+    //   h ≥ 2:  rest = 30 + 5 × (h − 2)   → h2=30, h6=50, h10=70
+    //   h < 2:  rest = 30 − 10 × (2 − h)  → h1=20, h0=10
+    /** Resting point at the happiness-2 hinge. */
+    private static final double DRIFT_REST_AT_H2 = 30.0;
+    /** Resting-point slope per happiness point ABOVE 2. */
+    private static final double DRIFT_REST_SLOPE_UPPER = 5.0;
+    /** Resting-point slope per happiness point BELOW 2 (punitive zone). */
+    private static final double DRIFT_REST_SLOPE_LOWER = 10.0;
+    /** The hinge happiness value. */
+    private static final double DRIFT_HAPPINESS_HINGE = 2.0;
+
+    /** The happiness → resting-point curve (see the mapping above). */
+    private static double driftRestingPoint(double happiness) {
+        double h = Math.max(0.0, Math.min(10.0, happiness));
+        return h >= DRIFT_HAPPINESS_HINGE
+                ? DRIFT_REST_AT_H2 + DRIFT_REST_SLOPE_UPPER * (h - DRIFT_HAPPINESS_HINGE)
+                : DRIFT_REST_AT_H2 - DRIFT_REST_SLOPE_LOWER * (DRIFT_HAPPINESS_HINGE - h);
+    }
     /** Fraction of the gap to the resting point covered per in-game day. */
     private static final double DRIFT_FRACTION_PER_DAY = 0.15;
     /** Hard cap on a single day's drift step (keeps events dominant:
@@ -1340,8 +1361,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
             for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
                 try {
-                    double happiness = Math.max(0.0, Math.min(10.0, colony.getOverallHappiness()));
-                    double restingPoint = DRIFT_REST_BASE + DRIFT_REST_PER_HAPPINESS * happiness;
+                    double restingPoint = driftRestingPoint(colony.getOverallHappiness());
                     double current = ReputationManager.getReputation(colony);
                     double gap = restingPoint - current;
                     if (Math.abs(gap) < DRIFT_DEADZONE) continue;

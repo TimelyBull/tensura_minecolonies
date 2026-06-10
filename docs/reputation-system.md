@@ -177,9 +177,12 @@ dimension (day-rollover detection on the 1 s scheduler, the dawn-restock
 idiom), every colony's reputation moves TOWARD a resting point set by
 its overall happiness — self-limiting, NOT a flat nudge:
 
-- Resting point = `30 + 4 × IColony.getOverallHappiness()` →
-  happiness 0 → 30, 5 → 50, 10 → 70 (moderate spread; never pins to
-  the extremes).
+- Resting point (REVISED — piecewise with a punitive low-happiness
+  zone): the original linear curve is compressed so its old floor
+  (rest 30) sits at happiness 2, and below 2 the resting point falls
+  steeply — reputation decreases similarly to how it increases:
+  `h ≥ 2: rest = 30 + 5 × (h − 2)` → h2 = 30, h6 = 50, h10 = 70;
+  `h < 2: rest = 30 − 10 × (2 − h)` → h1 = 20, h0 = 10.
 - Step = 15% of the gap per day (`DRIFT_FRACTION_PER_DAY`), hard-capped
   at ±2.0/day (`DRIFT_MAX_STEP_PER_DAY`), skipped inside a 0.5 dead
   zone (`DRIFT_DEADZONE`). Settles at the resting point in roughly 1–2
