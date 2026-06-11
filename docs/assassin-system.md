@@ -44,9 +44,7 @@ once per assassin (tag records the amounts).
   `Assassins` (`CASTABLE_PRESS` / `CASTABLE_TOGGLE`) — one-line adds.
   Copied skills NOT whitelisted are held (flavor) and never cast.
 
-## v1 as-built (unchanged by v2 except: boss death now also reclaims)
-
-## v1 as-built
+## v1 as-built (unchanged by v2, except boss death now also reclaims)
 
 - **State machine** (`AssassinSavedData`, overworld; separate from the
   identity NBT, stale entries pruned): determination per identityId +
