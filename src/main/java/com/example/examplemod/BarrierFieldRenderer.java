@@ -45,8 +45,10 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
      *  light shimmer, not a curtain. */
     private static final float ALPHA_MIN = 0.05f;
     private static final float ALPHA_MAX = 0.40f;
-    /** Texture tiling: one texture repeat per this many blocks. */
-    private static final float TILE_SIZE = 4.0f;
+    /** Texture tiling: one texture repeat per this many blocks.
+     *  0.5 = the lattice repeats every half block (1/8 of the former
+     *  4-block tile) — a dense net across the whole wall. */
+    private static final float TILE_SIZE = 0.5f;
     private static final int FULL_BRIGHT = 0xF000F0;
 
     public BarrierFieldRenderer(BlockEntityRendererProvider.Context context) {}
