@@ -668,7 +668,7 @@ public final class Assassins {
 
         victim.sendSystemMessage(Component.literal(String.format(java.util.Locale.ROOT,
                 "%s has stolen your power — %,.0f magicule and %,.0f aura are GONE"
-                + (stolenSkillNames.isEmpty() ? "" : ", along with: "
+                + (stolenSkillNames.isEmpty() ? "" : ", and it has COPIED your skills: "
                         + String.join(", ", stolenSkillNames))
                 + ". Slay it to reclaim what is yours.",
                 assassin.getName().getString(), stolenMagicule, stolenAura))
