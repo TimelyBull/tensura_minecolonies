@@ -387,8 +387,9 @@ public class WindowRoster extends AbstractWindowSkeleton {
     private void refreshCounts() {
         int atSide = 0;
         for (Networking.RosterEntry e : entries) if (e.modeByte() == 0) atSide++;
-        setTextColor(ID_CNT_CITIZENS, entries.size() + (entries.size() == 1 ? " citizen" : " citizens"), TXT_GRAY);
-        setTextColor(ID_CNT_ATSIDE, atSide + " at your side", TXT_GRAY);
+        setTextColor(ID_CNT_CITIZENS, entries.size()
+                + (entries.size() == 1 ? " Tensura Citizen" : " Tensura Citizens"), TXT_GRAY);
+        setTextColor(ID_CNT_ATSIDE, atSide + " At your side", TXT_GRAY);
     }
 
     // ------------------------------------------------------------------
