@@ -77,14 +77,18 @@ public final class WorldReputationManager {
             map.put(HumanEntityTypes.GAZEL_DWARGO.get(), BossFaction.DWARGON);
             map.put(HumanEntityTypes.FALMUTH_KNIGHT.get(), BossFaction.FALMUTH);
             map.put(HumanEntityTypes.FOLGEN.get(), BossFaction.FALMUTH);
-            map.put(HumanEntityTypes.KIRARA_MIZUTANI.get(), BossFaction.OTHERWORLDERS);
-            map.put(HumanEntityTypes.KYOYA_TACHIBANA.get(), BossFaction.OTHERWORLDERS);
+            // Falmuth's three otherworlders fight under Falmuth's banner.
+            map.put(HumanEntityTypes.KIRARA_MIZUTANI.get(), BossFaction.FALMUTH);
+            map.put(HumanEntityTypes.KYOYA_TACHIBANA.get(), BossFaction.FALMUTH);
+            map.put(HumanEntityTypes.SHOGO_TAGUCHI.get(), BossFaction.FALMUTH);
+            // Jura Alliance otherworlders.
+            map.put(HumanEntityTypes.SHIN_RYUSEI.get(), BossFaction.JURA_ALLIANCE);
+            map.put(HumanEntityTypes.SHINJI_TANIMURA.get(), BossFaction.JURA_ALLIANCE);
+            map.put(HumanEntityTypes.MARK_LAUREN.get(), BossFaction.JURA_ALLIANCE);
+            // Unaffiliated otherworlders.
             map.put(HumanEntityTypes.MAI_FURUKI.get(), BossFaction.OTHERWORLDERS);
-            map.put(HumanEntityTypes.MARK_LAUREN.get(), BossFaction.OTHERWORLDERS);
-            map.put(HumanEntityTypes.SHINJI_TANIMURA.get(), BossFaction.OTHERWORLDERS);
-            map.put(HumanEntityTypes.SHIN_RYUSEI.get(), BossFaction.OTHERWORLDERS);
-            map.put(HumanEntityTypes.SHOGO_TAGUCHI.get(), BossFaction.OTHERWORLDERS);
-            map.put(HumanEntityTypes.SHIZU.get(), BossFaction.LEON);
+            // Shizu stands alone.
+            map.put(HumanEntityTypes.SHIZU.get(), BossFaction.SHIZU);
             map.put(MonsterEntityTypes.CHARYBDIS.get(), BossFaction.CLAYMAN);
             map.put(MonsterEntityTypes.ORC_LORD.get(), BossFaction.CLAYMAN);
             map.put(MonsterEntityTypes.ORC_DISASTER.get(), BossFaction.CLAYMAN);

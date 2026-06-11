@@ -26,6 +26,8 @@ public enum BossFaction {
     FALMUTH("falmuth", "Falmuth", ChatFormatting.RED),
     CLAYMAN("clayman", "Clayman", ChatFormatting.DARK_PURPLE),
     LEON("leon", "Leon", ChatFormatting.YELLOW),
+    SHIZU("shizu", "Shizu", ChatFormatting.DARK_AQUA),
+    JURA_ALLIANCE("jura_alliance", "Jura Alliance", ChatFormatting.GREEN),
     OTHERWORLDERS("otherworlders", "Otherworlders", ChatFormatting.LIGHT_PURPLE),
     CARRION("carrion", "Carrion", ChatFormatting.DARK_GREEN),
     MILIM("milim", "Milim", ChatFormatting.LIGHT_PURPLE);

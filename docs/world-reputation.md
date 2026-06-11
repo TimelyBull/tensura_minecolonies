@@ -15,11 +15,13 @@ notes:
   entity map) + `computeNotoriety`/`getOverallNotoriety` (pure derived,
   never stored; breakdown record powers the readout). All notoriety
   weights are named constants.
-- Entity anchors (user-confirmed): Hinata → LUMINOUS; Gazel Dwargo →
-  DWARGON; Falmuth Knight + Folgen → FALMUTH; the SEVEN named
-  otherworlders (Kirara, Kyoya, Mai, Mark, Shinji, Shin, Shogo) →
-  OTHERWORLDERS; Charybdis + Orc Lord + Orc Disaster → CLAYMAN;
-  Ifrit + **Shizu** (Leon's summon-child, an as-built addition) → LEON.
+- Entity anchors (user-revised): Hinata → LUMINOUS; Gazel Dwargo →
+  DWARGON; Falmuth Knight + Folgen + **Kirara + Kyoya + Shogo** →
+  FALMUTH (Falmuth's otherworlders fight under its banner);
+  **Shin Ryusei + Shinji + Mark Lauren → JURA_ALLIANCE** (new faction);
+  Mai Furuki → OTHERWORLDERS (unaffiliated); **Shizu → her OWN SHIZU
+  faction**; Charybdis + Orc Lord + Orc Disaster → CLAYMAN;
+  Ifrit → LEON. Cast is now ELEVEN factions;
   TEMPEST / CARRION / MILIM unanchored (rival-colony arc).
 - Movers (user-confirmed magnitudes): boss attacked **−3** per hit
   (5 s per-attacker-per-boss dedupe, the citizen idiom, riding the
