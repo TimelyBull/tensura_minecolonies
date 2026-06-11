@@ -90,7 +90,7 @@ public final class Assassins {
     static final long CAST_COOLDOWN_TICKS = 100L; // 5 s
     static final double CAST_RANGE = 24.0;
     /** Skill copy limits by Tensura SkillType (highest mastery first). */
-    static final int COPY_UNIQUE = 1, COPY_EXTRA = 5, COPY_COMMON = 10, COPY_RESISTANCE = 15;
+    static final int COPY_UNIQUE = 1, COPY_EXTRA = 5, COPY_COMMON = 10, COPY_RESISTANCE = 10;
 
     /** Player-side theft modifiers (stable ids — removed on reclaim). */
     private static final ResourceLocation THEFT_MAGICULE_ID =
