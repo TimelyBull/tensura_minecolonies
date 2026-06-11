@@ -1208,6 +1208,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     private static final java.util.Map<UUID, java.util.Map<UUID, Long>> recentCitizenHits =
             new java.util.HashMap<>();
 
+    // --- World reputation movers (per-boss-faction standing) ---
+    /** Player damaged a faction's anchored boss (per hit, deduped). */
+    private static final double WORLDREP_BOSS_ATTACKED = -3.0;
+    /** Player killed a faction's anchored boss — an act of war. */
+    private static final double WORLDREP_BOSS_KILLED = -20.0;
+    /** (attackerUUID, bossUUID) → last counted hit tick (same 5s dedupe). */
+    private static final java.util.Map<UUID, java.util.Map<UUID, Long>> recentBossHits =
+            new java.util.HashMap<>();
+
     /**
      * Reputation movers driven by {@link LivingDeathEvent}:
      * <ul>
@@ -1232,6 +1241,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (sourceEntity instanceof ServerPlayer sp) killer = sp;
         if (killer == null && victim.getKillCredit() instanceof ServerPlayer sp) killer = sp;
         if (killer == null) return;
+
+        // World reputation — killing a faction's anchored boss/figure is
+        // an act of war against THAT faction. Runs alongside (not instead
+        // of) the colony-rep boss-kill bonus below.
+        BossFaction faction = WorldReputationManager.factionOf(victim.getType());
+        if (faction != null) {
+            WorldReputationManager.modifyStanding(level, killer.getUUID(), faction,
+                    WORLDREP_BOSS_KILLED, WorldRepReason.BOSS_KILLED);
+        }
 
         boolean isBoss = victim instanceof io.github.manasmods.tensura.entity.monster.OrcDisasterEntity
                 || victim instanceof io.github.manasmods.tensura.entity.monster.IfritEntity;
@@ -1263,8 +1281,26 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     @SubscribeEvent
     public void onLivingDamagePost(net.neoforged.neoforge.event.entity.living.LivingDamageEvent.Post event) {
         if (!(event.getEntity().level() instanceof ServerLevel level)) return;
-        if (!(event.getEntity() instanceof AbstractEntityCitizen citizen)) return;
         if (event.getNewDamage() <= 0f) return;
+
+        // World reputation — attacking a faction's anchored boss shifts
+        // THAT faction's standing down (same dedupe idiom as citizens).
+        if (event.getSource().getEntity() instanceof ServerPlayer bossAttacker) {
+            BossFaction faction = WorldReputationManager.factionOf(event.getEntity().getType());
+            if (faction != null) {
+                long now = level.getGameTime();
+                java.util.Map<UUID, Long> byBoss = recentBossHits
+                        .computeIfAbsent(bossAttacker.getUUID(), k -> new java.util.HashMap<>());
+                Long last = byBoss.get(event.getEntity().getUUID());
+                if (last == null || now - last >= REP_ATTACK_DEDUP_TICKS) {
+                    byBoss.put(event.getEntity().getUUID(), now);
+                    WorldReputationManager.modifyStanding(level, bossAttacker.getUUID(),
+                            faction, WORLDREP_BOSS_ATTACKED, WorldRepReason.BOSS_ATTACKED);
+                }
+            }
+        }
+
+        if (!(event.getEntity() instanceof AbstractEntityCitizen citizen)) return;
         if (!(event.getSource().getEntity() instanceof ServerPlayer attacker)) return;
         if (citizen.hasData(Attachments.ENVOY_TAG.get())) return;
 
@@ -4068,6 +4104,21 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         .then(Commands.literal("defuse")
                                 .executes(ctx -> handleAssassinCommand(ctx, "defuse")))
         );
+        // World reputation — per-boss-faction standings + derived
+        // notoriety readout; set (op) for testing.
+        event.getDispatcher().register(
+                Commands.literal("worldrep")
+                        .requires(src -> src.hasPermission(0))
+                        .executes(this::handleWorldRepShowCommand)
+                        .then(Commands.literal("set")
+                                .requires(src -> src.hasPermission(2))
+                                .then(Commands.argument("faction", StringArgumentType.word())
+                                        .then(Commands.argument("value",
+                                                com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(
+                                                        WorldReputationManager.MIN_STANDING,
+                                                        WorldReputationManager.MAX_STANDING))
+                                                .executes(this::handleWorldRepSetCommand))))
+        );
         // Reputation v1 debug — read the player's colony reputation, or
         // set it for testing (set requires op, mirroring /festival).
         //   /reputation               — show value + tier
@@ -4167,6 +4218,67 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 }
             }
         }
+        return 1;
+    }
+
+    /** {@code /worldrep} — per-faction standings + notoriety breakdown. */
+    private int handleWorldRepShowCommand(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/worldrep must be run by a player"));
+            return 0;
+        }
+        ServerLevel level = player.serverLevel();
+        src.sendSuccess(() -> Component.literal("World standing of "
+                + player.getName().getString() + ":"), false);
+        for (BossFaction faction : BossFaction.values()) {
+            double standing = WorldReputationManager.getStanding(level, player.getUUID(), faction);
+            FactionTier tier = FactionTier.forValue(standing);
+            src.sendSuccess(() -> Component.literal("  " + String.format(java.util.Locale.ROOT,
+                            "%-14s", faction.displayName()))
+                    .append(Component.literal(tier.displayName()).withStyle(tier.color()))
+                    .append(Component.literal(String.format(java.util.Locale.ROOT,
+                            " (%.1f)", standing))), false);
+        }
+        WorldReputationManager.Notoriety n = WorldReputationManager.computeNotoriety(player);
+        src.sendSuccess(() -> Component.literal(String.format(java.util.Locale.ROOT,
+                "Overall notoriety: %.1f  (hostility %.1f · power %.1f · demon lord %s · colony rule +%.1f)",
+                n.total(), n.hostility(), n.power(),
+                n.demonLordBonus() > 0 ? "+" + (int) n.demonLordBonus() : "no",
+                n.colonyPenalty()))
+                .withStyle(ChatFormatting.GOLD), false);
+        return 1;
+    }
+
+    /** {@code /worldrep set <faction> <0..100>} — admin path. */
+    private int handleWorldRepSetCommand(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/worldrep must be run by a player"));
+            return 0;
+        }
+        String factionArg = StringArgumentType.getString(ctx, "faction")
+                .toLowerCase(java.util.Locale.ROOT);
+        BossFaction faction = BossFaction.byId(factionArg);
+        if (faction == null) {
+            src.sendFailure(Component.literal("Unknown faction '" + factionArg + "' — one of: "
+                    + java.util.Arrays.stream(BossFaction.values()).map(BossFaction::id)
+                            .collect(java.util.stream.Collectors.joining(", "))));
+            return 0;
+        }
+        double value = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "value");
+        double applied = WorldReputationManager.setStanding(player.serverLevel(),
+                player.getUUID(), faction, value, WorldRepReason.ADMIN);
+        FactionTier tier = FactionTier.forValue(applied);
+        src.sendSuccess(() -> Component.literal("Standing with " + faction.displayName()
+                        + " set to " + String.format(java.util.Locale.ROOT, "%.1f", applied) + " — ")
+                .append(Component.literal(tier.displayName()).withStyle(tier.color())), true);
         return 1;
     }
 

@@ -1,6 +1,46 @@
 # Investigation: World reputation — per-boss standings + derived notoriety
 
-**Status:** investigation only, no code written (2026-06-10).
+**Status:** v1 BACKBONE BUILT (2026-06-10) per the design below. As-built
+notes:
+
+- `BossFaction` (9 factions, string ids), `FactionTier`
+  (HOSTILE/WARY/NEUTRAL/FRIENDLY/ALLIED, thresholds in the enum),
+  `WorldRepReason` (BOSS_ATTACKED / BOSS_KILLED / ADMIN + reserved
+  RAID_SURVIVED / CONQUEST / DIPLOMACY).
+- `WorldReputationSavedData`: player → (faction id STRING → double),
+  default 50; **unknown faction ids round-trip untouched** (the
+  user-confirmed addon door). No cleanup lifecycle (player-level).
+- `WorldReputationManager`: the sole door — getStanding/getTier/
+  modifyStanding/setStanding/isAtLeast/isBelow + `factionOf` (lazy
+  entity map) + `computeNotoriety`/`getOverallNotoriety` (pure derived,
+  never stored; breakdown record powers the readout). All notoriety
+  weights are named constants.
+- Entity anchors (user-confirmed): Hinata → LUMINOUS; Gazel Dwargo →
+  DWARGON; Falmuth Knight + Folgen → FALMUTH; the SEVEN named
+  otherworlders (Kirara, Kyoya, Mai, Mark, Shinji, Shin, Shogo) →
+  OTHERWORLDERS; Charybdis + Orc Lord + Orc Disaster → CLAYMAN;
+  Ifrit + **Shizu** (Leon's summon-child, an as-built addition) → LEON.
+  TEMPEST / CARRION / MILIM unanchored (rival-colony arc).
+- Movers (user-confirmed magnitudes): boss attacked **−3** per hit
+  (5 s per-attacker-per-boss dedupe, the citizen idiom, riding the
+  same damage pass); boss killed **−20** (riding the same death pass +
+  killer attribution; runs ALONGSIDE the colony +10 boss-kill bonus —
+  the colony cheers, the faction declares war).
+- `/worldrep` lists all 9 factions tier-colored + the notoriety
+  breakdown (hostility · power · demon lord · colony rule);
+  `/worldrep set <faction> <0-100>` (op).
+- Notoriety has NO consumer in v1 BY DESIGN — correct-but-unused
+  infrastructure for the escalating-threat/angel-raid layer.
+- DEFERRED: the data-driven faction overlay (door open),
+  encroachment/conquest/raid-survival movers, and every consumer
+  (lore raids, rival colonies, diplomacy, reclaim) — all hook the
+  manager API later.
+
+---
+
+## Original investigation (design rationale)
+
+**Status when written:** investigation only (2026-06-10).
 
 **Concept:** the player holds a SEPARATE standing with each boss-faction
 (attacking Carrion angers Carrion specifically), plus a DERIVED global
