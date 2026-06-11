@@ -188,7 +188,13 @@ public final class Assassins {
         AssassinSavedData data = AssassinSavedData.get(level);
         RaceIdentitySavedData identities = RaceIdentitySavedData.get(level);
 
-        boolean miserable = ReputationManager.isBelow(colony, ReputationTier.WARY)
+        // Config kill-switch: disabled → no buildup, and any existing
+        // LURKING/ARMED plot for this colony defuses (treated exactly
+        // like a recovered colony). ACTIVE bosses are left alone.
+        boolean enabled = Config.ENABLE_ASSASSINS.get();
+
+        boolean miserable = enabled
+                && ReputationManager.isBelow(colony, ReputationTier.WARY)
                 && happiness < HAPPINESS_LOW;
 
         // Find this colony's tracked candidate (at most one non-ACTIVE).
@@ -262,6 +268,9 @@ public final class Assassins {
                 byte state = data.getState(id);
                 try {
                     if (state == AssassinSavedData.STATE_ARMED) {
+                        // Config kill-switch: no strikes while disabled
+                        // (the daily pass will defuse the plot shortly).
+                        if (!Config.ENABLE_ASSASSINS.get()) continue;
                         ServerPlayer owner = identity.ownerPlayerUUID == null ? null
                                 : server.getPlayerList().getPlayer(identity.ownerPlayerUUID);
                         if (owner != null && isVulnerable(owner)) {
@@ -815,6 +824,9 @@ public final class Assassins {
 
     /** Force the colony's candidate (picked if none) straight to ARMED. */
     static String debugArm(ServerLevel level, IColony colony) {
+        if (!Config.ENABLE_ASSASSINS.get()) {
+            return "assassin system is DISABLED in the config (enableAssassins=false)";
+        }
         AssassinSavedData data = AssassinSavedData.get(level);
         RaceIdentitySavedData identities = RaceIdentitySavedData.get(level);
         RaceIdentitySavedData.RaceIdentity candidate = null;

@@ -17,6 +17,16 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 public class Config {
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
+    /** Master switch for the assassin system. When false: no
+     *  determination buildup, existing LURKING/ARMED plots are defused
+     *  on the next daily pass, and ARMED strikes never fire. An
+     *  already-ACTIVE boss stays in the world (kill it to reclaim). */
+    public static final ModConfigSpec.BooleanValue ENABLE_ASSASSINS = BUILDER
+            .comment("Enable the assassin system (mistreated colonies breeding assassins).",
+                     "false = no new plots; existing lurking/armed plots defuse;",
+                     "an already-active assassin boss remains until slain.")
+            .define("enableAssassins", true);
+
     public static final ModConfigSpec.BooleanValue LOG_DIRT_BLOCK = BUILDER
             .comment("Whether to log the dirt block on common setup")
             .define("logDirtBlock", true);
