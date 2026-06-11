@@ -429,6 +429,9 @@ public final class TensuraRaids {
         // same reasoning as the envoy / population spawn paths.
         mob.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.SPAWN_EGG, null);
         mob.setPersistenceRequired();
+        // Highlight: raiders carry the vanilla glowing outline so the
+        // defenders can track the wave through walls and darkness.
+        mob.setGlowingTag(true);
         mob.setData(Attachments.RAID_TAG.get(), new RaidTag(colonyId, eventId));
         if (!level.addFreshEntity(mob)) {
             return null;
