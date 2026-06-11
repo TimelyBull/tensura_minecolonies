@@ -444,6 +444,95 @@ public final class Assassins {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Debug helpers — the /assassin command (mirrors /envoystate's role)
+    // ------------------------------------------------------------------
+
+    /** Human-readable state lines for the colony's tracked identities. */
+    static List<String> debugState(ServerLevel level, IColony colony) {
+        AssassinSavedData data = AssassinSavedData.get(level);
+        RaceIdentitySavedData identities = RaceIdentitySavedData.get(level);
+        List<String> out = new ArrayList<>();
+        for (UUID id : data.trackedIdentities()) {
+            RaceIdentitySavedData.RaceIdentity identity = identities.getById(id);
+            if (identity == null || identity.colonyId != colony.getID()) continue;
+            String stateName = switch (data.getState(id)) {
+                case AssassinSavedData.STATE_LURKING -> "LURKING";
+                case AssassinSavedData.STATE_ARMED -> "ARMED";
+                case AssassinSavedData.STATE_ACTIVE -> "ACTIVE";
+                default -> "building";
+            };
+            out.add(String.format(java.util.Locale.ROOT,
+                    "identity %s — %s, determination %.1f (lurk at %.0f, armed at %.0f)",
+                    id.toString().substring(0, 8), stateName,
+                    data.getDetermination(id), LURK_THRESHOLD, ARM_THRESHOLD));
+        }
+        if (out.isEmpty()) {
+            out.add("no assassin activity in '" + colony.getName() + "'");
+            out.add(String.format(java.util.Locale.ROOT,
+                    "(qualifies when rep tier below WARY AND happiness < %.1f — currently rep %.1f / happiness %.1f)",
+                    HAPPINESS_LOW, ReputationManager.getReputation(colony),
+                    colony.getOverallHappiness()));
+        }
+        out.add("cold shoulder: " + data.isColdShouldered(colony.getID()));
+        return out;
+    }
+
+    /** Force the colony's candidate (picked if none) straight to ARMED. */
+    static String debugArm(ServerLevel level, IColony colony) {
+        AssassinSavedData data = AssassinSavedData.get(level);
+        RaceIdentitySavedData identities = RaceIdentitySavedData.get(level);
+        RaceIdentitySavedData.RaceIdentity candidate = null;
+        for (UUID id : data.trackedIdentities()) {
+            RaceIdentitySavedData.RaceIdentity identity = identities.getById(id);
+            if (identity != null && identity.colonyId == colony.getID()
+                    && data.getState(id) != AssassinSavedData.STATE_ACTIVE) {
+                candidate = identity;
+                break;
+            }
+        }
+        if (candidate == null) candidate = pickCandidate(identities, colony.getID());
+        if (candidate == null) return "no named race-citizens in this colony to turn";
+        data.setDetermination(candidate.identityId, ARM_THRESHOLD);
+        data.setState(candidate.identityId, AssassinSavedData.STATE_ARMED);
+        syncLurkFlag(level, candidate, true);
+        return "identity " + candidate.identityId.toString().substring(0, 8)
+                + " is now ARMED — it strikes at your next vulnerability"
+                + " (low HP / sleep / no armor / festival / prestige)";
+    }
+
+    /** Clear every non-ACTIVE assassin entry for the colony. */
+    static String debugDefuse(ServerLevel level, IColony colony) {
+        AssassinSavedData data = AssassinSavedData.get(level);
+        RaceIdentitySavedData identities = RaceIdentitySavedData.get(level);
+        int cleared = 0;
+        for (UUID id : data.trackedIdentities()) {
+            RaceIdentitySavedData.RaceIdentity identity = identities.getById(id);
+            if (identity == null || identity.colonyId != colony.getID()) continue;
+            if (data.getState(id) == AssassinSavedData.STATE_ACTIVE) continue;
+            data.clearIdentity(id);
+            syncLurkFlag(level, identity, false);
+            cleared++;
+        }
+        return cleared > 0 ? "defused " + cleared + " plot(s)" : "nothing to defuse";
+    }
+
+    /** Force the ARMED candidate to strike NOW, ignoring vulnerability. */
+    static String debugStrike(ServerLevel level, IColony colony, ServerPlayer owner) {
+        AssassinSavedData data = AssassinSavedData.get(level);
+        RaceIdentitySavedData identities = RaceIdentitySavedData.get(level);
+        for (UUID id : data.trackedIdentities()) {
+            RaceIdentitySavedData.RaceIdentity identity = identities.getById(id);
+            if (identity == null || identity.colonyId != colony.getID()) continue;
+            if (data.getState(id) != AssassinSavedData.STATE_ARMED) continue;
+            activate(owner.serverLevel(), identity, owner, data);
+            return data.getState(id) == AssassinSavedData.STATE_ACTIVE
+                    ? "the assassin strikes!"
+                    : "strike attempted but the body wasn't available (subordinate unloaded?)";
+        }
+        return "no ARMED assassin in this colony — run /assassin arm first";
+    }
+
     private static Entity resolveBody(ServerLevel level, RaceIdentitySavedData.RaceIdentity identity) {
         if (identity.mode == RaceIdentitySavedData.Mode.SUBORDINATE) {
             return level.getEntity(identity.mobEntityUUID);

@@ -4033,6 +4033,23 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         .then(Commands.literal("end")
                                 .executes(this::handleEndRaidCommand))
         );
+        // Assassin debug — inspect / fast-forward the assassin lifecycle
+        // without real 4-day setups (mirrors /envoystate's role).
+        //   /assassin           — state readout for your colony
+        //   /assassin arm       — force a candidate straight to ARMED
+        //   /assassin strike    — ARMED candidate strikes NOW
+        //   /assassin defuse    — clear non-ACTIVE plots
+        event.getDispatcher().register(
+                Commands.literal("assassin")
+                        .requires(src -> src.hasPermission(2))
+                        .executes(ctx -> handleAssassinCommand(ctx, "state"))
+                        .then(Commands.literal("arm")
+                                .executes(ctx -> handleAssassinCommand(ctx, "arm")))
+                        .then(Commands.literal("strike")
+                                .executes(ctx -> handleAssassinCommand(ctx, "strike")))
+                        .then(Commands.literal("defuse")
+                                .executes(ctx -> handleAssassinCommand(ctx, "defuse")))
+        );
         // Reputation v1 debug — read the player's colony reputation, or
         // set it for testing (set requires op, mirroring /festival).
         //   /reputation               — show value + tier
@@ -4096,6 +4113,42 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
         TensuraRaids.resolveTimeout(player.serverLevel(), colony, active);
         src.sendSuccess(() -> Component.literal("Raid at '" + colony.getName() + "' ended"), true);
+        return 1;
+    }
+
+    /** {@code /assassin [state|arm|strike|defuse]} — debug control. */
+    private int handleAssassinCommand(CommandContext<CommandSourceStack> ctx, String action) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/assassin must be run by a player"));
+            return 0;
+        }
+        IColony colony = resolveCommandColony(src, player);
+        if (colony == null) return 0;
+        ServerLevel level = player.serverLevel();
+
+        switch (action) {
+            case "arm" -> {
+                String result = Assassins.debugArm(level, colony);
+                src.sendSuccess(() -> Component.literal(result), true);
+            }
+            case "strike" -> {
+                String result = Assassins.debugStrike(level, colony, player);
+                src.sendSuccess(() -> Component.literal(result), true);
+            }
+            case "defuse" -> {
+                String result = Assassins.debugDefuse(level, colony);
+                src.sendSuccess(() -> Component.literal(result), true);
+            }
+            default -> {
+                for (String line : Assassins.debugState(level, colony)) {
+                    src.sendSuccess(() -> Component.literal(line), false);
+                }
+            }
+        }
         return 1;
     }
 
