@@ -955,7 +955,15 @@ subordinate profession immediately.
 
 ### Tier 3 (much later)
 - Crime / police / disguise system
-- Assassin system
+- Assassin system — ✅ **v1 + v2 COMPLETE** (see docs/assassin-system.md):
+  determination/LURKING/ARMED lifecycle on mistreated colonies (rep below
+  WARY + happiness < 4), Great-Sage red tell, defuse-by-recovery,
+  vulnerability-triggered strike, stat-buffed "Betrayer" boss with
+  town-hall tether, EP theft (half, reversible — slay to reclaim),
+  highest-mastery skill copy (1/5/10/≤10) with a curated castable
+  whitelist + cast driver, cold-shoulder, one-assassin-per-colony-ever,
+  `enableAssassins` config, `/assassin` debug. Whitelist curation is the
+  open in-game-testing task.
 - Dual reclaim mechanics
 - Independent settlement leveling
 - Angel raid
@@ -1100,6 +1108,27 @@ entities/AI/scheduler are closed and unused. Full record:
       timeout → leftovers poof-despawn; citizen deaths ride existing
       death handling
 - [x] `/tensuraraid` (force-start) + `/tensuraraid end` debug commands
+
+**Post-v1 raid/barrier expansion (all landed — full record in
+docs/raid-system.md):**
+- Difficulty LEVELS 1–3 scaled to colony strength (EP-primary:
+  total citizen EP + 200×raidLevel + 100×pop; bands <15k / <60k / 60k+;
+  wave spawns until spawned EP ≥ strength × 1.15; caps 6/10/14).
+  Raiders glow (vanilla outline).
+- Barrier Cores in 4 TIERS (radius 16/28/42/60, base capacity
+  100k/150k/200k/250k, per-tier 4-stage fill sprites) + Magicule
+  Storage blocks (4 tiers, +25k/75k/150k/300k) as literal OVERFLOW
+  tanks (core fills first; drain core-first; flood-fill network,
+  per-block fill sprites).
+- Square wall render (player texture, alpha = pool fill, roof,
+  visibility toggle, dense half-block tiling) replacing the particle
+  shell; field blocks ALL tensura_minecolonies:barrier_blocked-tagged
+  hostiles + MC raiders whenever fueled; hostile-only spawn prevention
+  inside fueled barriers (natural spawns).
+- Concentric LAYERS 1–3 (outward +5/ring, DL/Hero-gated above 1,
+  50 mag/s upkeep per extra layer, graceful outermost-first shedding)
+  + the Barrier Core menu (paper-styled gauge / ±3k / MIN/MAX /
+  layers / wall toggle).
 
 **Deferred:** lore raid variants (Carrion beastmen / clowns / Charybdis /
 angel raid), multi-wave sieges, building/area damage, raiders physically

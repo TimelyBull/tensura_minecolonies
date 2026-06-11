@@ -207,7 +207,25 @@ MDK-1.21.1-ModDevGradle-main/
                                        # CITIZEN_ATTACKED, CITIZEN_KILLED,
                                        # THEFT, QUEST, ADMIN).
 
-        # — Raid system (v1) —
+        # — Assassin system (v1+v2) —
+        Assassins.java                 # Lifecycle driver: daily determination
+                                       # (rep below WARY + happiness < 4),
+                                       # LURKING/ARMED states, vulnerability-
+                                       # triggered strike, boss manifestation
+                                       # (buffs + bar + town-hall tether),
+                                       # v2 EP theft (reversible) + skill copy
+                                       # + cast driver (curated whitelist),
+                                       # reclaim-on-kill, /assassin debug.
+        AssassinTag.java               # Boss-body attachment (identity,
+                                       # colony, target, stolen amounts).
+        AssassinSavedData.java         # determination/state per identity,
+                                       # cold-shoulder + once-ever choice per
+                                       # colony, pending offline reclaims.
+        AssassinClientHandler.java     # @OnlyIn(CLIENT). Great-Sage-gated red
+                                       # "Assassin" nameplate (flag store +
+                                       # RenderLivingEvent.Post).
+
+        # — Raid system (v1 + difficulty levels) —
         TensuraRaidEvent.java          # IColonyRaidEvent impl registered in
                                        # minecolonies:colonyeventtypes —
                                        # raider UUID set, boss bar, timer,
@@ -225,15 +243,31 @@ MDK-1.21.1-ModDevGradle-main/
                                        # every raid mob — the universal
                                        # "is a raider" check.
         RaidSavedData.java             # Per-colony raid cooldown anchors.
-        BarrierBlock.java              # Magicule barrier block — status /
-                                       # sneak-channel / crystal refuel
-                                       # interactions.
-        BarrierBlockEntity.java        # 100k magicule tank + field driver:
-                                       # cylinder r=16 pushback on RAID-
-                                       # tagged mobs, EP-scaled contact
-                                       # drain (coef 0.02/s), depletion
-                                       # alarm, particle shell. All tuning
-                                       # knobs are named constants here.
+        BarrierBlock.java              # Barrier Core block (4 tiers: radius
+                                       # 16/28/42/60, base cap 100-250k,
+                                       # 4-stage charge sprites). Right-click
+                                       # opens the core menu; crystal refuel.
+        BarrierBlockEntity.java        # POOL tank (core-first fill, storage
+                                       # overflow) + field driver: square
+                                       # footprint (outermost layer), pushback
+                                       # on barrier_blocked-tagged hostiles +
+                                       # raiders, EP-scaled contact drain,
+                                       # layers 1-3 (DL/Hero gate, 50/s
+                                       # upkeep, outermost-first shedding),
+                                       # wall-visibility toggle. Tuning knobs
+                                       # are named constants here.
+        BarrierFieldRenderer.java      # @OnlyIn(CLIENT). Square wall + roof
+                                       # render per active layer, alpha =
+                                       # pool fill, half-block tiling.
+        BarrierCoreScreen.java         # @OnlyIn(CLIENT). Paper-styled core
+                                       # menu (gauge, +/-3k, MIN/MAX, layers,
+                                       # wall toggle) — server-snapshot
+                                       # driven (OpenBarrierMenuPayload).
+        MagiculeStorageBlock.java      # Storage block (4 tiers, +25k-300k):
+                                       # overflow tank for a connected core
+                                       # (flood-fill network), own fill
+                                       # sprites, crystal refuel.
+        StorageBlockEntity.java        # The storage block's own tank.
 
         # — Subordinate commands —
         PatrolOrder.java               # Serialized NeoForge attachment —
@@ -574,7 +608,34 @@ profession (latest):**
 - Records: `docs/reputation-system.md` (as-built),
   `docs/decisions.md` → "Reputation system v1" (locked decisions).
 
-**Raid system v1 (latest):**
+**Assassin system v1+v2 (latest):**
+- Mistreated colonies (rep tier below WARY + avg happiness < 4) build a
+  chosen citizen's determination (+1/day): LURKING at 2 (Great-Sage-only
+  red nameplate; defused if the colony recovers), ARMED at 4 → strikes
+  at the owner's first vulnerability (low HP / sleeping / no armor /
+  festival start / just-prestiged). The Tensura body manifests as
+  "<name>, the Betrayer": ×3 HP, ×2.5 spiritual, ×1.15 speed, ×2.5
+  damage, purple boss bar, town-hall tether (32/48), colony cold-shoulder
+  (trade + envoys). v2: killing the PLAYER steals half their base max EP
+  (reversible stable-id modifiers; slay the boss to reclaim — offline
+  reclaim on login) and copies their best skills (1/5/10/≤10 by type);
+  resistances work passively, a curated whitelist of actives is cast
+  every 5 s (CASTABLE_PRESS/TOGGLE sets in Assassins — extend via smoke
+  testing). One assassin per colony EVER; `enableAssassins` config
+  kill-switch; `/assassin state|arm|strike|defuse`. Record:
+  docs/assassin-system.md.
+
+**Reputation extras:** daily happiness drift toward a resting point
+  (piecewise: h≥2 → 30+5×(h−2); punitive below 2 → down to 10 at h0;
+  15%/day capped ±2), weighted buildings (amenities +4 / basic +2).
+
+**Barrier/raid expansion (post-v1):** 4 Barrier Core tiers + Magicule
+  Storage overflow blocks + square wall render w/ layers 1–3
+  (DL/Hero-gated) + core menu; raids have difficulty LEVELS 1–3 scaled
+  to colony strength (EP-primary, ×1.15 budget); hostile-spawn
+  prevention inside fueled barriers. Records: docs/raid-system.md.
+
+**Raid system v1:**
 - Reputation-triggered Tensura raids: nightfall + tier below NEUTRAL →
   chance roll (WARY 15% / PASSIVEAGGRESSIVE 30% / HOSTILE 50%), 3-day
   cooldown. `TensuraRaidEvent implements IColonyRaidEvent` registered in

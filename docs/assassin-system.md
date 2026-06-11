@@ -3,6 +3,26 @@
 **Status:** v1 + v2 BUILT (2026-06-10). The castable-skill WHITELIST is
 the one open task — curated via in-game smoke testing (see v2 below).
 
+**Post-build amendments (2026-06-10):**
+- Boss speed buff lowered ×1.4 → **×1.15**.
+- **Town-hall tether:** `restrictTo(townHall, 32)` bounds idle wander;
+  the per-second driver recalls the boss beyond 32 blocks (WALK_TARGET
+  home) and drops its chase beyond 48 (the patrol-recall pattern).
+- Theft message wording: skills are **COPIED** (the player keeps theirs);
+  only the EP is gone until reclaimed.
+- Resistance copy limit 15 → **10** (1 unique / 5 extra / 10 common /
+  ≤10 resistance).
+- **Config kill-switch:** `enableAssassins` (common config, default
+  true). Disabled → no buildup, existing LURKING/ARMED plots defuse on
+  the next daily pass, no strikes; an already-ACTIVE boss remains until
+  slain (reclaim still works).
+- **One assassin per colony, EVER:** a persistent `assassinChosen`
+  marker is set the moment a candidate is first picked; the colony
+  never breeds another regardless of the plot's outcome (defused,
+  slain, lost). `/assassin arm` bypasses for testing but still records
+  the choice; `/assassin` shows the lock.
+- Debug command: `/assassin [state|arm|strike|defuse]` (op).
+
 ## v2 as-built (theft + reclaim)
 
 Triggered when an ASSASSIN-tagged boss KILLS its target player

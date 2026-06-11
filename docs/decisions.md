@@ -1874,6 +1874,30 @@ dialogue stays byte-identical to the pre-reputation copy — zero text
 churn for fresh/legacy colonies; only earned standing (either way)
 changes the envoy's register.
 
+## Assassin system — binding decisions (full record: docs/assassin-system.md)
+
+- **The assassin IS the Tensura body.** Activation discards the citizen
+  (travelling-marked) and rebuilds from the identity snapshot, or flips a
+  live subordinate in place; ownership stripped (permanent/temporary
+  owner + tamable) so Tensura's owner-protection can't veto the target.
+  Both-bodies-die-on-death falls out of the existing case-A death hook.
+- **Assassin state lives in its own SavedData**, NOT on RaceIdentity —
+  no identity-NBT surgery; entries prune when identities vanish.
+- **EP theft is reversible by construction:** negative stable-id
+  modifiers on the player's MAX_MAGICULE/MAX_AURA (EP = their sum);
+  reclaim = remove them (offline → pending set, applied on login).
+  Skills are COPIED (clones keep mastery), never removed from the player.
+- **Skill USE is whitelist-curated** (CASTABLE_PRESS/TOGGLE sets):
+  resistances/passives work free; actives fire via
+  instance.onPressed(mob, 1, 0) on a 5 s driver; anything not
+  whitelisted is held, not cast. Curation = in-game smoke testing.
+- **One assassin per colony, EVER** (persistent assassinChosen marker,
+  set at candidate pick) — defuse also consumes the colony's one story.
+  /assassin arm bypasses for testing only.
+- **enableAssassins config:** disabled = no buildup, plots defuse, no
+  strikes; an ACTIVE boss intentionally survives (it may hold stolen
+  EP — despawning would orphan the player's power).
+
 ## Raid system v1 — extend MC's raid EVENT framework, own scheduler + Tensura mobs
 
 Full investigation + as-built record: `docs/raid-system.md`. Decisions
