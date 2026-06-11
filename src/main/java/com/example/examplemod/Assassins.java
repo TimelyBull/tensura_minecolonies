@@ -210,8 +210,15 @@ public final class Assassins {
 
         if (miserable) {
             if (candidate == null) {
+                // ONE assassin per colony, EVER: once a candidate has been
+                // chosen (whatever its fate — defused, slain, active), the
+                // colony never breeds another.
+                if (data.hasChosenAssassin(colony.getID())) return;
                 candidate = pickCandidate(identities, colony.getID());
                 if (candidate == null) return; // no named race-citizens here
+                data.markAssassinChosen(colony.getID());
+                LOGGER.info("[TM] assassin: colony {} has chosen its assassin — identity {}",
+                        colony.getID(), candidate.identityId);
             }
             double det = data.getDetermination(candidate.identityId) + DETERMINATION_PER_DAY;
             data.setDetermination(candidate.identityId, det);
@@ -819,6 +826,7 @@ public final class Assassins {
                     colony.getOverallHappiness()));
         }
         out.add("cold shoulder: " + data.isColdShouldered(colony.getID()));
+        out.add("assassin chosen (once-ever lock): " + data.hasChosenAssassin(colony.getID()));
         return out;
     }
 
@@ -840,6 +848,9 @@ public final class Assassins {
         }
         if (candidate == null) candidate = pickCandidate(identities, colony.getID());
         if (candidate == null) return "no named race-citizens in this colony to turn";
+        // Debug bypasses the once-per-colony rule for testability, but
+        // still records the choice so the natural path stays locked.
+        data.markAssassinChosen(colony.getID());
         data.setDetermination(candidate.identityId, ARM_THRESHOLD);
         data.setState(candidate.identityId, AssassinSavedData.STATE_ARMED);
         syncLurkFlag(level, candidate, true);

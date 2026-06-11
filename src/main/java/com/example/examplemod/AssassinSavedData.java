@@ -39,6 +39,9 @@ class AssassinSavedData extends SavedData {
     /** Players owed an EP reclaim (boss died while they were offline) —
      *  applied on their next login. */
     private final Set<UUID> pendingReclaim = new HashSet<>();
+    /** Colonies that have already CHOSEN their assassin — once marked,
+     *  the colony never breeds another (defused, slain, or otherwise). */
+    private final Set<Integer> assassinChosen = new HashSet<>();
 
     private AssassinSavedData() {}
 
@@ -94,6 +97,14 @@ class AssassinSavedData extends SavedData {
         }
     }
 
+    boolean hasChosenAssassin(int colonyId) {
+        return assassinChosen.contains(colonyId);
+    }
+
+    void markAssassinChosen(int colonyId) {
+        if (assassinChosen.add(colonyId)) setDirty();
+    }
+
     boolean isColdShouldered(int colonyId) {
         return coldShoulder.contains(colonyId);
     }
@@ -129,6 +140,13 @@ class AssassinSavedData extends SavedData {
             reclaim.add(e);
         }
         tag.put("pendingReclaim", reclaim);
+        ListTag chosen = new ListTag();
+        for (Integer cid : assassinChosen) {
+            CompoundTag e = new CompoundTag();
+            e.putInt("colonyId", cid);
+            chosen.add(e);
+        }
+        tag.put("assassinChosen", chosen);
         return tag;
     }
 
@@ -157,6 +175,12 @@ class AssassinSavedData extends SavedData {
             for (int i = 0; i < reclaim.size(); i++) {
                 CompoundTag e = reclaim.getCompound(i);
                 if (e.hasUUID("uuid")) data.pendingReclaim.add(e.getUUID("uuid"));
+            }
+        }
+        if (tag.contains("assassinChosen", Tag.TAG_LIST)) {
+            ListTag chosen = tag.getList("assassinChosen", Tag.TAG_COMPOUND);
+            for (int i = 0; i < chosen.size(); i++) {
+                data.assassinChosen.add(chosen.getCompound(i).getInt("colonyId"));
             }
         }
         return data;
