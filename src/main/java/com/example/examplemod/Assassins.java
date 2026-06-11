@@ -80,6 +80,53 @@ public final class Assassins {
     /** Festival-start / just-prestiged vulnerability window (ticks). */
     static final long EVENT_WINDOW_TICKS = 1_200L; // 60 s
 
+    // ------------------------------------------------------------------
+    // v2 — EP theft + skill copy (docs/assassin-system.md v2)
+    // ------------------------------------------------------------------
+
+    /** Fraction of the player's base max EP stolen on a successful kill. */
+    static final double EP_STEAL_FRACTION = 0.5;
+    /** Cast driver: cooldown between casts and max cast range. */
+    static final long CAST_COOLDOWN_TICKS = 100L; // 5 s
+    static final double CAST_RANGE = 24.0;
+    /** Skill copy limits by Tensura SkillType (highest mastery first). */
+    static final int COPY_UNIQUE = 1, COPY_EXTRA = 5, COPY_COMMON = 10, COPY_RESISTANCE = 15;
+
+    /** Player-side theft modifiers (stable ids — removed on reclaim). */
+    private static final ResourceLocation THEFT_MAGICULE_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "assassin_stolen_magicule");
+    private static final ResourceLocation THEFT_AURA_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "assassin_stolen_aura");
+    /** Assassin-side gain modifiers. */
+    private static final ResourceLocation GAIN_MAGICULE_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "assassin_gained_magicule");
+    private static final ResourceLocation GAIN_AURA_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "assassin_gained_aura");
+
+    /**
+     * CURATED CASTABLE WHITELIST (the v2 open task — extend via in-game
+     * smoke testing). PRESS skills are fired by the cast driver; TOGGLE
+     * buffs are switched on once at theft time. Copied skills NOT listed
+     * here are held (flavor / future) but never cast.
+     */
+    private static final java.util.Set<ResourceLocation> CASTABLE_PRESS = java.util.Set.of(
+            io.github.manasmods.tensura.registry.skill.CommonSkills.WATER_BLADE.getId(),
+            io.github.manasmods.tensura.registry.skill.CommonSkills.VOICE_CANNON.getId(),
+            io.github.manasmods.tensura.registry.skill.CommonSkills.PARALYSIS.getId(),
+            io.github.manasmods.tensura.registry.skill.CommonSkills.POISON.getId(),
+            io.github.manasmods.tensura.registry.skill.ExtraSkills.BLACK_FLAME.getId(),
+            io.github.manasmods.tensura.registry.skill.ExtraSkills.BLACK_LIGHTNING.getId(),
+            io.github.manasmods.tensura.registry.skill.ExtraSkills.HEAT_WAVE.getId());
+    private static final java.util.Set<ResourceLocation> CASTABLE_TOGGLE = java.util.Set.of(
+            io.github.manasmods.tensura.registry.skill.CommonSkills.STRENGTH.getId(),
+            io.github.manasmods.tensura.registry.skill.CommonSkills.SELF_REGENERATION.getId(),
+            io.github.manasmods.tensura.registry.skill.ExtraSkills.MAGIC_AURA.getId());
+
+    /** Per-assassin cast pacing (mob UUID → next allowed cast tick) and
+     *  round-robin index. In-memory; resets on reload harmlessly. */
+    private static final Map<UUID, Long> nextCastTick = new HashMap<>();
+    private static final Map<UUID, Integer> castRotation = new HashMap<>();
+
     private static final ResourceLocation BUFF_HEALTH_ID =
             ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "assassin_health");
     private static final ResourceLocation BUFF_SPIRIT_ID =
@@ -407,6 +454,19 @@ public final class Assassins {
             if (current == null || !current.isAlive()) {
                 lockTarget(mob, target);
             }
+
+            // v2 CAST DRIVER — face the target and fire one whitelisted
+            // copied skill on a cooldown (costs draw from the assassin's
+            // stolen magicule pool; canInteractSkill gates each attempt).
+            if (mob.distanceToSqr(target) <= CAST_RANGE * CAST_RANGE
+                    && tag.hasStolen()) {
+                long now = mobLevel.getGameTime();
+                if (now >= nextCastTick.getOrDefault(mob.getUUID(), 0L)) {
+                    boolean cast = tryCastSkill(mob, target);
+                    nextCastTick.put(mob.getUUID(),
+                            now + (cast ? CAST_COOLDOWN_TICKS : 40L));
+                }
+            }
         }
 
         // Boss bar — progress = HP fraction; players within 64 see it.
@@ -436,11 +496,73 @@ public final class Assassins {
         if (tag == null) return;
         ServerBossEvent bar = bossBars.remove(victim.getUUID());
         if (bar != null) bar.removeAllPlayers();
+        nextCastTick.remove(victim.getUUID());
+        castRotation.remove(victim.getUUID());
         AssassinSavedData data = AssassinSavedData.get(level);
         data.clearIdentity(tag.identityId());
         data.setColdShoulder(tag.colonyId(), false);
+
+        // v2 RECLAIM — the boss's death restores everything it stole
+        // (full restoration, user-confirmed). Offline victim → applied
+        // on their next login.
+        if (tag.hasStolen() && tag.targetPlayer() != null) {
+            ServerPlayer player = level.getServer().getPlayerList().getPlayer(tag.targetPlayer());
+            if (player != null) {
+                reclaimPower(player);
+            } else {
+                data.setPendingReclaim(tag.targetPlayer(), true);
+            }
+        }
         LOGGER.info("[TM] assassin: '{}' slain — colony {} stands down",
                 victim.getName().getString(), tag.colonyId());
+    }
+
+    /**
+     * One cast attempt: rotate through the assassin's learned PRESS-
+     * whitelisted skills, fire the first that passes canInteractSkill.
+     * The (1, 0) activation args = keybind slot 1, mode 0 — the defaults
+     * a fresh skill instance uses; per-skill quirks are exactly what the
+     * whitelist smoke-testing curates.
+     */
+    private static boolean tryCastSkill(LivingEntity mob, ServerPlayer target) {
+        List<io.github.manasmods.manascore.skill.api.ManasSkillInstance> castable =
+                new ArrayList<>();
+        try {
+            for (var instance : io.github.manasmods.manascore.skill.api.SkillAPI
+                    .getSkillsFrom(mob).getLearnedSkills()) {
+                if (CASTABLE_PRESS.contains(instance.getSkillId())) {
+                    castable.add(instance);
+                }
+            }
+        } catch (Throwable t) {
+            return false;
+        }
+        if (castable.isEmpty()) return false;
+
+        int start = castRotation.getOrDefault(mob.getUUID(), 0);
+        for (int i = 0; i < castable.size(); i++) {
+            int idx = (start + i) % castable.size();
+            var instance = castable.get(idx);
+            try {
+                if (!instance.canInteractSkill(mob)) continue;
+                // Face the target, then fire — skills read the caster's
+                // look vector for aim (the barrier-pounding look pattern).
+                if (mob instanceof Mob m) {
+                    m.getLookControl().setLookAt(target, 30.0f, 30.0f);
+                }
+                mob.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES,
+                        target.getEyePosition());
+                instance.onPressed(mob, 1, 0);
+                castRotation.put(mob.getUUID(), idx + 1);
+                LOGGER.debug("[TM] assassin: cast {} at {}", instance.getSkillId(),
+                        target.getName().getString());
+                return true;
+            } catch (Throwable t) {
+                LOGGER.warn("[TM] assassin: cast of {} threw — consider removing it "
+                        + "from the whitelist", instance.getSkillId(), t);
+            }
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------
@@ -472,6 +594,188 @@ public final class Assassins {
         if (state == AssassinSavedData.STATE_LURKING || state == AssassinSavedData.STATE_ARMED) {
             net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
                     new Networking.SyncAssassinFlagPayload(target.getUUID(), true));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // v2 — successful assassination: EP theft + skill copy.
+    // Called from onLivingDeath when an ASSASSIN-tagged mob kills a player.
+    // ------------------------------------------------------------------
+
+    static void onSuccessfulAssassination(ServerLevel level, LivingEntity assassin,
+                                          ServerPlayer victim) {
+        AssassinTag tag = assassin.getData(Attachments.ASSASSIN_TAG.get());
+        if (tag == null || tag.hasStolen()) return; // steal once
+
+        // ---- EP THEFT: half of base max EP = half magicule + half aura
+        // (getBaseMaxEP is literally their sum). Negative stable-id
+        // modifiers on the PLAYER (persist in player NBT, reversible),
+        // positive mirrors on the assassin. The Stage-D3 attribute
+        // machinery, negative delta.
+        double stolenMagicule = 0, stolenAura = 0;
+        try {
+            stolenMagicule = io.github.manasmods.tensura.util.EnergyHelper
+                    .getBaseMaxMagicule(victim) * EP_STEAL_FRACTION;
+            stolenAura = io.github.manasmods.tensura.util.EnergyHelper
+                    .getBaseMaxAura(victim) * EP_STEAL_FRACTION;
+            applyAdd(victim,
+                    io.github.manasmods.tensura.registry.attribute.TensuraAttributes.MAX_MAGICULE,
+                    THEFT_MAGICULE_ID, -stolenMagicule);
+            applyAdd(victim,
+                    io.github.manasmods.tensura.registry.attribute.TensuraAttributes.MAX_AURA,
+                    THEFT_AURA_ID, -stolenAura);
+            // Clamp currents to the new maxes (cost-gate idiom); keep
+            // magicule ≥ 1 so the Sleep Mode pipeline never fires.
+            ExistenceStorage victimExist = ExampleMod.readExistence(victim);
+            if (victimExist != null) {
+                double maxMag = io.github.manasmods.tensura.util.EnergyHelper.getMaxMagicule(victim);
+                double maxAura = io.github.manasmods.tensura.util.EnergyHelper.getMaxAura(victim);
+                victimExist.setMagicule(Math.max(1.0, Math.min(victimExist.getMagicule(), maxMag)));
+                victimExist.setAura(Math.max(0.0, Math.min(victimExist.getAura(), maxAura)));
+                victimExist.markDirty();
+            }
+            // The assassin GAINS what was taken, pools refilled — its
+            // casting (below) runs on your stolen magicule.
+            applyAdd(assassin,
+                    io.github.manasmods.tensura.registry.attribute.TensuraAttributes.MAX_MAGICULE,
+                    GAIN_MAGICULE_ID, stolenMagicule);
+            applyAdd(assassin,
+                    io.github.manasmods.tensura.registry.attribute.TensuraAttributes.MAX_AURA,
+                    GAIN_AURA_ID, stolenAura);
+            ExistenceStorage assassinExist = ExampleMod.readExistence(assassin);
+            if (assassinExist != null) {
+                assassinExist.setMagicule(
+                        io.github.manasmods.tensura.util.EnergyHelper.getMaxMagicule(assassin));
+                assassinExist.setAura(
+                        io.github.manasmods.tensura.util.EnergyHelper.getMaxAura(assassin));
+                assassinExist.markDirty();
+            }
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] assassin: EP theft failed (continuing with skill copy)", t);
+        }
+
+        // ---- SKILL COPY: 1 unique / 5 extra / 10 common / ≤15 resistance,
+        // highest mastery first; copies keep mastery (instance.copy()).
+        List<String> stolenSkillNames = new ArrayList<>();
+        try {
+            stolenSkillNames = copySkills(victim, assassin);
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] assassin: skill copy failed", t);
+        }
+
+        assassin.setData(Attachments.ASSASSIN_TAG.get(),
+                tag.withStolen(stolenMagicule, stolenAura));
+
+        victim.sendSystemMessage(Component.literal(String.format(java.util.Locale.ROOT,
+                "%s has stolen your power — %,.0f magicule and %,.0f aura are GONE"
+                + (stolenSkillNames.isEmpty() ? "" : ", along with: "
+                        + String.join(", ", stolenSkillNames))
+                + ". Slay it to reclaim what is yours.",
+                assassin.getName().getString(), stolenMagicule, stolenAura))
+                .withStyle(net.minecraft.ChatFormatting.DARK_RED));
+        LOGGER.info("[TM] assassin: THEFT — {} took {} magicule / {} aura / {} skills from {}",
+                assassin.getName().getString(),
+                String.format("%.0f", stolenMagicule), String.format("%.0f", stolenAura),
+                stolenSkillNames.size(), victim.getName().getString());
+    }
+
+    /** Copy the victim's best skills per category onto the assassin;
+     *  switch on whitelisted toggles immediately. Returns display names. */
+    private static List<String> copySkills(ServerPlayer victim, LivingEntity assassin) {
+        var victimSkills = io.github.manasmods.manascore.skill.api.SkillAPI
+                .getSkillsFrom(victim).getLearnedSkills();
+        var assassinStorage = io.github.manasmods.manascore.skill.api.SkillAPI
+                .getSkillsFrom(assassin);
+
+        Map<io.github.manasmods.tensura.ability.skill.Skill.SkillType,
+                List<io.github.manasmods.manascore.skill.api.ManasSkillInstance>> byType =
+                new HashMap<>();
+        for (var instance : victimSkills) {
+            if (instance.getSkill() instanceof io.github.manasmods.tensura.ability.skill.Skill skill) {
+                byType.computeIfAbsent(skill.getType(), k -> new ArrayList<>()).add(instance);
+            }
+        }
+        List<String> names = new ArrayList<>();
+        record Quota(io.github.manasmods.tensura.ability.skill.Skill.SkillType type, int limit) {}
+        List<Quota> quotas = List.of(
+                new Quota(io.github.manasmods.tensura.ability.skill.Skill.SkillType.UNIQUE, COPY_UNIQUE),
+                new Quota(io.github.manasmods.tensura.ability.skill.Skill.SkillType.EXTRA, COPY_EXTRA),
+                new Quota(io.github.manasmods.tensura.ability.skill.Skill.SkillType.COMMON, COPY_COMMON),
+                new Quota(io.github.manasmods.tensura.ability.skill.Skill.SkillType.RESISTANCE, COPY_RESISTANCE));
+        for (Quota quota : quotas) {
+            List<io.github.manasmods.manascore.skill.api.ManasSkillInstance> pool =
+                    byType.getOrDefault(quota.type(), List.of());
+            pool.stream()
+                    .sorted(java.util.Comparator.comparingDouble(
+                            io.github.manasmods.manascore.skill.api.ManasSkillInstance::getMastery)
+                            .reversed())
+                    .limit(quota.limit())
+                    .forEach(instance -> {
+                        try {
+                            var copy = instance.copy();
+                            assassinStorage.learnSkill(copy, Component.literal(""));
+                            names.add(instance.getSkill().getName() != null
+                                    ? instance.getSkill().getName().getString()
+                                    : String.valueOf(instance.getSkillId()));
+                            // Whitelisted toggle buffs switch on NOW.
+                            if (CASTABLE_TOGGLE.contains(instance.getSkillId())) {
+                                copy.onToggleOn(assassin);
+                            }
+                        } catch (Throwable t) {
+                            LOGGER.warn("[TM] assassin: failed to copy skill {}",
+                                    instance.getSkillId(), t);
+                        }
+                    });
+        }
+        return names;
+    }
+
+    /** Stable-id ADD modifier (remove-first; never compounds). */
+    private static void applyAdd(LivingEntity entity,
+                                 Holder<net.minecraft.world.entity.ai.attributes.Attribute> attr,
+                                 ResourceLocation id, double delta) {
+        AttributeInstance instance = entity.getAttribute(attr);
+        if (instance == null) return;
+        instance.removeModifier(id);
+        instance.addPermanentModifier(new AttributeModifier(id, delta,
+                AttributeModifier.Operation.ADD_VALUE));
+    }
+
+    /** Reclaim: strip the theft modifiers off the player — full
+     *  restoration. Called on boss death (online) or next login. */
+    static void reclaimPower(ServerPlayer player) {
+        boolean removed = false;
+        try {
+            AttributeInstance mag = player.getAttribute(
+                    io.github.manasmods.tensura.registry.attribute.TensuraAttributes.MAX_MAGICULE);
+            AttributeInstance aura = player.getAttribute(
+                    io.github.manasmods.tensura.registry.attribute.TensuraAttributes.MAX_AURA);
+            if (mag != null && mag.getModifier(THEFT_MAGICULE_ID) != null) {
+                mag.removeModifier(THEFT_MAGICULE_ID);
+                removed = true;
+            }
+            if (aura != null && aura.getModifier(THEFT_AURA_ID) != null) {
+                aura.removeModifier(THEFT_AURA_ID);
+                removed = true;
+            }
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] assassin: reclaim failed for {}", player.getName().getString(), t);
+        }
+        if (removed) {
+            player.sendSystemMessage(Component.literal(
+                    "Your stolen power floods back into you.")
+                    .withStyle(net.minecraft.ChatFormatting.GREEN));
+            LOGGER.info("[TM] assassin: {} reclaimed their stolen EP",
+                    player.getName().getString());
+        }
+    }
+
+    /** Login hook — apply a reclaim owed while the player was offline. */
+    static void onPlayerLogin(ServerPlayer player) {
+        AssassinSavedData data = AssassinSavedData.get(player.serverLevel());
+        if (data.hasPendingReclaim(player.getUUID())) {
+            data.setPendingReclaim(player.getUUID(), false);
+            reclaimPower(player);
         }
     }
 

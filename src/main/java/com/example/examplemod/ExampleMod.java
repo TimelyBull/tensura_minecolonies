@@ -3464,6 +3464,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         ServerLevel level = sp.serverLevel();
         ColonyRaceConfigSavedData config = ColonyRaceConfigSavedData.get(level);
 
+        // Assassin v2 — apply an EP reclaim owed while the player was
+        // offline (the boss died without them).
+        Assassins.onPlayerLogin(sp);
+
         // Sync festival skill bonuses so the citizen-window "+X" is present after relog.
         try { sendFestivalBonus(sp); } catch (Throwable t) { LOGGER.warn("[TM] festival bonus login sync failed", t); }
 
@@ -3579,8 +3583,22 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         TensuraRaids.onRaidMobDeath(serverLevel, event.getEntity());
 
         // Assassin death — clear bar + cold shoulder BEFORE the case-A
-        // identity cleanup below removes the identity record.
+        // identity cleanup below removes the identity record (v2: also
+        // triggers the EP reclaim for the victim).
         Assassins.onAssassinDeath(serverLevel, event.getEntity());
+
+        // Assassin v2 — a SUCCESSFUL assassination (the assassin kills
+        // the player) triggers the theft: half EP + copied skills.
+        if (event.getEntity() instanceof ServerPlayer slainPlayer) {
+            LivingEntity killer = null;
+            if (event.getSource().getEntity() instanceof LivingEntity le) killer = le;
+            if (killer == null && slainPlayer.getKillCredit() != null) {
+                killer = slainPlayer.getKillCredit();
+            }
+            if (killer != null && killer.hasData(Attachments.ASSASSIN_TAG.get())) {
+                Assassins.onSuccessfulAssassination(serverLevel, killer, slainPlayer);
+            }
+        }
 
         UUID entityUUID = event.getEntity().getUUID();
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(serverLevel);

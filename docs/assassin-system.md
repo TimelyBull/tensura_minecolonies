@@ -1,8 +1,50 @@
 # Investigation: Assassin system — technical foundations
 
-**Status:** v1 BUILT (2026-06-10) — the social/manifestation layer below.
-v2 (EP theft + skill copy/use) remains PENDING; the investigation
-findings for it stay valid.
+**Status:** v1 + v2 BUILT (2026-06-10). The castable-skill WHITELIST is
+the one open task — curated via in-game smoke testing (see v2 below).
+
+## v2 as-built (theft + reclaim)
+
+Triggered when an ASSASSIN-tagged boss KILLS its target player
+(`onLivingDeath` killer attribution, the boss-flag pattern). Steals
+once per assassin (tag records the amounts).
+
+- **EP theft (user-confirmed full-reclaim design):** steals
+  `EP_STEAL_FRACTION = 0.5` of base max EP — since baseMaxEP =
+  baseMaxMagicule + baseMaxAura, half of EACH is removed via negative
+  stable-id `AttributeModifier`s on the player's MAX_MAGICULE /
+  MAX_AURA (`assassin_stolen_magicule/aura`; persist in player NBT,
+  remove-first so never compounding). Currents clamped to the new
+  maxes (magicule kept ≥ 1 → Sleep Mode never fires). The assassin
+  gains the same amounts as positive modifiers and its pools refill —
+  its casting runs on YOUR stolen magicule.
+- **Reclaim:** killing the boss removes the player's theft modifiers —
+  100% restoration ("your stolen power floods back"). Victim offline at
+  boss death → `pendingReclaim` persists in AssassinSavedData and
+  applies on next login.
+- **Skill copy:** `getLearnedSkills()` categorized by Tensura
+  `Skill.getType()`; takes the HIGHEST-MASTERY first (it steals your
+  best): 1 UNIQUE / 5 EXTRA / 10 COMMON / ≤15 RESISTANCE;
+  `instance.copy()` (keeps mastery) + `learnSkill` onto the assassin's
+  storage (persists on its NBT). Resistances/passives work with no AI.
+  The victim gets the itemized theft message.
+- **Cast driver:** while the boss has its live target within 24 blocks,
+  every 5 s (`CAST_COOLDOWN_TICKS = 100`) it faces the target (look
+  control + lookAt) and fires ONE whitelisted PRESS skill —
+  round-robin, `canInteractSkill`-gated, activation
+  `instance.onPressed(mob, 1, 0)`; a failed/blocked attempt re-checks
+  in 2 s. Whitelisted TOGGLE buffs switch on once at theft time
+  (`onToggleOn`). A cast that throws logs "consider removing it from
+  the whitelist".
+- **INITIAL WHITELIST (the curated seed — extend via in-game testing):**
+  PRESS: Water Blade, Voice Cannon, Paralysis, Poison (common);
+  Black Flame, Black Lightning, Heat Wave (extra).
+  TOGGLE: Strength, Self-Regeneration (common); Magic Aura (extra).
+  Both sets are plain `Set<ResourceLocation>` constants in
+  `Assassins` (`CASTABLE_PRESS` / `CASTABLE_TOGGLE`) — one-line adds.
+  Copied skills NOT whitelisted are held (flavor) and never cast.
+
+## v1 as-built (unchanged by v2 except: boss death now also reclaims)
 
 ## v1 as-built
 

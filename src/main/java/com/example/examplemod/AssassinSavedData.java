@@ -36,6 +36,9 @@ class AssassinSavedData extends SavedData {
     private final Map<UUID, Byte> state = new HashMap<>();
     /** Colonies whose citizens cold-shoulder the player (active assassin). */
     private final Set<Integer> coldShoulder = new HashSet<>();
+    /** Players owed an EP reclaim (boss died while they were offline) —
+     *  applied on their next login. */
+    private final Set<UUID> pendingReclaim = new HashSet<>();
 
     private AssassinSavedData() {}
 
@@ -81,6 +84,16 @@ class AssassinSavedData extends SavedData {
         return out;
     }
 
+    boolean hasPendingReclaim(UUID playerUuid) {
+        return pendingReclaim.contains(playerUuid);
+    }
+
+    void setPendingReclaim(UUID playerUuid, boolean pending) {
+        if (pending ? pendingReclaim.add(playerUuid) : pendingReclaim.remove(playerUuid)) {
+            setDirty();
+        }
+    }
+
     boolean isColdShouldered(int colonyId) {
         return coldShoulder.contains(colonyId);
     }
@@ -109,6 +122,13 @@ class AssassinSavedData extends SavedData {
             cold.add(e);
         }
         tag.put("coldShoulder", cold);
+        ListTag reclaim = new ListTag();
+        for (UUID id : pendingReclaim) {
+            CompoundTag e = new CompoundTag();
+            e.putUUID("uuid", id);
+            reclaim.add(e);
+        }
+        tag.put("pendingReclaim", reclaim);
         return tag;
     }
 
@@ -130,6 +150,13 @@ class AssassinSavedData extends SavedData {
             ListTag cold = tag.getList("coldShoulder", Tag.TAG_COMPOUND);
             for (int i = 0; i < cold.size(); i++) {
                 data.coldShoulder.add(cold.getCompound(i).getInt("colonyId"));
+            }
+        }
+        if (tag.contains("pendingReclaim", Tag.TAG_LIST)) {
+            ListTag reclaim = tag.getList("pendingReclaim", Tag.TAG_COMPOUND);
+            for (int i = 0; i < reclaim.size(); i++) {
+                CompoundTag e = reclaim.getCompound(i);
+                if (e.hasUUID("uuid")) data.pendingReclaim.add(e.getUUID("uuid"));
             }
         }
         return data;
