@@ -1,0 +1,389 @@
+# Investigation: the expanded faction model (Layer 1 — the spine)
+
+**Status:** investigation only, no code written (2026-06-11).
+
+**What this expands:** the world-reputation v1 backbone
+(docs/world-reputation.md) — flat per-faction standing, flat
+one-directional movers (boss attack −3 / kill −20) — into the richer
+model BOTH hostility events (Orc Disaster next) AND future diplomacy
+read: race-modulated disposition profiles, a faction relationship web,
+importance-weighted TWO-SIDED movers, marked bosses, provocation, and
+soft influence (no hard rep gates).
+
+**Approved lore data (user-confirmed, baked in):**
+- Holy bloc = Luminous + Falmuth (+ Hinata, who anchors Luminous) —
+  internally allied, anti-monster.
+- Schemers = Clayman + the Clowns (oppose the rising forest powers).
+- Neutral / diplomacy-open = Dwargon + Tempest/Jura Alliance —
+  hostile-to-violence.
+- Swingable-toward-ally = Milim + Carrion. Leon / Otherworlders =
+  neutral/aloof.
+- The player's COLONY is its own thing — NOT Tempest. Tempest/Jura is
+  an external faction.
+- Killing a faction's boss lowers that faction AND raises its enemies
+  simultaneously, scaled by the boss's lore importance; minion kills
+  stay SMALL (killing mobs is core Minecraft).
+- Holy bloc starts wary→HOSTILE, much more hostile to a MAJIN player.
+
+---
+
+## #1 PIVOTAL — Disposition profiles: a LIVE race-computed BASE + a stored EARNED DELTA
+
+**The question:** does a new player START at the disposition standing
+(seeded into storage), or is disposition a separate layer?
+
+**Recommendation: a separate layer — `effective = clamp(base + delta)`.**
+- **base** = the faction's disposition toward the player's CURRENT
+  race-side (majin vs human), computed LIVE on read — never stored.
+- **delta** = what the stored standing becomes: the EARNED component,
+  default 0, the only thing movers write (through the sole door,
+  signature unchanged).
+- Every consumer (tiers, isAtLeast/isBelow, notoriety, event
+  modulation, /worldrep) reads EFFECTIVE.
+
+**Why live-base beats seed-once (the deciding argument):** race change
+is core Tensura progression. A player can start human, walk the demon
+lord path, and BECOME majin mid-game (or use a Race Reset Scroll). A
+seeded-at-first-contact standing goes stale the moment that happens; a
+live base shifts the Holy bloc's posture the day you change — "they
+sense what you have become" — with zero bookkeeping, no migration
+hooks, no re-seed events. It also keeps storage semantics clean: an
+absent key means "no history with this faction," not "we already
+decided what they think of you."
+
+**Storage impact:** the stored number is reinterpreted from absolute
+(default 50) to delta (default 0). The save format itself (string-keyed
+`player → faction id → double`) is unchanged; existing dev-world values
+would read ~50 too high. Acceptable at this stage (the backbone is days
+old, no shipped worlds); if desired, a one-time `-50` migration on load
+is three lines.
+
+### How majin-vs-human is read (VERIFIED against the jars)
+
+The chain: `RaceAPI.getRaceFrom(player).getRace()` →
+`Optional<ManasRaceInstance>` → `instance.getRace()` (a
+`TensuraRace`) → **`getAlignment()`** returning
+`Alignment {DEFAULT, MAJIN, HOLY, CHAOS}`. Plus
+`ManasRaceInstance.is(TagKey<ManasRace>)` for race-registry tags
+(`TensuraRaceTags.HUMAN_LIKE`, `DAEMON`, `DIVINE`, ...).
+
+**Two verified wrinkles — alignment alone is NOT enough:**
+1. `Alignment.MAJIN` is only overridden by some races (slime, the
+   daemon chain, ...). **Goblin and Ogre return DEFAULT** — yet the
+   Holy bloc must count them as monsters.
+2. Tensura's `human_like` tag lists ONLY the five base races (human,
+   dwarf, elf, merfolk, beastfolk) — **evolutions (Enlightened Human,
+   Human Saint, Divine Human, Dragonewt, ...) are untagged**, so a
+   late-game human-side player would misclassify.
+
+**Recommended classifier `isMajinSide(player)` (first match wins):**
+1. No race instance present → **human-side** (an unawakened player is
+   a plain human).
+2. `getAlignment() == MAJIN || CHAOS` → **majin-side**;
+   `== HOLY` → **human-side**.
+3. `instance.is(TensuraRaceTags.HUMAN_LIKE)` → **human-side**.
+4. `instance.is(OUR_HUMAN_SIDE_TAG)` → **human-side** — a mod-shipped
+   datapack tag `data/tensura_minecolonies/tags/manascore_race/races/
+   human_side.json` listing the human-family EVOLUTIONS Tensura's own
+   tag misses (enlightened/saint/divine human, the dwarf/elf/merfolk/
+   beastfolk chains). Same pattern as the `barrier_blocked` entity tag
+   — and the addon door: addon races join the side by joining the tag,
+   no code.
+5. Otherwise → **majin-side** (goblin, ogre/oni, lizardman, harpy,
+   giant, vampire, slime, daemon — i.e. monsters default to monster).
+
+Cheap enough to compute on read (a capability lookup + tag checks);
+cache per-tick if a profiler ever complains.
+
+### The disposition table (base by side; all named constants, [CONFIRM] the numbers)
+
+| Faction | Human base | Majin base | Tier it lands in | Character |
+|---|---|---|---|---|
+| LUMINOUS | 30 | 10 | WARY / **HOSTILE** | Holy bloc core — hates monsters |
+| FALMUTH | 35 | 15 | WARY / **HOSTILE** | Holy bloc muscle |
+| CLAYMAN | 45 | 45 | NEUTRAL (cool) | neutral-but-scheming |
+| DWARGON | 50 | 50 | NEUTRAL | diplomacy-open, violence-sensitive |
+| TEMPEST | 50 | 55 | NEUTRAL | monster nation — slight majin warmth |
+| JURA_ALLIANCE | 50 | 55 | NEUTRAL | same bloc as Tempest |
+| MILIM | 50 | 50 | NEUTRAL | swingable (see multiplier) |
+| CARRION | 50 | 50 | NEUTRAL | swingable |
+| LEON | 50 | 50 | NEUTRAL | aloof (dampened movers) |
+| OTHERWORLDERS | 50 | 50 | NEUTRAL | aloof |
+| SHIZU | 50 | 50 | NEUTRAL | kind to all |
+
+Two per-faction sensitivity knobs round out the profile:
+- **Swing multiplier** (MILIM, CARRION = 1.5×; LEON, OTHERWORLDERS =
+  0.5×; everyone else 1.0×) — scales every mover hitting that faction.
+  "Swingable-toward-ally" and "aloof" become one number.
+- **Provocation threshold** — see #4.
+
+### The profile record (the data shape)
+
+```java
+record FactionProfile(
+    String factionId,
+    double baseHuman, double baseMajin,
+    Set<String> allies, Set<String> enemies,   // the web (#2)
+    double swingMultiplier,
+    double provocationThreshold)               // offense points (#4)
+// static Map<String, FactionProfile> PROFILES — string-keyed like the
+// storage, so an addon faction = one map entry + (optionally) showing
+// up in others' ally/enemy sets. Unknown ids in saves still round-trip.
+```
+
+The CLOWNS note: the approved web names "Clayman + Clowns," but the
+enum has no CLOWNS faction. **Fold the Clowns into CLAYMAN for v1**
+(they are his instruments in this arc); the string-keyed profile map
+means a `clowns` faction later is additive, not a rework.
+
+## #2 PIVOTAL — Two-sided weighted movers: a relationship web + per-boss importance
+
+**The data, two maps (both string-keyed, addon-extensible):**
+
+**(a) The relationship web** — lives in the `FactionProfile` ally/enemy
+sets above, populated from the approved lore:
+
+| Faction | Allies | Enemies |
+|---|---|---|
+| LUMINOUS | FALMUTH | CLAYMAN |
+| FALMUTH | LUMINOUS | CLAYMAN |
+| CLAYMAN | — (Clowns folded in) | LUMINOUS, FALMUTH, TEMPEST, JURA_ALLIANCE, MILIM, CARRION |
+| TEMPEST | JURA_ALLIANCE, DWARGON | CLAYMAN |
+| JURA_ALLIANCE | TEMPEST, DWARGON | CLAYMAN |
+| DWARGON | TEMPEST, JURA_ALLIANCE | — |
+| MILIM | — | CLAYMAN |
+| CARRION | — | CLAYMAN |
+| LEON / OTHERWORLDERS / SHIZU | — | — (aloof) |
+
+Symmetry is a VALIDATION rule, not a storage assumption: a static
+sanity check asserts every enemy/ally edge appears on both ends (so an
+addon adding one side gets a log warning), but the sets are stored
+per-faction so addons merge naturally.
+
+**(b) Boss profiles** — `factionOf` (the bare `EntityType → faction`
+map in WorldReputationManager) grows into:
+
+```java
+record BossProfile(String factionId, BossImportance importance)
+enum BossImportance { KEYSTONE(1.0), MAJOR(0.6), NOTABLE(0.3), MINOR(0.1) }
+// Map<EntityType<?>, BossProfile> BOSS_PROFILES — same lazy-init spot.
+```
+
+| Importance | Weight | Who (current cast) |
+|---|---|---|
+| KEYSTONE | 1.0 | Hinata→LUMINOUS, Gazel→DWARGON, Shizu→SHIZU |
+| MAJOR | 0.6 | Charybdis→CLAYMAN, Orc Disaster→CLAYMAN, Ifrit→LEON |
+| NOTABLE | 0.3 | Kirara/Kyoya/Shogo→FALMUTH, Shin Ryusei/Shinji/Mark→JURA_ALLIANCE, Mai→OTHERWORLDERS |
+| MINOR | 0.1 | Falmuth Knight, Folgen→FALMUTH; Orc Lord→CLAYMAN |
+
+**The fan-out (replaces the flat −3/−20):** one entry point on the
+manager applies everything atomically:
+
+```
+applyMarkedBossKill(player, boss):              // base constants, all named
+  F = boss faction, w = importance, m = each target's swingMultiplier
+  F          : −KILL_BASE × w × m                (KILL_BASE = 30)
+  allies(F)  : −KILL_BASE × w × ALLY_LOSS × m    (ALLY_LOSS  = 0.5)
+  enemies(F) : +KILL_BASE × w × ENEMY_GAIN × m   (ENEMY_GAIN = 0.4)
+  offense[F] += OFFENSE_KILL × w                 (OFFENSE_KILL = 10)
+applyMarkedBossAttack(player, boss):            // deduped, own faction only
+  F: −ATTACK_BASE × w;  offense[F] += OFFENSE_ATTACK × w   (3 / 1)
+```
+
+Attacks deliberately do NOT ripple — only a kill is a statement the
+world reacts to; attack spam staying single-target also keeps the
+existing 100-tick dedupe sufficient.
+
+**Worked examples (the approved scenarios reproduce):**
+- Kill marked **Hinata** (KEYSTONE): Luminous **−30** (down hard),
+  Falmuth **−15**, Clayman **+12** (up slightly). ✓
+- Kill marked **Charybdis** (MAJOR): Clayman **−18**; Milim/Tempest/
+  Jura/Carrion **+7.2** each (Milim's 1.5× → **+10.8**). ✓
+- Kill marked **Orc Disaster** (MAJOR): Clayman **−18**; Milim (+10.8
+  w/ swing), Carrion/Tempest/Jura **+7.2**. ✓ (Note: the Orc Disaster
+  lore event ALSO applies its forced-HOSTILE clamp + diplomacy-closed
+  flag after this mover — lore-events.md #4 unchanged; the −20 it cited
+  becomes this weighted −18.)
+- Kill marked **Falmuth Knight** (MINOR): Falmuth **−3**, Luminous
+  **−1.5**, Clayman **+1.2** — minion kills stay small. ✓
+
+Each leg goes through `modifyStanding` individually (one log line per
+faction per reason — the existing audit discipline), under two new
+reasons: `MARKED_BOSS_KILLED` / `MARKED_BOSS_RIPPLE` (+ `..._ATTACKED`).
+
+## #3 Marked vs. unmarked bosses — an attachment + a title; unmarked kills are FREE
+
+Killing bosses is core progression; only a kill the FACTION ARRANGED
+should anger the faction. **A wild or player-summoned Hinata/Charybdis/
+Orc Disaster kill carries ZERO faction consequences** under this model
+— which means the CURRENT flat movers' "any kill of an anchored entity"
+behavior is replaced, not just reweighted.
+
+**The mark — the established attachment pattern (EnvoyTag/RaidTag/
+AssassinTag):**
+
+```java
+record FactionMarkTag(String factionId, String sourceEventId)
+// Attachments.FACTION_MARK — NBT-serialized, survives chunk reload.
+```
+
+- **Who sets it:** the spawner. The Orc Disaster lore event marks its
+  lead boss (and can mark the horde MINOR if desired); future faction
+  raids/patrols mark their spawns; an `/worldrep mark` debug command
+  covers testing. Natural spawns and player summons never get it.
+- **The visible title is the honest signal:** marking also sets the
+  custom name — `"Clayman's Orc Disaster"` in the faction's color
+  (faction display name + color already exist on the enum). The player
+  can SEE which kills are consequential before swinging. (The lore
+  event's own bespoke name, "Geld, the Orc Disaster — Clayman's
+  Calamity", satisfies this; the default title is for non-lore marks.)
+- **The mover check:** the existing death/damage hooks gain one early
+  line — `if (!entity.hasData(FACTION_MARK)) return;` then read the
+  faction FROM THE TAG (not from `factionOf`). That makes the tag the
+  authority: an addon can mark ANY entity for ANY faction id without
+  the entity being in our boss map at all — `BOSS_PROFILES` supplies
+  the default importance, and the tag could carry an importance
+  override later if needed.
+
+**What deliberately does NOT change:** wild Orc Disaster / Ifrit kills
+keep their existing non-faction effects — colony rep +10 `BOSS_KILL`
+(the colony cheers regardless of who arranged the fight) and the Stage
+J envoy unlock flags (orc/lizardman conditions). Those are colony and
+progression systems; only WORLD-faction consequences go marked-only.
+
+## #4 Provocation — derived from the offense ledger, thresholded per faction
+
+**A faction is "provoked" when your offense against it crosses ITS
+threshold** — no new stored state:
+
+```
+isProvoked(player, F) = offense(player, F) >= PROFILES[F].provocationThreshold
+```
+
+The offense ledger (lore-events.md #3) already has exactly the right
+shape — a no-decay record of ACTS, written by the marked-boss movers
+(now weighted: +10×w kill, +1×w attack), consumed/reset by events. With
+marked-only movers, minion-spam can't provoke anyone (a MINOR marked
+kill writes just 1 offense; UNMARKED kills write zero), which delivers
+the "killing mobs is core Minecraft" requirement structurally.
+
+**Per-faction thresholds (the profile field; [CONFIRM]):**
+
+| Faction | Threshold | Reading |
+|---|---|---|
+| CLAYMAN | 3 | schemers move on the first real slight |
+| LUMINOUS / FALMUTH | 5 | quick to crusade |
+| MILIM / CARRION | 8 | takes a real insult |
+| DWARGON / TEMPEST / JURA | 10 | patient, diplomacy-first — but "hostile-to-violence" is covered because ONLY violence writes offense, so the patient factions are provoked exclusively by sustained violence |
+| LEON / OTHERWORLDERS / SHIZU | 15 | aloof |
+
+What counts as a provoking act in v1: attacking/killing MARKED bosses
+(the only offense writers that exist). Territory encroachment stays
+deferred to the rival-colony arc — it adds WRITERS to the same ledger,
+not a new mechanism.
+
+## #5 Soft influence — standing modulates, provocation arms; NO rep floor (confirmed supported)
+
+The model supports this cleanly because the two carriers are already
+separated: **offense (what you did) ARMS an event; standing (how they
+feel) scales its likelihood and intensity.** Recommended replacement
+for the Orc Disaster trigger condition (lore-events.md #2 — supersedes
+its hard `isBelow WARY` gate):
+
+```
+armed  = offense(player, CLAYMAN) >= threshold (3)        // provocation
+hostility01 = clamp01((50 − effectiveStanding) / 50)      // 0 at neutral+, 1 at 0
+chance/night = EVENT_BASE_CHANCE (10%) + 30% × hostility01
+budget coefficient: ... + 0.15 × hostility01 (replaces the binary
+                    "+0.15 if HOSTILE tier" — continuous, same ceiling)
+```
+
+A NEUTRAL-standing player who commits a grave act still gets the march
+(at low odds, modest intensity); a HOSTILE-standing player who never
+touched a marked boss gets nothing. Disposition feeds in naturally: a
+majin player's lower BASE with the Holy bloc means future Holy-bloc
+events run hotter sooner — race shapes the world's reaction without a
+single explicit race check in any event. No tier comparison anywhere in
+a trigger; `isAtLeast/isBelow` remain for FLAVOR selection (envoy tone,
+message variants), not gates.
+
+## #6 Integration — what changes vs. what stays
+
+**CHANGES:**
+- **Stored standing → EARNED DELTA** (default 0); effective = clamp
+  (liveBase + delta). `getStanding` returns effective; new `getBase` /
+  `getEarned` accessors for the /worldrep breakdown.
+- **`factionOf` → `BOSS_PROFILES`** (faction + importance). The flat
+  −3/−20 movers in ExampleMod become calls to the manager's new
+  `applyMarkedBossAttack/Kill` fan-outs — and gain the mark check, so
+  unmarked kills go consequence-free (a deliberate behavior change).
+- **`WorldRepReason`** grows MARKED_BOSS_KILLED / MARKED_BOSS_RIPPLE /
+  MARKED_BOSS_ATTACKED (BOSS_ATTACKED/BOSS_KILLED retire with the flat
+  movers).
+- **lore-events.md adjustments:** trigger loses the hard tier gate
+  (#5 above); the −20 ripple becomes the weighted −18 + enemy upticks;
+  the offense writers become importance-weighted. Everything else
+  (engine reuse, lead boss, ledger consumption, diplomacy-closed flag)
+  stands.
+- **/worldrep readout:** per faction shows `base (race side) + earned =
+  effective (tier)`, plus offense and provoked-or-not — the tuning
+  surface for everything above.
+
+**STAYS:**
+- `WorldReputationManager` as the SOLE DOOR — the fan-out entry points
+  live on it and call the same single `modifyStanding` mutator per leg
+  (clamp on the DELTA range ±50 so effective stays in [0,100]; log
+  line per write unchanged).
+- `WorldReputationSavedData` format: string-keyed maps, unknown ids
+  round-trip, offense ledger + diplomacyClosed as designed.
+- `BossFaction` enum + `FactionTier` bands; tiers now derive from
+  effective standing.
+- The colony reputation system — entirely untouched (the colony is its
+  own thing, per the approved data).
+- **Notoriety:** formula structurally unchanged; its hostility
+  component now reads EFFECTIVE standing, so a majin player carries
+  some base notoriety from the Holy bloc's disposition — lore-correct
+  ("the world fears what you are" already includes the EP term; now the
+  hostility term agrees). No consumer exists yet, so this is free to
+  revisit.
+
+**The addon door, restated:** every new structure is string-keyed or
+data-shaped — `FactionProfile` map (faction = one entry), ally/enemy
+sets (edges merge), `BOSS_PROFILES` (or a FactionMarkTag on any entity,
+bypassing the map), the human_side datapack TAG (races join by tag).
+v1 keeps them as in-code static maps like the existing patterns; a
+future data-driven JSON overlay can replace the literals without
+touching the spine.
+
+---
+
+## Recommended bounded v1 SCOPE (build later from this)
+
+1. `isMajinSide(player)` classifier (alignment → HUMAN_LIKE →
+   our `human_side` race tag → default majin) + the shipped tag JSON.
+2. `FactionProfile` record + `PROFILES` map (dispositions, web,
+   swing multipliers, provocation thresholds — the two tables above).
+3. Stored-standing reinterpretation to earned-delta; `getStanding` =
+   clamp(base + delta); `getBase/getEarned` accessors.
+4. `BossProfile`/`BossImportance` replacing `factionOf`;
+   `FactionMarkTag` attachment + title-on-mark + `/worldrep mark`.
+5. Manager fan-outs `applyMarkedBossAttack/Kill` (KILL_BASE 30,
+   ATTACK_BASE 3, ALLY_LOSS 0.5, ENEMY_GAIN 0.4, OFFENSE 10/1 × w —
+   all named constants); ExampleMod hooks gain the mark check.
+6. Offense ledger + `isProvoked` (thresholds from the profile).
+7. /worldrep expanded readout (base/earned/effective/offense/provoked).
+
+PIVOTAL locks: (#1) disposition = a LIVE base computed from the
+player's CURRENT race side (verified read: RaceAPI → ManasRaceInstance
+→ TensuraRace.getAlignment + race tags, with a mod-shipped human_side
+tag patching Tensura's incomplete HUMAN_LIKE), layered under a stored
+earned delta — race changes shift the world's posture automatically;
+(#2) two-sided movers = ally/enemy sets on a string-keyed
+FactionProfile map × a per-boss importance weight, fanned out atomically
+by the sole-door manager, firing ONLY for FactionMarkTag-marked bosses.
+
+[CONFIRM] items when building: the disposition table numbers; the
+mover constants (30/3, 0.5/0.4); the importance assignments; the
+provocation thresholds; and that retiring faction consequences for
+UNMARKED boss kills (colony +10 and envoy unlocks unaffected) matches
+intent.
