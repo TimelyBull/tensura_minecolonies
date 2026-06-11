@@ -24,7 +24,7 @@ once per assassin (tag records the amounts).
   applies on next login.
 - **Skill copy:** `getLearnedSkills()` categorized by Tensura
   `Skill.getType()`; takes the HIGHEST-MASTERY first (it steals your
-  best): 1 UNIQUE / 5 EXTRA / 10 COMMON / ≤15 RESISTANCE;
+  best): 1 UNIQUE / 5 EXTRA / 10 COMMON / ≤10 RESISTANCE;
   `instance.copy()` (keeps mastery) + `learnSkill` onto the assassin's
   storage (persists on its NBT). Resistances/passives work with no AI.
   The victim gets the itemized theft message.
