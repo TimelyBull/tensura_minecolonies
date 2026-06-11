@@ -69,8 +69,12 @@ public final class Assassins {
     /** Boss stat multipliers (v1 power — stats only, no theft). */
     static final double BUFF_HEALTH = 3.0;
     static final double BUFF_SPIRITUAL_HEALTH = 2.5;
-    static final double BUFF_SPEED = 1.4;
+    static final double BUFF_SPEED = 1.15;
     static final double BUFF_DAMAGE = 2.5;
+    /** Boss tether — the assassin haunts the colony: beyond this distance
+     *  from the town hall it walks back; beyond +16 it also drops its
+     *  chase (the patrol-recall pattern). */
+    static final double TETHER_RADIUS = 32.0;
     /** Vulnerability: HP fraction at/below which the player is exposed. */
     static final double LOW_HP_FRACTION = 0.35;
     /** Festival-start / just-prestiged vulnerability window (ticks). */
@@ -312,6 +316,12 @@ public final class Assassins {
 
         lockTarget(mob, owner);
 
+        // Idle wander stays bounded near the town hall (the envoy
+        // restrictTo pattern); the per-second tether handles chases.
+        if (colony != null && mob instanceof Mob m) {
+            m.restrictTo(colony.getCenter(), (int) TETHER_RADIUS);
+        }
+
         data.setState(identity.identityId, AssassinSavedData.STATE_ACTIVE);
         data.setColdShoulder(identity.colonyId, true);
         syncLurkFlag(level, identity, false); // the red tell is over — it's here
@@ -369,9 +379,30 @@ public final class Assassins {
         if (mob == null) return; // unloaded — bar waits; death is handled by the hook
 
         AssassinTag tag = mob.getData(Attachments.ASSASSIN_TAG.get());
+
+        // Town-hall tether — the assassin haunts the colony rather than
+        // chasing across the world (the patrol-recall pattern). Beyond
+        // the tether it walks back; well beyond, it also drops its chase.
+        IColony colony = tag != null
+                ? IColonyManager.getInstance().getColonyByWorld(tag.colonyId(), mobLevel) : null;
+        boolean recalled = false;
+        if (colony != null && mob instanceof Mob m) {
+            net.minecraft.core.BlockPos center = colony.getCenter();
+            double dist = Math.sqrt(mob.blockPosition().distSqr(center));
+            if (dist > TETHER_RADIUS) {
+                recalled = true;
+                if (dist > TETHER_RADIUS + 16) {
+                    m.setTarget(null); // stop the chase, come home
+                }
+                m.getBrain().setMemory(
+                        net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET,
+                        new net.minecraft.world.entity.ai.memory.WalkTarget(center, 1.1f, 8));
+            }
+        }
+
         ServerPlayer target = tag != null && tag.targetPlayer() != null
                 ? server.getPlayerList().getPlayer(tag.targetPlayer()) : null;
-        if (target != null && target.serverLevel() == mobLevel) {
+        if (!recalled && target != null && target.serverLevel() == mobLevel) {
             LivingEntity current = mob instanceof Mob m ? m.getTarget() : null;
             if (current == null || !current.isAlive()) {
                 lockTarget(mob, target);
