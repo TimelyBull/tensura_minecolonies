@@ -927,6 +927,8 @@ public final class Networking {
         public static final byte ACTION_ACCEPT_DEAL = 2;
         public static final byte ACTION_DELIVER = 3;
         public static final byte ACTION_COLLECT = 4;
+        /** Clear the faction's "!" new-offer badge (tab clicked). */
+        public static final byte ACTION_MARK_SEEN = 5;
         public static final Type<DiplomacyActionPayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "diplomacy_action"));
         public static final StreamCodec<ByteBuf, DiplomacyActionPayload> CODEC = StreamCodec.composite(
@@ -1129,6 +1131,8 @@ public final class Networking {
                         ? "unknown faction" : DiplomacyManager.deliver(sp, faction);
                 case DiplomacyActionPayload.ACTION_COLLECT -> failure = faction == null
                         ? "unknown faction" : DiplomacyManager.collect(sp, faction);
+                case DiplomacyActionPayload.ACTION_MARK_SEEN ->
+                        DiplomacyManager.markOffersSeen(sp, payload.factionId());
                 default -> { }
             }
             if (failure != null) {

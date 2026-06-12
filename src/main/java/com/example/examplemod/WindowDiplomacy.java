@@ -65,7 +65,7 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
                              boolean canDeliver, boolean canCollect) {}
     private record FactionRow(String id, String name, double standing, String tier,
                               int tierColor, RelationsState state, boolean closed,
-                              boolean pendingReply, boolean canSend,
+                              boolean pendingReply, boolean canSend, boolean hasNew,
                               List<OfferRow> offers, ActiveRow active) {}
 
     /** Most recently constructed window — {@link #openOrRefresh} refreshes
@@ -169,7 +169,7 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
                     f.getDouble("standing"), f.getString("tier"), f.getInt("tierColor"),
                     RelationsState.byId(f.getByte("state")), f.getBoolean("closed"),
                     f.getBoolean("pendingReply"), f.getBoolean("canSend"),
-                    offers, active));
+                    f.getBoolean("hasNew"), offers, active));
         }
         this.factions = rows;
         if (selected >= rows.size()) selected = 0;
@@ -191,8 +191,11 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
         }
         Text name = rowPane.findPaneOfTypeByID("fname", Text.class);
         if (name != null) {
-            name.setText(Component.literal(row.name()));
-            name.setColors(isSelected ? 0xFF274A6B : TXT_DARK);
+            // "!" badge — this faction has offers the player hasn't
+            // looked at yet; clears when the tab is clicked.
+            name.setText(Component.literal((row.hasNew() ? "! " : "") + row.name()));
+            name.setColors(row.hasNew() ? 0xFF8A2E2E
+                    : isSelected ? 0xFF274A6B : TXT_DARK);
         }
         Text state = rowPane.findPaneOfTypeByID("fstate", Text.class);
         if (state != null) {
@@ -223,9 +226,17 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
         boolean consumed = super.click(mx, my);
         if (!consumed && enabled && list != null) {
             int row = rowIndexAt(mx, my);
-            if (row >= 0 && row != selected) {
+            if (row >= 0) {
+                boolean changed = row != selected;
                 selected = row;
-                refreshAll();
+                // Clicking a tab clears its "!" badge (server marks the
+                // current offers seen and re-sends the snapshot).
+                if (factions.get(row).hasNew()) {
+                    PacketDistributor.sendToServer(new Networking.DiplomacyActionPayload(
+                            Networking.DiplomacyActionPayload.ACTION_MARK_SEEN,
+                            factions.get(row).id(), "", false));
+                }
+                if (changed) refreshAll();
                 return true;
             }
         }

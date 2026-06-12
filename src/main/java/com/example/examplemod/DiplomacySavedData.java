@@ -49,6 +49,9 @@ class DiplomacySavedData extends SavedData {
     private final Map<UUID, Map<String, Long>> lastActivity = new HashMap<>();
     /** player → last inbound faction-envoy spawn tick (one at a time + cooldown). */
     private final Map<UUID, Long> lastInbound = new HashMap<>();
+    /** player → (faction id → offer deal ids the player has SEEN) — the
+     *  "!" new-offer badge clears when the faction tab is clicked. */
+    private final Map<UUID, Map<String, Set<String>>> seenOffers = new HashMap<>();
     /** Daily-pass rollover anchor (overworld day number). */
     private long lastProcessedDay = -1;
 
@@ -162,6 +165,19 @@ class DiplomacySavedData extends SavedData {
         setDirty();
     }
 
+    Set<String> getSeenOffers(UUID player, String factionId) {
+        Map<String, Set<String>> byFaction = seenOffers.get(player);
+        Set<String> seen = byFaction == null ? null : byFaction.get(factionId);
+        return seen == null ? new HashSet<>() : seen;
+    }
+
+    void markOffersSeen(UUID player, String factionId, java.util.Collection<String> dealIds) {
+        if (dealIds.isEmpty()) return;
+        seenOffers.computeIfAbsent(player, k -> new HashMap<>())
+                .computeIfAbsent(factionId, k -> new HashSet<>()).addAll(dealIds);
+        setDirty();
+    }
+
     long getLastInbound(UUID player) {
         Long tick = lastInbound.get(player);
         return tick == null ? Long.MIN_VALUE / 2 : tick;
@@ -195,6 +211,7 @@ class DiplomacySavedData extends SavedData {
         allPlayers.addAll(lastSend.keySet());
         allPlayers.addAll(lastActivity.keySet());
         allPlayers.addAll(lastInbound.keySet());
+        allPlayers.addAll(seenOffers.keySet());
 
         ListTag players = new ListTag();
         for (UUID uuid : allPlayers) {
@@ -235,6 +252,16 @@ class DiplomacySavedData extends SavedData {
             player.put("lastActivity", writeFactionLongs(lastActivity.get(uuid)));
             Long inbound = lastInbound.get(uuid);
             if (inbound != null) player.putLong("lastInbound", inbound);
+            ListTag seenEntries = new ListTag();
+            for (Map.Entry<String, Set<String>> e : seenOffers.getOrDefault(uuid, Map.of()).entrySet()) {
+                CompoundTag entry = new CompoundTag();
+                entry.putString("faction", e.getKey());
+                ListTag ids = new ListTag();
+                for (String id : e.getValue()) ids.add(net.minecraft.nbt.StringTag.valueOf(id));
+                entry.put("ids", ids);
+                seenEntries.add(entry);
+            }
+            player.put("seenOffers", seenEntries);
             players.add(player);
         }
         tag.put("players", players);
@@ -308,6 +335,16 @@ class DiplomacySavedData extends SavedData {
             if (player.contains("lastInbound")) {
                 data.lastInbound.put(uuid, player.getLong("lastInbound"));
             }
+            ListTag seenEntries = player.getList("seenOffers", Tag.TAG_COMPOUND);
+            Map<String, Set<String>> seenMap = new HashMap<>();
+            for (int j = 0; j < seenEntries.size(); j++) {
+                CompoundTag entry = seenEntries.getCompound(j);
+                Set<String> ids = new HashSet<>();
+                ListTag idList = entry.getList("ids", Tag.TAG_STRING);
+                for (int k = 0; k < idList.size(); k++) ids.add(idList.getString(k));
+                if (!ids.isEmpty()) seenMap.put(entry.getString("faction"), ids);
+            }
+            if (!seenMap.isEmpty()) data.seenOffers.put(uuid, seenMap);
         }
         return data;
     }

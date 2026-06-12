@@ -885,6 +885,17 @@ public final class DiplomacyManager {
         }
     }
 
+    /** The "!" badge clears: mark the faction's CURRENT offers seen
+     *  (called when the player clicks its tab in the Diplomacy window). */
+    static void markOffersSeen(ServerPlayer player, String factionId) {
+        if (!isEnabled()) return;
+        ServerLevel level = player.serverLevel();
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        List<String> ids = data.getOffers(player.getUUID(), factionId).stream()
+                .map(DiplomacySavedData.Offer::dealId).toList();
+        data.markOffersSeen(player.getUUID(), factionId, ids);
+    }
+
     // ------------------------------------------------------------------
     // The alliance prompt — OPEN relations reaching ALLIED (80+) pop an
     // Accept/Decline dialog (replaces the pact milestone deal)
@@ -1017,9 +1028,12 @@ public final class DiplomacyManager {
                     && now - data.getLastSend(uuid, faction.id()) >= SEND_COOLDOWN_TICKS);
 
             ListTag offers = new ListTag();
+            java.util.Set<String> seen = data.getSeenOffers(uuid, faction.id());
+            boolean hasNew = false;
             for (DiplomacySavedData.Offer offer : data.getOffers(uuid, faction.id())) {
                 DealSpec spec = DealSpec.byId(offer.dealId());
                 if (spec == null) continue;
+                if (!seen.contains(offer.dealId())) hasNew = true;
                 CompoundTag o = new CompoundTag();
                 o.putString("dealId", spec.id());
                 o.putString("title", spec.title());
@@ -1029,6 +1043,7 @@ public final class DiplomacyManager {
                 offers.add(o);
             }
             f.put("offers", offers);
+            f.putBoolean("hasNew", hasNew);
 
             ActiveDeal deal = data.getDeal(uuid, faction.id());
             DealSpec spec = deal == null ? null : DealSpec.byId(deal.dealId);
