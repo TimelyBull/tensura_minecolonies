@@ -1,5 +1,6 @@
 package com.example.examplemod;
 
+import com.minecolonies.api.entity.citizen.Skill;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -12,26 +13,26 @@ import java.util.Map;
  * One faction deal's STATIC definition (docs/diplomacy.md #3) — the
  * registry half of the deal framework. Persisted progress lives in
  * {@link ActiveDeal}; this record is pure data, string-keyed for the
- * addon door, and the Stage-2/3 extension point (faction-flavored deal
- * TABLES are data swaps over {@link #DEALS}).
+ * addon door.
  *
- * <p><b>The sealed {@link Requirement} seam:</b> Stage 1 ships
- * SupplyItems / BuildingLevel / Population / Happiness. Stage 2 adds
- * {@code LendCitizens} as one more permitted variant — the framework
- * (state machine, payoff timers, persistence) needs no reshaping
- * (feasibility verified: MineColonies' serializeNBT → removeCivilian →
- * resurrectCivilianData round-trip + ICitizenSkillHandler.incrementLevel).
+ * <p><b>Stage 2:</b> deals are now authored per-faction
+ * ({@link #FACTION_DEALS} — each faction offers what it VALUES;
+ * {@link #DEALS} remains the global id → spec index), and the sealed
+ * {@link Requirement} gained {@link LendCitizens} — the time-delayed
+ * citizen-lending deal (VANILLA colonists only in Stage 2; race-citizen
+ * lending is a documented follow-on).
  *
  * @param standingReward  paid on FULFILLMENT through the sole door
  *                        (WorldRepReason.DIPLOMACY)
  * @param standingPenalty charged on deadline FAILURE
- * @param deadlineTicks   accept → due window
- * @param payoffDelayTicks 0 = reward collectible immediately on
- *                        fulfillment; >0 = AWAITING_PAYOFF (the caravan
- *                        travels) before the reward is collectible
+ * @param deadlineTicks   accept → due window (lending deals fulfil at
+ *                        accept, so it's unused there)
+ * @param payoffDelayTicks 0 = reward lands instantly on fulfillment;
+ *                        >0 = AWAITING_PAYOFF first (lending uses the
+ *                        requirement's own duration instead)
  * @param minTier         offer gating — better deals at higher standing
- * @param milestone       the ALLIANCE-PACT marker: fulfillment promotes
- *                        relations OPEN → PACT
+ * @param milestone       reserved for Stage-4 milestone deals (the
+ *                        mending ritual); the alliance pact is a PROMPT
  */
 public record DealSpec(
         String id,
@@ -45,9 +46,9 @@ public record DealSpec(
         FactionTier minTier,
         boolean milestone) {
 
-    /** What the faction asks for. Sealed — Stage 2 adds LendCitizens. */
+    /** What the faction asks for. Sealed — the extension seam. */
     public sealed interface Requirement
-            permits SupplyItems, BuildingLevel, Population, Happiness {
+            permits SupplyItems, BuildingLevel, Population, Happiness, LendCitizens {
         /** Player-facing one-liner ("Supply 64 Iron Ingot"). */
         String summary();
     }
@@ -83,6 +84,24 @@ public record DealSpec(
         }
     }
 
+    /**
+     * Stage 2 — LEND citizens: {@code count} VANILLA colonists with
+     * {@code skill ≥ minLevel} leave the colony for
+     * {@code durationTicks} (the workforce genuinely drops — snapshots
+     * ride the ActiveDeal NBT), then return trained
+     * (+{@code skillBoost} to the skill) alongside the item reward.
+     * Race-citizens (with a RaceIdentity) are excluded from the picker
+     * — the Stage-2 identity-collision guard.
+     */
+    public record LendCitizens(Skill skill, int minLevel, int count,
+                               long durationTicks, int skillBoost) implements Requirement {
+        @Override public String summary() {
+            return "Lend " + count + " citizens with " + skill.name() + " ≥ " + minLevel
+                    + " for " + (durationTicks / DealSpec.DAY) + " days (return +"
+                    + skillBoost + " " + skill.name() + ")";
+        }
+    }
+
     /** Player-facing reward one-liner. */
     public String rewardSummary() {
         StringBuilder sb = new StringBuilder();
@@ -94,55 +113,156 @@ public record DealSpec(
     }
 
     // ------------------------------------------------------------------
-    // The Stage-1 STARTER set — faction-neutral your-colony deals that
-    // prove the loop (supply / build / population / happiness + the
-    // alliance-pact milestone). Faction-FLAVORED tables are Stage 3.
-    // All numbers are tuning values; days = 24 000 ticks.
+    // Stage-2 FACTION-FLAVORED deal tables — each faction offers what it
+    // values; gating via minTier (better deals as standing rises).
+    // Clayman / Leon / Otherworlders / Shizu offer NOTHING (hostility-
+    // oriented or aloof — relations can open, but no deals). All
+    // schematic names verified against ModBuildings constants; all
+    // numbers are tuning values. Days = 24 000 ticks.
     // ------------------------------------------------------------------
 
     static final long DAY = 24_000L;
 
-    public static final Map<String, DealSpec> DEALS = buildDeals();
+    /** faction id → that faction's deal table (offer order = table order). */
+    public static final Map<String, List<DealSpec>> FACTION_DEALS = buildFactionDeals();
+
+    /** Global id → spec index (accept/lookup path). */
+    public static final Map<String, DealSpec> DEALS = buildIndex();
 
     public static DealSpec byId(String id) {
         return DEALS.get(id);
     }
 
-    private static Map<String, DealSpec> buildDeals() {
-        Map<String, DealSpec> map = new LinkedHashMap<>();
-        // All Stage-1 starter rewards are INSTANT (payoffDelayTicks 0,
-        // user-requested) — the AWAITING_PAYOFF machinery stays for
-        // Stage-2 deals that want a travelling caravan.
-        put(map, new DealSpec("supply_iron", "Iron Shipment",
-                new SupplyItems(Items.IRON_INGOT, 64),
-                List.of(new ItemStack(Items.GOLD_INGOT, 24)),
-                4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false));
-        put(map, new DealSpec("supply_food", "Provisions for the Road",
-                new SupplyItems(Items.BREAD, 32),
-                List.of(new ItemStack(Items.EMERALD, 16)),
-                4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false));
-        put(map, new DealSpec("raise_library", "A Seat of Learning",
-                new BuildingLevel("library", 3),
-                List.of(new ItemStack(Items.EMERALD, 32)),
-                6.0, 5.0, 12 * DAY, 0, FactionTier.NEUTRAL, false));
-        put(map, new DealSpec("growing_town", "A Growing Town",
-                new Population(15),
-                List.of(new ItemStack(Items.EMERALD, 24)),
-                6.0, 5.0, 20 * DAY, 0, FactionTier.NEUTRAL, false));
-        put(map, new DealSpec("content_people", "Content People",
-                new Happiness(7.0),
-                List.of(new ItemStack(Items.EMERALD, 24),
-                        new ItemStack(Items.GOLD_INGOT, 8)),
-                6.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false));
-        // NOTE: the alliance-pact MILESTONE DEAL was replaced by the
-        // alliance PROMPT (user-requested): reaching ALLIED 80+ while
-        // OPEN pops an Accept/Decline dialog instead — see
-        // DiplomacyManager.checkAlliancePrompts. The milestone flag
-        // machinery stays for Stage-4 deals (the mending ritual).
+    public static List<DealSpec> tableFor(String factionId) {
+        return FACTION_DEALS.getOrDefault(factionId, List.of());
+    }
+
+    private static Map<String, List<DealSpec>> buildFactionDeals() {
+        Map<String, List<DealSpec>> map = new LinkedHashMap<>();
+
+        // DWARGON — craftsmanship & industry.
+        map.put("dwargon", List.of(
+                new DealSpec("dw_iron_tribute", "Iron for the Forges",
+                        new SupplyItems(Items.IRON_INGOT, 64),
+                        List.of(new ItemStack(Items.GOLD_INGOT, 24)),
+                        4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("dw_blacksmith", "A Proper Smithy",
+                        new BuildingLevel("blacksmith", 3),
+                        List.of(new ItemStack(Items.EMERALD, 32)),
+                        6.0, 5.0, 12 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("dw_smeltery", "Fires of Industry",
+                        new BuildingLevel("smeltery", 3),
+                        List.of(new ItemStack(Items.EMERALD, 32),
+                                new ItemStack(Items.IRON_BLOCK, 8)),
+                        6.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
+                new DealSpec("dw_strong_backs", "Strong Backs for the Mines",
+                        new LendCitizens(Skill.Strength, 8, 3, 3 * DAY, 3),
+                        List.of(new ItemStack(Items.GOLD_INGOT, 32),
+                                new ItemStack(Items.EMERALD, 16)),
+                        8.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false)));
+
+        // TEMPEST — community & development.
+        map.put("tempest", List.of(
+                new DealSpec("tp_provisions", "Provisions for Travellers",
+                        new SupplyItems(Items.BREAD, 32),
+                        List.of(new ItemStack(Items.EMERALD, 16)),
+                        4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("tp_growing", "A Growing Town",
+                        new Population(15),
+                        List.of(new ItemStack(Items.EMERALD, 24)),
+                        6.0, 5.0, 20 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("tp_content", "Content People",
+                        new Happiness(7.0),
+                        List.of(new ItemStack(Items.EMERALD, 24),
+                                new ItemStack(Items.GOLD_INGOT, 8)),
+                        6.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
+                new DealSpec("tp_helping_hands", "Helping Hands",
+                        new LendCitizens(Skill.Adaptability, 5, 2, 2 * DAY, 2),
+                        List.of(new ItemStack(Items.EMERALD, 24)),
+                        8.0, 5.0, 2 * DAY, 0, FactionTier.FRIENDLY, false)));
+
+        // JURA ALLIANCE — community & learning.
+        map.put("jura_alliance", List.of(
+                new DealSpec("ja_harvest", "A Share of the Harvest",
+                        new SupplyItems(Items.WHEAT, 64),
+                        List.of(new ItemStack(Items.EMERALD, 16)),
+                        4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("ja_school", "Letters for the Young",
+                        new BuildingLevel("school", 3),
+                        List.of(new ItemStack(Items.EMERALD, 32)),
+                        6.0, 5.0, 12 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("ja_scholars", "Scholars Abroad",
+                        new LendCitizens(Skill.Knowledge, 8, 2, 3 * DAY, 3),
+                        List.of(new ItemStack(Items.EMERALD, 32),
+                                new ItemStack(Items.BOOK, 16)),
+                        8.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false)));
+
+        // LUMINOUS — HARD: prove your civilisation, then pay dearly.
+        map.put("luminous", List.of(
+                new DealSpec("lu_grand_library", "A Light of Learning",
+                        new BuildingLevel("library", 5),
+                        List.of(new ItemStack(Items.EMERALD, 48)),
+                        8.0, 5.0, 20 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("lu_tribute", "Tribute to the Luminary",
+                        new SupplyItems(Items.DIAMOND, 32),
+                        List.of(new ItemStack(Items.EMERALD, 64)),
+                        8.0, 5.0, 6 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("lu_university", "Sanctified Halls",
+                        new BuildingLevel("university", 4),
+                        List.of(new ItemStack(Items.EMERALD, 64),
+                                new ItemStack(Items.DIAMOND, 8)),
+                        10.0, 5.0, 20 * DAY, 0, FactionTier.FRIENDLY, false)));
+
+        // FALMUTH — HARD: war materiel and fortification.
+        map.put("falmuth", List.of(
+                new DealSpec("fa_war_levy", "The War Levy",
+                        new SupplyItems(Items.IRON_BLOCK, 32),
+                        List.of(new ItemStack(Items.EMERALD, 48)),
+                        6.0, 5.0, 6 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("fa_barracks", "Walls and Watchmen",
+                        new BuildingLevel("barracks", 3),
+                        List.of(new ItemStack(Items.EMERALD, 48),
+                                new ItemStack(Items.GOLD_INGOT, 16)),
+                        8.0, 5.0, 20 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("fa_field_hands", "Hands for the Fields",
+                        new LendCitizens(Skill.Stamina, 10, 3, 3 * DAY, 2),
+                        List.of(new ItemStack(Items.EMERALD, 40)),
+                        8.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false)));
+
+        // MILIM — strength and feasts (her swing multiplier amplifies).
+        map.put("milim", List.of(
+                new DealSpec("mi_feast", "A Feast Worthy of Me!",
+                        new SupplyItems(Items.COOKED_PORKCHOP, 64),
+                        List.of(new ItemStack(Items.EMERALD, 24)),
+                        6.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("mi_strong_town", "Show Me Your Strength",
+                        new Population(20),
+                        List.of(new ItemStack(Items.EMERALD, 32),
+                                new ItemStack(Items.DIAMOND, 4)),
+                        8.0, 5.0, 20 * DAY, 0, FactionTier.FRIENDLY, false)));
+
+        // CARRION — the beast kingdom's offerings.
+        map.put("carrion", List.of(
+                new DealSpec("ca_hides", "Hides for the Beastfolk",
+                        new SupplyItems(Items.LEATHER, 48),
+                        List.of(new ItemStack(Items.EMERALD, 20)),
+                        6.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("ca_thriving_pack", "A Thriving Pack",
+                        new Happiness(8.0),
+                        List.of(new ItemStack(Items.EMERALD, 32)),
+                        8.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false)));
+
+        // Clayman / Leon / Otherworlders / Shizu — no deal tables.
         return Map.copyOf(map);
     }
 
-    private static void put(Map<String, DealSpec> map, DealSpec spec) {
-        map.put(spec.id(), spec);
+    private static Map<String, DealSpec> buildIndex() {
+        Map<String, DealSpec> index = new LinkedHashMap<>();
+        for (List<DealSpec> table : FACTION_DEALS.values()) {
+            for (DealSpec spec : table) {
+                index.put(spec.id(), spec);
+            }
+        }
+        return Map.copyOf(index);
     }
 }

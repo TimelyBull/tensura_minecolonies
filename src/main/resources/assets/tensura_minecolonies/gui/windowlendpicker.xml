@@ -1,0 +1,29 @@
+<window size="300 240" lightbox="true"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/ldtteam/BlockUI/version/main/src/main/resources/assets/blockui/gui/block_ui.xsd">
+
+    <!-- Same cream paper as the other windows (stretched). -->
+    <image source="minecolonies:textures/gui/builderhut/builder_paper_wide2.png" size="300 240"/>
+
+    <text id="title" size="268 14" pos="16 10" color="black" textscale="1.15" label="§lWho Goes?§r"/>
+    <text id="subtitle" size="268 11" pos="16 26" textscale="0.9" color="black" label=""/>
+    <box id="divider" size="268 1" pos="16 40" color="black"/>
+
+    <!-- Candidate rows (click to toggle). Content stops at 256px so the
+         scrollbar never clips the level column. -->
+    <list id="candidates" size="268 156" pos="16 46">
+        <view size="100% 22">
+            <box id="ccard" size="256 19" pos="0 0" color="black"/>
+            <text id="cname" size="170 11" pos="8 5" color="black"/>
+            <text id="clevel" size="74 11" pos="178 5" textalign="MIDDLE_RIGHT" color="black"/>
+        </view>
+    </list>
+
+    <button id="confirm" size="120 16" pos="32 212" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_green.png"
+            label="Send 0/0"/>
+    <button id="cancel" size="80 16" pos="188 212" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_tan.png"
+            label="Cancel"/>
+
+</window>

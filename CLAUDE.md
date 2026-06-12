@@ -635,7 +635,27 @@ profession (latest):**
   to colony strength (EP-primary, ×1.15 budget); hostile-spawn
   prevention inside fueled barriers. Records: docs/raid-system.md.
 
-**Diplomacy Stage 1 (the builder's-path spine — latest):**
+**Diplomacy Stage 2 (lending + flavored deals + fuller UI — latest):**
+- `LendCitizens` Requirement variant: VANILLA colonists only (the
+  (colonyId, citizenId) RaceIdentity filter — race-citizen lending is
+  a documented follow-on). Accept → `WindowLendPicker` (eligible
+  citizens + skill levels, exact-count Send) → snapshots into
+  `ActiveDeal.lentCitizens` NBT + `removeCivilian` (workforce drops) →
+  AWAITING_PAYOFF with a time-% bar → `resurrectCivilianData(resetId
+  =true)` at the town hall + `incrementLevel` + reward. Edge cases:
+  colony deleted → fallback to any owned colony, else the deal WAITS
+  (citizens never lost); reload-safe by construction; collapse
+  mid-lend returns them untrained first.
+- Faction-flavored deal tables (`DealSpec.FACTION_DEALS`): Dwargon
+  craft/industry, Tempest/Jura community/learning, Holy bloc HARD
+  (library L5 / 32 diamonds / barracks), Milim/Carrion offerings;
+  Clayman + aloof factions offer nothing. Offers draw from the
+  faction's table (tier-gated; lends only offered when staffable).
+- UI: faction rows show running-deal % ("deal 47%"); lending deals
+  show "Citizens away — back in ~Nh". Records: docs/diplomacy.md
+  (Stage 2 as-built).
+
+**Diplomacy Stage 1 (the builder's-path spine):**
 - `RelationsState {NONE, OPEN, PACT}` per (player, faction) in
   `DiplomacySavedData` behind the `DiplomacyManager` sole door (every
   standing write via WorldReputationManager, DIPLOMACY reason live).

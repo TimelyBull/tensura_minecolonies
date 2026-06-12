@@ -51,6 +51,65 @@ specced unless noted):
   offered only while `isDiplomacyClosed`; `reopenDiplomacy` already
   exists).
 
+---
+
+**Status: STAGE 2 BUILT (2026-06-11)** — citizen lending + faction-
+flavored deal tables + the fuller UI. As-built record:
+
+- **Citizen lending (`LendCitizens` Requirement variant — the sealed
+  seam used as designed).** VANILLA COLONISTS ONLY (confirmed default):
+  the eligibility filter excludes any citizen whose (colonyId,
+  citizenId) pair has a `RaceIdentity` — matched on BOTH keys, since
+  the bare citizenId lookup scans across colonies. Returned citizens
+  resurrect with `resetId=true` (fresh ids; vanilla colonists carry no
+  identity record, so nothing can collide). Race-citizen lending is a
+  documented FUTURE follow-on (needs an identity remap on return).
+- **The lend lifecycle:** accepting a lending offer opens the PICKER
+  (`WindowLendPicker` — eligible citizens with their skill level,
+  click-to-toggle, Send enables at the exact count); confirm →
+  server re-validates → each citizen is `serializeNBT`-snapshotted
+  into the ActiveDeal's NBT, the body poofs, `removeCivilian` drops
+  them from the workforce; the deal sits in AWAITING_PAYOFF for the
+  lend duration (time-based % bar); on payoff
+  `resurrectCivilianData(snapshot, true, level, townHallSpawn)` +
+  `incrementLevel(skill, boost)` + item/standing reward.
+- **Edge cases (all handled):** (1) COLONY DELETED mid-lend → the
+  return prefers the original colony, falls back to ANY colony the
+  player owns, and if none exists the deal simply WAITS (citizens stay
+  safe in the SavedData NBT — never lost, never duped). (2)
+  SAVE/RELOAD mid-lend → snapshots ride `ActiveDeal.lentCitizens`
+  inside DiplomacySavedData; survival is by construction. (3) FULL
+  COLONY on return → resurrect registers the data regardless;
+  MineColonies handles overcrowding through housing/happiness (a real
+  but gentle cost). (4) RELATIONS COLLAPSE mid-lend (e.g. the Clayman
+  clamp) → lent citizens are returned immediately, UNTRAINED and
+  unpaid, before the deal is destroyed — collapse can't strand them.
+  Lending deals cannot deadline-fail (the requirement is fulfilled by
+  the act of lending; the timer IS the deal).
+- **Faction deal tables (`DealSpec.FACTION_DEALS`, a data swap as
+  designed):** Dwargon = craft/industry (iron tribute, blacksmith L3,
+  smeltery L3, lend 3× Strength≥8 for 3d → +3); Tempest = community
+  (provisions, population 15, happiness 7, lend 2× Adaptability);
+  Jura = community/learning (wheat, school L3, lend 2× Knowledge≥8);
+  Luminous = HARD (library L5, 32 diamonds, university L4); Falmuth =
+  HARD war-materiel (32 iron blocks, barracks L3, lend 3× Stamina≥10);
+  Milim = feasts/strength (64 cooked porkchop, population 20 — her
+  1.5× swing amplifies the payouts); Carrion = beast offerings (48
+  leather, happiness 8). Clayman/Leon/Otherworlders/Shizu offer
+  NOTHING (hostility-oriented/aloof — relations can open, no deals).
+  All schematic names verified against ModBuildings constants; note
+  MineColonies has no "Mining" skill — miners key on STRENGTH, which
+  Dwargon's lend uses.
+- **Fuller UI:** the faction list now shows running deals at a glance
+  ("deal 47%" on the row), lending deals show a time-based % bar +
+  "Citizens away — back in ~Nh", and the picker window joins the
+  paper-styled family. All behind `factionSystemEnabled` (the picker
+  path routes through acceptDeal/handleLendConfirm, both gated).
+- **Stages remaining:** Stage 3 = rewards (raid-support, buffs,
+  exclusives); Stage 4 = the mending ritual (milestone deal offered
+  only while `isDiplomacyClosed`; `reopenDiplomacy` exists). Plus the
+  race-citizen lending follow-on.
+
 Original investigation follows.
 
 ---

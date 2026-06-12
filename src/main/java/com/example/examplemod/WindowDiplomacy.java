@@ -61,7 +61,8 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
     // ---- parsed snapshot ----
     private record OfferRow(String dealId, String title, String req, String reward, int daysLeft) {}
     private record ActiveRow(String title, String req, String reward, byte state, int pct,
-                             int hoursLeft, boolean canDeliver, boolean canCollect) {}
+                             int hoursLeft, boolean lend, int returnHours,
+                             boolean canDeliver, boolean canCollect) {}
     private record FactionRow(String id, String name, double standing, String tier,
                               int tierColor, RelationsState state, boolean closed,
                               boolean pendingReply, boolean canSend,
@@ -161,8 +162,8 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
                 CompoundTag d = f.getCompound("active");
                 active = new ActiveRow(d.getString("title"), d.getString("req"),
                         d.getString("reward"), d.getByte("state"), d.getInt("progressPct"),
-                        d.getInt("hoursLeft"), d.getBoolean("canDeliver"),
-                        d.getBoolean("canCollect"));
+                        d.getInt("hoursLeft"), d.getBoolean("lend"), d.getInt("returnHours"),
+                        d.getBoolean("canDeliver"), d.getBoolean("canCollect"));
             }
             rows.add(new FactionRow(f.getString("id"), f.getString("name"),
                     f.getDouble("standing"), f.getString("tier"), f.getInt("tierColor"),
@@ -195,14 +196,24 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
         }
         Text state = rowPane.findPaneOfTypeByID("fstate", Text.class);
         if (state != null) {
-            String label = switch (row.state()) {
-                case OPEN -> "Diplomacy";
-                case PACT -> "Alliance";
-                default -> row.closed() ? "Closed" : "";
-            };
+            // Multi-deal tracking at a glance: a running deal shows its
+            // % right in the faction list.
+            String label;
+            int color;
+            if (row.active() != null) {
+                label = "deal " + row.active().pct() + "%";
+                color = 0xFF274A6B;
+            } else {
+                label = switch (row.state()) {
+                    case OPEN -> "Diplomacy";
+                    case PACT -> "Alliance";
+                    default -> row.closed() ? "Closed" : "";
+                };
+                color = row.state() == RelationsState.PACT ? 0xFF274A6B
+                        : row.closed() ? 0xFF8A2E2E : 0xFF2F5A28;
+            }
             state.setText(Component.literal(label));
-            state.setColors(row.state() == RelationsState.PACT ? 0xFF274A6B
-                    : row.closed() ? 0xFF8A2E2E : 0xFF2F5A28);
+            state.setColors(color);
         }
     }
 
@@ -306,7 +317,9 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
                 setTextColor("aReq", active.req(), TXT_GRAY);
                 setTextColor("aReward", "Pays: " + active.reward(), TXT_GRAY);
                 String stateText = switch (active.state()) {
-                    case ActiveDeal.STATE_AWAITING_PAYOFF -> "Payment is on its way…";
+                    case ActiveDeal.STATE_AWAITING_PAYOFF -> active.lend()
+                            ? "Citizens away — back in ~" + active.returnHours() + "h"
+                            : "Payment is on its way…";
                     case ActiveDeal.STATE_READY -> "Ready to collect!";
                     default -> active.hoursLeft() + "h left to fulfil";
                 };

@@ -1,5 +1,6 @@
 package com.example.examplemod;
 
+import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.util.EntityUtils;
@@ -329,6 +330,20 @@ public final class DiplomacyManager {
         IColony colony = IColonyManager.getInstance().getIColonyByOwner(level, uuid);
         if (colony == null) return "you need a colony to honor a deal";
 
+        // LENDING deals don't start here — accepting opens the citizen
+        // PICKER; the deal is created by handleLendConfirm once the
+        // player has chosen who goes.
+        if (spec.requirement() instanceof DealSpec.LendCitizens lend) {
+            List<ICitizenData> eligible = eligibleLendCitizens(level, colony, lend);
+            if (eligible.size() < lend.count()) {
+                return "the colony lacks " + lend.count() + " eligible citizens ("
+                        + lend.skill().name() + " ≥ " + lend.minLevel()
+                        + ", vanilla colonists only)";
+            }
+            Networking.sendLendPickerTo(player, faction, spec, lend, eligible);
+            return null;
+        }
+
         ActiveDeal deal = new ActiveDeal();
         deal.dealId = dealId;
         deal.colonyId = colony.getID();
@@ -346,6 +361,162 @@ public final class DiplomacyManager {
         LOGGER.info("[TM] diplomacy: player {} accepted deal '{}' with {} (colony {})",
                 uuid, dealId, faction.id(), colony.getID());
         return null;
+    }
+
+    // ------------------------------------------------------------------
+    // Stage 2 — citizen lending (VANILLA colonists only; the
+    // RaceIdentity-keyed race-citizens are excluded to avoid the
+    // citizenId collision documented in docs/diplomacy.md)
+    // ------------------------------------------------------------------
+
+    /** The lendable subset: adult VANILLA colonists (no RaceIdentity for
+     *  this colony+citizenId) meeting the skill bar. */
+    static List<ICitizenData> eligibleLendCitizens(ServerLevel level, IColony colony,
+                                                   DealSpec.LendCitizens lend) {
+        RaceIdentitySavedData identities = RaceIdentitySavedData.get(level);
+        List<ICitizenData> out = new ArrayList<>();
+        for (ICitizenData data : colony.getCitizenManager().getCitizens()) {
+            if (data.isChild()) continue;
+            if (data.getCitizenSkillHandler().getLevel(lend.skill()) < lend.minLevel()) continue;
+            if (isRaceCitizen(identities, colony.getID(), data.getId())) continue;
+            out.add(data);
+        }
+        return out;
+    }
+
+    /** True when this (colony, citizenId) belongs to a named
+     *  race-citizen — matched on BOTH keys (the bare citizenId lookup
+     *  scans across colonies and could false-positive). */
+    private static boolean isRaceCitizen(RaceIdentitySavedData identities,
+                                         int colonyId, int citizenId) {
+        for (RaceIdentitySavedData.RaceIdentity identity : identities.all()) {
+            if (identity.colonyId == colonyId && identity.citizenId == citizenId) return true;
+        }
+        return false;
+    }
+
+    /** The picker's confirmation: snapshot + remove the chosen citizens
+     *  and start the lend (state AWAITING_PAYOFF — the requirement is
+     *  fulfilled by the act of lending; the payoff timer IS the lend). */
+    static void handleLendConfirm(ServerPlayer player, String factionIdArg, String dealId,
+                                  List<Integer> citizenIds) {
+        if (!isEnabled()) return;
+        ServerLevel level = player.serverLevel();
+        UUID uuid = player.getUUID();
+        BossFaction faction = BossFaction.byId(factionIdArg);
+        DealSpec spec = DealSpec.byId(dealId);
+        if (faction == null || spec == null
+                || !(spec.requirement() instanceof DealSpec.LendCitizens lend)) {
+            return;
+        }
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        // Re-validate everything — the world may have moved since the picker.
+        if (getState(level, uuid, faction) == RelationsState.NONE) return;
+        if (data.getDeal(uuid, faction.id()) != null) return;
+        if (data.getOffers(uuid, faction.id()).stream()
+                .noneMatch(o -> o.dealId().equals(dealId))) {
+            fail(player, "that offer is no longer on the table");
+            return;
+        }
+        IColony colony = IColonyManager.getInstance().getIColonyByOwner(level, uuid);
+        if (colony == null) return;
+        if (citizenIds.size() != lend.count()
+                || new java.util.HashSet<>(citizenIds).size() != lend.count()) {
+            fail(player, "pick exactly " + lend.count() + " citizens");
+            return;
+        }
+        List<ICitizenData> eligible = eligibleLendCitizens(level, colony, lend);
+        List<ICitizenData> chosen = new ArrayList<>();
+        for (int id : citizenIds) {
+            ICitizenData match = eligible.stream()
+                    .filter(c -> c.getId() == id).findFirst().orElse(null);
+            if (match == null) {
+                fail(player, "a chosen citizen is no longer eligible");
+                return;
+            }
+            chosen.add(match);
+        }
+
+        // Snapshot, then remove — the workforce genuinely drops.
+        ActiveDeal deal = new ActiveDeal();
+        deal.dealId = dealId;
+        deal.colonyId = colony.getID();
+        deal.acceptedTick = level.getGameTime();
+        deal.payoffAtTick = level.getGameTime() + lend.durationTicks();
+        deal.deadlineTick = deal.payoffAtTick; // lending can't deadline-fail
+        deal.state = ActiveDeal.STATE_AWAITING_PAYOFF;
+        StringBuilder names = new StringBuilder();
+        for (ICitizenData citizen : chosen) {
+            deal.lentCitizens.add(citizen.serializeNBT(level.registryAccess()));
+            if (names.length() > 0) names.append(", ");
+            names.append(citizen.getName());
+            // Despawn the body with the envoy poof, then drop the data.
+            citizen.getEntity().ifPresent(entity -> {
+                level.sendParticles(ParticleTypes.POOF,
+                        entity.getX(), entity.getY() + entity.getBbHeight() / 2.0, entity.getZ(),
+                        24, 0.4, 0.4, 0.4, 0.02);
+                entity.discard();
+            });
+            colony.getCitizenManager().removeCivilian(citizen);
+        }
+        data.setDeal(uuid, faction.id(), deal);
+        List<DiplomacySavedData.Offer> remaining = new ArrayList<>(data.getOffers(uuid, faction.id()));
+        remaining.removeIf(o -> o.dealId().equals(dealId));
+        data.setOffers(uuid, faction.id(), remaining);
+        data.setLastActivity(uuid, faction.id(), level.getGameTime());
+        player.sendSystemMessage(Component.literal(names + " depart for "
+                + faction.displayName() + " — they return in "
+                + (lend.durationTicks() / DAY) + " days, trained.")
+                .withStyle(faction.color()));
+        LOGGER.info("[TM] diplomacy: player {} LENT {} citizens to {} (deal '{}')",
+                uuid, chosen.size(), faction.id(), dealId);
+    }
+
+    /**
+     * Bring lent citizens home: resurrect each snapshot at the colony's
+     * town hall ({@code resetId=true} — fresh ids; vanilla colonists
+     * carry no RaceIdentity, so nothing can collide), train them, spawn
+     * the bodies. The ORIGINAL colony is preferred; if it was deleted
+     * mid-lend, any colony the player still owns receives them; if NONE
+     * exists, returns false (the caller keeps waiting — citizens stay
+     * safe in the deal NBT rather than vanishing).
+     */
+    private static boolean returnLentCitizens(ServerLevel level, UUID player,
+                                              ActiveDeal deal, DealSpec.LendCitizens lend,
+                                              boolean trained) {
+        IColony colony = IColonyManager.getInstance().getColonyByWorld(deal.colonyId, level);
+        if (colony == null) {
+            colony = IColonyManager.getInstance().getIColonyByOwner(level, player);
+        }
+        if (colony == null || !colony.getServerBuildingManager().hasTownHall()) return false;
+        BlockPos th = colony.getServerBuildingManager().getTownHall().getPosition();
+        BlockPos spawnAt = EntityUtils.getSpawnPoint(level, th);
+        if (spawnAt == null) spawnAt = th;
+
+        for (int i = 0; i < deal.lentCitizens.size(); i++) {
+            CompoundTag snapshot = deal.lentCitizens.getCompound(i);
+            try {
+                ICitizenData returned = colony.getCitizenManager()
+                        .resurrectCivilianData(snapshot, true, level, spawnAt);
+                if (returned == null) continue;
+                if (trained) {
+                    returned.getCitizenSkillHandler().incrementLevel(lend.skill(), lend.skillBoost());
+                }
+                if (returned.getEntity().isEmpty()) {
+                    colony.getCitizenManager().spawnOrCreateCitizen(returned, level, spawnAt);
+                }
+            } catch (Throwable t) {
+                LOGGER.error("[TM] diplomacy: lent-citizen return failed (deal '{}')",
+                        deal.dealId, t);
+            }
+        }
+        deal.lentCitizens = new net.minecraft.nbt.ListTag();
+        return true;
+    }
+
+    private static void fail(ServerPlayer player, String message) {
+        player.sendSystemMessage(Component.literal(message)
+                .withStyle(net.minecraft.ChatFormatting.RED));
     }
 
     /** The Deliver button — SupplyItems PUSH fulfillment. */
@@ -471,9 +642,43 @@ public final class DiplomacyManager {
                 if (spec == null) { data.removeDeal(player, e.getKey()); continue; }
 
                 if (deal.state == ActiveDeal.STATE_AWAITING_PAYOFF && now >= deal.payoffAtTick) {
+                    BossFaction awaitingFaction = BossFaction.byId(e.getKey());
+                    ServerPlayer online = level.getServer().getPlayerList().getPlayer(player);
+
+                    // Stage 2 — a LENDING deal's payoff is the citizens
+                    // coming home trained (+ the reward). If no colony
+                    // can receive them (deleted mid-lend, no town hall),
+                    // keep waiting — they stay safe in the deal NBT.
+                    if (spec.requirement() instanceof DealSpec.LendCitizens lend
+                            && !deal.lentCitizens.isEmpty()) {
+                        if (!returnLentCitizens(level, player, deal, lend, true)) continue;
+                        if (awaitingFaction != null) {
+                            WorldReputationManager.modifyStanding(level, player, awaitingFaction,
+                                    spec.standingReward(), WorldRepReason.DIPLOMACY);
+                            data.setLastActivity(player, e.getKey(), now);
+                        }
+                        if (online != null) {
+                            giveItems(online, spec.rewardItems());
+                            data.removeDeal(player, e.getKey());
+                            online.sendSystemMessage(Component.literal(
+                                    "Your citizens return from "
+                                    + (awaitingFaction != null
+                                            ? awaitingFaction.displayName() : "abroad")
+                                    + ", trained (+" + lend.skillBoost() + " "
+                                    + lend.skill().name() + ") — with payment: "
+                                    + spec.rewardSummary() + ".")
+                                    .withStyle(net.minecraft.ChatFormatting.GREEN));
+                        } else {
+                            deal.state = ActiveDeal.STATE_READY; // items held for Collect
+                            data.setDeal(player, e.getKey(), deal);
+                        }
+                        LOGGER.info("[TM] diplomacy: player {} lend deal '{}' COMPLETED — citizens returned",
+                                player, deal.dealId);
+                        continue;
+                    }
+
                     deal.state = ActiveDeal.STATE_READY;
                     data.setDeal(player, e.getKey(), deal);
-                    ServerPlayer online = level.getServer().getPlayerList().getPlayer(player);
                     if (online != null) {
                         online.sendSystemMessage(Component.literal(
                                 "A caravan has arrived — your payment for '" + spec.title()
@@ -509,6 +714,8 @@ public final class DiplomacyManager {
                     colony.getCitizenManager().getCurrentCitizenCount() >= req.citizens();
             case DealSpec.Happiness req -> colony.getOverallHappiness() >= req.average();
             case DealSpec.SupplyItems ignored -> false;
+            // Lending fulfils through its own payoff machinery.
+            case DealSpec.LendCitizens ignored -> false;
         };
     }
 
@@ -572,15 +779,21 @@ public final class DiplomacyManager {
 
                 FactionTier tier = WorldReputationManager.getTier(level, player, faction);
                 ActiveDeal active = data.getDeal(player, e.getKey());
-                for (DealSpec spec : DealSpec.DEALS.values()) {
+                // Stage 2 — offers come from THIS faction's flavored table.
+                for (DealSpec spec : DealSpec.tableFor(e.getKey())) {
                     if (current.size() >= MAX_OFFERS) break;
                     if (tier.compareTo(spec.minTier()) < 0) continue;
-                    // The pact is offered once, while still OPEN.
                     if (spec.milestone() && state != RelationsState.OPEN) continue;
                     if (active != null && active.dealId.equals(spec.id())) continue;
                     if (current.stream().anyMatch(o -> o.dealId().equals(spec.id()))) continue;
-                    // Offer-time filter: never offer an already-met requirement.
-                    if (colony != null && !(spec.requirement() instanceof DealSpec.SupplyItems)) {
+                    // Offer-time filters: never offer an already-met
+                    // requirement, nor a lend the colony can't staff.
+                    if (colony != null && spec.requirement() instanceof DealSpec.LendCitizens lend
+                            && eligibleLendCitizens(level, colony, lend).size() < lend.count()) {
+                        continue;
+                    }
+                    if (colony != null && !(spec.requirement() instanceof DealSpec.SupplyItems)
+                            && !(spec.requirement() instanceof DealSpec.LendCitizens)) {
                         ActiveDeal probe = new ActiveDeal();
                         probe.colonyId = colony.getID();
                         if (isRequirementMet(level, probe, spec)) continue;
@@ -612,6 +825,23 @@ public final class DiplomacyManager {
                 if (faction == null) continue;
                 if (WorldReputationManager.getStanding(level, uuid, faction)
                         >= COLLAPSE_STANDING) continue;
+                // Lent citizens come HOME when relations shatter —
+                // untrained, no reward, but never lost.
+                ActiveDeal collapsing = data.getDeal(uuid, e.getKey());
+                DealSpec collapsingSpec = collapsing == null ? null : DealSpec.byId(collapsing.dealId);
+                if (collapsing != null && collapsingSpec != null
+                        && collapsingSpec.requirement() instanceof DealSpec.LendCitizens lend
+                        && !collapsing.lentCitizens.isEmpty()) {
+                    if (returnLentCitizens(level, uuid, collapsing, lend, false)) {
+                        player.sendSystemMessage(Component.literal(
+                                "Your lent citizens are sent home as relations break down.")
+                                .withStyle(net.minecraft.ChatFormatting.GRAY));
+                    } else {
+                        // No colony can receive them this second — keep
+                        // the deal (and the citizens) until one can.
+                        continue;
+                    }
+                }
                 data.setState(uuid, e.getKey(), RelationsState.NONE.id());
                 data.removeDeal(uuid, e.getKey());
                 data.setOffers(uuid, e.getKey(), new ArrayList<>());
@@ -805,15 +1035,22 @@ public final class DiplomacyManager {
                 d.putString("req", spec.requirement().summary());
                 d.putString("reward", spec.rewardSummary());
                 d.putByte("state", deal.state);
+                boolean lendDeal = spec.requirement() instanceof DealSpec.LendCitizens;
                 int pct;
                 if (spec.requirement() instanceof DealSpec.SupplyItems supply) {
                     pct = (int) Math.round(100.0 * deal.progress / Math.max(1, supply.count()));
+                } else if (lendDeal && deal.state == ActiveDeal.STATE_AWAITING_PAYOFF) {
+                    // The lend's % bar is TIME — how far through the away days.
+                    long total = Math.max(1, deal.payoffAtTick - deal.acceptedTick);
+                    pct = (int) Math.min(100, (now - deal.acceptedTick) * 100 / total);
                 } else {
                     pct = deal.state == ActiveDeal.STATE_ACTIVE ? 0 : 100;
                 }
-                if (deal.state != ActiveDeal.STATE_ACTIVE) pct = 100;
+                if (deal.state != ActiveDeal.STATE_ACTIVE && !lendDeal) pct = 100;
                 d.putInt("progressPct", Math.min(100, pct));
                 d.putInt("hoursLeft", (int) Math.max(0, (deal.deadlineTick - now) / 1000));
+                d.putBoolean("lend", lendDeal);
+                d.putInt("returnHours", (int) Math.max(0, (deal.payoffAtTick - now) / 1000));
                 d.putBoolean("canDeliver", deal.state == ActiveDeal.STATE_ACTIVE
                         && spec.requirement() instanceof DealSpec.SupplyItems);
                 d.putBoolean("canCollect", deal.state == ActiveDeal.STATE_READY);

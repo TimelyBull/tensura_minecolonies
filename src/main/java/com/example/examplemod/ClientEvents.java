@@ -70,6 +70,9 @@ public final class ClientEvents {
         Networking.factionEnvoyClientHandler = payload ->
                 net.minecraft.client.Minecraft.getInstance().setScreen(
                         new FactionEnvoyScreen(payload.entityId(), payload.factionName()));
+        // Stage 2 — the lend-citizen picker.
+        Networking.lendPickerClientHandler = payload ->
+                new WindowLendPicker(payload.data()).open();
         // The alliance prompt — Accept/Decline modal at ALLIED standing.
         // Not shown over another open screen (it re-prompts in a minute).
         Networking.alliancePromptClientHandler = payload -> {

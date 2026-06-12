@@ -179,6 +179,17 @@ public final class Networking {
                 FactionEnvoyResponsePayload.CODEC,
                 Networking::onFactionEnvoyResponse
         );
+        // Stage 2 — the lend-citizen picker (S2C candidates, C2S choice).
+        registrar.playToClient(
+                OpenLendPickerPayload.TYPE,
+                OpenLendPickerPayload.CODEC,
+                Networking::onOpenLendPicker
+        );
+        registrar.playToServer(
+                LendConfirmPayload.TYPE,
+                LendConfirmPayload.CODEC,
+                Networking::onLendConfirm
+        );
         // The alliance prompt — fired when OPEN relations reach ALLIED.
         registrar.playToClient(
                 OpenAlliancePromptPayload.TYPE,
@@ -984,6 +995,81 @@ public final class Networking {
                 AllianceResponsePayload::new
         );
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** S2C: open the lend-citizen picker. The body is an NBT compound
+     *  (factionId, dealId, title, count, skillName, minLevel, duration
+     *  days, boost + a candidates list of {id, name, level}) — built by
+     *  {@link #sendLendPickerTo}. */
+    public record OpenLendPickerPayload(net.minecraft.nbt.CompoundTag data)
+            implements CustomPacketPayload {
+        public static final Type<OpenLendPickerPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "open_lend_picker"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, OpenLendPickerPayload> CODEC =
+                StreamCodec.of(
+                        (buf, p) -> buf.writeNbt(p.data),
+                        buf -> new OpenLendPickerPayload((net.minecraft.nbt.CompoundTag) buf.readNbt()));
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** C2S: the picker's confirmed citizen ids. Server re-validates
+     *  everything (eligibility, count, offer still live) before the
+     *  citizens actually leave. */
+    public record LendConfirmPayload(String factionId, String dealId,
+                                     List<Integer> citizenIds)
+            implements CustomPacketPayload {
+        public static final Type<LendConfirmPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "lend_confirm"));
+        public static final StreamCodec<ByteBuf, LendConfirmPayload> CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, LendConfirmPayload::factionId,
+                ByteBufCodecs.STRING_UTF8, LendConfirmPayload::dealId,
+                ByteBufCodecs.VAR_INT.apply(ByteBufCodecs.list(64)), LendConfirmPayload::citizenIds,
+                LendConfirmPayload::new
+        );
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** Client-side delegate for the lend picker. Installed by ClientEvents. */
+    public static Consumer<OpenLendPickerPayload> lendPickerClientHandler = payload ->
+            LOGGER.info("[TM] lend picker (no client handler installed)");
+
+    /** Build + send the lend-picker snapshot. */
+    static void sendLendPickerTo(ServerPlayer player, BossFaction faction, DealSpec spec,
+                                 DealSpec.LendCitizens lend,
+                                 List<com.minecolonies.api.colony.ICitizenData> candidates) {
+        net.minecraft.nbt.CompoundTag root = new net.minecraft.nbt.CompoundTag();
+        root.putString("factionId", faction.id());
+        root.putString("factionName", faction.displayName());
+        root.putString("dealId", spec.id());
+        root.putString("title", spec.title());
+        root.putInt("count", lend.count());
+        root.putString("skillName", lend.skill().name());
+        root.putInt("minLevel", lend.minLevel());
+        root.putInt("days", (int) (lend.durationTicks() / 24_000L));
+        root.putInt("boost", lend.skillBoost());
+        net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
+        for (com.minecolonies.api.colony.ICitizenData candidate : candidates) {
+            net.minecraft.nbt.CompoundTag c = new net.minecraft.nbt.CompoundTag();
+            c.putInt("id", candidate.getId());
+            c.putString("name", candidate.getName());
+            c.putInt("level", candidate.getCitizenSkillHandler().getLevel(lend.skill()));
+            list.add(c);
+        }
+        root.put("candidates", list);
+        PacketDistributor.sendToPlayer(player, new OpenLendPickerPayload(root));
+    }
+
+    private static void onOpenLendPicker(OpenLendPickerPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> lendPickerClientHandler.accept(payload));
+    }
+
+    private static void onLendConfirm(LendConfirmPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer sp)) return;
+        context.enqueueWork(() -> {
+            DiplomacyManager.handleLendConfirm(sp, payload.factionId(), payload.dealId(),
+                    payload.citizenIds());
+            sendDiplomacySnapshot(sp);
+        });
     }
 
     /** Client-side delegate for the alliance prompt. Installed by ClientEvents. */

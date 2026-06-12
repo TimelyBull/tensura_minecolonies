@@ -1,6 +1,8 @@
 package com.example.examplemod;
 
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 
 /**
  * One ACCEPTED deal's persisted progress (docs/diplomacy.md #3) — the
@@ -32,6 +34,12 @@ class ActiveDeal {
     /** Game tick at which AWAITING_PAYOFF flips to READY. */
     long payoffAtTick;
     byte state = STATE_ACTIVE;
+    /** Stage 2 — LENT citizen snapshots (full ICitizenData NBT, one
+     *  compound each). Non-empty only for LendCitizens deals while the
+     *  citizens are away; cleared when they're returned. Riding the
+     *  SavedData means lent citizens survive save/reload by
+     *  construction. */
+    ListTag lentCitizens = new ListTag();
 
     CompoundTag save() {
         CompoundTag tag = new CompoundTag();
@@ -42,6 +50,7 @@ class ActiveDeal {
         tag.putInt("progress", progress);
         tag.putLong("payoffAtTick", payoffAtTick);
         tag.putByte("state", state);
+        if (!lentCitizens.isEmpty()) tag.put("lentCitizens", lentCitizens);
         return tag;
     }
 
@@ -54,6 +63,7 @@ class ActiveDeal {
         deal.progress = tag.getInt("progress");
         deal.payoffAtTick = tag.getLong("payoffAtTick");
         deal.state = tag.getByte("state");
+        deal.lentCitizens = tag.getList("lentCitizens", Tag.TAG_COMPOUND);
         return deal;
     }
 }
