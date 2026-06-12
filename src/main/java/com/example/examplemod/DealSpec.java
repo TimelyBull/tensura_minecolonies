@@ -96,7 +96,7 @@ public record DealSpec(
     public record LendCitizens(Skill skill, int minLevel, int count,
                                long durationTicks, int skillBoost) implements Requirement {
         @Override public String summary() {
-            return "Lend " + count + " citizens with " + skill.name() + " ≥ " + minLevel
+            return "Lend " + count + " citizens with " + skill.name() + " >= " + minLevel
                     + " for " + (durationTicks / DealSpec.DAY) + " days (return +"
                     + skillBoost + " " + skill.name() + ")";
         }
@@ -118,12 +118,14 @@ public record DealSpec(
     // Clayman / Leon / Otherworlders / Shizu offer NOTHING (hostility-
     // oriented or aloof — relations can open, but no deals). All
     // schematic names verified against ModBuildings constants; all
-    // numbers are tuning values. Days = 24 000 ticks.
+    // numbers are tuning values (lend skill bars kept LOW so fresh
+    // colonies can actually staff them). Days = 24 000 ticks.
     // ------------------------------------------------------------------
 
     static final long DAY = 24_000L;
 
-    /** faction id → that faction's deal table (offer order = table order). */
+    /** faction id → that faction's deal table (offers drawn randomly
+     *  from the eligible subset, so table order doesn't shadow). */
     public static final Map<String, List<DealSpec>> FACTION_DEALS = buildFactionDeals();
 
     /** Global id → spec index (accept/lookup path). */
@@ -156,7 +158,7 @@ public record DealSpec(
                                 new ItemStack(Items.IRON_BLOCK, 8)),
                         6.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("dw_strong_backs", "Strong Backs for the Mines",
-                        new LendCitizens(Skill.Strength, 8, 3, 3 * DAY, 3),
+                        new LendCitizens(Skill.Strength, 4, 3, 3 * DAY, 3),
                         List.of(new ItemStack(Items.GOLD_INGOT, 32),
                                 new ItemStack(Items.EMERALD, 16)),
                         8.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false)));
@@ -177,7 +179,7 @@ public record DealSpec(
                                 new ItemStack(Items.GOLD_INGOT, 8)),
                         6.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("tp_helping_hands", "Helping Hands",
-                        new LendCitizens(Skill.Adaptability, 5, 2, 2 * DAY, 2),
+                        new LendCitizens(Skill.Adaptability, 3, 2, 2 * DAY, 2),
                         List.of(new ItemStack(Items.EMERALD, 24)),
                         8.0, 5.0, 2 * DAY, 0, FactionTier.FRIENDLY, false)));
 
@@ -192,7 +194,7 @@ public record DealSpec(
                         List.of(new ItemStack(Items.EMERALD, 32)),
                         6.0, 5.0, 12 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("ja_scholars", "Scholars Abroad",
-                        new LendCitizens(Skill.Knowledge, 8, 2, 3 * DAY, 3),
+                        new LendCitizens(Skill.Knowledge, 4, 2, 3 * DAY, 3),
                         List.of(new ItemStack(Items.EMERALD, 32),
                                 new ItemStack(Items.BOOK, 16)),
                         8.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false)));
@@ -225,7 +227,7 @@ public record DealSpec(
                                 new ItemStack(Items.GOLD_INGOT, 16)),
                         8.0, 5.0, 20 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("fa_field_hands", "Hands for the Fields",
-                        new LendCitizens(Skill.Stamina, 10, 3, 3 * DAY, 2),
+                        new LendCitizens(Skill.Stamina, 5, 3, 3 * DAY, 2),
                         List.of(new ItemStack(Items.EMERALD, 40)),
                         8.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false)));
 

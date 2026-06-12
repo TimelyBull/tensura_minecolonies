@@ -92,7 +92,7 @@ public final class DiplomacyManager {
 
     // --- offers ---
     /** Concurrent offers per OPEN faction. */
-    static final int MAX_OFFERS = 2;
+    static final int MAX_OFFERS = 3;
     /** Un-accepted offers expire (and nudge standing −1) after this. */
     static final long OFFER_EXPIRY_TICKS = 3 * DAY;
 
@@ -783,9 +783,12 @@ public final class DiplomacyManager {
 
                 FactionTier tier = WorldReputationManager.getTier(level, player, faction);
                 ActiveDeal active = data.getDeal(player, e.getKey());
-                // Stage 2 — offers come from THIS faction's flavored table.
+                // Stage 2 — offers come from THIS faction's flavored
+                // table. Eligible specs are collected first and drawn
+                // RANDOMLY, so a deal late in the table (the lends)
+                // isn't permanently shadowed by the ones above it.
+                List<DealSpec> eligibleSpecs = new ArrayList<>();
                 for (DealSpec spec : DealSpec.tableFor(e.getKey())) {
-                    if (current.size() >= MAX_OFFERS) break;
                     if (tier.compareTo(spec.minTier()) < 0) continue;
                     if (spec.milestone() && state != RelationsState.OPEN) continue;
                     if (active != null && active.dealId.equals(spec.id())) continue;
@@ -794,6 +797,9 @@ public final class DiplomacyManager {
                     // requirement, nor a lend the colony can't staff.
                     if (colony != null && spec.requirement() instanceof DealSpec.LendCitizens lend
                             && eligibleLendCitizens(level, colony, lend).size() < lend.count()) {
+                        LOGGER.info("[TM] diplomacy: lend offer '{}' skipped for player {} — colony"
+                                + " lacks {} citizens with {} ≥ {} (vanilla-only)",
+                                spec.id(), player, lend.count(), lend.skill().name(), lend.minLevel());
                         continue;
                     }
                     if (colony != null && !(spec.requirement() instanceof DealSpec.SupplyItems)
@@ -802,7 +808,12 @@ public final class DiplomacyManager {
                         probe.colonyId = colony.getID();
                         if (isRequirementMet(level, probe, spec)) continue;
                     }
-                    current.add(new DiplomacySavedData.Offer(spec.id(), now + OFFER_EXPIRY_TICKS));
+                    eligibleSpecs.add(spec);
+                }
+                while (current.size() < MAX_OFFERS && !eligibleSpecs.isEmpty()) {
+                    DealSpec pick = eligibleSpecs.remove(
+                            level.getRandom().nextInt(eligibleSpecs.size()));
+                    current.add(new DiplomacySavedData.Offer(pick.id(), now + OFFER_EXPIRY_TICKS));
                 }
                 data.setOffers(player, e.getKey(), current);
             }
