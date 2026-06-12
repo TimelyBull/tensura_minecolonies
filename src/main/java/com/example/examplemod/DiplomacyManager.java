@@ -793,15 +793,12 @@ public final class DiplomacyManager {
                     if (spec.milestone() && state != RelationsState.OPEN) continue;
                     if (active != null && active.dealId.equals(spec.id())) continue;
                     if (current.stream().anyMatch(o -> o.dealId().equals(spec.id()))) continue;
-                    // Offer-time filters: never offer an already-met
-                    // requirement, nor a lend the colony can't staff.
-                    if (colony != null && spec.requirement() instanceof DealSpec.LendCitizens lend
-                            && eligibleLendCitizens(level, colony, lend).size() < lend.count()) {
-                        LOGGER.info("[TM] diplomacy: lend offer '{}' skipped for player {} — colony"
-                                + " lacks {} citizens with {} ≥ {} (vanilla-only)",
-                                spec.id(), player, lend.count(), lend.skill().name(), lend.minLevel());
-                        continue;
-                    }
+                    // Offer-time filter: never offer an already-met
+                    // requirement. Lend offers are NOT staffing-filtered
+                    // (user decision): the player should SEE the deal —
+                    // "3 citizens with Strength >= 8" is a goal to train
+                    // toward; accepting while understaffed explains what
+                    // is missing instead.
                     if (colony != null && !(spec.requirement() instanceof DealSpec.SupplyItems)
                             && !(spec.requirement() instanceof DealSpec.LendCitizens)) {
                         ActiveDeal probe = new ActiveDeal();

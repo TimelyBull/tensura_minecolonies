@@ -158,7 +158,7 @@ public record DealSpec(
                                 new ItemStack(Items.IRON_BLOCK, 8)),
                         6.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("dw_strong_backs", "Strong Backs for the Mines",
-                        new LendCitizens(Skill.Strength, 4, 3, 3 * DAY, 3),
+                        new LendCitizens(Skill.Strength, 8, 3, 3 * DAY, 3),
                         List.of(new ItemStack(Items.GOLD_INGOT, 32),
                                 new ItemStack(Items.EMERALD, 16)),
                         8.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false)));
@@ -179,7 +179,7 @@ public record DealSpec(
                                 new ItemStack(Items.GOLD_INGOT, 8)),
                         6.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("tp_helping_hands", "Helping Hands",
-                        new LendCitizens(Skill.Adaptability, 3, 2, 2 * DAY, 2),
+                        new LendCitizens(Skill.Adaptability, 5, 2, 2 * DAY, 2),
                         List.of(new ItemStack(Items.EMERALD, 24)),
                         8.0, 5.0, 2 * DAY, 0, FactionTier.FRIENDLY, false)));
 
@@ -194,7 +194,7 @@ public record DealSpec(
                         List.of(new ItemStack(Items.EMERALD, 32)),
                         6.0, 5.0, 12 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("ja_scholars", "Scholars Abroad",
-                        new LendCitizens(Skill.Knowledge, 4, 2, 3 * DAY, 3),
+                        new LendCitizens(Skill.Knowledge, 8, 2, 3 * DAY, 3),
                         List.of(new ItemStack(Items.EMERALD, 32),
                                 new ItemStack(Items.BOOK, 16)),
                         8.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false)));
@@ -227,7 +227,7 @@ public record DealSpec(
                                 new ItemStack(Items.GOLD_INGOT, 16)),
                         8.0, 5.0, 20 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("fa_field_hands", "Hands for the Fields",
-                        new LendCitizens(Skill.Stamina, 5, 3, 3 * DAY, 2),
+                        new LendCitizens(Skill.Stamina, 10, 3, 3 * DAY, 2),
                         List.of(new ItemStack(Items.EMERALD, 40)),
                         8.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false)));
 
