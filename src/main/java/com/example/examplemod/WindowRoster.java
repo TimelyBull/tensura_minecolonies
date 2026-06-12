@@ -85,6 +85,7 @@ public class WindowRoster extends AbstractWindowSkeleton {
     private static final String ID_CLEAR        = "clear";
     private static final String ID_CNT_CITIZENS = "countCitizens";
     private static final String ID_CNT_ATSIDE   = "countAtSide";
+    private static final String ID_DIPLOMACY    = "diplomacy";
     // row pane ids
     private static final String ROW_CARD = "card";
     private static final String ROW_SEL  = "sel";
@@ -165,6 +166,12 @@ public class WindowRoster extends AbstractWindowSkeleton {
         registerButton(ID_GROUP_SUM, (Button b) -> onGroup(1));   // summon selected at-colony
         registerButton(ID_GROUP_SEND, (Button b) -> onGroup(0));  // send selected at-side
         registerButton(ID_CLEAR, (Button b) -> clearSelection());
+        // Diplomacy Stage 1 — the [Roster | Diplomacy] tab strip. The
+        // server replies with a DiplomacySnapshotPayload, which opens
+        // the Diplomacy screen in place of this window.
+        registerButton(ID_DIPLOMACY, (Button b) ->
+                PacketDistributor.sendToServer(new Networking.DiplomacyActionPayload(
+                        Networking.DiplomacyActionPayload.ACTION_OPEN_TAB, "", "", false)));
     }
 
     @Override

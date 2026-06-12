@@ -16,6 +16,12 @@
     <text id="repLine" size="126 10" pos="124 32" textalign="MIDDLE_RIGHT" textscale="0.85" color="black" label=""/>
     <box id="divider" size="368 1" pos="16 48" color="black"/>
 
+    <!-- Diplomacy tab — opens the faction Diplomacy screen (Stage 1).
+         Sits in the header between the title and the slime/badge. -->
+    <button id="diplomacy" size="64 16" pos="186 13" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_tan.png"
+            label="Diplomacy"/>
+
     <!-- Slime peeking over the top edge, next to the magicule badge.
          Source is 640x512 (1.25:1) — keep that ratio so it isn't squished. -->
     <image id="slime" source="tensura_minecolonies:textures/gui/roster/slime.png" size="36 29" pos="256 -3"/>
