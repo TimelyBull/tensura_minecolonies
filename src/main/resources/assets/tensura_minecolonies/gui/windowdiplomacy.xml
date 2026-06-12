@@ -20,11 +20,13 @@
           label="The faction system is disabled."/>
 
     <!-- ===================== FACTION LIST (left) ===================== -->
+    <!-- Row content stops at 128px so the list's scrollbar (right edge)
+         never clips the state/standing label. -->
     <list id="factions" size="140 200" pos="12 44">
         <view size="100% 24">
-            <box id="fcard" size="100% 21" pos="0 0" color="black"/>
-            <text id="fname" size="84 11" pos="6 6" color="black"/>
-            <text id="fstate" size="46 11" pos="90 7" textalign="MIDDLE_RIGHT" textscale="0.75" color="black"/>
+            <box id="fcard" size="128 21" pos="0 0" color="black"/>
+            <text id="fname" size="74 11" pos="6 6" color="black"/>
+            <text id="fstate" size="44 11" pos="80 7" textalign="MIDDLE_RIGHT" textscale="0.75" color="black"/>
         </view>
     </list>
 

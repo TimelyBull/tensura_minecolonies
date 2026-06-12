@@ -110,10 +110,13 @@ public record DealSpec(
 
     private static Map<String, DealSpec> buildDeals() {
         Map<String, DealSpec> map = new LinkedHashMap<>();
+        // All Stage-1 starter rewards are INSTANT (payoffDelayTicks 0,
+        // user-requested) — the AWAITING_PAYOFF machinery stays for
+        // Stage-2 deals that want a travelling caravan.
         put(map, new DealSpec("supply_iron", "Iron Shipment",
                 new SupplyItems(Items.IRON_INGOT, 64),
                 List.of(new ItemStack(Items.GOLD_INGOT, 24)),
-                4.0, 5.0, 3 * DAY, DAY, FactionTier.NEUTRAL, false));
+                4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false));
         put(map, new DealSpec("supply_food", "Provisions for the Road",
                 new SupplyItems(Items.BREAD, 32),
                 List.of(new ItemStack(Items.EMERALD, 16)),

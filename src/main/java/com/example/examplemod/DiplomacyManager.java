@@ -397,24 +397,32 @@ public final class DiplomacyManager {
             data.setState(player, faction.id(), RelationsState.PACT.id());
         }
         long now = level.getGameTime();
+        ServerPlayer online = level.getServer().getPlayerList().getPlayer(player);
         if (spec.payoffDelayTicks() > 0) {
             deal.state = ActiveDeal.STATE_AWAITING_PAYOFF;
             deal.payoffAtTick = now + spec.payoffDelayTicks();
+            data.setDeal(player, faction.id(), deal);
+        } else if (online != null) {
+            // INSTANT reward (user-requested): the payment lands the
+            // moment the deal fulfills — no Collect click.
+            giveItems(online, spec.rewardItems());
+            data.removeDeal(player, faction.id());
         } else {
+            // Player offline (a polled milestone completed without them)
+            // — hold the payment for a Collect on the tab.
             deal.state = ActiveDeal.STATE_READY;
+            data.setDeal(player, faction.id(), deal);
         }
-        data.setDeal(player, faction.id(), deal);
         LOGGER.info("[TM] diplomacy: player {} FULFILLED deal '{}' with {} (+{} standing{})",
                 player, spec.id(), faction.id(), spec.standingReward(),
                 spec.milestone() ? ", PACT formed" : "");
-        ServerPlayer online = level.getServer().getPlayerList().getPlayer(player);
         if (online != null) {
-            online.sendSystemMessage(Component.literal(spec.milestone()
+            online.sendSystemMessage(Component.literal((spec.milestone()
                     ? "The pact is sealed — you and " + faction.displayName() + " are ALLIES."
-                    : "Deal fulfilled — " + faction.displayName() + " is pleased."
-                            + (spec.payoffDelayTicks() > 0
-                                    ? " Payment arrives within the day."
-                                    : " Collect your payment."))
+                    : "Deal fulfilled — " + faction.displayName() + " is pleased.")
+                    + (spec.payoffDelayTicks() > 0
+                            ? " Payment arrives within the day."
+                            : " They deliver your payment: " + spec.rewardSummary() + "."))
                     .withStyle(faction.color()));
         }
     }
