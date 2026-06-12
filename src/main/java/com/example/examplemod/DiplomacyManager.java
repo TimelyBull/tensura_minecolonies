@@ -481,6 +481,8 @@ public final class DiplomacyManager {
      * exists, returns false (the caller keeps waiting — citizens stay
      * safe in the deal NBT rather than vanishing).
      */
+    /** {@code lend} may be null only when {@code trained} is false (the
+     *  orphaned-deal cleanup path — no spec left to read the skill from). */
     private static boolean returnLentCitizens(ServerLevel level, UUID player,
                                               ActiveDeal deal, DealSpec.LendCitizens lend,
                                               boolean trained) {
@@ -499,7 +501,7 @@ public final class DiplomacyManager {
                 ICitizenData returned = colony.getCitizenManager()
                         .resurrectCivilianData(snapshot, true, level, spawnAt);
                 if (returned == null) continue;
-                if (trained) {
+                if (trained && lend != null) {
                     returned.getCitizenSkillHandler().incrementLevel(lend.skill(), lend.skillBoost());
                 }
                 if (returned.getEntity().isEmpty()) {
@@ -639,7 +641,19 @@ public final class DiplomacyManager {
             for (Map.Entry<String, ActiveDeal> e : new HashMap<>(byPlayer.getValue()).entrySet()) {
                 ActiveDeal deal = e.getValue();
                 DealSpec spec = DealSpec.byId(deal.dealId);
-                if (spec == null) { data.removeDeal(player, e.getKey()); continue; }
+                if (spec == null) {
+                    // Orphaned deal (its id left the registry — e.g. a
+                    // version change). If citizens are riding inside,
+                    // bring them home UNTRAINED before cleanup; no
+                    // colony available → keep waiting, never delete
+                    // citizens with the deal.
+                    if (!deal.lentCitizens.isEmpty()
+                            && !returnLentCitizens(level, player, deal, null, false)) {
+                        continue;
+                    }
+                    data.removeDeal(player, e.getKey());
+                    continue;
+                }
 
                 if (deal.state == ActiveDeal.STATE_AWAITING_PAYOFF && now >= deal.payoffAtTick) {
                     BossFaction awaitingFaction = BossFaction.byId(e.getKey());
