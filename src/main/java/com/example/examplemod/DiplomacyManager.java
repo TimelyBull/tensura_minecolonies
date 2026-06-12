@@ -769,6 +769,10 @@ public final class DiplomacyManager {
 
                 List<DiplomacySavedData.Offer> current =
                         new ArrayList<>(data.getOffers(player, e.getKey()));
+                // Silently prune offers whose deal id no longer resolves
+                // (the registry changed between versions) — otherwise
+                // dead entries clog the MAX_OFFERS slots invisibly.
+                current.removeIf(o -> DealSpec.byId(o.dealId()) == null);
                 // Expire ignored offers (−1 standing nudge each).
                 int before = current.size();
                 current.removeIf(o -> now >= o.expiresTick());
