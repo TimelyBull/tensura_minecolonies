@@ -1,0 +1,353 @@
+# Investigation: the Diplomacy system — Stage 1 (the spine)
+
+**Status:** investigation only, no code written (2026-06-11).
+
+**What this is:** the builder's-path parallel to the hostility arc — a
+TIERED, RECIPROCAL-EXCHANGE relationship system sitting on the Layer-1
+faction model (docs/faction-model.md), gated by `factionSystemEnabled`.
+Full arc: NEUTRAL → DIPLOMACY (fragile, decays) → ALLIANCE (durable);
+entry via envoy exchange (race-gated); the core loop is faction DEALS
+(reciprocal, deadline-bound, standing-driving) on a progressive
+Diplomacy tab. This doc investigates STAGE 1 (entry + tiers + the deal
+framework + a basic tab + movers/decay) plus the cross-cutting
+feasibility unknowns. Stages 2–4 (citizen-lending depth, faction-
+flavored deal sets, rewards/raid-support, mending) are deferred but the
+framework is shaped for them.
+
+Deferred entirely (needs the rival-colony/settlement arc): demands to
+build at faction settlements / visiting faction towns.
+
+---
+
+## #1 Envoy-based entry — reuse the envoy MACHINERY, not its state machine
+
+**What the existing envoy system provides (verified in code):**
+`spawnEnvoy` (town-hall-adjacent spawn via `EntityUtils.getSpawnPoint`,
+restrictTo roam, `EnvoyTag` attachment), the right-click → dialogue
+screen flow (`EnvoyDialogueScreen` — a custom Screen, payload-driven),
+the accept/decline server handlers, and the per-second scheduler
+(`runEnvoyScheduler`) with cooldown discipline. All of it is
+race-ENVOY-specific in its STATE (per-colony `acceptedEnvoys`,
+spawn-set semantics) but generic in its MECHANICS.
+
+**Recommendation: a parallel FACTION-envoy kind on the same machinery.**
+- A new attachment (`FactionEnvoyTag(factionId, direction)` — the
+  EnvoyTag/FactionMarkTag idiom) on a faction-appropriate entity
+  (Falmuth Knight for the Holy bloc, a goblin/orc for forest factions,
+  VisitorCitizen fallback) spawned by the SAME spawn helper near the
+  player's town hall. Right-click opens an `EnvoyDialogueScreen`-pattern
+  dialogue ("Open relations with Dwargon?"). Accept → relations OPEN.
+  Do NOT overload `EnvoyTag`/ColonyMember — race envoys change colony
+  SPAWN SETS; faction envoys change WORLD RELATIONS. Different state,
+  same plumbing.
+- **Inbound (faction → player):** a low-frequency roll on the existing
+  scheduler cadence — eligible when the faction's diplomacy profile
+  ACCEPTS the player's race side (below), standing ≥ NEUTRAL,
+  relations not already OPEN, `!isDiplomacyClosed` (the Orc Disaster
+  flag is THE first check — the door already exists in
+  `WorldReputationManager.isDiplomacyClosed`).
+- **Outbound (player → faction):** a "Send envoy" button per faction on
+  the Diplomacy tab (no entity needed — the player IS the sender):
+  optionally attach a GIFT (consumes the offered items from inventory →
+  a small standing bump, the first deal in spirit), then a time-delayed
+  reply (~1 in-game day, persisted) → relations OPEN if standing ≥ WARY
+  and not diplomacy-closed; a rejection message otherwise (standing
+  unharmed — asking costs nothing but the gift).
+
+**The RACE-GATE (the Layer-1 classifier, zero new race code):** add a
+per-faction `acceptsMajinEnvoys` / `acceptsHumanEnvoys` pair to the
+diplomacy profile (one map, string-keyed like `FactionProfile` —
+arguably ON FactionProfile itself as two booleans). Holy bloc: accepts
+HUMAN inbound+outbound, but never SENDS to a majin — a majin player
+must send their own envoy (and at a worse reception: their lower
+disposition base already prices that in via the standing check, no
+extra penalty needed). `isMajinSide(player)` is the only race read.
+
+**Entry transition:** accept (either direction) →
+`DiplomacyManager.openRelations(player, faction)` — sets the relations
+STATE (below) and pays a small `+2` standing through
+`WorldReputationManager.modifyStanding(..., DIPLOMACY)` (the reserved
+reason goes live).
+
+## #2 The tier system — a RELATIONS STATE beside the standing, not a parallel standing
+
+**Recommendation: one new per-(player, faction) enum — `RelationsState
+{ NONE, OPEN, PACT }` — stored string-keyed; everything else DERIVES
+from Layer-1 standing.** No second 0–100 number anywhere.
+
+| Diplomacy tier | Definition (derived) |
+|---|---|
+| (none) | state NONE — the faction is just a standing number |
+| **DIPLOMACY** | state OPEN — deals available; quality scales with the standing TIER (NEUTRAL = basic deals, FRIENDLY = better terms) |
+| **ALLIANCE** | state PACT — entered by completing the milestone ALLIANCE-PACT deal, offered only at standing ≥ ALLIED (80) while OPEN |
+
+- **How it maps onto FactionTier:** DIPLOMACY is "FRIENDLY-band-ish
+  with relations opened" in spirit, but deliberately NOT band-locked —
+  it's the OPEN state plus whatever the standing currently is, so deals
+  themselves can carry the player from NEUTRAL up through FRIENDLY
+  (deals are the upward driver; locking entry to FRIENDLY would
+  deadlock the loop). ALLIANCE = the ALLIED band + the pact milestone,
+  exactly as proposed.
+- **Collapse rules:** standing falling below WARY while OPEN → state
+  reverts to NONE (relations break off, message); a PACT survives down
+  to WARY (durable) but breaks below it. The Orc Disaster's
+  forced-HOSTILE clamp therefore auto-shatters any Clayman relations —
+  for free, via the standing it already writes.
+- **Storage:** alongside the existing per-(player, faction) maps in
+  `WorldReputationSavedData`… NO — recommend a separate
+  `DiplomacySavedData` (relations state + active deals + entry
+  cooldowns + pending envoy replies) behind a new sole-door
+  `DiplomacyManager`, which performs every standing read/write through
+  `WorldReputationManager`. Keeps the Layer-1 file pure standing/
+  offense/flags, and diplomacy's churnier deal state in its own file.
+  The `diplomacyClosed` flag STAYS in Layer 1 (already built — it's a
+  standing-layer fact the Orc Disaster writes).
+
+## #3 PIVOTAL — The deal framework: SPEC registry + ACTIVE instances + three detector kinds
+
+**Data structure (two halves — static specs, persisted instances):**
+
+```java
+// STATIC, addon-extensible (string ids, the FactionProfile idiom):
+record DealSpec(
+    String id,                    // "supply_steel_dwargon"
+    String factionId,
+    Requirement requirement,      // sealed interface, below
+    List<ItemStack> rewardItems,  // v1 rewards = goods (+ standing)
+    double standingReward,        // on success (the upward driver)
+    double standingPenalty,       // on failure/expiry
+    long deadlineTicks,           // accept → due
+    FactionTier minTier,          // offer gating (quality-with-standing)
+    boolean milestone)            // the ALLIANCE-PACT marker
+
+sealed interface Requirement permits
+    SupplyItems,     // (Item or TagKey<Item>, int count)
+    BuildingLevel,   // (String schematicName, int level)
+    Population,      // (int citizens)
+    Happiness        // (double average)
+    // Stage 2 adds: LendCitizens(skill, level, count, durationTicks)
+
+// PERSISTED per (player, faction) in DiplomacySavedData:
+class ActiveDeal {
+    String dealId; long acceptedTick; long deadlineTick;
+    int progress;            // e.g. items delivered so far
+    long completionDueTick;  // time-delayed deals: when the payoff lands
+    State state;             // OFFERED, ACTIVE, AWAITING_PAYOFF, DONE, FAILED
+}
+```
+
+**Fulfillment detection — the three kinds (all verified against the
+APIs):**
+
+1. **SupplyItems — PUSH, not poll: a "Deliver" button.** The player
+   clicks Deliver on the tab → C2S payload → the SERVER walks the
+   player's `Inventory`, consumes matching stacks up to the remaining
+   count, bumps `progress`, syncs back. No deposit block, no chest UI,
+   no warehouse coupling in Stage 1 (a warehouse-scan "deliver from
+   stock" variant is a clean later addition — `IWareHouse` racks are
+   reachable via `getBuildingManager().getWareHouses()`). This is the
+   same consume-from-inventory idiom the barrier crystals and the
+   magicule cost gate already use. Progress persists in `ActiveDeal`.
+2. **BuildingLevel — EVENT-driven with a poll backstop.** The mod
+   ALREADY listens to `BuildingConstructionModEvent` for the
+   reputation building mover — the same hook reports
+   `getSchematicName()` + level on every build/upgrade completion:
+   one extra check against active BuildingLevel deals. Backstop: a
+   lazy re-check on tab open / deal accept via
+   `colony.getBuildingManager().getBuildings()` →
+   `ISchematicProvider.getBuildingLevel()` + `getSchematicName()` —
+   catches buildings that were already at level when the deal was
+   accepted (decide: pre-met requirements either auto-complete or the
+   offer is filtered out at offer time; recommend FILTERED OUT —
+   a deal you've already met is no deal).
+3. **Population / Happiness — polled milestones.** Read on the
+   existing 1 s scheduler (or the daily pass — these move slowly):
+   `getCitizenManager().getCurrentCitizenCount()` /
+   `colony.getOverallHappiness()` — both already consumed elsewhere in
+   the mod. Which colony? Stage 1: the deal binds to the colony CHOSEN
+   at accept time (the player's colony from the roster context),
+   stored on the ActiveDeal.
+
+**Time-delayed deals + persistence:** `ActiveDeal` lives in
+`DiplomacySavedData` (overworld SavedData, the established idiom) — so
+% progress, deadlines, and AWAITING_PAYOFF timers all survive
+save/reload by construction. The per-second scheduler (the same
+`onServerTickPost` 20-tick cadence everything else rides) drives:
+deadline expiry → FAILED (standing penalty through the sole door),
+payoff timers → deliver rewards (items into the player's inventory,
+overflow dropped at their feet — or held "ready to collect" on the tab;
+recommend COLLECT button, no surprise drops). Offer rotation: per
+(player, faction), a small offered-deals set refreshed daily from the
+spec registry filtered by tier/state — persisted so the offer doesn't
+reroll on relog.
+
+**Starter your-colony deal seeds (Stage 1, faction-neutral terms):**
+supply 64 iron/steel-ish goods → payment in faction goods + standing;
+supply food bundle; reach building level (warehouse/library to L3);
+reach population N; reach happiness ≥ 7. Faction FLAVOR (rosters of
+faction-specific wares) is Stage 3's deal-set pass.
+
+## #4 PIVOTAL FEASIBILITY — citizen lending: **FEASIBLE**, via MineColonies' own resurrection round-trip
+
+The risky Stage-2 mechanic checks out cleanly — MineColonies itself
+ships the exact primitive pair (verified against 1.1.1319):
+
+- **Leave:** `ICitizenData implements INBTSerializable<CompoundTag>` →
+  `data.serializeNBT()` captures the ENTIRE citizen (name, skills,
+  job/home references, happiness, family links). Then
+  `ICitizenManager.removeCivilian(data)` takes them out of the
+  workforce (the death-path API — job/home slots free up, max-citizen
+  count recalculates), and the live entity (if loaded) is discarded
+  with a departure flourish (the envoy-poof treatment).
+- **Return:** `ICitizenManager.resurrectCivilianData(CompoundTag,
+  boolean resetId, Level, BlockPos)` — MineColonies' OWN grave-
+  resurrection path: rebuilds the `ICitizenData` from the snapshot and
+  respawns the citizen at a position. This is exactly "the citizen
+  comes back," battle-tested by MC's graveyard feature.
+- **Comes back TRAINED:** `ICitizenSkillHandler.incrementLevel(Skill,
+  int)` (or `addXpToSkill`) — public API, applied right after
+  resurrection. "Lend 5 Mining-X citizens → they return Mining-X+3" is
+  a few lines.
+- **The lent-out period:** the snapshot CompoundTags sit in the
+  ActiveDeal's NBT (a `ListTag` of citizen snapshots + their citizen
+  ids) — precisely the entity-snapshot idiom the race-identity system
+  already uses for off-world bodies (and the trade-restock pass proves
+  snapshot mutation works). The colony genuinely loses the workers
+  (their jobs idle — the COST is real), and the deal's payoff timer
+  brings them back.
+
+**Verdict: FEASIBLE — no framework reshaping needed.** The deal
+framework's `AWAITING_PAYOFF` + snapshot-carrying ActiveDeal already
+fits lending; it's one more `Requirement` variant later. Two flagged
+risks for the Stage-2 build (neither structural):
+1. **Race-citizens:** our `RaceIdentity` records key on citizenId;
+   `resetId=true` would orphan them. Stage-2 v1 should lend VANILLA
+   colonists only (filter at selection), or resurrect with
+   `resetId=false` and verify id stability — decide then.
+2. **Mid-lend colony changes** (colony deleted, citizen cap shrunk):
+   the return path must tolerate a full colony (resurrect anyway —
+   MC handles overcrowding via happiness) and a deleted colony
+   (snapshots held until any owned colony can receive; worst case the
+   deal refunds as items). Edge handling, not architecture.
+
+## #5 The basic UI tab — extend OUR RosterScreen with a tab strip (Stage-1 minimum)
+
+Two candidate surfaces were checked:
+- **The G-key `RosterScreen`** — our own vanilla Screen, server-
+  snapshot-driven (`RequestRoster`/`RosterResponse` payloads), already
+  the player's "my domain" surface (and already shows the colony
+  reputation header).
+- **The BlockUI tab-injection pattern** (`CitizenTradeButtonHandler`'s
+  `Init.Post` + `ButtonImage` on MC's own windows) — proven, but it
+  decorates MINECOLONIES' per-citizen/town-hall windows; faction
+  relations are PLAYER-level, not colony-window-level.
+
+**Recommendation: a tab strip on RosterScreen — [Roster | Diplomacy].**
+We own every pixel (no BlockUI reflection), the data flow is the
+established snapshot pattern (a `OpenDiplomacyPayload` carrying
+per-faction: id, display name+color, effective standing + tier,
+relations state, offered deals (id, title, requirement summary, reward
+summary, deadline), active deal (progress %, time left)), and C2S
+actions (`DiplomacyActionPayload`: SEND_ENVOY(faction, withGift),
+ACCEPT_DEAL(dealId), DELIVER(dealId), COLLECT(dealId)) mirror
+`BarrierMenuActionPayload`. The paper-styled rendering vocabulary from
+`BarrierCoreScreen` (panel chrome in `renderBackground`, shadowless
+text) carries over.
+
+**Stage-1 minimum content:** one row per KNOWN faction (progressive:
+factions with state NONE and no contact show as "Unknown" / greyed —
+the tab fills in as relations open): tier chip (colored), relations
+state, then per the state — [Send envoy] button, or the deal list
+(≤2 offers + the active deal with a progress bar + Deliver/Collect).
+Later stages add reward showcases, lending pickers, the mending ritual.
+
+## #6 Standing movers + decay — all through the sole door, one daily pass
+
+**Movers (every write `WorldReputationManager.modifyStanding(...,
+WorldRepReason.DIPLOMACY)` — the reserved reason goes live):**
+
+| Act | Standing |
+|---|---|
+| Relations opened (either direction) | +2 |
+| Outbound envoy gift (value-scaled, capped) | +1..+3 |
+| Deal completed | +`standingReward` (suggest +4 basic, +6 building/milestone) |
+| Deal FAILED / deadline expired | −`standingPenalty` (suggest −5; failure must sting more than never accepting) |
+| Deal offer ignored to expiry / declined | −1 (a nudge, not a cliff) |
+| ALLIANCE-PACT milestone completed | +10 (and state → PACT) |
+
+Deal success is THE main upward driver by design — the dispositions and
+ripples mostly push down or sideways; this is the builder's ladder up.
+
+**Decay — one pass on the existing DAILY cadence** (the
+`tickReputationDrift` → assassin-daily chain already establishes the
+per-day hook; diplomacy decay joins it):
+- State OPEN (DIPLOMACY): the EARNED delta decays toward 0 by
+  `DIPLOMACY_DECAY_PER_DAY` (suggest 0.5) — but ONLY on days with no
+  deal completed and nothing in progress (an active relationship
+  doesn't rot). Fragile, as designed.
+- State PACT (ALLIANCE): decay `ALLIANCE_DECAY_PER_DAY` (suggest 0.1,
+  or 0 — barely-decays as specced; recommend 0.1 so a fully abandoned
+  alliance eventually frays to WARY and breaks, which is a story).
+- State NONE: no decay (the base disposition is the resting state;
+  earned deltas from hostility do NOT heal by time — grudges are the
+  hostility arc's business, mending is Stage 4's).
+Decay writes go through `modifyStanding` with a `DIPLOMACY` (or a new
+`DECAY`) reason — visible in the log like every other mover.
+
+## #7 The gate — confirmed: entirely behind `factionSystemEnabled`
+
+Diplomacy reads/writes standing exclusively through
+`WorldReputationManager`, whose every entry point already no-ops/reads-
+neutral when the toggle is off. On top, gate the diplomacy layer's OWN
+entry points (the established four-point pattern): the faction-envoy
+scheduler roll, the `DiplomacyManager` mutators (open/accept/deliver →
+no-op), the daily decay pass, and the tab (the snapshot payload reports
+disabled → the Diplomacy tab renders a "dormant" notice or hides).
+With the toggle off: no envoys, no deals, no decay, no tab — and
+nothing below the faction layer notices.
+
+---
+
+## Recommended STAGE 1 build scope
+
+1. `DiplomacySavedData` (relations state, active/offered deals, entry
+   cooldowns, pending envoy replies) + `DiplomacyManager` sole door
+   (every standing write via WorldReputationManager; `isDiplomacyClosed`
+   checked at entry — the Orc Disaster door wires in for free).
+2. `RelationsState {NONE, OPEN, PACT}` + collapse rules (below WARY →
+   NONE; PACT durable to WARY). ALLIANCE-PACT milestone deal offered at
+   ALLIED while OPEN.
+3. Faction-envoy ENTRY: outbound Send-envoy button (± gift, delayed
+   reply) + inbound `FactionEnvoyTag` envoys on the existing
+   spawn/dialogue/scheduler machinery, race-gated via two booleans on
+   the faction profile + `isMajinSide`.
+4. The deal framework: `DealSpec` registry (sealed `Requirement`:
+   SupplyItems / BuildingLevel / Population / Happiness) + persisted
+   `ActiveDeal` instances; detectors = Deliver-button inventory consume,
+   the existing `BuildingConstructionModEvent` hook + offer-time
+   filtering, scheduler polls; deadline expiry + AWAITING_PAYOFF timers
+   on the 1 s scheduler; ~5 faction-neutral starter deals.
+5. RosterScreen tab strip + Diplomacy tab (snapshot payload + action
+   payload, the established Networking pattern).
+6. Movers table above through the sole door (DIPLOMACY reason live) +
+   the daily decay pass (0.5/day OPEN, 0.1/day PACT, idle-days only).
+7. Everything behind `factionSystemEnabled`; `/diplomacy` debug command
+   (state readout, force-open, force-offer) in the /worldrep idiom.
+
+**Built to extend:** Stage 2 = `LendCitizens` requirement (the verified
+serializeNBT → removeCivilian → resurrectCivilianData → incrementLevel
+loop) + snapshot-carrying deals; Stage 3 = faction-flavored deal sets
+(a per-faction `DealSpec` table swap — data, not code); Stage 4 =
+rewards (raid-support, buffs, exclusives) + the MENDING ritual
+(`reopenDiplomacy` already exists on the manager; the ritual is a
+steep milestone deal — sacrifice a high-EP subordinate / major goods —
+offered only while `isDiplomacyClosed`).
+
+PIVOTAL locks: (#3) deals = static string-keyed SPECS + persisted
+ACTIVE instances; fulfillment = push-button inventory consumption for
+items, the existing building-event hook for construction, scheduler
+polls for milestones — no new blocks, no inventory scanning, all
+progress in SavedData; (#4) citizen lending is FEASIBLE on
+MineColonies' own serializeNBT/removeCivilian/resurrectCivilianData
+round-trip + incrementLevel — the framework needs no reshaping, lending
+is one more Requirement variant later.
