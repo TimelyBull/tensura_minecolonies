@@ -134,12 +134,11 @@ public record DealSpec(
                 List.of(new ItemStack(Items.EMERALD, 24),
                         new ItemStack(Items.GOLD_INGOT, 8)),
                 6.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false));
-        // The ALLIANCE-PACT milestone — offered only at ALLIED 80+ while
-        // OPEN; fulfillment promotes relations to PACT (+10).
-        put(map, new DealSpec("alliance_pact", "The Alliance Pact",
-                new SupplyItems(Items.DIAMOND, 16),
-                List.of(new ItemStack(Items.EMERALD, 64)),
-                10.0, 5.0, 6 * DAY, 0, FactionTier.ALLIED, true));
+        // NOTE: the alliance-pact MILESTONE DEAL was replaced by the
+        // alliance PROMPT (user-requested): reaching ALLIED 80+ while
+        // OPEN pops an Accept/Decline dialog instead — see
+        // DiplomacyManager.checkAlliancePrompts. The milestone flag
+        // machinery stays for Stage-4 deals (the mending ritual).
         return Map.copyOf(map);
     }
 

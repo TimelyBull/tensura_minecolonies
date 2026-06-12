@@ -100,6 +100,18 @@ public final class DiplomacyManager {
      *  relations for free). */
     static final double COLLAPSE_STANDING = 20.0;
 
+    // --- the alliance prompt (replaces the pact milestone deal) ---
+    /** Re-send an unanswered alliance prompt after this long (covers a
+     *  dismissed/ESC'd dialog without per-second spam). */
+    static final long ALLIANCE_PROMPT_RETRY_TICKS = 1_200L; // 1 min
+    /** Declining the alliance drops standing to the closest value that
+     *  is NOT in the ALLIED band (80 − 1). */
+    static final double ALLIANCE_DECLINE_STANDING = FactionTier.ALLIED.minInclusive() - 1;
+
+    /** (transient) player → (faction id → last prompt tick). In-memory
+     *  on purpose: a relog simply re-prompts, which is correct. */
+    private static final Map<UUID, Map<String, Long>> alliancePromptSent = new HashMap<>();
+
     private DiplomacyManager() {}
 
     static boolean isEnabled() {
@@ -640,6 +652,73 @@ public final class DiplomacyManager {
     }
 
     // ------------------------------------------------------------------
+    // The alliance prompt — OPEN relations reaching ALLIED (80+) pop an
+    // Accept/Decline dialog (replaces the pact milestone deal)
+    // ------------------------------------------------------------------
+
+    private static void checkAlliancePrompts(ServerLevel level) {
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        long now = level.getGameTime();
+        for (ServerPlayer player : level.players()) {
+            UUID uuid = player.getUUID();
+            Map<String, Byte> byFaction = data.allStates().get(uuid);
+            if (byFaction == null) continue;
+            for (Map.Entry<String, Byte> e : byFaction.entrySet()) {
+                if (RelationsState.byId(e.getValue()) != RelationsState.OPEN) continue;
+                BossFaction faction = BossFaction.byId(e.getKey());
+                if (faction == null) continue;
+                if (WorldReputationManager.isDiplomacyClosed(level, uuid, faction)) continue;
+                double standing = WorldReputationManager.getStanding(level, uuid, faction);
+                if (FactionTier.forValue(standing) != FactionTier.ALLIED) continue;
+                Map<String, Long> sent = alliancePromptSent
+                        .computeIfAbsent(uuid, k -> new HashMap<>());
+                Long last = sent.get(e.getKey());
+                if (last != null && now - last < ALLIANCE_PROMPT_RETRY_TICKS) continue;
+                sent.put(e.getKey(), now);
+                net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
+                        new Networking.OpenAlliancePromptPayload(
+                                faction.id(), faction.displayName(), standing));
+                LOGGER.info("[TM] diplomacy: alliance prompt sent to {} for {} (standing {})",
+                        uuid, faction.id(), String.format("%.1f", standing));
+            }
+        }
+    }
+
+    /** The prompt's Accept/Decline. Accept → PACT, standing untouched.
+     *  Decline → standing drops to just below the ALLIED band (79). */
+    static void handleAllianceResponse(ServerPlayer player, String factionId, boolean accepted) {
+        if (!isEnabled()) return;
+        ServerLevel level = player.serverLevel();
+        UUID uuid = player.getUUID();
+        BossFaction faction = BossFaction.byId(factionId);
+        if (faction == null) return;
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        // Re-validate — the world may have moved since the prompt.
+        if (getState(level, uuid, faction) != RelationsState.OPEN) return;
+        if (FactionTier.forValue(WorldReputationManager.getStanding(level, uuid, faction))
+                != FactionTier.ALLIED) {
+            return;
+        }
+        if (accepted) {
+            data.setState(uuid, faction.id(), RelationsState.PACT.id());
+            data.setLastActivity(uuid, faction.id(), level.getGameTime());
+            player.sendSystemMessage(Component.literal("The pact is sealed — you and "
+                    + faction.displayName() + " are ALLIES.").withStyle(faction.color()));
+            LOGGER.info("[TM] diplomacy: player {} × {} ALLIANCE accepted", uuid, faction.id());
+        } else {
+            WorldReputationManager.setStanding(level, uuid, faction,
+                    ALLIANCE_DECLINE_STANDING, WorldRepReason.DIPLOMACY);
+            player.sendSystemMessage(Component.literal(faction.displayName()
+                    + " takes the refusal coolly — some warmth is lost.")
+                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+            LOGGER.info("[TM] diplomacy: player {} × {} ALLIANCE declined → standing {}",
+                    uuid, faction.id(), ALLIANCE_DECLINE_STANDING);
+        }
+        Map<String, Long> sent = alliancePromptSent.get(uuid);
+        if (sent != null) sent.remove(faction.id());
+    }
+
+    // ------------------------------------------------------------------
     // The driver — 1 s cadence + the overworld-day daily pass
     // ------------------------------------------------------------------
 
@@ -650,6 +729,7 @@ public final class DiplomacyManager {
             processPendingReplies(overworld);
             processDeals(overworld);
             checkCollapse(overworld);
+            checkAlliancePrompts(overworld);
         } catch (Throwable t) {
             LOGGER.warn("[TM] diplomacy: tick failed", t);
         }

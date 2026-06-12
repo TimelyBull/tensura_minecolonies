@@ -179,6 +179,17 @@ public final class Networking {
                 FactionEnvoyResponsePayload.CODEC,
                 Networking::onFactionEnvoyResponse
         );
+        // The alliance prompt — fired when OPEN relations reach ALLIED.
+        registrar.playToClient(
+                OpenAlliancePromptPayload.TYPE,
+                OpenAlliancePromptPayload.CODEC,
+                Networking::onOpenAlliancePrompt
+        );
+        registrar.playToServer(
+                AllianceResponsePayload.TYPE,
+                AllianceResponsePayload.CODEC,
+                Networking::onAllianceResponse
+        );
     }
 
     /**
@@ -943,6 +954,50 @@ public final class Networking {
                 FactionEnvoyResponsePayload::new
         );
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** S2C: OPEN relations reached the ALLIED band — pop the alliance
+     *  Accept/Decline prompt. */
+    public record OpenAlliancePromptPayload(String factionId, String factionName,
+                                            double standing)
+            implements CustomPacketPayload {
+        public static final Type<OpenAlliancePromptPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "open_alliance_prompt"));
+        public static final StreamCodec<ByteBuf, OpenAlliancePromptPayload> CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, OpenAlliancePromptPayload::factionId,
+                ByteBufCodecs.STRING_UTF8, OpenAlliancePromptPayload::factionName,
+                ByteBufCodecs.DOUBLE, OpenAlliancePromptPayload::standing,
+                OpenAlliancePromptPayload::new
+        );
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** C2S: the alliance prompt's Accept ({@code accepted=true}) or
+     *  Decline. Server re-validates state + standing before mutating. */
+    public record AllianceResponsePayload(String factionId, boolean accepted)
+            implements CustomPacketPayload {
+        public static final Type<AllianceResponsePayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "alliance_response"));
+        public static final StreamCodec<ByteBuf, AllianceResponsePayload> CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, AllianceResponsePayload::factionId,
+                ByteBufCodecs.BOOL, AllianceResponsePayload::accepted,
+                AllianceResponsePayload::new
+        );
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** Client-side delegate for the alliance prompt. Installed by ClientEvents. */
+    public static Consumer<OpenAlliancePromptPayload> alliancePromptClientHandler = payload ->
+            LOGGER.info("[TM] alliance prompt (no client handler): {}", payload.factionId());
+
+    private static void onOpenAlliancePrompt(OpenAlliancePromptPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> alliancePromptClientHandler.accept(payload));
+    }
+
+    private static void onAllianceResponse(AllianceResponsePayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer sp)) return;
+        context.enqueueWork(() ->
+                DiplomacyManager.handleAllianceResponse(sp, payload.factionId(), payload.accepted()));
     }
 
     /** Client-side delegate for the diplomacy snapshot (opens/refreshes

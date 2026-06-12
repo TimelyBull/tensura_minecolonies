@@ -70,6 +70,14 @@ public final class ClientEvents {
         Networking.factionEnvoyClientHandler = payload ->
                 net.minecraft.client.Minecraft.getInstance().setScreen(
                         new FactionEnvoyScreen(payload.entityId(), payload.factionName()));
+        // The alliance prompt — Accept/Decline modal at ALLIED standing.
+        // Not shown over another open screen (it re-prompts in a minute).
+        Networking.alliancePromptClientHandler = payload -> {
+            if (net.minecraft.client.Minecraft.getInstance().screen == null) {
+                new WindowAlliancePrompt(payload.factionId(), payload.factionName(),
+                        payload.standing()).open();
+            }
+        };
 
         // Magicule cost — install the collapse-confirm prompt handler.
         Networking.confirmCollapseClientHandler = ConfirmCollapseHandler::handle;
