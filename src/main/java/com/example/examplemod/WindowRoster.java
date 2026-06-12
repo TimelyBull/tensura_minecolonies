@@ -147,6 +147,7 @@ public class WindowRoster extends AbstractWindowSkeleton {
     private Button groupSummonButton;
     private Button groupSendButton;
     private Button clearButton;
+    private Button diplomacyButton;
     private Text countCitizensText;
     private Text countAtSideText;
 
@@ -184,6 +185,7 @@ public class WindowRoster extends AbstractWindowSkeleton {
         this.groupSummonButton = findPaneOfTypeByID(ID_GROUP_SUM, Button.class);
         this.groupSendButton   = findPaneOfTypeByID(ID_GROUP_SEND, Button.class);
         this.clearButton       = findPaneOfTypeByID(ID_CLEAR, Button.class);
+        this.diplomacyButton   = findPaneOfTypeByID(ID_DIPLOMACY, Button.class);
         this.countCitizensText = findPaneOfTypeByID(ID_CNT_CITIZENS, Text.class);
         this.countAtSideText   = findPaneOfTypeByID(ID_CNT_ATSIDE, Text.class);
         this.list              = findPaneOfTypeByID(ID_LIST, ScrollingList.class);
@@ -385,9 +387,11 @@ public class WindowRoster extends AbstractWindowSkeleton {
         }
         if (clearButton != null) clearButton.setVisible(show);
         // The counts share the footer band with the bulk bar — hide them while
-        // selecting so they don't draw under the buttons.
+        // selecting so they don't draw under the buttons. The Diplomacy tab
+        // button sits between the counts and yields the same way.
         if (countCitizensText != null) countCitizensText.setVisible(!show);
         if (countAtSideText != null) countAtSideText.setVisible(!show);
+        if (diplomacyButton != null) diplomacyButton.setVisible(!show);
     }
 
     /** Footer counts reflect the WHOLE roster (not the search filter). */

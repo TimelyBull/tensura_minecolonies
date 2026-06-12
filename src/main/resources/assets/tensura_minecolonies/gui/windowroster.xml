@@ -16,12 +16,6 @@
     <text id="repLine" size="126 10" pos="124 32" textalign="MIDDLE_RIGHT" textscale="0.85" color="black" label=""/>
     <box id="divider" size="368 1" pos="16 48" color="black"/>
 
-    <!-- Diplomacy tab — opens the faction Diplomacy screen (Stage 1).
-         Sits in the header between the title and the slime/badge. -->
-    <button id="diplomacy" size="64 16" pos="186 13" color="black"
-            source="tensura_minecolonies:textures/gui/roster/btn_tan.png"
-            label="Diplomacy"/>
-
     <!-- Slime peeking over the top edge, next to the magicule badge.
          Source is 640x512 (1.25:1) — keep that ratio so it isn't squished. -->
     <image id="slime" source="tensura_minecolonies:textures/gui/roster/slime.png" size="36 29" pos="256 -3"/>
@@ -79,8 +73,15 @@
             source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
             label="Clear"/>
 
-    <!-- Counts (hidden while the bulk bar is showing). Moved up off the edge. -->
-    <text id="countCitizens" size="180 10" pos="16 226" color="black" label="0 citizens"/>
-    <text id="countAtSide" size="180 10" pos="204 226" textalign="MIDDLE_RIGHT" color="black" label="0 at your side"/>
+    <!-- Counts (hidden while the bulk bar is showing). Moved up off the edge.
+         Narrowed to make room for the centered Diplomacy tab button. -->
+    <text id="countCitizens" size="140 10" pos="16 226" color="black" label="0 citizens"/>
+    <text id="countAtSide" size="140 10" pos="244 226" textalign="MIDDLE_RIGHT" color="black" label="0 at your side"/>
+
+    <!-- Diplomacy tab — centered in the footer counters row; hidden while
+         the bulk bar is showing (it shares the band). -->
+    <button id="diplomacy" size="64 16" pos="168 222" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_tan.png"
+            label="Diplomacy"/>
 
 </window>

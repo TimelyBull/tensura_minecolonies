@@ -1,0 +1,81 @@
+<window size="400 260" lightbox="true"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/ldtteam/BlockUI/version/main/src/main/resources/assets/blockui/gui/block_ui.xsd">
+
+    <!-- Same flat cream paper panel as the Citizen Roster. All custom
+         colours are set in Java; sections that could collide (offers vs
+         the active deal, send-envoy vs deliver/collect) are mutually
+         exclusive via visibility toggling — nothing ever overlaps. -->
+    <image source="minecolonies:textures/gui/builderhut/builder_paper_wide2.png" size="400 260"/>
+
+    <!-- ===================== HEADER ===================== -->
+    <text id="title" size="200 16" pos="16 12" color="black" textscale="1.3" label="§lDiplomacy§r"/>
+    <button id="roster" size="64 16" pos="320 12" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_tan.png"
+            label="Roster"/>
+    <box id="divider" size="368 1" pos="16 34" color="black"/>
+
+    <!-- Shown alone when the faction system is disabled. -->
+    <text id="disabled" size="368 20" pos="16 110" textalign="MIDDLE" color="black"
+          label="The faction system is disabled."/>
+
+    <!-- ===================== FACTION LIST (left) ===================== -->
+    <list id="factions" size="140 200" pos="12 44">
+        <view size="100% 24">
+            <box id="fcard" size="100% 21" pos="0 0" color="black"/>
+            <text id="fname" size="84 11" pos="6 6" color="black"/>
+            <text id="fstate" size="46 11" pos="90 7" textalign="MIDDLE_RIGHT" textscale="0.75" color="black"/>
+        </view>
+    </list>
+
+    <!-- ===================== DETAIL (right) ===================== -->
+    <box id="detailBox" size="232 200" pos="158 44" color="black"/>
+    <text id="dName"   size="150 12" pos="166 52" color="black" textscale="1.1"/>
+    <text id="dTier"   size="78 10"  pos="304 54" textalign="MIDDLE_RIGHT" color="black"/>
+    <text id="dState"  size="120 10" pos="166 68" color="black"/>
+    <text id="dStatus" size="212 22" pos="166 84" textscale="0.9" color="black"/>
+
+    <!-- Offer block 1 (visible only while NO deal is active). -->
+    <box  id="o1Card"   size="216 42" pos="162 108" color="black"/>
+    <text id="o1Title"  size="148 10" pos="168 113" color="black"/>
+    <text id="o1Req"    size="208 10" pos="168 125" textscale="0.85" color="black"/>
+    <text id="o1Reward" size="208 10" pos="168 136" textscale="0.85" color="black"/>
+    <button id="o1Accept" size="52 14" pos="320 112" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_green.png"
+            label="Accept"/>
+
+    <!-- Offer block 2. -->
+    <box  id="o2Card"   size="216 42" pos="162 154" color="black"/>
+    <text id="o2Title"  size="148 10" pos="168 159" color="black"/>
+    <text id="o2Req"    size="208 10" pos="168 171" textscale="0.85" color="black"/>
+    <text id="o2Reward" size="208 10" pos="168 182" textscale="0.85" color="black"/>
+    <button id="o2Accept" size="52 14" pos="320 158" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_green.png"
+            label="Accept"/>
+
+    <!-- Active-deal block (replaces the offer blocks while a deal runs). -->
+    <box  id="aCard"    size="216 76" pos="162 108" color="black"/>
+    <text id="aTitle"   size="208 10" pos="168 113" color="black"/>
+    <text id="aReq"     size="208 10" pos="168 125" textscale="0.85" color="black"/>
+    <text id="aReward"  size="208 10" pos="168 136" textscale="0.85" color="black"/>
+    <text id="aState"   size="208 10" pos="168 148" textscale="0.85" color="black"/>
+    <box  id="progressTrack" size="144 10" pos="168 161" color="black"/>
+    <image id="progressFill" source="tensura_minecolonies:textures/gui/roster/btn_green.png"
+           size="142 8" pos="169 162"/>
+    <text id="aPct" size="40 10" pos="318 161" color="black"/>
+
+    <!-- Detail action row (bottom of the detail pane; one set visible). -->
+    <button id="sendEnvoy" size="84 16" pos="166 222" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_tan.png"
+            label="Send Envoy"/>
+    <button id="sendGift" size="110 16" pos="256 222" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_tan.png"
+            label="+ Gift (8 Gold)"/>
+    <button id="deliver" size="70 16" pos="166 222" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_green.png"
+            label="Deliver"/>
+    <button id="collect" size="70 16" pos="166 222" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_green.png"
+            label="Collect"/>
+
+</window>

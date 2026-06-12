@@ -63,9 +63,10 @@ public final class ClientEvents {
         Networking.rosterClientHandler = ClientRosterHandler::handle;
 
         // Diplomacy Stage 1 — the snapshot opens (or live-refreshes) the
-        // Diplomacy screen; faction envoys open the relations dialogue.
+        // native BlockUI Diplomacy window (vanilla DiplomacyScreen is the
+        // fail-closed fallback inside); faction envoys open the dialogue.
         Networking.diplomacyClientHandler = payload ->
-                DiplomacyScreen.openOrRefresh(payload.data());
+                WindowDiplomacy.openOrRefresh(payload.data());
         Networking.factionEnvoyClientHandler = payload ->
                 net.minecraft.client.Minecraft.getInstance().setScreen(
                         new FactionEnvoyScreen(payload.entityId(), payload.factionName()));
