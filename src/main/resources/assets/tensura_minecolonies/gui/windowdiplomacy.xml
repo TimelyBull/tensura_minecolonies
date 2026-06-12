@@ -9,7 +9,11 @@
     <image source="minecolonies:textures/gui/builderhut/builder_paper_wide2.png" size="400 260"/>
 
     <!-- ===================== HEADER ===================== -->
-    <text id="title" size="200 16" pos="16 12" color="black" textscale="1.3" label="§lDiplomacy§r"/>
+    <text id="title" size="120 16" pos="16 12" color="black" textscale="1.3" label="§lDiplomacy§r"/>
+    <!-- Stage 3: the allied caravan-network travel perk. -->
+    <button id="travel" size="92 16" pos="222 12" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_green.png"
+            label="Caravan Home"/>
     <button id="roster" size="64 16" pos="320 12" color="black"
             source="tensura_minecolonies:textures/gui/roster/btn_tan.png"
             label="Roster"/>
@@ -79,5 +83,14 @@
     <button id="collect" size="70 16" pos="166 222" color="black"
             source="tensura_minecolonies:textures/gui/roster/btn_green.png"
             label="Collect"/>
+
+    <!-- Stage 3 rewards (second action slot — mutually exclusive with
+         each other in practice; visibility-toggled like everything). -->
+    <button id="caravan" size="110 16" pos="244 222" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_green.png"
+            label="Claim Caravan"/>
+    <button id="gift" size="110 16" pos="244 222" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_green.png"
+            label="Claim Gift"/>
 
 </window>

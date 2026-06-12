@@ -110,6 +110,64 @@ flavored deal tables + the fuller UI. As-built record:
   only while `isDiplomacyClosed`; `reopenDiplomacy` exists). Plus the
   race-citizen lending follow-on.
 
+---
+
+**Status: STAGE 3 BUILT (2026-06-12)** — relationship rewards + ally
+raid-support + action coupling. As-built record:
+
+- **Pillar 1 — relationship rewards (the mechanisms + a representative
+  set; more content authors into the maps):**
+  - *No raids from allies:* a PACT faction's lore events never trigger
+    against you (`LoreEvents.maybeTrigger` PACT check).
+  - *Alliance buffs:* refresh-style `MobEffectInstance` re-applied each
+    second while the PACT holds (ambient, icon-only; lapses by itself —
+    no attribute-modifier bookkeeping). `ALLIANCE_BUFFS`: Dwargon Haste,
+    Tempest Regeneration, Jura Luck, Luminous Resistance,
+    Falmuth/Milim Strength, Carrion Speed.
+  - *Trade access:* the daily PACT caravan (`FACTION_GOODS` map +
+    Claim Caravan button, `CARAVAN_COOLDOWN_TICKS` = 1 day) — faction
+    wares without a shop UI.
+  - *QOL perk (feasibility CONFIRMED):* "Caravan Home" — teleport to
+    your town hall via plain `ServerPlayer.teleportTo`; any PACT,
+    `TRAVEL_COOLDOWN_TICKS` = half a day.
+  - *Quest-reward content:* the SPARE Orc Disaster — Clayman standing
+    ≥ 60 (`SPARE_BOSS_MIN_STANDING`), once ever, Claim Gift → an
+    OrcDisasterEntity spawns near the player **WITHOUT FactionMarkTag**
+    — unmarked = the Layer-1 movers ignore it entirely; kill it freely
+    (boss loot + colony +10 + envoy unlock still apply, zero faction
+    penalty). The `claimedGifts` set is the seam for more standing
+    gifts (evolution assistance / exclusive materials are authoring
+    work on the same mechanism).
+- **Pillar 2 — ally raid-support (⚠ BALANCE-CRITICAL, UNPLAYED):** when
+  ANY `TensuraRaidEvent` starts (generic colony-rep raids AND lore
+  events — both call `spawnAllySupport`), each PACT faction sends
+  friendly fighters: PASSIVE-category Tensura mobs (dwarf for Dwargon,
+  lizardman for Milim/Carrion, goblin otherwise — guards don't
+  auto-engage passive types; the orc horde proved passive mobs fight
+  via target-assist), `AllyTag`-stamped, named "X Ally", steered onto
+  the nearest raider each second by the inverted dual-write
+  (`steerAllies`), poofed home at every resolution path. Magnitudes
+  (ALL named on TensuraRaids, first guesses needing playtest):
+  `ALLY_SUPPORT_PER_PACT` = 2, +1 per `ALLY_SUPPORT_STANDING_STEP` =
+  10 standing above 80, `ALLY_SUPPORT_MAX_PER_FACTION` = 4,
+  `ALLY_SUPPORT_TOTAL_CAP` = 8. Ally uuids persist on the event NBT
+  ("allies", optional) so reloads keep them linked.
+- **Pillar 3 — action coupling:**
+  - *Majin downgrade (NEW):* a per-second side-watch persists the
+    player's last race side; flipping to MAJIN drops every
+    majin-sensitive faction (profile courts humans but never majin —
+    the Holy bloc) from PACT → OPEN with a message. The Layer-1 live
+    base already cooled the standing; this adds the relations-state
+    consequence.
+  - *Marked-boss kill → shatter (ALREADY EXISTED — confirmed):* the
+    Layer-1 fan-out drops the faction's standing; the Stage-1
+    per-second collapse check shatters relations below WARY; Stage 2's
+    lend-guard returns lent citizens first. Chain verified end-to-end,
+    no new code needed.
+- Stage 4 (the mending ritual) remains; see docs/future-ideas.md for
+  SIEGES (broken-alliance super-raids) and the 10+ per-faction QUEST
+  CATALOG content pass.
+
 Original investigation follows.
 
 ---

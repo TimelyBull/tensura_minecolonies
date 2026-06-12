@@ -110,6 +110,17 @@ public final class Attachments {
                             .serialize(FactionEnvoyTag.SERIALIZER)
                             .build());
 
+    /**
+     * Ally-support marker — see {@link AllyTag}. Friendly combatants an
+     * allied faction sends to a raided colony (diplomacy Stage 3).
+     * Default null → {@code hasData(...)} is the authoritative check.
+     */
+    public static final Supplier<AttachmentType<AllyTag>> ALLY_TAG =
+            ATTACHMENTS.register("ally_tag",
+                    () -> AttachmentType.<AllyTag>builder(() -> null)
+                            .serialize(AllyTag.SERIALIZER)
+                            .build());
+
     private Attachments() {}
 
     public static void register(IEventBus modBus) {

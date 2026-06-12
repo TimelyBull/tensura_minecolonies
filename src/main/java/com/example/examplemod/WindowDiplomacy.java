@@ -66,6 +66,7 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
     private record FactionRow(String id, String name, double standing, String tier,
                               int tierColor, RelationsState state, boolean closed,
                               boolean pendingReply, boolean canSend, boolean hasNew,
+                              boolean canCaravan, boolean giftAvailable,
                               List<OfferRow> offers, ActiveRow active) {}
 
     /** Most recently constructed window — {@link #openOrRefresh} refreshes
@@ -73,6 +74,7 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
     private static WindowDiplomacy instance;
 
     private boolean enabled;
+    private boolean canTravel;
     private List<FactionRow> factions = new ArrayList<>();
     private int selected = 0;
 
@@ -95,6 +97,14 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
                 Networking.DiplomacyActionPayload.ACTION_COLLECT, "", false));
         registerButton("o1Accept", (Button b) -> acceptOffer(0));
         registerButton("o2Accept", (Button b) -> acceptOffer(1));
+        // Stage 3 — relationship rewards.
+        registerButton("travel", (Button b) -> PacketDistributor.sendToServer(
+                new Networking.DiplomacyActionPayload(
+                        Networking.DiplomacyActionPayload.ACTION_TRAVEL_HOME, "", "", false)));
+        registerButton("caravan", (Button b) -> sendAction(
+                Networking.DiplomacyActionPayload.ACTION_CLAIM_CARAVAN, "", false));
+        registerButton("gift", (Button b) -> sendAction(
+                Networking.DiplomacyActionPayload.ACTION_CLAIM_GIFT, "", false));
     }
 
     /** Open the window, or refresh the already-open one in place (the
@@ -146,6 +156,7 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
 
     private void parse(CompoundTag snapshot) {
         this.enabled = snapshot.getBoolean("enabled");
+        this.canTravel = snapshot.getBoolean("canTravel");
         List<FactionRow> rows = new ArrayList<>();
         ListTag factionList = snapshot.getList("factions", Tag.TAG_COMPOUND);
         for (int i = 0; i < factionList.size(); i++) {
@@ -169,7 +180,8 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
                     f.getDouble("standing"), f.getString("tier"), f.getInt("tierColor"),
                     RelationsState.byId(f.getByte("state")), f.getBoolean("closed"),
                     f.getBoolean("pendingReply"), f.getBoolean("canSend"),
-                    f.getBoolean("hasNew"), offers, active));
+                    f.getBoolean("hasNew"), f.getBoolean("canCaravan"),
+                    f.getBoolean("giftAvailable"), offers, active));
         }
         this.factions = rows;
         if (selected >= rows.size()) selected = 0;
@@ -273,8 +285,16 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
                 "o2Card", "o2Title", "o2Req", "o2Reward", "o2Accept",
                 "aCard", "aTitle", "aReq", "aReward", "aState",
                 "progressTrack", "progressFill", "aPct",
-                "sendEnvoy", "sendGift", "deliver", "collect"}) {
+                "sendEnvoy", "sendGift", "deliver", "collect",
+                "caravan", "gift"}) {
             setVisible(id, false);
+        }
+        // The caravan-network travel perk (header) — shown while the
+        // layer is live; enabled when any PACT exists + off cooldown.
+        Button travel = findPaneOfTypeByID("travel", Button.class);
+        if (travel != null) {
+            travel.setVisible(enabled);
+            travel.setEnabled(canTravel);
         }
         if (list != null) list.refreshElementPanes();
         if (!hasSelection) return;
@@ -314,6 +334,14 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
         if (row.state() == RelationsState.NONE && !row.closed()) {
             setButton("sendEnvoy", row.canSend());
             setButton("sendGift", row.canSend());
+        }
+
+        // Stage 3 — rewards: the PACT caravan + the standing gift.
+        if (row.state() == RelationsState.PACT) {
+            setButton("caravan", row.canCaravan());
+        }
+        if (row.giftAvailable()) {
+            setButton("gift", true);
         }
 
         // Section: the active deal OR the offers — never both.

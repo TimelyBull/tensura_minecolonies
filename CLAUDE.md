@@ -635,7 +635,26 @@ profession (latest):**
   to colony strength (EP-primary, ×1.15 budget); hostile-spawn
   prevention inside fueled barriers. Records: docs/raid-system.md.
 
-**Diplomacy Stage 2 (lending + flavored deals + fuller UI — latest):**
+**Diplomacy Stage 3 (rewards + ally raid-support + coupling — latest):**
+- Rewards: PACT factions never send lore events; alliance buffs
+  (refresh-style MobEffects, `ALLIANCE_BUFFS` map); daily caravan goods
+  (`FACTION_GOODS` + Claim Caravan, 1-day cooldown); "Caravan Home"
+  teleport perk (any PACT, half-day cooldown); the spare-Orc-Disaster
+  standing gift (Clayman ≥ 60, once ever, spawned UNMARKED → zero
+  faction consequences).
+- Ally raid-support (⚠ unplayed balance seam — constants on
+  TensuraRaids): every raid start (generic + lore) spawns PACT-faction
+  fighters — passive Tensura mobs (dwarf/lizardman/goblin), AllyTag,
+  steered onto raiders by the inverted dual-write, poofed at
+  resolution. ALLY_SUPPORT_PER_PACT 2, +1/10 standing over 80, max
+  4/faction, total cap 8; uuids persist on the event NBT.
+- Coupling: majin flip downgrades Holy-bloc PACT → OPEN (persisted
+  side-watch); marked-boss-kill → standing crash → relations shatter
+  confirmed working via the existing Layer-1 + collapse chain.
+  Records: docs/diplomacy.md (Stage 3 as-built), docs/future-ideas.md
+  (sieges, the 10+ faction quest catalog, race-citizen lending).
+
+**Diplomacy Stage 2 (lending + flavored deals + fuller UI):**
 - `LendCitizens` Requirement variant: VANILLA colonists only (the
   (colonyId, citizenId) RaceIdentity filter — race-citizen lending is
   a documented follow-on). Accept → `WindowLendPicker` (eligible

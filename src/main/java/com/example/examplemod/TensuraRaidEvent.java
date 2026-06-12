@@ -80,6 +80,11 @@ public class TensuraRaidEvent implements IColonyRaidEvent {
      *  the bespoke resolution rule — and the boss bar binds to its HP. */
     private UUID leadBossUuid = null;
 
+    /** Stage 3 — ALLY-SUPPORT combatants sent by the player's PACT
+     *  factions. Steered onto the raiders by the per-second drive;
+     *  poofed home at resolution. NBT-optional (absent = none). */
+    private final Set<UUID> allyUuids = new HashSet<>();
+
     private final ServerBossEvent raidBar = new ServerBossEvent(
             Component.literal("Tensura Raid"),
             BossEvent.BossBarColor.RED,
@@ -154,6 +159,14 @@ public class TensuraRaidEvent implements IColonyRaidEvent {
 
     boolean isLoreEvent() {
         return loreEventId != null;
+    }
+
+    void addAlly(Entity entity) {
+        allyUuids.add(entity.getUUID());
+    }
+
+    Set<UUID> allyUuids() {
+        return allyUuids;
     }
 
     private void applyLoreBarStyle() {
@@ -330,6 +343,15 @@ public class TensuraRaidEvent implements IColonyRaidEvent {
         // NBT is byte-identical to pre-lore saves.
         if (loreEventId != null) tag.putString("loreEventId", loreEventId);
         if (leadBossUuid != null) tag.putUUID("leadBossUuid", leadBossUuid);
+        if (!allyUuids.isEmpty()) {
+            ListTag allies = new ListTag();
+            for (UUID uuid : allyUuids) {
+                CompoundTag entry = new CompoundTag();
+                entry.putUUID("uuid", uuid);
+                allies.add(entry);
+            }
+            tag.put("allies", allies);
+        }
         return tag;
     }
 
@@ -355,6 +377,14 @@ public class TensuraRaidEvent implements IColonyRaidEvent {
         this.loreEventId = tag.contains("loreEventId", Tag.TAG_STRING)
                 ? tag.getString("loreEventId") : null;
         this.leadBossUuid = tag.hasUUID("leadBossUuid") ? tag.getUUID("leadBossUuid") : null;
+        this.allyUuids.clear();
+        if (tag.contains("allies", Tag.TAG_LIST)) {
+            ListTag allies = tag.getList("allies", Tag.TAG_COMPOUND);
+            for (int i = 0; i < allies.size(); i++) {
+                CompoundTag entry = allies.getCompound(i);
+                if (entry.hasUUID("uuid")) allyUuids.add(entry.getUUID("uuid"));
+            }
+        }
         applyLoreBarStyle();
     }
 }

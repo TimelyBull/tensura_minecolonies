@@ -116,6 +116,36 @@ public final class TensuraRaids {
     static final double ORC_LORD_PER_OFFENSE = 25.0;
     static final int ORC_LORD_CAP = 3;
 
+    // ------------------------------------------------------------------
+    // Stage 3 — ALLY RAID-SUPPORT (the diplomacy ↔ raid bridge).
+    // ⚠ BALANCE-CRITICAL, UNPLAYED SEAM: every magnitude below is a
+    // first guess that needs playtest tuning — hence all named here.
+    // ------------------------------------------------------------------
+
+    /** Fighters each PACT-tier faction sends to a raid (the base). */
+    static final int ALLY_SUPPORT_PER_PACT = 2;
+    /** +1 fighter per this much standing above the ALLIED floor (80). */
+    static final double ALLY_SUPPORT_STANDING_STEP = 10.0;
+    /** Per-faction cap on sent fighters. */
+    static final int ALLY_SUPPORT_MAX_PER_FACTION = 4;
+    /** Total ally fighters per raid across ALL pact factions. */
+    static final int ALLY_SUPPORT_TOTAL_CAP = 8;
+
+    /** Which entity each faction sends — PASSIVE-category Tensura mobs
+     *  on purpose: MineColonies guards auto-engage MONSTER-category
+     *  types, and the orc horde proved passive mobs fight fine once the
+     *  target-assist drives them. Unmapped factions fall back to
+     *  goblin auxiliaries. */
+    private static EntityType<?> allyTypeFor(String factionId) {
+        String path = switch (factionId) {
+            case "dwargon" -> "dwarf";
+            case "milim", "carrion" -> "lizardman";
+            default -> "goblin";
+        };
+        return net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.get(
+                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("tensura", path));
+    }
+
     /** Day-time tick (mod 24000) at which night "begins" for the trigger. */
     private static final long NIGHT_START = 13_000L;
     /** Steering walk speed / close-enough, mirroring SubordinatePatrol. */
@@ -414,6 +444,7 @@ public final class TensuraRaids {
 
         colony.getEventManager().addEvent(event);
         event.setStatus(EventStatus.PROGRESSING);
+        spawnAllySupport(level, colony, event);
 
         LOGGER.info("[TM] raid: STARTED at colony {} ('{}') — LEVEL {} — wave {} ({} EP vs budget {}, rep {})",
                 colony.getID(), colony.getName(), raidLevel, spawned,
@@ -494,6 +525,7 @@ public final class TensuraRaids {
 
         colony.getEventManager().addEvent(event);
         event.setStatus(EventStatus.PROGRESSING);
+        spawnAllySupport(level, colony, event);
 
         LOGGER.info("[TM] lore: {} MARCHES on colony {} ('{}') — wave {} (+{} lords), {} EP vs budget {} (coeff {}, offense {}, standing {})",
                 lore.id(), colony.getID(), colony.getName(), spawned, orcLords,
@@ -529,6 +561,107 @@ public final class TensuraRaids {
                     colony.getCenter().offset(32, 0, 32));
         }
         return pos;
+    }
+
+    /**
+     * Stage 3 — ALLY SUPPORT: the raided player's PACT-tier factions
+     * send friendly fighters (count scales with standing — the
+     * ALLY_SUPPORT_* constants above). Called after every raid start
+     * (generic AND lore events). Faction-gated inside via the manager.
+     */
+    static void spawnAllySupport(ServerLevel level, IColony colony, TensuraRaidEvent event) {
+        if (!WorldReputationManager.isFactionSystemEnabled()) return;
+        UUID owner = colony.getPermissions().getOwner();
+        if (owner == null) return;
+        BlockPos center = colony.getCenter();
+        int total = 0;
+        for (BossFaction faction : BossFaction.values()) {
+            if (total >= ALLY_SUPPORT_TOTAL_CAP) break;
+            if (DiplomacyManager.getState(level, owner, faction) != RelationsState.PACT) continue;
+            double standing = WorldReputationManager.getStanding(level, owner, faction);
+            int count = ALLY_SUPPORT_PER_PACT + (int) Math.max(0,
+                    (standing - FactionTier.ALLIED.minInclusive()) / ALLY_SUPPORT_STANDING_STEP);
+            count = Math.min(count, ALLY_SUPPORT_MAX_PER_FACTION);
+            count = Math.min(count, ALLY_SUPPORT_TOTAL_CAP - total);
+            int spawned = 0;
+            for (int i = 0; i < count; i++) {
+                EntityType<?> type = allyTypeFor(faction.id());
+                Entity created = type.create(level);
+                if (!(created instanceof Mob ally)) {
+                    if (created != null) created.discard();
+                    break;
+                }
+                int dx = level.getRandom().nextInt(13) - 6;
+                int dz = level.getRandom().nextInt(13) - 6;
+                BlockPos pos = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE,
+                        center.offset(dx, 0, dz));
+                ally.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5,
+                        level.getRandom().nextFloat() * 360f, 0f);
+                ally.finalizeSpawn(level, level.getCurrentDifficultyAt(pos),
+                        MobSpawnType.SPAWN_EGG, null);
+                ally.setPersistenceRequired();
+                ally.setCustomName(net.minecraft.network.chat.Component
+                        .literal(faction.displayName() + " Ally").withStyle(faction.color()));
+                ally.setData(Attachments.ALLY_TAG.get(),
+                        new AllyTag(colony.getID(), event.getID(), faction.id()));
+                if (!level.addFreshEntity(ally)) break;
+                event.addAlly(ally);
+                spawned++;
+                total++;
+            }
+            if (spawned > 0) {
+                LOGGER.info("[TM] raid: ally support — {} sent {} fighters to colony {} (standing {})",
+                        faction.id(), spawned, colony.getID(), String.format("%.0f", standing));
+                messageColonyOwner(level, colony,
+                        Component.literal(faction.displayName() + " honors the pact — "
+                                + spawned + " fighters arrive to defend " + colony.getName() + "!")
+                                .withStyle(faction.color()));
+            }
+        }
+    }
+
+    /** Per-second ally drive: keep each ally fighting the nearest living
+     *  raider (the raiders' own dual-write idiom, inverted). */
+    private static void steerAllies(ServerLevel level, TensuraRaidEvent event, List<Mob> raiders) {
+        Iterator<UUID> it = event.allyUuids().iterator();
+        while (it.hasNext()) {
+            Entity e = level.getEntity(it.next());
+            if (e == null) continue; // unloaded — keep
+            if (e.isRemoved() || !(e instanceof Mob ally) || !ally.isAlive()) {
+                it.remove();
+                continue;
+            }
+            LivingEntity target = BrainUtils.getTargetOfEntity(ally);
+            if (target != null && target.isAlive()
+                    && target.hasData(Attachments.RAID_TAG.get())) {
+                if (ally.getTarget() != target) ally.setTarget(target);
+                continue;
+            }
+            Mob nearest = null;
+            double bestDist = Double.MAX_VALUE;
+            for (Mob raider : raiders) {
+                double d = raider.distanceToSqr(ally);
+                if (d < bestDist) { bestDist = d; nearest = raider; }
+            }
+            if (nearest != null) {
+                BrainUtils.setTargetOfEntity(ally, nearest);
+                ally.setTarget(nearest);
+            }
+        }
+    }
+
+    /** Resolution cleanup — the allies go home (the envoy poof). */
+    private static void dismissAllies(ServerLevel level, TensuraRaidEvent event) {
+        for (UUID uuid : new ArrayList<>(event.allyUuids())) {
+            Entity e = level.getEntity(uuid);
+            if (e != null && !e.isRemoved()) {
+                level.sendParticles(ParticleTypes.POOF,
+                        e.getX(), e.getY() + e.getBbHeight() / 2.0, e.getZ(),
+                        24, 0.4, 0.4, 0.4, 0.02);
+                e.discard();
+            }
+        }
+        event.allyUuids().clear();
     }
 
     /** Envoy/population spawn pattern: create + finalizeSpawn + persist +
@@ -598,6 +731,9 @@ public final class TensuraRaids {
             steerRaider(level, mob, colony, destination);
         }
 
+        // Stage 3 — keep the ally fighters on the raiders.
+        steerAllies(level, event, living);
+
         event.updateRaidBar(level);
     }
 
@@ -657,6 +793,7 @@ public final class TensuraRaids {
     // ------------------------------------------------------------------
 
     private static void resolveVictory(ServerLevel level, IColony colony, TensuraRaidEvent event) {
+        dismissAllies(level, event);
         event.setStatus(EventStatus.DONE);
         event.onFinish();
         RaidSavedData.get(level).setLastRaidResolveTick(colony.getID(), level.getGameTime());
@@ -690,6 +827,7 @@ public final class TensuraRaids {
         }
         level.playSound(null, colony.getCenter(), SoundEvents.ENDERMAN_TELEPORT,
                 SoundSource.HOSTILE, 1.0f, 0.6f);
+        dismissAllies(level, event);
         event.setStatus(EventStatus.DONE);
         event.onFinish();
         RaidSavedData.get(level).setLastRaidResolveTick(colony.getID(), level.getGameTime());
@@ -717,6 +855,7 @@ public final class TensuraRaids {
         }
         level.playSound(null, colony.getCenter(), SoundEvents.ENDERMAN_TELEPORT,
                 SoundSource.HOSTILE, 1.0f, 0.8f);
+        dismissAllies(level, event);
         event.setStatus(EventStatus.DONE);
         event.onFinish();
         RaidSavedData.get(level).setLastRaidResolveTick(colony.getID(), level.getGameTime());

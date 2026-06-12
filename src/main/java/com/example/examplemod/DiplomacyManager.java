@@ -101,6 +101,41 @@ public final class DiplomacyManager {
      *  relations for free). */
     static final double COLLAPSE_STANDING = 20.0;
 
+    // --- Stage 3: relationship rewards ---
+    /** Alliance buff refresh window (re-applied every 1 s tick while
+     *  the pact holds; lapses by itself when it doesn't). */
+    static final int ALLIANCE_BUFF_DURATION_TICKS = 60;
+    /** Caravan goods claimable once per this period per PACT faction. */
+    static final long CARAVAN_COOLDOWN_TICKS = DAY;
+    /** Caravan-home travel cooldown. */
+    static final long TRAVEL_COOLDOWN_TICKS = 12_000L; // half a day
+    /** Clayman's spare-Disaster gift: standing floor + once ever. */
+    static final String SPARE_BOSS_GIFT_ID = "clayman_spare_disaster";
+    static final double SPARE_BOSS_MIN_STANDING = 60.0;
+
+    /** Which passive buff each ALLIANCE grants (re-applied while PACT
+     *  holds). Representative set — the authoring seam for more. */
+    private static final Map<String, net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect>>
+            ALLIANCE_BUFFS = Map.of(
+                    "dwargon", net.minecraft.world.effect.MobEffects.DIG_SPEED,
+                    "tempest", net.minecraft.world.effect.MobEffects.REGENERATION,
+                    "jura_alliance", net.minecraft.world.effect.MobEffects.LUCK,
+                    "luminous", net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE,
+                    "falmuth", net.minecraft.world.effect.MobEffects.DAMAGE_BOOST,
+                    "milim", net.minecraft.world.effect.MobEffects.DAMAGE_BOOST,
+                    "carrion", net.minecraft.world.effect.MobEffects.MOVEMENT_SPEED);
+
+    /** Daily caravan goods per PACT faction (trade access — faction
+     *  wares without a shop UI; the authoring seam for more). */
+    private static final Map<String, List<ItemStack>> FACTION_GOODS = Map.of(
+            "dwargon", List.of(new ItemStack(Items.IRON_INGOT, 12), new ItemStack(Items.GOLD_INGOT, 4)),
+            "tempest", List.of(new ItemStack(Items.BREAD, 16), new ItemStack(Items.EMERALD, 4)),
+            "jura_alliance", List.of(new ItemStack(Items.WHEAT, 16), new ItemStack(Items.EMERALD, 4)),
+            "luminous", List.of(new ItemStack(Items.GOLD_INGOT, 6), new ItemStack(Items.DIAMOND, 2)),
+            "falmuth", List.of(new ItemStack(Items.IRON_INGOT, 16), new ItemStack(Items.EMERALD, 4)),
+            "milim", List.of(new ItemStack(Items.COOKED_PORKCHOP, 16), new ItemStack(Items.EMERALD, 4)),
+            "carrion", List.of(new ItemStack(Items.LEATHER, 12), new ItemStack(Items.EMERALD, 4)));
+
     // --- the alliance prompt (replaces the pact milestone deal) ---
     /** Re-send an unanswered alliance prompt after this long (covers a
      *  dismissed/ESC'd dialog without per-second spam). */
@@ -919,6 +954,151 @@ public final class DiplomacyManager {
     }
 
     // ------------------------------------------------------------------
+    // Stage 3 — relationship rewards + action coupling
+    // ------------------------------------------------------------------
+
+    /** Pillar 1 — alliance buffs: re-applied every second while the
+     *  PACT holds (ambient, icon-only). Lapses by itself otherwise. */
+    private static void tickAllianceBuffs(ServerLevel level) {
+        for (ServerPlayer player : level.players()) {
+            for (BossFaction faction : BossFaction.values()) {
+                if (getState(level, player.getUUID(), faction) != RelationsState.PACT) continue;
+                var effect = ALLIANCE_BUFFS.get(faction.id());
+                if (effect == null) continue;
+                player.addEffect(new net.minecraft.world.effect.MobEffectInstance(
+                        effect, ALLIANCE_BUFF_DURATION_TICKS, 0, true, false, true));
+            }
+        }
+    }
+
+    /** Pillar 1 — the daily caravan: PACT-tier trade access. */
+    static String claimCaravan(ServerPlayer player, BossFaction faction) {
+        if (!isEnabled()) return "the faction system is disabled";
+        ServerLevel level = player.serverLevel();
+        UUID uuid = player.getUUID();
+        if (getState(level, uuid, faction) != RelationsState.PACT) {
+            return "only ALLIES receive " + faction.displayName() + "'s caravans";
+        }
+        List<ItemStack> goods = FACTION_GOODS.get(faction.id());
+        if (goods == null) return faction.displayName() + " sends no caravans";
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        long now = level.getGameTime();
+        if (now - data.getLastCaravan(uuid, faction.id()) < CARAVAN_COOLDOWN_TICKS) {
+            return "the next caravan from " + faction.displayName() + " arrives tomorrow";
+        }
+        data.setLastCaravan(uuid, faction.id(), now);
+        giveItems(player, goods);
+        player.sendSystemMessage(Component.literal("A caravan from " + faction.displayName()
+                + " delivers its wares.").withStyle(faction.color()));
+        return null;
+    }
+
+    /** Pillar 1 — the QOL perk: the allied caravan network carries the
+     *  player home (their town hall). Needs any PACT. */
+    static String travelHome(ServerPlayer player) {
+        if (!isEnabled()) return "the faction system is disabled";
+        ServerLevel level = player.serverLevel();
+        UUID uuid = player.getUUID();
+        boolean anyPact = false;
+        for (BossFaction faction : BossFaction.values()) {
+            if (getState(level, uuid, faction) == RelationsState.PACT) { anyPact = true; break; }
+        }
+        if (!anyPact) return "the caravan network carries only ALLIES";
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        long now = level.getGameTime();
+        if (now - data.getLastTravel(uuid) < TRAVEL_COOLDOWN_TICKS) {
+            return "the caravans need time before carrying you again";
+        }
+        IColony colony = IColonyManager.getInstance().getIColonyByOwner(level, uuid);
+        if (colony == null || !colony.getServerBuildingManager().hasTownHall()) {
+            return "you have no town hall to travel to";
+        }
+        BlockPos th = colony.getServerBuildingManager().getTownHall().getPosition();
+        BlockPos at = EntityUtils.getSpawnPoint(level, th);
+        if (at == null) at = th;
+        data.setLastTravel(uuid, now);
+        player.teleportTo(level, at.getX() + 0.5, at.getY() + 1.0, at.getZ() + 0.5,
+                player.getYRot(), player.getXRot());
+        level.sendParticles(ParticleTypes.POOF, player.getX(), player.getY() + 1, player.getZ(),
+                24, 0.4, 0.4, 0.4, 0.02);
+        player.sendSystemMessage(Component.literal("The allied caravan network carries you home.")
+                .withStyle(net.minecraft.ChatFormatting.AQUA));
+        return null;
+    }
+
+    /** Pillar 1 — the standing-gift quest reward: high Clayman standing
+     *  earns a SPARE Orc Disaster, spawned UNMARKED (no FactionMarkTag)
+     *  — killing it carries ZERO faction consequences; it's a gift to
+     *  defeat freely (boss loot + the colony/envoy rewards still apply). */
+    static String claimGift(ServerPlayer player, BossFaction faction) {
+        if (!isEnabled()) return "the faction system is disabled";
+        if (faction != BossFaction.CLAYMAN) return faction.displayName() + " offers no gift";
+        ServerLevel level = player.serverLevel();
+        UUID uuid = player.getUUID();
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        if (data.hasClaimedGift(uuid, SPARE_BOSS_GIFT_ID)) {
+            return "Clayman's gift was already given";
+        }
+        if (WorldReputationManager.getStanding(level, uuid, faction) < SPARE_BOSS_MIN_STANDING) {
+            return "Clayman thinks too little of you for gifts (standing "
+                    + (int) SPARE_BOSS_MIN_STANDING + "+ required)";
+        }
+        var type = io.github.manasmods.tensura.registry.entity.MonsterEntityTypes.ORC_DISASTER.get();
+        net.minecraft.world.entity.Mob boss = type.create(level);
+        if (boss == null) return "the gift could not manifest";
+        int dx = level.getRandom().nextInt(17) - 8;
+        int dz = 12 + level.getRandom().nextInt(9);
+        BlockPos pos = level.getHeightmapPos(net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE,
+                player.blockPosition().offset(dx, 0, dz));
+        boss.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5,
+                level.getRandom().nextFloat() * 360f, 0f);
+        boss.finalizeSpawn(level, level.getCurrentDifficultyAt(pos),
+                net.minecraft.world.entity.MobSpawnType.SPAWN_EGG, null);
+        boss.setPersistenceRequired();
+        // Deliberately NO FactionMarkTag: an unmarked boss is just a
+        // boss — the Layer-1 movers ignore it entirely.
+        if (!level.addFreshEntity(boss)) return "the gift could not manifest";
+        data.markGiftClaimed(uuid, SPARE_BOSS_GIFT_ID);
+        player.sendSystemMessage(Component.literal(
+                "Clayman's gift arrives: a spare Orc Disaster, yours to slay freely.")
+                .withStyle(faction.color()));
+        LOGGER.info("[TM] diplomacy: player {} claimed the spare Orc Disaster gift", uuid);
+        return null;
+    }
+
+    /**
+     * Pillar 3 — the majin-downgrade watch: when the player's race side
+     * flips to MAJIN, majin-sensitive allied factions (those that court
+     * humans but never majin — the Holy bloc) drop PACT → OPEN. The
+     * Layer-1 live base already cooled their standing; this adds the
+     * relations-state consequence.
+     */
+    private static void tickSideWatch(ServerLevel level) {
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        for (ServerPlayer player : level.players()) {
+            UUID uuid = player.getUUID();
+            byte side = (byte) (WorldReputationManager.isMajinSide(player) ? 1 : 0);
+            int last = data.getLastSide(uuid);
+            if (last == side) continue;
+            data.setLastSide(uuid, side);
+            if (last == -1 || side == 0) continue; // first observation / became human
+            for (BossFaction faction : BossFaction.values()) {
+                FactionProfile profile = FactionProfile.byId(faction.id());
+                boolean majinSensitive = profile != null
+                        && profile.sendsEnvoysToHuman() && !profile.sendsEnvoysToMajin();
+                if (!majinSensitive) continue;
+                if (getState(level, uuid, faction) != RelationsState.PACT) continue;
+                data.setState(uuid, faction.id(), RelationsState.OPEN.id());
+                player.sendSystemMessage(Component.literal("Word of what you have become reaches "
+                        + faction.displayName() + " — the alliance is reduced to wary diplomacy.")
+                        .withStyle(net.minecraft.ChatFormatting.GOLD));
+                LOGGER.info("[TM] diplomacy: player {} became majin — {} PACT downgraded to OPEN",
+                        uuid, faction.id());
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
     // The alliance prompt — OPEN relations reaching ALLIED (80+) pop an
     // Accept/Decline dialog (replaces the pact milestone deal)
     // ------------------------------------------------------------------
@@ -997,6 +1177,8 @@ public final class DiplomacyManager {
             processDeals(overworld);
             checkCollapse(overworld);
             checkAlliancePrompts(overworld);
+            tickAllianceBuffs(overworld);
+            tickSideWatch(overworld);
         } catch (Throwable t) {
             LOGGER.warn("[TM] diplomacy: tick failed", t);
         }
@@ -1029,6 +1211,12 @@ public final class DiplomacyManager {
         DiplomacySavedData data = DiplomacySavedData.get(level);
         root.putBoolean("majin", WorldReputationManager.isMajinSide(player));
         long now = level.getGameTime();
+        boolean anyPact = false;
+        for (BossFaction faction : BossFaction.values()) {
+            if (getState(level, uuid, faction) == RelationsState.PACT) { anyPact = true; break; }
+        }
+        root.putBoolean("canTravel", anyPact
+                && now - data.getLastTravel(uuid) >= TRAVEL_COOLDOWN_TICKS);
 
         ListTag factions = new ListTag();
         for (BossFaction faction : BossFaction.values()) {
@@ -1048,6 +1236,14 @@ public final class DiplomacyManager {
             f.putBoolean("pendingReply", pending);
             f.putBoolean("canSend", state == RelationsState.NONE && !closed && !pending
                     && now - data.getLastSend(uuid, faction.id()) >= SEND_COOLDOWN_TICKS);
+            // Stage 3 — reward availability for the detail pane.
+            f.putBoolean("canCaravan", state == RelationsState.PACT
+                    && FACTION_GOODS.containsKey(faction.id())
+                    && now - data.getLastCaravan(uuid, faction.id()) >= CARAVAN_COOLDOWN_TICKS);
+            f.putBoolean("giftAvailable", faction == BossFaction.CLAYMAN
+                    && !data.hasClaimedGift(uuid, SPARE_BOSS_GIFT_ID)
+                    && WorldReputationManager.getStanding(level, uuid, faction)
+                            >= SPARE_BOSS_MIN_STANDING);
 
             ListTag offers = new ListTag();
             java.util.Set<String> seen = data.getSeenOffers(uuid, faction.id());

@@ -150,6 +150,11 @@ public final class LoreEvents {
 
         // A slain Disaster never returns for this player.
         if (WorldReputationManager.isLoreEventDefeated(level, uuid, event.id())) return false;
+        // Stage 3 ongoing benefit: an ALLIED faction never sends its
+        // hostility events against you while the pact holds.
+        if (DiplomacyManager.getState(level, uuid, event.faction()) == RelationsState.PACT) {
+            return false;
+        }
         // ARM: provocation only — offense ≥ the faction's threshold.
         if (!WorldReputationManager.isProvoked(level, uuid, event.faction())) return false;
         // Timed-out marches regroup before coming again.

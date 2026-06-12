@@ -929,6 +929,12 @@ public final class Networking {
         public static final byte ACTION_COLLECT = 4;
         /** Clear the faction's "!" new-offer badge (tab clicked). */
         public static final byte ACTION_MARK_SEEN = 5;
+        /** Stage 3 — claim the PACT faction's daily caravan goods. */
+        public static final byte ACTION_CLAIM_CARAVAN = 6;
+        /** Stage 3 — the allied caravan network carries you home. */
+        public static final byte ACTION_TRAVEL_HOME = 7;
+        /** Stage 3 — claim a standing gift (the spare Orc Disaster). */
+        public static final byte ACTION_CLAIM_GIFT = 8;
         public static final Type<DiplomacyActionPayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "diplomacy_action"));
         public static final StreamCodec<ByteBuf, DiplomacyActionPayload> CODEC = StreamCodec.composite(
@@ -1133,6 +1139,12 @@ public final class Networking {
                         ? "unknown faction" : DiplomacyManager.collect(sp, faction);
                 case DiplomacyActionPayload.ACTION_MARK_SEEN ->
                         DiplomacyManager.markOffersSeen(sp, payload.factionId());
+                case DiplomacyActionPayload.ACTION_CLAIM_CARAVAN -> failure = faction == null
+                        ? "unknown faction" : DiplomacyManager.claimCaravan(sp, faction);
+                case DiplomacyActionPayload.ACTION_TRAVEL_HOME ->
+                        failure = DiplomacyManager.travelHome(sp);
+                case DiplomacyActionPayload.ACTION_CLAIM_GIFT -> failure = faction == null
+                        ? "unknown faction" : DiplomacyManager.claimGift(sp, faction);
                 default -> { }
             }
             if (failure != null) {

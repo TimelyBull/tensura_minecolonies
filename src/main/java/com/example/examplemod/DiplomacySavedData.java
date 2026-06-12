@@ -52,6 +52,15 @@ class DiplomacySavedData extends SavedData {
     /** player → (faction id → offer deal ids the player has SEEN) — the
      *  "!" new-offer badge clears when the faction tab is clicked. */
     private final Map<UUID, Map<String, Set<String>>> seenOffers = new HashMap<>();
+    /** Stage 3 — player → (faction id → last caravan-claim tick). */
+    private final Map<UUID, Map<String, Long>> lastCaravan = new HashMap<>();
+    /** Stage 3 — player → last caravan-home travel tick. */
+    private final Map<UUID, Long> lastTravel = new HashMap<>();
+    /** Stage 3 — player → claimed once-ever standing-gift ids. */
+    private final Map<UUID, Set<String>> claimedGifts = new HashMap<>();
+    /** Stage 3 — player → last known race side (0 human / 1 majin) for
+     *  the majin-downgrade watch. Absent = not yet observed. */
+    private final Map<UUID, Byte> lastSide = new HashMap<>();
     /** Daily-pass rollover anchor (overworld day number). */
     private long lastProcessedDay = -1;
 
@@ -178,6 +187,49 @@ class DiplomacySavedData extends SavedData {
         setDirty();
     }
 
+    long getLastCaravan(UUID player, String factionId) {
+        Map<String, Long> byFaction = lastCaravan.get(player);
+        Long tick = byFaction == null ? null : byFaction.get(factionId);
+        return tick == null ? Long.MIN_VALUE / 2 : tick;
+    }
+
+    void setLastCaravan(UUID player, String factionId, long tick) {
+        lastCaravan.computeIfAbsent(player, k -> new HashMap<>()).put(factionId, tick);
+        setDirty();
+    }
+
+    long getLastTravel(UUID player) {
+        Long tick = lastTravel.get(player);
+        return tick == null ? Long.MIN_VALUE / 2 : tick;
+    }
+
+    void setLastTravel(UUID player, long tick) {
+        lastTravel.put(player, tick);
+        setDirty();
+    }
+
+    boolean hasClaimedGift(UUID player, String giftId) {
+        Set<String> claimed = claimedGifts.get(player);
+        return claimed != null && claimed.contains(giftId);
+    }
+
+    void markGiftClaimed(UUID player, String giftId) {
+        if (claimedGifts.computeIfAbsent(player, k -> new HashSet<>()).add(giftId)) {
+            setDirty();
+        }
+    }
+
+    /** -1 = never observed; else 0 human / 1 majin. */
+    int getLastSide(UUID player) {
+        Byte side = lastSide.get(player);
+        return side == null ? -1 : side;
+    }
+
+    void setLastSide(UUID player, byte side) {
+        lastSide.put(player, side);
+        setDirty();
+    }
+
     long getLastInbound(UUID player) {
         Long tick = lastInbound.get(player);
         return tick == null ? Long.MIN_VALUE / 2 : tick;
@@ -212,6 +264,10 @@ class DiplomacySavedData extends SavedData {
         allPlayers.addAll(lastActivity.keySet());
         allPlayers.addAll(lastInbound.keySet());
         allPlayers.addAll(seenOffers.keySet());
+        allPlayers.addAll(lastCaravan.keySet());
+        allPlayers.addAll(lastTravel.keySet());
+        allPlayers.addAll(claimedGifts.keySet());
+        allPlayers.addAll(lastSide.keySet());
 
         ListTag players = new ListTag();
         for (UUID uuid : allPlayers) {
@@ -262,6 +318,16 @@ class DiplomacySavedData extends SavedData {
                 seenEntries.add(entry);
             }
             player.put("seenOffers", seenEntries);
+            player.put("lastCaravan", writeFactionLongs(lastCaravan.get(uuid)));
+            Long travel = lastTravel.get(uuid);
+            if (travel != null) player.putLong("lastTravel", travel);
+            ListTag giftEntries = new ListTag();
+            for (String gift : claimedGifts.getOrDefault(uuid, Set.of())) {
+                giftEntries.add(net.minecraft.nbt.StringTag.valueOf(gift));
+            }
+            player.put("claimedGifts", giftEntries);
+            Byte side = lastSide.get(uuid);
+            if (side != null) player.putByte("lastSide", side);
             players.add(player);
         }
         tag.put("players", players);
@@ -345,6 +411,18 @@ class DiplomacySavedData extends SavedData {
                 if (!ids.isEmpty()) seenMap.put(entry.getString("faction"), ids);
             }
             if (!seenMap.isEmpty()) data.seenOffers.put(uuid, seenMap);
+            Map<String, Long> caravans = readFactionLongs(player, "lastCaravan");
+            if (!caravans.isEmpty()) data.lastCaravan.put(uuid, caravans);
+            if (player.contains("lastTravel")) {
+                data.lastTravel.put(uuid, player.getLong("lastTravel"));
+            }
+            ListTag giftEntries = player.getList("claimedGifts", Tag.TAG_STRING);
+            Set<String> gifts = new HashSet<>();
+            for (int j = 0; j < giftEntries.size(); j++) gifts.add(giftEntries.getString(j));
+            if (!gifts.isEmpty()) data.claimedGifts.put(uuid, gifts);
+            if (player.contains("lastSide")) {
+                data.lastSide.put(uuid, player.getByte("lastSide"));
+            }
         }
         return data;
     }
