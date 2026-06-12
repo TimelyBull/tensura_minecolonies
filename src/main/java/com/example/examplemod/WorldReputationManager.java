@@ -475,6 +475,57 @@ public final class WorldReputationManager {
     }
 
     // ------------------------------------------------------------------
+    // Diplomacy-closed flags + lore-event recurrence state (consumed by
+    // LoreEvents; stored here because they're per-(player, faction/event)
+    // world-layer facts — the sole-door discipline holds)
+    // ------------------------------------------------------------------
+
+    /** The future diplomacy system's FIRST check. False while the
+     *  faction layer is disabled. */
+    public static boolean isDiplomacyClosed(ServerLevel level, UUID player, BossFaction faction) {
+        if (!isFactionSystemEnabled()) return false;
+        return WorldReputationSavedData.get(level).isDiplomacyClosed(player, faction.id());
+    }
+
+    /** RECOVERABLE by design (user decision): set on the lead-boss kill,
+     *  clearable later via the diplomacy arc's steep mending ritual
+     *  ({@link #reopenDiplomacy}). */
+    public static void closeDiplomacy(ServerLevel level, UUID player, BossFaction faction) {
+        if (!isFactionSystemEnabled()) return;
+        WorldReputationSavedData.get(level).closeDiplomacy(player, faction.id());
+        LOGGER.info("[TM] worldrep: player {} diplomacy with {} CLOSED (recoverable)",
+                player, faction.displayName());
+    }
+
+    /** The mending ritual's door — to be wired by the diplomacy build. */
+    public static void reopenDiplomacy(ServerLevel level, UUID player, BossFaction faction) {
+        WorldReputationSavedData.get(level).reopenDiplomacy(player, faction.id());
+        LOGGER.info("[TM] worldrep: player {} diplomacy with {} REOPENED",
+                player, faction.displayName());
+    }
+
+    /** A slain lore event never recurs for this player. */
+    public static boolean isLoreEventDefeated(ServerLevel level, UUID player, String eventId) {
+        return WorldReputationSavedData.get(level).isLoreEventDefeated(player, eventId);
+    }
+
+    public static void markLoreEventDefeated(ServerLevel level, UUID player, String eventId) {
+        WorldReputationSavedData.get(level).markLoreEventDefeated(player, eventId);
+        LOGGER.info("[TM] worldrep: player {} lore event '{}' DEFEATED — never recurs",
+                player, eventId);
+    }
+
+    /** Game tick before which a timed-out lore march cannot recur. */
+    public static long getLoreEventCooldownUntil(ServerLevel level, UUID player, String eventId) {
+        return WorldReputationSavedData.get(level).getLoreEventCooldownUntil(player, eventId);
+    }
+
+    public static void setLoreEventCooldownUntil(ServerLevel level, UUID player,
+                                                 String eventId, long untilTick) {
+        WorldReputationSavedData.get(level).setLoreEventCooldownUntil(player, eventId, untilTick);
+    }
+
+    // ------------------------------------------------------------------
     // Notoriety — pure derived aggregate (never stored)
     // ------------------------------------------------------------------
 

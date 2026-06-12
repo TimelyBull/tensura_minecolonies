@@ -1,6 +1,60 @@
 # Investigation: Lore events — the Orc Disaster (the pattern-setter)
 
-**Status:** investigation only, no code written (2026-06-11).
+**Status: Orc Disaster v1 BUILT (2026-06-11) — on the Layer-1 faction
+model (docs/faction-model.md), which SUPERSEDES this doc's original
+trigger/consequence design.** As-built record:
+
+- **The encounter (unchanged from this doc):** `TensuraRaidEvent` gained
+  the two NBT-optional fields (`loreEventId`, `leadBossUuid`; absent =
+  generic raid, old saves untouched). `TensuraRaids.startOrcDisaster`
+  spawns a real, MARKED OrcDisasterEntity lead ("Clayman's Orc
+  Disaster", dark-purple title via the Layer-1 `markBoss`) + offense-
+  scaled Orc Lord heavies (1 per 25 offense, cap 3) + plain `OrcEntity`
+  fodder until the EP budget (`1.15 + 0.15 × hostility01 +
+  min(0.20, offense × 0.01)` — the hostility term is now CONTINUOUS,
+  superseding the binary "+0.15 if HOSTILE tier"). Boss bar bound to
+  Geld's HP ("Geld, the Orc Disaster — Clayman's Calamity", purple).
+  Killing Geld → `resolveLoreBreak`: the horde poofs/flees, colony +8
+  RAID_REPELLED.
+- **Trigger SUPERSEDED → Layer-1 soft influence:** ARM via
+  `isProvoked(player, CLAYMAN)` (offense ≥ 3, Clayman's profile
+  threshold — replaces both the old hard `isBelow WARY` gate AND the
+  old `offense ≥ 10` minimum); ROLL = `10% + 30% × hostility01` per
+  nightfall per online player (standing scales, never gates); random
+  eligible owned colony; one march of an event per player at a time.
+- **Consequences ride Layer 1:** the −18 Clayman / +10.8 Milim & Carrion
+  / +7.2 forest-and-holy ripple fires AUTOMATICALLY from the marked-kill
+  fan-out (Geld's MAJOR BossProfile) — no numbers hand-coded in the lore
+  layer. The lore layer adds only: forced-HOSTILE clamp (standing capped
+  19, reason LORE_EVENT, applied AFTER the fan-out), the
+  **diplomacy-closed flag — RECOVERABLE, not permanent** (user decision
+  superseding #4's default): set on the Geld kill, clearable via
+  `reopenDiplomacy` — the future DIPLOMACY build wires the steep mending
+  ritual (sacrificing a high-EP subordinate / major resources) onto that
+  door. Flavor line: "Clayman will not forget this — though even the
+  deepest grudge might someday be bought back." Colony +10 and the
+  orc-envoy unlock fire as before (non-faction rewards).
+- **Recurrence (as designed):** timeout → 8-day cooldown + offense reset
+  (retribution spent); a SLAIN Disaster never returns
+  (`markLoreEventDefeated`) + offense reset. State persisted in
+  `WorldReputationSavedData` through the manager.
+- **Faction gate:** the trigger phase, `/tensuraraid disaster` (the
+  debug force-start), and all consequence writes sit behind
+  `factionSystemEnabled` — when off, no march ever fires, and a
+  self-summoned OrcDisasterEntity is unmarked → just a boss.
+- **The pattern landed:** `LoreEvents` is the shared spine (descriptor
+  map, provocation arming, soft-influence roll, recurrence, resolution
+  consequences) with the `EncounterFactory` seam; the Orc Disaster's
+  factory plugs the raid engine in. **Charybdis (flying set-piece) and
+  Ifrit (named-boss duel) are DEFERRED** — each becomes one more
+  `EVENTS` entry with its own non-wave factory, inheriting the spine.
+
+Original investigation follows (the encounter design is the record;
+the trigger/consequence sections are superseded as noted above).
+
+---
+
+**Investigated:** 2026-06-11, before the Layer-1 faction model existed.
 
 **THE MODEL (supersedes faction-raids.md's generic-faction-wave design):**
 raids are BOSS-SPECIFIC LORE EVENTS — bespoke encounters tied to a

@@ -16,6 +16,9 @@ public enum WorldRepReason {
     /** Secondary leg of a marked kill: the victim faction's allies
      *  mourn / its enemies celebrate (the two-sided fan-out). */
     MARKED_BOSS_RIPPLE,
+    /** Lore-event consequence (e.g. the Orc Disaster's forced-HOSTILE
+     *  clamp after slaying the lead boss). */
+    LORE_EVENT,
     /** Admin/debug adjustment (the /worldrep set command). */
     ADMIN,
     /** RESERVED — survived/repelled a faction's raid (rival-colony arc). */

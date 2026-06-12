@@ -72,6 +72,14 @@ public class TensuraRaidEvent implements IColonyRaidEvent {
     /** Roster tier the wave was drawn from (kept for the type getters). */
     private int rosterTier = 0;
 
+    // --- Lore-event layer (docs/lore-events.md) — both NBT-OPTIONAL:
+    //     absent = generic raid, existing saves rehydrate untouched. ---
+    /** Which lore event this raid embodies ("orc_disaster"), or null. */
+    private String loreEventId = null;
+    /** The lore event's LEAD BOSS (Geld). Its death breaks the horde —
+     *  the bespoke resolution rule — and the boss bar binds to its HP. */
+    private UUID leadBossUuid = null;
+
     private final ServerBossEvent raidBar = new ServerBossEvent(
             Component.literal("Tensura Raid"),
             BossEvent.BossBarColor.RED,
@@ -128,15 +136,53 @@ public class TensuraRaidEvent implements IColonyRaidEvent {
         raiderUuids.remove(uuid);
     }
 
+    /** Promote this raid to a LORE EVENT: store the id + lead boss and
+     *  restyle the boss bar from the event descriptor. */
+    void setLoreEvent(String loreEventId, UUID leadBossUuid) {
+        this.loreEventId = loreEventId;
+        this.leadBossUuid = leadBossUuid;
+        applyLoreBarStyle();
+    }
+
+    String loreEventId() {
+        return loreEventId;
+    }
+
+    UUID leadBossUuid() {
+        return leadBossUuid;
+    }
+
+    boolean isLoreEvent() {
+        return loreEventId != null;
+    }
+
+    private void applyLoreBarStyle() {
+        if (loreEventId == null) return;
+        LoreEvents.LoreEvent descriptor = LoreEvents.byId(loreEventId);
+        if (descriptor == null) return;
+        raidBar.setName(descriptor.barTitle());
+        raidBar.setColor(descriptor.barColor());
+    }
+
     // ------------------------------------------------------------------
     // Boss bar — alive/total, shown to players near the colony center.
     // ------------------------------------------------------------------
 
     void updateRaidBar(ServerLevel level) {
         if (barCleared) return;
-        float progress = totalSpawned == 0
-                ? 0f
-                : (float) raiderUuids.size() / (float) totalSpawned;
+        float progress;
+        if (leadBossUuid != null) {
+            // Lore event: the bar IS the lead boss — bound to its HP.
+            // Unloaded/unresolved → hold the last shown progress.
+            LivingEntity lead = LoreEvents.resolveLeadBoss(level, leadBossUuid);
+            progress = lead != null
+                    ? lead.getHealth() / Math.max(1f, lead.getMaxHealth())
+                    : raidBar.getProgress();
+        } else {
+            progress = totalSpawned == 0
+                    ? 0f
+                    : (float) raiderUuids.size() / (float) totalSpawned;
+        }
         raidBar.setProgress(Math.max(0f, Math.min(1f, progress)));
         BlockPos center = colony.getCenter();
         for (ServerPlayer player : level.players()) {
@@ -280,6 +326,10 @@ public class TensuraRaidEvent implements IColonyRaidEvent {
             uuids.add(entry);
         }
         tag.put("raiders", uuids);
+        // Lore-event layer — written only when present; a generic raid's
+        // NBT is byte-identical to pre-lore saves.
+        if (loreEventId != null) tag.putString("loreEventId", loreEventId);
+        if (leadBossUuid != null) tag.putUUID("leadBossUuid", leadBossUuid);
         return tag;
     }
 
@@ -301,5 +351,10 @@ public class TensuraRaidEvent implements IColonyRaidEvent {
                 if (entry.hasUUID("uuid")) raiderUuids.add(entry.getUUID("uuid"));
             }
         }
+        // Lore-event layer — absent keys leave a plain generic raid.
+        this.loreEventId = tag.contains("loreEventId", Tag.TAG_STRING)
+                ? tag.getString("loreEventId") : null;
+        this.leadBossUuid = tag.hasUUID("leadBossUuid") ? tag.getUUID("leadBossUuid") : null;
+        applyLoreBarStyle();
     }
 }

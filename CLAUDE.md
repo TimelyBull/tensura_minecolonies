@@ -635,7 +635,25 @@ profession (latest):**
   to colony strength (EP-primary, ×1.15 budget); hostile-spawn
   prevention inside fueled barriers. Records: docs/raid-system.md.
 
-**Faction model v1 (expanded world-reputation spine — latest):**
+**Orc Disaster lore event (Layer 2, consuming the faction model — latest):**
+- `LoreEvents` = the shared spine (descriptor map + `EncounterFactory`
+  seam, nightfall trigger per online player, provocation arming via
+  `isProvoked`, soft-influence roll `10% + 30%×hostility` — NO hard rep
+  gate, recurrence + resolution consequences). The Orc Disaster plugs
+  the raid engine in: `TensuraRaidEvent` gained NBT-optional
+  `loreEventId`/`leadBossUuid` (absent = generic raid); a MARKED Geld
+  ("Clayman's Orc Disaster") leads orc fodder + offense-scaled Orc Lord
+  heavies; boss bar bound to Geld's HP; killing Geld breaks the horde
+  (poof-flee + colony +8). The Layer-1 marked-kill fan-out fires the
+  two-sided ripple automatically; the lore layer adds the
+  forced-HOSTILE clamp + the RECOVERABLE diplomacy-closed flag (mending
+  ritual deferred to the diplomacy build) + flavor. Timeout → 8-day
+  cooldown; slain → never recurs; offense resets either way. Whole
+  event behind `factionSystemEnabled`. Debug: `/tensuraraid disaster`.
+  Charybdis/Ifrit deferred as future EncounterFactory plug-ins.
+  Records: docs/lore-events.md (as-built header).
+
+**Faction model v1 (expanded world-reputation spine):**
 - Per-player × boss-faction standing is now `effective = clamp(liveBase
   + earnedDelta)`: the base comes from `FactionProfile` dispositions ×
   the player's CURRENT race side (5-step majin/human classifier over

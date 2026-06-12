@@ -96,6 +96,26 @@ public final class TensuraRaids {
     /** EP assumed for a spawned raider whose existence can't be read
      *  (budget accounting fallback). */
     static final double FALLBACK_SPAWN_EP = 1_000.0;
+    // ------------------------------------------------------------------
+    // Orc Disaster — the first lore-event ENCOUNTER (the raid-engine
+    // plug-in behind LoreEvents' EncounterFactory seam). Constants per
+    // docs/lore-events.md #3, soft-influence form per faction-model #5.
+    // ------------------------------------------------------------------
+
+    static final String ORC_DISASTER_EVENT_ID = "orc_disaster";
+    /** Lore budget coefficient = BASE + HOSTILITY × hostility01
+     *  + min(OFFENSE_MAX, offense × PER_OFFENSE). The hostility term is
+     *  CONTINUOUS (soft influence) — supersedes the old binary
+     *  "+0.15 if HOSTILE tier". */
+    static final double LORE_BUDGET_BASE = 1.15;
+    static final double LORE_BUDGET_HOSTILITY = 0.15;
+    static final double LORE_BUDGET_OFFENSE_MAX = 0.20;
+    static final double LORE_BUDGET_PER_OFFENSE = 0.01;
+    /** Composition: one Orc Lord heavy per this much offense, capped —
+     *  how much you provoked them is visible in the horde itself. */
+    static final double ORC_LORD_PER_OFFENSE = 25.0;
+    static final int ORC_LORD_CAP = 3;
+
     /** Day-time tick (mod 24000) at which night "begins" for the trigger. */
     private static final long NIGHT_START = 13_000L;
     /** Steering walk speed / close-enough, mirroring SubordinatePatrol. */
@@ -232,6 +252,17 @@ public final class TensuraRaids {
                     }
                 } catch (Throwable t) {
                     LOGGER.warn("[TM] raid: tick failed for colony {}", colony.getID(), t);
+                }
+            }
+
+            // Lore-event phase — per ONLINE player, after the colony-rep
+            // phase (a colony that just drew a generic raid is no longer
+            // eligible via the one-active-raid gate). Faction-gated inside.
+            if (nightfall) {
+                try {
+                    LoreEvents.onNightfall(level);
+                } catch (Throwable t) {
+                    LOGGER.warn("[TM] lore: nightfall phase failed", t);
                 }
             }
         }
@@ -395,6 +426,93 @@ public final class TensuraRaids {
         return event;
     }
 
+    /**
+     * The Orc Disaster ENCOUNTER — LoreEvents' raid-engine plug-in
+     * (EncounterFactory). A parameterized {@link TensuraRaidEvent}:
+     * Geld (a real, MARKED OrcDisasterEntity) leads a horde of plain
+     * orcs — RAID_TAG + the target-assist make the passive-natured
+     * fodder genuinely hostile — with offense-scaled Orc Lord heavies.
+     * Killing Geld breaks the horde (the bespoke resolution); the boss
+     * bar binds to his HP. Everything else (steering, barrier, timeout,
+     * persistence, citizen flee/hide) is the unchanged engine.
+     */
+    static TensuraRaidEvent startOrcDisaster(ServerLevel level, ServerPlayer player,
+                                             IColony colony, LoreEvents.LoreEvent lore) {
+        BlockPos spawnPos = computeSpawnPos(level, colony);
+
+        double strength = computeColonyStrength(level, colony);
+        int raidLevel = raidLevelForStrength(strength);
+        int tier = raidLevel - 1;
+        double offense = WorldReputationManager.getOffense(level, player.getUUID(), lore.faction());
+        double standing = WorldReputationManager.getStanding(level, player.getUUID(), lore.faction());
+        double coefficient = LORE_BUDGET_BASE
+                + LORE_BUDGET_HOSTILITY * LoreEvents.hostility01(standing)
+                + Math.min(LORE_BUDGET_OFFENSE_MAX, offense * LORE_BUDGET_PER_OFFENSE);
+        double budget = strength * coefficient;
+        int waveCap = LEVEL_WAVE_MAX[tier];
+        int orcLords = (int) Math.min(ORC_LORD_CAP, offense / ORC_LORD_PER_OFFENSE);
+
+        TensuraRaidEvent event = new TensuraRaidEvent(colony);
+        event.setup(colony.getEventManager().getAndTakeNextEventID(),
+                spawnPos,
+                level.getGameTime() + RAID_DURATION_TICKS,
+                tier);
+
+        // The lead boss — a real OrcDisasterEntity, MARKED for Clayman
+        // (faction-colored "Clayman's Orc Disaster" title: consequence
+        // visible before the swing; the kill routes through the Layer-1
+        // marked-kill fan-out automatically).
+        Mob geld = spawnRaider(level, MonsterEntityTypes.ORC_DISASTER.get(),
+                spawnPos, colony.getID(), event.getID());
+        if (geld == null) {
+            LOGGER.warn("[TM] lore: {} — lead boss could not spawn, aborting", lore.id());
+            return null;
+        }
+        WorldReputationManager.markBoss(geld, lore.faction().id(), lore.id(), true);
+        event.addRaider(geld);
+        event.setLoreEvent(lore.id(), geld.getUUID());
+        double spawnedEP = readSpawnEP(geld);
+        int spawned = 1;
+
+        // Offense-scaled heavies, then plain-orc fodder until the budget.
+        for (int i = 0; i < orcLords && spawned < waveCap; i++) {
+            Mob lord = spawnRaider(level, MonsterEntityTypes.ORC_LORD.get(),
+                    spawnPos, colony.getID(), event.getID());
+            if (lord == null) break;
+            event.addRaider(lord);
+            spawned++;
+            spawnedEP += readSpawnEP(lord);
+        }
+        while (spawned < waveCap && (spawnedEP < budget || spawned < WAVE_MIN)) {
+            Mob orc = spawnRaider(level, MonsterEntityTypes.ORC.get(),
+                    spawnPos, colony.getID(), event.getID());
+            if (orc == null) break;
+            event.addRaider(orc);
+            spawned++;
+            spawnedEP += readSpawnEP(orc);
+        }
+
+        colony.getEventManager().addEvent(event);
+        event.setStatus(EventStatus.PROGRESSING);
+
+        LOGGER.info("[TM] lore: {} MARCHES on colony {} ('{}') — wave {} (+{} lords), {} EP vs budget {} (coeff {}, offense {}, standing {})",
+                lore.id(), colony.getID(), colony.getName(), spawned, orcLords,
+                String.format("%.0f", spawnedEP), String.format("%.0f", budget),
+                String.format("%.2f", coefficient), String.format("%.1f", offense),
+                String.format("%.1f", standing));
+        messageColonyOwner(level, colony,
+                Component.literal("Clayman's retribution marches on " + colony.getName()
+                        + " — Geld, the Orc Disaster, leads the horde!")
+                        .withStyle(net.minecraft.ChatFormatting.DARK_PURPLE));
+        return event;
+    }
+
+    /** Budget accounting for one spawned raider. */
+    private static double readSpawnEP(Mob mob) {
+        ExistenceStorage exist = ExampleMod.readExistence(mob);
+        return exist != null && exist.getEP() > 0 ? exist.getEP() : FALLBACK_SPAWN_EP;
+    }
+
     /** MC's own raid spawn-point math, with fallbacks. */
     private static BlockPos computeSpawnPos(ServerLevel level, IColony colony) {
         BlockPos pos = null;
@@ -552,6 +670,39 @@ public final class TensuraRaids {
                         .withStyle(net.minecraft.ChatFormatting.GREEN));
     }
 
+    /**
+     * Lore-event bespoke resolution — the LEAD BOSS fell, so the horde
+     * breaks and FLEES (the Disaster was the horde's will). The colony
+     * is paid the standard repelled reward; the lore consequences
+     * (defeated-forever, offense reset, clamp, diplomacy flag) are
+     * applied by the caller ({@code LoreEvents.onPotentialLeadBossDeath}).
+     */
+    static void resolveLoreBreak(ServerLevel level, IColony colony, TensuraRaidEvent event) {
+        for (UUID uuid : new ArrayList<>(event.raiderUuids())) {
+            Entity e = level.getEntity(uuid);
+            if (e != null && !e.isRemoved()) {
+                level.sendParticles(ParticleTypes.POOF,
+                        e.getX(), e.getY() + e.getBbHeight() / 2.0, e.getZ(),
+                        24, 0.4, 0.4, 0.4, 0.02);
+                e.discard();
+            }
+            event.removeRaider(uuid);
+        }
+        level.playSound(null, colony.getCenter(), SoundEvents.ENDERMAN_TELEPORT,
+                SoundSource.HOSTILE, 1.0f, 0.6f);
+        event.setStatus(EventStatus.DONE);
+        event.onFinish();
+        RaidSavedData.get(level).setLastRaidResolveTick(colony.getID(), level.getGameTime());
+        double newRep = ReputationManager.modifyReputation(colony, REP_RAID_REPELLED,
+                ReputationReason.RAID_REPELLED);
+        LOGGER.info("[TM] lore: horde BROKEN at colony {} ('{}') — reputation now {}",
+                colony.getID(), colony.getName(), String.format("%.1f", newRep));
+        messageColonyOwner(level, colony,
+                Component.literal("Geld has fallen! The horde breaks and flees "
+                        + colony.getName() + " — the Disaster was its will.")
+                        .withStyle(net.minecraft.ChatFormatting.GREEN));
+    }
+
     static void resolveTimeout(ServerLevel level, IColony colony, TensuraRaidEvent event) {
         // Leftover raiders withdraw with the envoy poof treatment.
         for (UUID uuid : new ArrayList<>(event.raiderUuids())) {
@@ -571,6 +722,16 @@ public final class TensuraRaids {
         RaidSavedData.get(level).setLastRaidResolveTick(colony.getID(), level.getGameTime());
         LOGGER.info("[TM] raid: TIMEOUT at colony {} ('{}') — leftover raiders withdrew",
                 colony.getID(), colony.getName());
+        if (event.isLoreEvent()) {
+            // Lore recurrence: the march regroups (cooldown) and the
+            // faction's retribution is spent (offense reset).
+            LoreEvents.onTimeout(level, colony, event);
+            messageColonyOwner(level, colony,
+                    Component.literal("The Orc Disaster's horde withdraws from "
+                            + colony.getName() + " into the night... for now.")
+                            .withStyle(net.minecraft.ChatFormatting.DARK_PURPLE));
+            return;
+        }
         messageColonyOwner(level, colony,
                 Component.literal("The raiders besieging " + colony.getName()
                         + " have withdrawn into the night.")

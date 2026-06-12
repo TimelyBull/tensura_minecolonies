@@ -3615,6 +3615,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // the ReputationManager chokepoint.
         processReputationOnDeath(serverLevel, event);
 
+        // Lore events — a lead-boss death breaks the horde and fires the
+        // bespoke consequences (clamp + recoverable diplomacy-closed).
+        // AFTER processReputationOnDeath so the Layer-1 marked-kill
+        // fan-out lands first and the forced-HOSTILE clamp applies to
+        // the post-ripple standing.
+        LoreEvents.onPotentialLeadBossDeath(serverLevel, event);
+
         // Raid v1 — drop dead raid mobs from their event's roster so the
         // boss bar and the victory check track precisely.
         TensuraRaids.onRaidMobDeath(serverLevel, event.getEntity());
@@ -4087,6 +4094,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         .executes(this::handleForceRaidCommand)
                         .then(Commands.literal("end")
                                 .executes(this::handleEndRaidCommand))
+                        // Lore-event debug — force the Orc Disaster march at
+                        // the player's colony NOW (bypasses provocation/
+                        // chance/cooldowns; still faction-gated).
+                        .then(Commands.literal("disaster")
+                                .executes(this::handleForceDisasterCommand))
         );
         // Assassin debug — inspect / fast-forward the assassin lifecycle
         // without real 4-day setups (mirrors /envoystate's role).
@@ -4170,6 +4182,41 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
         src.sendSuccess(() -> Component.literal("Raid started at '" + colony.getName()
                 + "' — " + started.totalSpawned() + " raiders (tier " + started.rosterTier() + ")"), true);
+        return 1;
+    }
+
+    /** {@code /tensuraraid disaster} — force the Orc Disaster lore march
+     *  at the player's colony (debug; skips arming/roll, keeps the
+     *  faction gate — the whole event is faction-layer). */
+    private int handleForceDisasterCommand(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/tensuraraid disaster must be run by a player"));
+            return 0;
+        }
+        if (!WorldReputationManager.isFactionSystemEnabled()) {
+            src.sendFailure(Component.literal(
+                    "The faction system is disabled (factionSystemEnabled=false) — lore events are dormant"));
+            return 0;
+        }
+        IColony colony = resolveCommandColony(src, player);
+        if (colony == null) return 0;
+        if (TensuraRaids.findActiveRaid(colony) != null) {
+            src.sendFailure(Component.literal("A raid is already active at '" + colony.getName() + "'"));
+            return 0;
+        }
+        LoreEvents.LoreEvent lore = LoreEvents.byId(TensuraRaids.ORC_DISASTER_EVENT_ID);
+        TensuraRaidEvent started = TensuraRaids.startOrcDisaster(
+                player.serverLevel(), player, colony, lore);
+        if (started == null) {
+            src.sendFailure(Component.literal("The march could not start (no spawns — check the log)"));
+            return 0;
+        }
+        src.sendSuccess(() -> Component.literal("Orc Disaster march started at '" + colony.getName()
+                + "' — " + started.totalSpawned() + " in the horde, Geld at its head"), true);
         return 1;
     }
 

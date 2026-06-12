@@ -8,7 +8,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -49,6 +51,20 @@ class WorldReputationSavedData extends SavedData {
      *  events. Same addon-door string keying as standings. */
     private final Map<UUID, Map<String, Double>> offenses = new HashMap<>();
 
+    /** player → faction ids whose diplomacy is CLOSED (lore-events.md
+     *  #4). RECOVERABLE by design — the future diplomacy arc's mending
+     *  ritual clears entries at a steep price; until then the flag just
+     *  exists (+ a dark flavor line at set time). */
+    private final Map<UUID, Set<String>> diplomacyClosed = new HashMap<>();
+
+    /** player → lore event ids whose boss was SLAIN — those events never
+     *  recur for that player (the Disaster is dead). */
+    private final Map<UUID, Set<String>> loreDefeated = new HashMap<>();
+
+    /** player → (lore event id → game tick before which it cannot recur)
+     *  — the timed-out-march regroup cooldown. */
+    private final Map<UUID, Map<String, Long>> loreCooldowns = new HashMap<>();
+
     private WorldReputationSavedData() {}
 
     static WorldReputationSavedData get(ServerLevel anyLevel) {
@@ -88,51 +104,102 @@ class WorldReputationSavedData extends SavedData {
         if (byFaction != null && byFaction.remove(factionId) != null) setDirty();
     }
 
+    boolean isDiplomacyClosed(UUID player, String factionId) {
+        Set<String> closed = diplomacyClosed.get(player);
+        return closed != null && closed.contains(factionId);
+    }
+
+    void closeDiplomacy(UUID player, String factionId) {
+        if (diplomacyClosed.computeIfAbsent(player, k -> new HashSet<>()).add(factionId)) {
+            setDirty();
+        }
+    }
+
+    /** The future mending ritual's door — recoverable by design. */
+    void reopenDiplomacy(UUID player, String factionId) {
+        Set<String> closed = diplomacyClosed.get(player);
+        if (closed != null && closed.remove(factionId)) setDirty();
+    }
+
+    boolean isLoreEventDefeated(UUID player, String eventId) {
+        Set<String> defeated = loreDefeated.get(player);
+        return defeated != null && defeated.contains(eventId);
+    }
+
+    void markLoreEventDefeated(UUID player, String eventId) {
+        if (loreDefeated.computeIfAbsent(player, k -> new HashSet<>()).add(eventId)) {
+            setDirty();
+        }
+    }
+
+    long getLoreEventCooldownUntil(UUID player, String eventId) {
+        Map<String, Long> byEvent = loreCooldowns.get(player);
+        Long until = byEvent == null ? null : byEvent.get(eventId);
+        return until == null ? Long.MIN_VALUE : until;
+    }
+
+    void setLoreEventCooldownUntil(UUID player, String eventId, long untilTick) {
+        loreCooldowns.computeIfAbsent(player, k -> new HashMap<>()).put(eventId, untilTick);
+        setDirty();
+    }
+
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
+        // One compound per player holding every section — union of all
+        // map keys so a player with (say) only a lore cooldown persists.
+        Set<UUID> allPlayers = new HashSet<>();
+        allPlayers.addAll(standings.keySet());
+        allPlayers.addAll(offenses.keySet());
+        allPlayers.addAll(diplomacyClosed.keySet());
+        allPlayers.addAll(loreDefeated.keySet());
+        allPlayers.addAll(loreCooldowns.keySet());
+
         ListTag players = new ListTag();
-        for (Map.Entry<UUID, Map<String, Double>> e : standings.entrySet()) {
+        for (UUID uuid : allPlayers) {
             CompoundTag player = new CompoundTag();
-            player.putUUID("uuid", e.getKey());
-            ListTag entries = new ListTag();
-            for (Map.Entry<String, Double> s : e.getValue().entrySet()) {
-                CompoundTag entry = new CompoundTag();
-                entry.putString("faction", s.getKey());
-                entry.putDouble("value", s.getValue());
-                entries.add(entry);
-            }
-            player.put("standings", entries);
-            ListTag offenseEntries = new ListTag();
-            Map<String, Double> byFaction = offenses.get(e.getKey());
-            if (byFaction != null) {
-                for (Map.Entry<String, Double> o : byFaction.entrySet()) {
+            player.putUUID("uuid", uuid);
+            player.put("standings", writeFactionDoubles(standings.get(uuid)));
+            player.put("offenses", writeFactionDoubles(offenses.get(uuid)));
+            player.put("diplomacyClosed", writeStringSet(diplomacyClosed.get(uuid)));
+            player.put("loreDefeated", writeStringSet(loreDefeated.get(uuid)));
+            ListTag cooldowns = new ListTag();
+            Map<String, Long> byEvent = loreCooldowns.get(uuid);
+            if (byEvent != null) {
+                for (Map.Entry<String, Long> c : byEvent.entrySet()) {
                     CompoundTag entry = new CompoundTag();
-                    entry.putString("faction", o.getKey());
-                    entry.putDouble("value", o.getValue());
-                    offenseEntries.add(entry);
+                    entry.putString("event", c.getKey());
+                    entry.putLong("until", c.getValue());
+                    cooldowns.add(entry);
                 }
             }
-            player.put("offenses", offenseEntries);
-            players.add(player);
-        }
-        // Players with offenses but no standings still need persisting.
-        for (Map.Entry<UUID, Map<String, Double>> e : offenses.entrySet()) {
-            if (standings.containsKey(e.getKey()) || e.getValue().isEmpty()) continue;
-            CompoundTag player = new CompoundTag();
-            player.putUUID("uuid", e.getKey());
-            player.put("standings", new ListTag());
-            ListTag offenseEntries = new ListTag();
-            for (Map.Entry<String, Double> o : e.getValue().entrySet()) {
-                CompoundTag entry = new CompoundTag();
-                entry.putString("faction", o.getKey());
-                entry.putDouble("value", o.getValue());
-                offenseEntries.add(entry);
-            }
-            player.put("offenses", offenseEntries);
+            player.put("loreCooldowns", cooldowns);
             players.add(player);
         }
         tag.put("players", players);
         return tag;
+    }
+
+    private static ListTag writeFactionDoubles(Map<String, Double> byFaction) {
+        ListTag entries = new ListTag();
+        if (byFaction != null) {
+            for (Map.Entry<String, Double> e : byFaction.entrySet()) {
+                CompoundTag entry = new CompoundTag();
+                entry.putString("faction", e.getKey());
+                entry.putDouble("value", e.getValue());
+                entries.add(entry);
+            }
+        }
+        return entries;
+    }
+
+    private static ListTag writeStringSet(Set<String> values) {
+        ListTag entries = new ListTag();
+        if (values != null) {
+            for (String value : values) {
+                entries.add(net.minecraft.nbt.StringTag.valueOf(value));
+            }
+        }
+        return entries;
     }
 
     static WorldReputationSavedData load(CompoundTag tag, HolderLookup.Provider registries) {
@@ -161,8 +228,30 @@ class WorldReputationSavedData extends SavedData {
                 if (!offByFaction.isEmpty()) {
                     data.offenses.put(player.getUUID("uuid"), offByFaction);
                 }
+                Set<String> closed = readStringSet(player, "diplomacyClosed");
+                if (!closed.isEmpty()) data.diplomacyClosed.put(player.getUUID("uuid"), closed);
+                Set<String> defeated = readStringSet(player, "loreDefeated");
+                if (!defeated.isEmpty()) data.loreDefeated.put(player.getUUID("uuid"), defeated);
+                Map<String, Long> cooldowns = new HashMap<>();
+                ListTag cooldownEntries = player.getList("loreCooldowns", Tag.TAG_COMPOUND);
+                for (int j = 0; j < cooldownEntries.size(); j++) {
+                    CompoundTag entry = cooldownEntries.getCompound(j);
+                    cooldowns.put(entry.getString("event"), entry.getLong("until"));
+                }
+                if (!cooldowns.isEmpty()) {
+                    data.loreCooldowns.put(player.getUUID("uuid"), cooldowns);
+                }
             }
         }
         return data;
+    }
+
+    private static Set<String> readStringSet(CompoundTag player, String key) {
+        Set<String> out = new HashSet<>();
+        ListTag entries = player.getList(key, Tag.TAG_STRING);
+        for (int i = 0; i < entries.size(); i++) {
+            out.add(entries.getString(i));
+        }
+        return out;
     }
 }
