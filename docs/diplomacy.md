@@ -1,6 +1,61 @@
 # Investigation: the Diplomacy system — Stage 1 (the spine)
 
-**Status:** investigation only, no code written (2026-06-11).
+**Status: STAGE 1 BUILT (2026-06-11).** As-built record (the
+investigation below remains the design of record; everything landed as
+specced unless noted):
+
+- **Code:** `RelationsState` (NONE/OPEN/PACT), `DiplomacySavedData` +
+  `DiplomacyManager` (sole door; every standing write via
+  WorldReputationManager with the DIPLOMACY reason now LIVE),
+  `DealSpec` (sealed `Requirement`: SupplyItems / BuildingLevel /
+  Population / Happiness — the LendCitizens seam left for Stage 2) +
+  `ActiveDeal` (persisted state machine ACTIVE → AWAITING_PAYOFF →
+  READY; deadline expiry penalizes and removes), `FactionEnvoyTag` (+
+  attachment), `FactionProfile` gained `sendsEnvoysToHuman/Majin` (the
+  race gate: Holy bloc true/false, diplomats+swingables true/true,
+  Clayman/aloof false/false = outbound-only), Networking
+  (DiplomacySnapshotPayload NBT snapshot + DiplomacyActionPayload +
+  faction-envoy dialogue pair), `DiplomacyScreen` (the [Roster |
+  Diplomacy] tab strip — RosterScreen gained the Diplomacy button) +
+  `FactionEnvoyScreen`, `/diplomacy` debug
+  (show / `open <faction>` / `offers` / `reply <faction>`).
+- **Mover/decay constants (tuning):** entry open +2; gift +2 (8 gold
+  ingots); deal success +4 (supply) / +6 (building/population/
+  happiness) / +10 pact (milestone → PACT); deal failure −5; offer
+  ignored to expiry −1. Decay (daily pass, idle days only — no active
+  deal and no activity within a day; only POSITIVE earned delta
+  decays): OPEN 0.5/day, PACT 0.1/day, NONE none. Entry: reply delay
+  1 day, accept floor standing ≥ 20, resend cooldown 1 day; inbound
+  10%/day per faction, min standing 40, 3-day per-player cooldown,
+  vanilla-Villager envoy ("Envoy of X") near the town hall, one at a
+  time. Offers: 2 max per faction, 3-day expiry, refreshed daily.
+- **Starter deals:** supply_iron (64 iron → 24 gold, +4, 3d, 1-day
+  caravan payoff), supply_food (32 bread → 16 emeralds, +4, 3d,
+  instant), raise_library (library L3 → 32 emeralds, +6, 12d),
+  growing_town (15 citizens → 24 emeralds, +6, 20d), content_people
+  (happiness ≥ 7 → 24 emeralds + 8 gold, +6, 12d, FRIENDLY-gated),
+  alliance_pact (16 diamonds → 64 emeralds, +10, 6d, ALLIED-gated,
+  milestone → PACT).
+- **The Clayman-clamp freebie CONFIRMED:** the per-second collapse
+  check derives purely from Layer-1 standing (`getStanding < 20` →
+  state NONE, deals cancelled, offers cleared, message) — the Orc
+  Disaster's forced-HOSTILE clamp (or `/worldrep set clayman 10`)
+  shatters Clayman relations with zero event-specific code.
+- **Gate CONFIRMED:** `DiplomacyManager.tick`, every mutator, the
+  snapshot, the inbound roll and `/diplomacy` all no-op/report-dormant
+  when `factionSystemEnabled=false` (on top of the Layer-1 manager
+  gate).
+- **Stage 2–4 seams left:** the sealed Requirement interface
+  (LendCitizens), per-faction DealSpec tables (data swap over DEALS),
+  reward kinds beyond items, and the mending ritual (a milestone deal
+  offered only while `isDiplomacyClosed`; `reopenDiplomacy` already
+  exists).
+
+Original investigation follows.
+
+---
+
+**Investigated:** 2026-06-11 (built the same day).
 
 **What this is:** the builder's-path parallel to the hostility arc — a
 TIERED, RECIPROCAL-EXCHANGE relationship system sitting on the Layer-1

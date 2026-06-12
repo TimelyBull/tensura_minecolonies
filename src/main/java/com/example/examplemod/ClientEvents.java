@@ -62,6 +62,14 @@ public final class ClientEvents {
         // log-only default in Networking.rosterClientHandler.
         Networking.rosterClientHandler = ClientRosterHandler::handle;
 
+        // Diplomacy Stage 1 — the snapshot opens (or live-refreshes) the
+        // Diplomacy screen; faction envoys open the relations dialogue.
+        Networking.diplomacyClientHandler = payload ->
+                DiplomacyScreen.openOrRefresh(payload.data());
+        Networking.factionEnvoyClientHandler = payload ->
+                net.minecraft.client.Minecraft.getInstance().setScreen(
+                        new FactionEnvoyScreen(payload.entityId(), payload.factionName()));
+
         // Magicule cost — install the collapse-confirm prompt handler.
         Networking.confirmCollapseClientHandler = ConfirmCollapseHandler::handle;
 

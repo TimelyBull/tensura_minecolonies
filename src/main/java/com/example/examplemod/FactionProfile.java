@@ -41,13 +41,23 @@ public record FactionProfile(
         Set<String> allies,
         Set<String> enemies,
         double swingMultiplier,
-        double provocationThreshold) {
+        double provocationThreshold,
+        boolean sendsEnvoysToHuman,
+        boolean sendsEnvoysToMajin) {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FactionProfile.class);
 
     /** The faction's disposition base for the player's race side. */
     public double base(boolean majinSide) {
         return majinSide ? baseMajin : baseHuman;
+    }
+
+    /** The INBOUND envoy race-gate (docs/diplomacy.md #1): does this
+     *  faction SEND diplomatic envoys to a player of this race side?
+     *  False both ways = outbound-only (the player must send theirs —
+     *  the aloof factions, and the Holy bloc toward majin). */
+    public boolean sendsEnvoysTo(boolean majinSide) {
+        return majinSide ? sendsEnvoysToMajin : sendsEnvoysToHuman;
     }
 
     // ------------------------------------------------------------------
@@ -63,36 +73,39 @@ public record FactionProfile(
 
     private static Map<String, FactionProfile> buildProfiles() {
         Map<String, FactionProfile> map = new LinkedHashMap<>();
-        // Holy bloc — wary of humans, HOSTILE-band to majin.
+        // Holy bloc — wary of humans, HOSTILE-band to majin. Sends
+        // envoys to HUMAN players only — a majin must send their own.
         put(map, new FactionProfile("luminous", 30, 10,
-                Set.of("falmuth"), Set.of("clayman"), 1.0, 5));
+                Set.of("falmuth"), Set.of("clayman"), 1.0, 5, true, false));
         put(map, new FactionProfile("falmuth", 35, 15,
-                Set.of("luminous"), Set.of("clayman"), 1.0, 5));
+                Set.of("luminous"), Set.of("clayman"), 1.0, 5, true, false));
         // The schemers (Clowns folded in) — neutral-but-scheming,
-        // provoked on the first real slight.
+        // provoked on the first real slight. Never SENDS envoys (he
+        // schemes, he doesn't court) — outbound only.
         put(map, new FactionProfile("clayman", 45, 45,
                 Set.of(),
                 Set.of("luminous", "falmuth", "tempest", "jura_alliance", "milim", "carrion"),
-                1.0, 3));
+                1.0, 3, false, false));
         // The diplomats — patient; only sustained violence provokes.
+        // Diplomacy-open: they send to anyone.
         put(map, new FactionProfile("dwargon", 50, 50,
-                Set.of("tempest", "jura_alliance"), Set.of(), 1.0, 10));
+                Set.of("tempest", "jura_alliance"), Set.of(), 1.0, 10, true, true));
         put(map, new FactionProfile("tempest", 50, 55,
-                Set.of("jura_alliance", "dwargon"), Set.of("clayman"), 1.0, 10));
+                Set.of("jura_alliance", "dwargon"), Set.of("clayman"), 1.0, 10, true, true));
         put(map, new FactionProfile("jura_alliance", 50, 55,
-                Set.of("tempest", "dwargon"), Set.of("clayman"), 1.0, 10));
+                Set.of("tempest", "dwargon"), Set.of("clayman"), 1.0, 10, true, true));
         // The swingables — neutral but every mover lands 1.5×.
         put(map, new FactionProfile("milim", 50, 50,
-                Set.of(), Set.of("clayman"), 1.5, 8));
+                Set.of(), Set.of("clayman"), 1.5, 8, true, true));
         put(map, new FactionProfile("carrion", 50, 50,
-                Set.of(), Set.of("clayman"), 1.5, 8));
-        // The aloof — movers dampened to 0.5×.
+                Set.of(), Set.of("clayman"), 1.5, 8, true, true));
+        // The aloof — movers dampened to 0.5×; never send (outbound only).
         put(map, new FactionProfile("leon", 50, 50,
-                Set.of(), Set.of(), 0.5, 15));
+                Set.of(), Set.of(), 0.5, 15, false, false));
         put(map, new FactionProfile("otherworlders", 50, 50,
-                Set.of(), Set.of(), 0.5, 15));
+                Set.of(), Set.of(), 0.5, 15, false, false));
         put(map, new FactionProfile("shizu", 50, 50,
-                Set.of(), Set.of(), 1.0, 15));
+                Set.of(), Set.of(), 1.0, 15, false, false));
         return Map.copyOf(map);
     }
 

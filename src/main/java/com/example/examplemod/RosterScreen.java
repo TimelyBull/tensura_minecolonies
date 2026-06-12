@@ -99,6 +99,15 @@ public class RosterScreen extends Screen {
     protected void init() {
         super.init();
 
+        // The tab strip — Roster | Diplomacy (we're on Roster). The
+        // server replies with a DiplomacySnapshotPayload, which opens
+        // the Diplomacy screen (diplomacy Stage 1).
+        this.addRenderableWidget(Button.builder(Component.literal("Diplomacy"),
+                btn -> PacketDistributor.sendToServer(new Networking.DiplomacyActionPayload(
+                        Networking.DiplomacyActionPayload.ACTION_OPEN_TAB, "", "", false)))
+                .bounds(8, 12, 70, 20)
+                .build());
+
         // Search bar
         int searchX = (this.width - SEARCH_WIDTH) / 2;
         int searchY = 18;

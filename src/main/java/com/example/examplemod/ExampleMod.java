@@ -545,6 +545,23 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             }
         }
 
+        // FACTION envoy (diplomacy Stage 1) — right-click opens the
+        // accept/decline relations dialogue. Cancelling suppresses the
+        // vanilla villager trade screen.
+        if (event.getTarget().hasData(Attachments.FACTION_ENVOY.get())
+                && event.getEntity() instanceof ServerPlayer fsp) {
+            FactionEnvoyTag ftag = event.getTarget().getData(Attachments.FACTION_ENVOY.get());
+            if (ftag != null && fsp.getUUID().equals(ftag.targetPlayer())) {
+                event.setCanceled(true);
+                event.setCancellationResult(net.minecraft.world.InteractionResult.SUCCESS);
+                BossFaction faction = BossFaction.byId(ftag.factionId());
+                PacketDistributor.sendToPlayer(fsp, new Networking.OpenFactionEnvoyPayload(
+                        event.getTarget().getId(), ftag.factionId(),
+                        faction != null ? faction.displayName() : ftag.factionId()));
+                return;
+            }
+        }
+
         // Shift-right-click send-to-colony was removed by request. Sending
         // a subordinate to the colony now goes through the roster menu only
         // (G keybind → click the entry, or the bulk-send action), which
@@ -1378,6 +1395,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         ReputationManager.modifyReputation(colony,
                 amenity ? REP_BUILDING_AMENITY : REP_BUILDING_BASIC,
                 ReputationReason.BUILDING_COMPLETED);
+
+        // Diplomacy Stage 1 — the same completion event drives
+        // BuildingLevel deal fulfillment (gated inside).
+        if (colony.getWorld() instanceof ServerLevel diplomacyLevel) {
+            DiplomacyManager.onBuildingCompleted(diplomacyLevel, colony);
+        }
     }
 
     /**
@@ -4141,6 +4164,24 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                                         .executes(ctx -> handleWorldRepMarkCommand(ctx,
                                                 StringArgumentType.getString(ctx, "faction")))))
         );
+        // Diplomacy Stage 1 debug — state readout, force-open relations,
+        // force-refresh offers, force the pending envoy reply.
+        event.getDispatcher().register(
+                Commands.literal("diplomacy")
+                        .requires(src -> src.hasPermission(0))
+                        .executes(this::handleDiplomacyShowCommand)
+                        .then(Commands.literal("open")
+                                .requires(src -> src.hasPermission(2))
+                                .then(Commands.argument("faction", StringArgumentType.word())
+                                        .executes(ctx -> handleDiplomacyAdminCommand(ctx, "open"))))
+                        .then(Commands.literal("offers")
+                                .requires(src -> src.hasPermission(2))
+                                .executes(ctx -> handleDiplomacyAdminCommand(ctx, "offers")))
+                        .then(Commands.literal("reply")
+                                .requires(src -> src.hasPermission(2))
+                                .then(Commands.argument("faction", StringArgumentType.word())
+                                        .executes(ctx -> handleDiplomacyAdminCommand(ctx, "reply"))))
+        );
         // Reputation v1 debug — read the player's colony reputation, or
         // set it for testing (set requires op, mirroring /festival).
         //   /reputation               — show value + tier
@@ -4275,6 +4316,85 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 }
             }
         }
+        return 1;
+    }
+
+    /** {@code /diplomacy} — per-faction relations + active-deal readout. */
+    private int handleDiplomacyShowCommand(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/diplomacy must be run by a player"));
+            return 0;
+        }
+        if (!WorldReputationManager.isFactionSystemEnabled()) {
+            src.sendSuccess(() -> Component.literal(
+                    "The faction system is DISABLED (factionSystemEnabled=false) — diplomacy is dormant.")
+                    .withStyle(ChatFormatting.GRAY), false);
+            return 1;
+        }
+        ServerLevel level = player.serverLevel();
+        net.minecraft.nbt.CompoundTag snapshot = DiplomacyManager.buildSnapshot(player);
+        net.minecraft.nbt.ListTag factions = snapshot.getList("factions",
+                net.minecraft.nbt.Tag.TAG_COMPOUND);
+        src.sendSuccess(() -> Component.literal("Diplomacy of "
+                + player.getName().getString() + ":"), false);
+        for (int i = 0; i < factions.size(); i++) {
+            net.minecraft.nbt.CompoundTag f = factions.getCompound(i);
+            RelationsState state = RelationsState.byId(f.getByte("state"));
+            if (state == RelationsState.NONE && !f.getBoolean("pendingReply")
+                    && !f.getBoolean("closed")) continue; // keep the readout short
+            StringBuilder line = new StringBuilder("  " + f.getString("name") + ": ");
+            line.append(state.displayName());
+            if (f.getBoolean("closed")) line.append(" [diplomacy CLOSED]");
+            if (f.getBoolean("pendingReply")) line.append(" [envoy awaiting reply]");
+            if (f.contains("active")) {
+                net.minecraft.nbt.CompoundTag d = f.getCompound("active");
+                line.append(" — deal '").append(d.getString("title"))
+                        .append("' ").append(d.getInt("progressPct")).append("%");
+            }
+            int offerCount = f.getList("offers", net.minecraft.nbt.Tag.TAG_COMPOUND).size();
+            if (offerCount > 0) line.append(" — ").append(offerCount).append(" offer(s)");
+            String text = line.toString();
+            src.sendSuccess(() -> Component.literal(text), false);
+        }
+        src.sendSuccess(() -> Component.literal(
+                "(Factions without contact are hidden — see the Diplomacy tab on the roster.)")
+                .withStyle(ChatFormatting.DARK_GRAY), false);
+        return 1;
+    }
+
+    /** {@code /diplomacy open|offers|reply} — admin fast-forwards. */
+    private int handleDiplomacyAdminCommand(CommandContext<CommandSourceStack> ctx, String action) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/diplomacy must be run by a player"));
+            return 0;
+        }
+        String result;
+        switch (action) {
+            case "open", "reply" -> {
+                String factionArg = StringArgumentType.getString(ctx, "faction")
+                        .toLowerCase(java.util.Locale.ROOT);
+                BossFaction faction = BossFaction.byId(factionArg);
+                if (faction == null) {
+                    src.sendFailure(Component.literal("Unknown faction '" + factionArg + "'"));
+                    return 0;
+                }
+                result = action.equals("open")
+                        ? DiplomacyManager.debugForceOpen(player, faction)
+                        : DiplomacyManager.debugReplyNow(player, faction);
+            }
+            case "offers" -> result = DiplomacyManager.debugRefreshOffers(player);
+            default -> result = "unknown action";
+        }
+        String text = result;
+        src.sendSuccess(() -> Component.literal(text), true);
         return 1;
     }
 
@@ -5507,6 +5627,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // Assassins — ARMED strike checks (vulnerability windows) +
             // ACTIVE boss upkeep (bar, hostility re-assert).
             Assassins.tick(server);
+            // Diplomacy Stage 1 — envoy replies, deal deadlines/payoffs,
+            // collapse check; daily pass (offers, decay, inbound envoys)
+            // rolls over inside. Faction-gated inside.
+            DiplomacyManager.tick(server);
         }
 
         // Dawn-restock pass — refresh every named subordinate merchant's

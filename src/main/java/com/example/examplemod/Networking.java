@@ -157,6 +157,28 @@ public final class Networking {
                 BarrierMenuActionPayload.CODEC,
                 Networking::onBarrierMenuAction
         );
+        // Diplomacy Stage 1 — tab snapshot (S2C), tab actions (C2S),
+        // inbound faction-envoy dialogue (S2C) + its response (C2S).
+        registrar.playToClient(
+                DiplomacySnapshotPayload.TYPE,
+                DiplomacySnapshotPayload.CODEC,
+                Networking::onDiplomacySnapshot
+        );
+        registrar.playToServer(
+                DiplomacyActionPayload.TYPE,
+                DiplomacyActionPayload.CODEC,
+                Networking::onDiplomacyAction
+        );
+        registrar.playToClient(
+                OpenFactionEnvoyPayload.TYPE,
+                OpenFactionEnvoyPayload.CODEC,
+                Networking::onOpenFactionEnvoy
+        );
+        registrar.playToServer(
+                FactionEnvoyResponsePayload.TYPE,
+                FactionEnvoyResponsePayload.CODEC,
+                Networking::onFactionEnvoyResponse
+        );
     }
 
     /**
@@ -853,5 +875,126 @@ public final class Networking {
     private static void onRaceChoice(RaceChoicePayload payload, IPayloadContext context) {
         if (!(context.player() instanceof ServerPlayer sp)) return;
         context.enqueueWork(() -> ExampleMod.handleRaceChoice(sp, payload.colonyId(), payload.choice()));
+    }
+
+    // ------------------------------------------------------------------
+    // Diplomacy Stage 1
+    // ------------------------------------------------------------------
+
+    /** S2C: the full Diplomacy-tab snapshot. The body is a CompoundTag
+     *  built server-side by {@code DiplomacyManager.buildSnapshot} — the
+     *  client renders strings and never computes anything itself. */
+    public record DiplomacySnapshotPayload(net.minecraft.nbt.CompoundTag data)
+            implements CustomPacketPayload {
+        public static final Type<DiplomacySnapshotPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "diplomacy_snapshot"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, DiplomacySnapshotPayload> CODEC =
+                StreamCodec.of(
+                        (buf, p) -> buf.writeNbt(p.data),
+                        buf -> new DiplomacySnapshotPayload((net.minecraft.nbt.CompoundTag) buf.readNbt()));
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** C2S: a Diplomacy-tab action. Server validates everything and
+     *  re-sends the snapshot (the barrier-menu live-refresh pattern). */
+    public record DiplomacyActionPayload(byte action, String factionId, String dealId,
+                                         boolean flag)
+            implements CustomPacketPayload {
+        public static final byte ACTION_OPEN_TAB = 0;
+        public static final byte ACTION_SEND_ENVOY = 1;   // flag = with gift
+        public static final byte ACTION_ACCEPT_DEAL = 2;
+        public static final byte ACTION_DELIVER = 3;
+        public static final byte ACTION_COLLECT = 4;
+        public static final Type<DiplomacyActionPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "diplomacy_action"));
+        public static final StreamCodec<ByteBuf, DiplomacyActionPayload> CODEC = StreamCodec.composite(
+                ByteBufCodecs.BYTE, DiplomacyActionPayload::action,
+                ByteBufCodecs.STRING_UTF8, DiplomacyActionPayload::factionId,
+                ByteBufCodecs.STRING_UTF8, DiplomacyActionPayload::dealId,
+                ByteBufCodecs.BOOL, DiplomacyActionPayload::flag,
+                DiplomacyActionPayload::new
+        );
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** S2C: a faction envoy was right-clicked — open the accept/decline
+     *  dialogue for the named faction. */
+    public record OpenFactionEnvoyPayload(int entityId, String factionId, String factionName)
+            implements CustomPacketPayload {
+        public static final Type<OpenFactionEnvoyPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "open_faction_envoy"));
+        public static final StreamCodec<ByteBuf, OpenFactionEnvoyPayload> CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, OpenFactionEnvoyPayload::entityId,
+                ByteBufCodecs.STRING_UTF8, OpenFactionEnvoyPayload::factionId,
+                ByteBufCodecs.STRING_UTF8, OpenFactionEnvoyPayload::factionName,
+                OpenFactionEnvoyPayload::new
+        );
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** C2S: the faction-envoy dialogue's Accept/Decline. */
+    public record FactionEnvoyResponsePayload(int entityId, boolean accepted)
+            implements CustomPacketPayload {
+        public static final Type<FactionEnvoyResponsePayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "faction_envoy_response"));
+        public static final StreamCodec<ByteBuf, FactionEnvoyResponsePayload> CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, FactionEnvoyResponsePayload::entityId,
+                ByteBufCodecs.BOOL, FactionEnvoyResponsePayload::accepted,
+                FactionEnvoyResponsePayload::new
+        );
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** Client-side delegate for the diplomacy snapshot (opens/refreshes
+     *  the Diplomacy screen). Installed by ClientEvents. */
+    public static Consumer<DiplomacySnapshotPayload> diplomacyClientHandler = payload ->
+            LOGGER.info("[TM] diplomacy snapshot (no client handler installed)");
+
+    /** Client-side delegate for the faction-envoy dialogue. */
+    public static Consumer<OpenFactionEnvoyPayload> factionEnvoyClientHandler = payload ->
+            LOGGER.info("[TM] faction envoy dialogue (no client handler): {}", payload.factionId());
+
+    static void sendDiplomacySnapshot(ServerPlayer player) {
+        PacketDistributor.sendToPlayer(player,
+                new DiplomacySnapshotPayload(DiplomacyManager.buildSnapshot(player)));
+    }
+
+    private static void onDiplomacySnapshot(DiplomacySnapshotPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> diplomacyClientHandler.accept(payload));
+    }
+
+    private static void onOpenFactionEnvoy(OpenFactionEnvoyPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> factionEnvoyClientHandler.accept(payload));
+    }
+
+    private static void onFactionEnvoyResponse(FactionEnvoyResponsePayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer sp)) return;
+        context.enqueueWork(() ->
+                DiplomacyManager.handleFactionEnvoyResponse(sp, payload.entityId(), payload.accepted()));
+    }
+
+    private static void onDiplomacyAction(DiplomacyActionPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer sp)) return;
+        context.enqueueWork(() -> {
+            String failure = null;
+            BossFaction faction = BossFaction.byId(payload.factionId());
+            switch (payload.action()) {
+                case DiplomacyActionPayload.ACTION_OPEN_TAB -> { }
+                case DiplomacyActionPayload.ACTION_SEND_ENVOY -> failure = faction == null
+                        ? "unknown faction" : DiplomacyManager.sendEnvoy(sp, faction, payload.flag());
+                case DiplomacyActionPayload.ACTION_ACCEPT_DEAL -> failure = faction == null
+                        ? "unknown faction" : DiplomacyManager.acceptDeal(sp, faction, payload.dealId());
+                case DiplomacyActionPayload.ACTION_DELIVER -> failure = faction == null
+                        ? "unknown faction" : DiplomacyManager.deliver(sp, faction);
+                case DiplomacyActionPayload.ACTION_COLLECT -> failure = faction == null
+                        ? "unknown faction" : DiplomacyManager.collect(sp, faction);
+                default -> { }
+            }
+            if (failure != null) {
+                sp.sendSystemMessage(net.minecraft.network.chat.Component.literal(failure)
+                        .withStyle(net.minecraft.ChatFormatting.RED));
+            }
+            sendDiplomacySnapshot(sp); // live refresh, every action
+        });
     }
 }

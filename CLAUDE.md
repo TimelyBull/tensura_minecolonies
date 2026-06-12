@@ -635,7 +635,34 @@ profession (latest):**
   to colony strength (EP-primary, ×1.15 budget); hostile-spawn
   prevention inside fueled barriers. Records: docs/raid-system.md.
 
-**Orc Disaster lore event (Layer 2, consuming the faction model — latest):**
+**Diplomacy Stage 1 (the builder's-path spine — latest):**
+- `RelationsState {NONE, OPEN, PACT}` per (player, faction) in
+  `DiplomacySavedData` behind the `DiplomacyManager` sole door (every
+  standing write via WorldReputationManager, DIPLOMACY reason live).
+  DIPLOMACY = OPEN (not band-locked); ALLIANCE = PACT via the
+  alliance-pact milestone deal (offered at ALLIED 80+). Collapse:
+  standing below WARY shatters relations (per-second check, derived
+  purely from Layer-1 standing — the Orc Disaster clamp breaks Clayman
+  relations for free).
+- Entry: outbound Send-envoy tab button (± 8-gold gift +2, 1-day
+  persisted reply, accept floor standing ≥ 20) + inbound
+  `FactionEnvoyTag` Villager envoys (10%/day, min standing 40, 3-day
+  cooldown), race-gated via `sendsEnvoysToHuman/Majin` on
+  FactionProfile + isMajinSide (Holy bloc never sends to majin).
+  `isDiplomacyClosed` is the first entry check.
+- Deals: `DealSpec` registry (sealed Requirement: SupplyItems /
+  BuildingLevel / Population / Happiness; LendCitizens = Stage 2 seam)
+  + persisted `ActiveDeal` (ACTIVE → AWAITING_PAYOFF → READY; deadline
+  fail −5). Detection: Deliver-button inventory consume, the existing
+  BuildingConstructionModEvent hook + offer-time filter, 1s polls.
+  Six starter deals incl. the pact. Movers: +2 open, +4/+6 success,
+  +10 pact, −1 offer expiry; decay 0.5/day OPEN / 0.1 PACT, idle days,
+  positive earned only. UI: [Roster | Diplomacy] tab strip →
+  `DiplomacyScreen` (snapshot/action payloads, live refresh) +
+  `FactionEnvoyScreen`. Debug `/diplomacy`. All behind
+  `factionSystemEnabled`. Records: docs/diplomacy.md (as-built header).
+
+**Orc Disaster lore event (Layer 2, consuming the faction model):**
 - `LoreEvents` = the shared spine (descriptor map + `EncounterFactory`
   seam, nightfall trigger per online player, provocation arming via
   `isProvoked`, soft-influence roll `10% + 30%×hostility` — NO hard rep

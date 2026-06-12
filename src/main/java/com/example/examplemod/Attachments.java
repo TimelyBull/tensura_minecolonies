@@ -98,6 +98,18 @@ public final class Attachments {
                             .serialize(FactionMarkTag.SERIALIZER)
                             .build());
 
+    /**
+     * Faction-envoy marker — see {@link FactionEnvoyTag}. A WORLD
+     * faction's diplomatic emissary offering to open relations with a
+     * player (diplomacy Stage 1). Default null → {@code hasData(...)}
+     * is the authoritative presence check.
+     */
+    public static final Supplier<AttachmentType<FactionEnvoyTag>> FACTION_ENVOY =
+            ATTACHMENTS.register("faction_envoy",
+                    () -> AttachmentType.<FactionEnvoyTag>builder(() -> null)
+                            .serialize(FactionEnvoyTag.SERIALIZER)
+                            .build());
+
     private Attachments() {}
 
     public static void register(IEventBus modBus) {
