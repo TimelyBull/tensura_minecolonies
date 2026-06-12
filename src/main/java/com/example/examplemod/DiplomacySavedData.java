@@ -137,10 +137,13 @@ class DiplomacySavedData extends SavedData {
         return pendingReplies;
     }
 
+    /** Absent reads return MIN_VALUE/2 (not MIN_VALUE) so callers'
+     *  {@code now - last} age math can't overflow negative — the
+     *  RaidSavedData idiom. */
     long getLastSend(UUID player, String factionId) {
         Map<String, Long> byFaction = lastSend.get(player);
         Long tick = byFaction == null ? null : byFaction.get(factionId);
-        return tick == null ? Long.MIN_VALUE : tick;
+        return tick == null ? Long.MIN_VALUE / 2 : tick;
     }
 
     void setLastSend(UUID player, String factionId, long tick) {
@@ -151,7 +154,7 @@ class DiplomacySavedData extends SavedData {
     long getLastActivity(UUID player, String factionId) {
         Map<String, Long> byFaction = lastActivity.get(player);
         Long tick = byFaction == null ? null : byFaction.get(factionId);
-        return tick == null ? Long.MIN_VALUE : tick;
+        return tick == null ? Long.MIN_VALUE / 2 : tick;
     }
 
     void setLastActivity(UUID player, String factionId, long tick) {
@@ -161,7 +164,7 @@ class DiplomacySavedData extends SavedData {
 
     long getLastInbound(UUID player) {
         Long tick = lastInbound.get(player);
-        return tick == null ? Long.MIN_VALUE : tick;
+        return tick == null ? Long.MIN_VALUE / 2 : tick;
     }
 
     void setLastInbound(UUID player, long tick) {
