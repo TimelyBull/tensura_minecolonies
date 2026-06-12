@@ -37,8 +37,17 @@ class WorldReputationSavedData extends SavedData {
     static final String DATA_KEY = "tensura_minecolonies_world_reputation";
 
     /** player → (faction id string → standing). String-keyed for the
-     *  addon door; unknown ids ride along untouched. */
+     *  addon door; unknown ids ride along untouched.
+     *  SEMANTICS (faction-model v1): the stored number is the EARNED
+     *  DELTA (default 0) — the manager layers the live race-computed
+     *  disposition base under it on read. */
     private final Map<UUID, Map<String, Double>> standings = new HashMap<>();
+
+    /** player → (faction id string → offense score). The no-decay
+     *  ledger of ACTS (docs/lore-events.md #3 / faction-model.md #4) —
+     *  written by the marked-boss movers, consumed/reset by faction
+     *  events. Same addon-door string keying as standings. */
+    private final Map<UUID, Map<String, Double>> offenses = new HashMap<>();
 
     private WorldReputationSavedData() {}
 
@@ -62,6 +71,23 @@ class WorldReputationSavedData extends SavedData {
         setDirty();
     }
 
+    /** Raw offense read — 0 when never written. */
+    double getOffense(UUID player, String factionId) {
+        Map<String, Double> byFaction = offenses.get(player);
+        Double stored = byFaction == null ? null : byFaction.get(factionId);
+        return stored == null ? 0.0 : stored;
+    }
+
+    void setOffense(UUID player, String factionId, double value) {
+        offenses.computeIfAbsent(player, k -> new HashMap<>()).put(factionId, value);
+        setDirty();
+    }
+
+    void clearOffense(UUID player, String factionId) {
+        Map<String, Double> byFaction = offenses.get(player);
+        if (byFaction != null && byFaction.remove(factionId) != null) setDirty();
+    }
+
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         ListTag players = new ListTag();
@@ -76,6 +102,33 @@ class WorldReputationSavedData extends SavedData {
                 entries.add(entry);
             }
             player.put("standings", entries);
+            ListTag offenseEntries = new ListTag();
+            Map<String, Double> byFaction = offenses.get(e.getKey());
+            if (byFaction != null) {
+                for (Map.Entry<String, Double> o : byFaction.entrySet()) {
+                    CompoundTag entry = new CompoundTag();
+                    entry.putString("faction", o.getKey());
+                    entry.putDouble("value", o.getValue());
+                    offenseEntries.add(entry);
+                }
+            }
+            player.put("offenses", offenseEntries);
+            players.add(player);
+        }
+        // Players with offenses but no standings still need persisting.
+        for (Map.Entry<UUID, Map<String, Double>> e : offenses.entrySet()) {
+            if (standings.containsKey(e.getKey()) || e.getValue().isEmpty()) continue;
+            CompoundTag player = new CompoundTag();
+            player.putUUID("uuid", e.getKey());
+            player.put("standings", new ListTag());
+            ListTag offenseEntries = new ListTag();
+            for (Map.Entry<String, Double> o : e.getValue().entrySet()) {
+                CompoundTag entry = new CompoundTag();
+                entry.putString("faction", o.getKey());
+                entry.putDouble("value", o.getValue());
+                offenseEntries.add(entry);
+            }
+            player.put("offenses", offenseEntries);
             players.add(player);
         }
         tag.put("players", players);
@@ -98,6 +151,15 @@ class WorldReputationSavedData extends SavedData {
                 }
                 if (!byFaction.isEmpty()) {
                     data.standings.put(player.getUUID("uuid"), byFaction);
+                }
+                Map<String, Double> offByFaction = new HashMap<>();
+                ListTag offenseEntries = player.getList("offenses", Tag.TAG_COMPOUND);
+                for (int j = 0; j < offenseEntries.size(); j++) {
+                    CompoundTag entry = offenseEntries.getCompound(j);
+                    offByFaction.put(entry.getString("faction"), entry.getDouble("value"));
+                }
+                if (!offByFaction.isEmpty()) {
+                    data.offenses.put(player.getUUID("uuid"), offByFaction);
                 }
             }
         }

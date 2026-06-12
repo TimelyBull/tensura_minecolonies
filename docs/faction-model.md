@@ -1,6 +1,38 @@
 # Investigation: the expanded faction model (Layer 1 — the spine)
 
-**Status:** investigation only, no code written (2026-06-11).
+**Status: v1 BUILT (2026-06-11)** — all 7 scope items below landed, all
+[CONFIRM] items user-approved as specced. As-built notes:
+- Code: `FactionProfile` (dispositions/web/swing/thresholds + the
+  startup `validateWeb()` symmetry check), `BossProfile` (+ Importance),
+  `FactionMarkTag` (+ `Attachments.FACTION_MARK`),
+  `WorldReputationManager` reworked (live base + earned delta,
+  `isMajinSide` classifier, `applyMarkedBossKill/Attack` fan-outs,
+  offense ledger + `isProvoked`, `markBoss`), offense persistence in
+  `WorldReputationSavedData`, the shipped
+  `data/tensura_minecolonies/tags/manascore_race/races/human_side.json`,
+  the reworked ExampleMod mover hooks (marked-only), the expanded
+  `/worldrep` (base/earned/effective/offense/provoked + `mark` debug).
+- **Config gates:** `factionSystemEnabled` (default true) — the whole
+  faction layer goes dormant at its entry points (manager reads return
+  flat NEUTRAL, writes no-op, mover hooks skip, /worldrep reports
+  disabled); colony-level systems below are untouched and boss kills
+  behave pre-faction-system (colony +10 + envoy unlocks, zero faction
+  effect). `enableAssassins` (pre-existing, default true) is the
+  independent assassin kill-switch.
+- **Divergence:** the #2 worked example listed Carrion at +7.2 on a
+  marked Orc Disaster kill — the confirmed TABLE gives Carrion the same
+  1.5× swing as Milim, so it actually lands **+10.8**. Table wins.
+- **Clowns = Clayman in v1** (user-confirmed). A separate `clowns`
+  faction later = one `PROFILES` entry + mirrored web edges (+ enum
+  value or a pure string-id addon faction).
+- The flat `BOSS_ATTACKED/BOSS_KILLED` reasons retired; replaced by
+  `MARKED_BOSS_ATTACKED/MARKED_BOSS_KILLED/MARKED_BOSS_RIPPLE`.
+
+Original investigation follows (the design of record).
+
+---
+
+**Investigated:** 2026-06-11, no code written at that stage.
 
 **What this expands:** the world-reputation v1 backbone
 (docs/world-reputation.md) — flat per-faction standing, flat

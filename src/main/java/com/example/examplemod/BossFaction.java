@@ -13,10 +13,12 @@ import net.minecraft.ChatFormatting;
  * future data-driven faction overlay can add factions without spine
  * rework. v1 logic uses this enum everywhere.
  *
- * <p>Six factions are entity-anchorable today (see
- * {@code WorldReputationManager.factionOf}); TEMPEST, CARRION and MILIM
- * are pure-lore until the rival-colony system — their standings exist
- * (default 50) but no v1 mover touches them.
+ * <p>Boss anchoring lives in {@code WorldReputationManager.bossProfileOf}
+ * (faction + lore importance); per-faction dispositions, the
+ * relationship web, swing multipliers and provocation thresholds live
+ * in {@link FactionProfile#PROFILES}. TEMPEST, CARRION and MILIM have
+ * no anchored boss — their standings move only via the two-sided
+ * RIPPLE legs (e.g. a marked Clayman boss kill raises them).
  */
 public enum BossFaction {
 

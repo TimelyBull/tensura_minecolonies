@@ -635,6 +635,27 @@ profession (latest):**
   to colony strength (EP-primary, ×1.15 budget); hostile-spawn
   prevention inside fueled barriers. Records: docs/raid-system.md.
 
+**Faction model v1 (expanded world-reputation spine — latest):**
+- Per-player × boss-faction standing is now `effective = clamp(liveBase
+  + earnedDelta)`: the base comes from `FactionProfile` dispositions ×
+  the player's CURRENT race side (5-step majin/human classifier over
+  Tensura's Alignment + race tags + our shipped `human_side` race tag),
+  so race changes shift the world's posture live. Stored value = earned
+  delta (default 0).
+- MARKED bosses only (`FactionMarkTag` attachment + faction-colored
+  title): a marked kill fans out two-sided through
+  `WorldReputationManager.applyMarkedBossKill` — victim faction
+  −30×importance (KEYSTONE/MAJOR/NOTABLE/MINOR), allies −50% of that,
+  enemies +40%, each × the target's swing multiplier. Attacks (−3×w,
+  deduped) don't ripple. Wild/unmarked boss kills: zero faction effect
+  (colony +10 + envoy unlocks unchanged). Offense ledger (+10/+1 ×w,
+  no decay) + derived per-faction provocation thresholds.
+- Config: `factionSystemEnabled` (default true) — whole faction layer
+  dormant when off, colony-level systems untouched; `enableAssassins`
+  is the separate assassin kill-switch. Debug: expanded `/worldrep`
+  (base/earned/effective/offense/provoked) + `/worldrep mark`.
+  Records: docs/faction-model.md (as-built header), decisions.md.
+
 **Raid system v1:**
 - Reputation-triggered Tensura raids: nightfall + tier below NEUTRAL →
   chance roll (WARY 15% / PASSIVEAGGRESSIVE 30% / HOSTILE 50%), 3-day

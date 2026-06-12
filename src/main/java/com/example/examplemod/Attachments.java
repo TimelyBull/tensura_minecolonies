@@ -86,6 +86,18 @@ public final class Attachments {
                             .serialize(AssassinTag.SERIALIZER)
                             .build());
 
+    /**
+     * Faction-significance marker — see {@link FactionMarkTag}. Stamped
+     * on faction-event bosses; the world-rep movers fire ONLY for marked
+     * entities. Default null → {@code hasData(...)} is the authoritative
+     * presence check.
+     */
+    public static final Supplier<AttachmentType<FactionMarkTag>> FACTION_MARK =
+            ATTACHMENTS.register("faction_mark",
+                    () -> AttachmentType.<FactionMarkTag>builder(() -> null)
+                            .serialize(FactionMarkTag.SERIALIZER)
+                            .build());
+
     private Attachments() {}
 
     public static void register(IEventBus modBus) {

@@ -1208,11 +1208,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     private static final java.util.Map<UUID, java.util.Map<UUID, Long>> recentCitizenHits =
             new java.util.HashMap<>();
 
-    // --- World reputation movers (per-boss-faction standing) ---
-    /** Player damaged a faction's anchored boss (per hit, deduped). */
-    private static final double WORLDREP_BOSS_ATTACKED = -3.0;
-    /** Player killed a faction's anchored boss — an act of war. */
-    private static final double WORLDREP_BOSS_KILLED = -20.0;
+    // --- World reputation movers (faction-model v1: MARKED bosses only;
+    //     magnitudes/fan-out live in WorldReputationManager) ---
     /** (attackerUUID, bossUUID) → last counted hit tick (same 5s dedupe). */
     private static final java.util.Map<UUID, java.util.Map<UUID, Long>> recentBossHits =
             new java.util.HashMap<>();
@@ -1242,13 +1239,16 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (killer == null && victim.getKillCredit() instanceof ServerPlayer sp) killer = sp;
         if (killer == null) return;
 
-        // World reputation — killing a faction's anchored boss/figure is
-        // an act of war against THAT faction. Runs alongside (not instead
-        // of) the colony-rep boss-kill bonus below.
-        BossFaction faction = WorldReputationManager.factionOf(victim.getType());
-        if (faction != null) {
-            WorldReputationManager.modifyStanding(level, killer.getUUID(), faction,
-                    WORLDREP_BOSS_KILLED, WorldRepReason.BOSS_KILLED);
+        // World reputation — killing a MARKED faction boss is an act of
+        // war: the boss's faction drops and the ripple fans out across
+        // its relationship web (the manager owns weights + fan-out).
+        // UNMARKED boss kills carry ZERO faction consequences — the
+        // colony-rep +10 and envoy unlocks below fire either way.
+        // FACTION GATE: the whole branch no-ops when the layer is off
+        // (the manager checks too; this skips the attachment read).
+        if (WorldReputationManager.isFactionSystemEnabled()
+                && victim.hasData(Attachments.FACTION_MARK.get())) {
+            WorldReputationManager.applyMarkedBossKill(level, killer.getUUID(), victim);
         }
 
         boolean isBoss = victim instanceof io.github.manasmods.tensura.entity.monster.OrcDisasterEntity
@@ -1283,20 +1283,21 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (!(event.getEntity().level() instanceof ServerLevel level)) return;
         if (event.getNewDamage() <= 0f) return;
 
-        // World reputation — attacking a faction's anchored boss shifts
-        // THAT faction's standing down (same dedupe idiom as citizens).
-        if (event.getSource().getEntity() instanceof ServerPlayer bossAttacker) {
-            BossFaction faction = WorldReputationManager.factionOf(event.getEntity().getType());
-            if (faction != null) {
-                long now = level.getGameTime();
-                java.util.Map<UUID, Long> byBoss = recentBossHits
-                        .computeIfAbsent(bossAttacker.getUUID(), k -> new java.util.HashMap<>());
-                Long last = byBoss.get(event.getEntity().getUUID());
-                if (last == null || now - last >= REP_ATTACK_DEDUP_TICKS) {
-                    byBoss.put(event.getEntity().getUUID(), now);
-                    WorldReputationManager.modifyStanding(level, bossAttacker.getUUID(),
-                            faction, WORLDREP_BOSS_ATTACKED, WorldRepReason.BOSS_ATTACKED);
-                }
+        // World reputation — attacking a MARKED faction boss shifts that
+        // faction's standing down (no ripple — only kills are
+        // statements; same dedupe idiom as citizens). Unmarked bosses
+        // are free to fight. FACTION GATE: branch no-ops when off.
+        if (event.getSource().getEntity() instanceof ServerPlayer bossAttacker
+                && WorldReputationManager.isFactionSystemEnabled()
+                && event.getEntity().hasData(Attachments.FACTION_MARK.get())) {
+            long now = level.getGameTime();
+            java.util.Map<UUID, Long> byBoss = recentBossHits
+                    .computeIfAbsent(bossAttacker.getUUID(), k -> new java.util.HashMap<>());
+            Long last = byBoss.get(event.getEntity().getUUID());
+            if (last == null || now - last >= REP_ATTACK_DEDUP_TICKS) {
+                byBoss.put(event.getEntity().getUUID(), now);
+                WorldReputationManager.applyMarkedBossAttack(level, bossAttacker.getUUID(),
+                        event.getEntity());
             }
         }
 
@@ -4118,6 +4119,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                                                         WorldReputationManager.MIN_STANDING,
                                                         WorldReputationManager.MAX_STANDING))
                                                 .executes(this::handleWorldRepSetCommand))))
+                        // Mark the nearest boss-profile entity (or any
+                        // living entity with an explicit faction arg) as
+                        // faction-significant — the marked-boss test path.
+                        .then(Commands.literal("mark")
+                                .requires(src -> src.hasPermission(2))
+                                .executes(ctx -> handleWorldRepMarkCommand(ctx, null))
+                                .then(Commands.argument("faction", StringArgumentType.word())
+                                        .executes(ctx -> handleWorldRepMarkCommand(ctx,
+                                                StringArgumentType.getString(ctx, "faction")))))
         );
         // Reputation v1 debug — read the player's colony reputation, or
         // set it for testing (set requires op, mirroring /festival).
@@ -4232,16 +4242,37 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             return 0;
         }
         ServerLevel level = player.serverLevel();
+        if (!WorldReputationManager.isFactionSystemEnabled()) {
+            src.sendSuccess(() -> Component.literal(
+                    "The faction system is DISABLED in the config (factionSystemEnabled=false)"
+                    + " — all standings read flat Neutral and no faction movers fire.")
+                    .withStyle(ChatFormatting.GRAY), false);
+            return 1;
+        }
+        boolean majin = WorldReputationManager.isMajinSide(player);
         src.sendSuccess(() -> Component.literal("World standing of "
-                + player.getName().getString() + ":"), false);
+                + player.getName().getString() + " (the world sees you as "
+                + (majin ? "MAJIN" : "HUMAN") + "-side):"), false);
         for (BossFaction faction : BossFaction.values()) {
+            double base = WorldReputationManager.getBase(level, player.getUUID(), faction);
+            double earned = WorldReputationManager.getEarned(level, player.getUUID(), faction);
             double standing = WorldReputationManager.getStanding(level, player.getUUID(), faction);
+            double offense = WorldReputationManager.getOffense(level, player.getUUID(), faction);
+            boolean provoked = WorldReputationManager.isProvoked(level, player.getUUID(), faction);
             FactionTier tier = FactionTier.forValue(standing);
-            src.sendSuccess(() -> Component.literal("  " + String.format(java.util.Locale.ROOT,
+            net.minecraft.network.chat.MutableComponent line =
+                    Component.literal("  " + String.format(java.util.Locale.ROOT,
                             "%-14s", faction.displayName()))
                     .append(Component.literal(tier.displayName()).withStyle(tier.color()))
                     .append(Component.literal(String.format(java.util.Locale.ROOT,
-                            " (%.1f)", standing))), false);
+                            " (%.1f = base %.1f %+.1f)", standing, base, earned)));
+            if (offense > 0) {
+                line = line.append(Component.literal(String.format(java.util.Locale.ROOT,
+                                " · offense %.1f%s", offense, provoked ? " PROVOKED" : ""))
+                        .withStyle(provoked ? ChatFormatting.RED : ChatFormatting.GOLD));
+            }
+            net.minecraft.network.chat.MutableComponent finalLine = line;
+            src.sendSuccess(() -> finalLine, false);
         }
         WorldReputationManager.Notoriety n = WorldReputationManager.computeNotoriety(player);
         src.sendSuccess(() -> Component.literal(String.format(java.util.Locale.ROOT,
@@ -4263,6 +4294,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             src.sendFailure(Component.literal("/worldrep must be run by a player"));
             return 0;
         }
+        if (!WorldReputationManager.isFactionSystemEnabled()) {
+            src.sendFailure(Component.literal(
+                    "The faction system is disabled (factionSystemEnabled=false)"));
+            return 0;
+        }
         String factionArg = StringArgumentType.getString(ctx, "faction")
                 .toLowerCase(java.util.Locale.ROOT);
         BossFaction faction = BossFaction.byId(factionArg);
@@ -4279,6 +4315,71 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         src.sendSuccess(() -> Component.literal("Standing with " + faction.displayName()
                         + " set to " + String.format(java.util.Locale.ROOT, "%.1f", applied) + " — ")
                 .append(Component.literal(tier.displayName()).withStyle(tier.color())), true);
+        return 1;
+    }
+
+    /**
+     * {@code /worldrep mark [faction]} — stamp the nearest living
+     * non-player entity (16 blocks) with a {@link FactionMarkTag} + the
+     * faction-colored title. Without the faction arg the entity must
+     * have a boss profile (its canonical faction is used); with it, any
+     * entity can be marked for any v1 faction — the marked-boss test path.
+     */
+    private int handleWorldRepMarkCommand(CommandContext<CommandSourceStack> ctx,
+                                          String factionArg) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/worldrep mark must be run by a player"));
+            return 0;
+        }
+        if (!WorldReputationManager.isFactionSystemEnabled()) {
+            src.sendFailure(Component.literal(
+                    "The faction system is disabled (factionSystemEnabled=false)"));
+            return 0;
+        }
+        ServerLevel level = player.serverLevel();
+        LivingEntity target = null;
+        double bestDist = Double.MAX_VALUE;
+        for (LivingEntity candidate : level.getEntitiesOfClass(LivingEntity.class,
+                player.getBoundingBox().inflate(16))) {
+            if (candidate == player || candidate instanceof ServerPlayer) continue;
+            // No explicit faction → only boss-profile entities qualify.
+            if (factionArg == null
+                    && WorldReputationManager.bossProfileOf(candidate.getType()) == null) continue;
+            double dist = candidate.distanceToSqr(player);
+            if (dist < bestDist) {
+                bestDist = dist;
+                target = candidate;
+            }
+        }
+        if (target == null) {
+            src.sendFailure(Component.literal(factionArg == null
+                    ? "No faction-boss entity within 16 blocks (pass a faction id to mark anything)"
+                    : "No living entity within 16 blocks"));
+            return 0;
+        }
+        String factionId;
+        if (factionArg != null) {
+            BossFaction faction = BossFaction.byId(factionArg.toLowerCase(java.util.Locale.ROOT));
+            if (faction == null) {
+                src.sendFailure(Component.literal("Unknown faction '" + factionArg + "' — one of: "
+                        + java.util.Arrays.stream(BossFaction.values()).map(BossFaction::id)
+                                .collect(java.util.stream.Collectors.joining(", "))));
+                return 0;
+            }
+            factionId = faction.id();
+        } else {
+            factionId = WorldReputationManager.bossProfileOf(target.getType()).faction().id();
+        }
+        WorldReputationManager.markBoss(target, factionId, "debug", true);
+        LivingEntity marked = target;
+        src.sendSuccess(() -> Component.literal("Marked ")
+                .append(marked.getDisplayName())
+                .append(Component.literal(" as faction-significant for '" + factionId
+                        + "' — killing it now carries faction consequences")), true);
         return 1;
     }
 
@@ -6359,6 +6460,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
     private void commonSetup(FMLCommonSetupEvent event) {
         LOGGER.info("[TM] common setup");
+        // Faction-web sanity check (one-way ally/enemy edges → warnings).
+        FactionProfile.validateWeb();
         // Subscribe to MineColonies' own event bus (separate from NeoForge's).
         event.enqueueWork(() -> {
             // Register the hostility gamerule. GameRules.register mutates a

@@ -17,6 +17,23 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 public class Config {
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
+    /** Master switch for the whole FACTION LAYER (world reputation /
+     *  faction standings / marked-boss movers / faction events / future
+     *  diplomacy). When false the layer is dormant: standings read as
+     *  flat NEUTRAL, no mover writes, marked-boss kills carry no faction
+     *  consequences, /worldrep reports the layer disabled. Everything
+     *  BELOW the layer (colony reputation, generic raids, the barrier,
+     *  assassins, envoys, festivals) is untouched — the gates sit at the
+     *  faction layer's entry points only (WorldReputationManager + the
+     *  two ExampleMod mover hooks). */
+    public static final ModConfigSpec.BooleanValue FACTION_SYSTEM_ENABLED = BUILDER
+            .comment("Enable the faction layer (world reputation, faction standings,",
+                     "marked-boss consequences, faction events, future diplomacy).",
+                     "false = the layer is dormant; boss kills behave pre-faction-system",
+                     "(colony +10 and envoy unlocks still apply); colony-level systems",
+                     "(colony reputation, raids, barrier, assassins, envoys) unaffected.")
+            .define("factionSystemEnabled", true);
+
     /** Master switch for the assassin system. When false: no
      *  determination buildup, existing LURKING/ARMED plots are defused
      *  on the next daily pass, and ARMED strikes never fire. An

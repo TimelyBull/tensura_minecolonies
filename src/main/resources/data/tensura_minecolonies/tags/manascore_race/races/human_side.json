@@ -1,0 +1,25 @@
+{
+  "_comment": "Human-side race classification for the faction layer (docs/faction-model.md #1). Patches Tensura's human_like tag, which lists only the 5 BASE races - the evolutions here would otherwise misclassify a late-game human-side player as majin. Datapack-extensible: addon races join the human side by joining this tag. Entries optional so a Tensura version dropping a race id does not break datapack load.",
+  "values": [
+    { "id": "tensura:human", "required": false },
+    { "id": "tensura:enlightened_human", "required": false },
+    { "id": "tensura:human_saint", "required": false },
+    { "id": "tensura:divine_human", "required": false },
+    { "id": "tensura:dwarf", "required": false },
+    { "id": "tensura:enlightened_dwarf", "required": false },
+    { "id": "tensura:dwarf_saint", "required": false },
+    { "id": "tensura:divine_dwarf", "required": false },
+    { "id": "tensura:elf", "required": false },
+    { "id": "tensura:enlightened_elf", "required": false },
+    { "id": "tensura:elf_saint", "required": false },
+    { "id": "tensura:divine_elf", "required": false },
+    { "id": "tensura:merfolk", "required": false },
+    { "id": "tensura:enlightened_merfolk", "required": false },
+    { "id": "tensura:merfolk_saint", "required": false },
+    { "id": "tensura:divine_fish", "required": false },
+    { "id": "tensura:beastfolk", "required": false },
+    { "id": "tensura:beast_lord", "required": false },
+    { "id": "tensura:spirit_beast", "required": false },
+    { "id": "tensura:divine_beast", "required": false }
+  ]
+}

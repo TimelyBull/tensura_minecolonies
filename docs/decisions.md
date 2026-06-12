@@ -1963,3 +1963,62 @@ reputation deficit), clamped [3, 12].
 `BarrierBlockEntity` re-reports its position every second while fueled;
 readers treat entries stale after 60 ticks as gone — covers chunk
 unload and block break without explicit deregistration edge cases.
+
+## Faction model v1 (expanded world-reputation spine) - 2026-06-11
+
+**Live base + earned delta.** Effective standing = clamp(dispositionBase
++ storedDelta). The base is computed LIVE from the player's CURRENT race
+side every read (never stored), so a mid-game race change (human ->
+majin demon-lord path, reset scroll) shifts every faction's posture
+automatically with zero bookkeeping. The STORED number is reinterpreted
+from absolute (default 50) to earned delta (default 0) - dev-stage
+saves, no migration shipped. Writes clamp the delta against the CURRENT
+base so effective stays in [0,100] without dead accumulation;
+/worldrep set stores (value - base).
+
+**The 5-step race-side classifier** (verified against the jars): no race
+-> human; Alignment MAJIN/CHAOS -> majin, HOLY -> human; Tensura's
+HUMAN_LIKE tag -> human (BASE races only - the verified gap); our own
+shipped tensura_minecolonies:human_side race tag -> human (the
+evolutions Tensura's tag misses; datapack-extensible); else -> majin.
+Goblin/ogre/lizardman correctly land majin (they report DEFAULT
+alignment and carry no human tag).
+
+**Marked-only two-sided movers.** The flat any-kill movers (-3 attack /
+-20 kill) are RETIRED. Faction consequences now fire ONLY for entities
+carrying FactionMarkTag (attachment + faction-colored title - placed by
+faction events / lore events / "/worldrep mark"). Kill fan-out through
+the sole-door manager: victim faction -KILL_BASE(30) x importance
+(KEYSTONE 1.0 / MAJOR 0.6 / NOTABLE 0.3 / MINOR 0.1), allies -50% of
+that, enemies +40%, each leg x the TARGET faction's swing multiplier
+(Milim/Carrion 1.5, Leon/Otherworlders 0.5). Attacks (-3 x w, deduped)
+do not ripple - only kills are statements. Wild/self-summoned boss
+kills: ZERO faction effect; colony +10 and envoy unlocks fire either way
+(behavior change, user-confirmed). Clowns folded into CLAYMAN for v1.
+
+**Offense ledger + derived provocation.** Marked acts also write a
+no-decay offense score (+10 x w kill / +1 x w attack) in
+WorldReputationSavedData; isProvoked = offense >= the faction's profile
+threshold (Clayman 3, Holy bloc 5, swingables 8, diplomats 10, aloof
+15) - derived, never stored. Faction events ARM on provocation and let
+standing only SCALE chance/intensity (soft influence - supersedes the
+Orc Disaster's hard isBelow-WARY gate in lore-events.md).
+
+**Config gates.** factionSystemEnabled (default TRUE) makes the whole
+faction layer dormant at its entry points: manager reads return flat
+NEUTRAL, every write no-ops, the two ExampleMod mover hooks skip,
+/worldrep reports disabled. Colony-level systems (colony rep, generic
+raids, barrier, assassins, envoys, festivals) are untouched - boss
+kills behave pre-faction-system (colony +10 + envoy unlocks, no faction
+consequences). enableAssassins (default TRUE, pre-existing) already
+gates the assassin system at its three entry points (daily buildup +
+defuse, ARMED strike check, debugArm).
+
+**Known divergence from the doc's worked example:** Carrion lands +10.8
+(not +7.2) on a marked Orc Disaster kill - the example forgot Carrion's
+own 1.5x swing multiplier; the confirmed TABLE wins over the example.
+
+**Notoriety:** formula structurally unchanged; its hostility component
+now reads EFFECTIVE standings, so a majin player carries some base
+notoriety from the Holy bloc's disposition (lore-correct; no consumer
+yet).
