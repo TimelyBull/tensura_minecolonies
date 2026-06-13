@@ -41,3 +41,9 @@ run/
 **/src/generated/**/.cache/
 repo/
 !**/src/**/repo/
+
+### MkDocs wiki ###
+.mkdocs-venv/
+site/
+serve.log
+serve.out

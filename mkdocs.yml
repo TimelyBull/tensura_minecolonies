@@ -1,0 +1,77 @@
+site_name: Tensura × MineColonies
+site_description: "Player guide for the Tensura: Reincarnated × MineColonies integration mod."
+docs_dir: wiki
+site_dir: site
+
+theme:
+  name: material
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.keys
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Features:
+      - Races & Citizens: features/races-citizens.md
+      - Colony Reputation: features/colony-reputation.md
+      - World Reputation & Factions: features/world-reputation.md
+      - Raids & Barriers: features/raids-barriers.md
+      - Harvest Festival: features/harvest-festival.md
+      - Assassins: features/assassins.md
+      - Diplomacy: features/diplomacy.md
+      - Rival Colonies: features/rival-colonies.md
+  - Reference:
+      - Config: reference/config.md
+      - Commands: reference/commands.md
+      - Factions: reference/factions.md
+      - Quest Catalog: reference/quest-catalog.md
+  - Roadmap: roadmap.md
