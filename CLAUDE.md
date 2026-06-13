@@ -783,6 +783,35 @@ profession (latest):**
   investigation.md (Stage D as-built + per-faction citizen table). Deferred:
   E = betrayal scaling.
 
+**Rival-colony arc — Stage E (betrayal scaling; COMPLETES A–E):**
+- `RivalColonies` betrayal block in declareWar + `ensureBetrayalBuffed` +
+  new `Settlement.betrayalFactor`/`betrayalTier` + `WorldRepReason.
+  WAR_DECLARED`. Declaring war on a faction with diplomatic relations
+  scales the garrison up by tier AND shatters the relationship. Behind
+  factionSystemEnabled.
+- Detection: `DiplomacyManager.getState` at declareWar. Tier multipliers
+  (named/tunable, BALANCE GUESSES): OPEN ×1.25, PACT ×1.6, COVENANT ×2.0,
+  NONE ×1.0. Applied via the assassin multiplyAttribute idiom over
+  MAX_HEALTH/ATTACK_DAMAGE/MAX_MAGICULE/MAX_AURA with SEPARATE BETRAYAL_*
+  modifier ids → stacks on B's GARRISON_* boss-EP bump. ensureBetrayalBuffed
+  is idempotent + called per-tick in steerGarrisonToInvaders (covers
+  late-loaders when war is declared from afar). stripBetrayalBuff on reset;
+  cleared in clearAssaultState (per-assault).
+- Defender skills (PASSIVE/RESISTANCE, no cast driver) via the Covenant
+  learnSkill path on the mob (SkillAPI.getSkillsFrom(mob).learnSkill):
+  PACT → Physical Attack Resistance; COVENANT → + Self-Regeneration + the
+  faction's capstone (DealSpec.covenantSkillFor). OPEN → stats only.
+- Standing shatter composes automatically: declareWar writes
+  modifyStanding(−1000, WAR_DECLARED) → effective 0 → diplomacy
+  checkCollapse (per-second, standing-derived) shatters relations to NONE
+  next tick — same mechanism as the Orc-Disaster clamp, no new collapse
+  code. War always sets hostile (collapse no-ops if no relations).
+- THE RIVAL-COLONY ARC IS COMPLETE A–E. Deferred: PvP colony raiding, the
+  SIEGE system (broken-alliance super-raids, which E sets up), the "summon
+  absent subordinates first" war-party polish, payout/balance tuning.
+  Records: docs/rival-colony-investigation.md (Stage E as-built + arc
+  complete) + docs/future-ideas.md.
+
 **Barrier/diplomacy/Covenant batch:**
 - Barrier tiers cumulative + distinct colors: T1 wall (traps
   inside-mobs), T2 +heal, T3/T4 +eject. Drain reworked to

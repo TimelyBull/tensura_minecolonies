@@ -26,5 +26,9 @@ public enum WorldRepReason {
     /** RESERVED — conquest/encroachment on faction territory. */
     CONQUEST,
     /** RESERVED — diplomacy outcomes. */
-    DIPLOMACY
+    DIPLOMACY,
+    /** Player DECLARED WAR on a settlement's faction (rival-colony Stage
+     *  C/E) — sets the faction hostile; if relations existed, the
+     *  below-WARY collapse shatters them (the betrayal consequence). */
+    WAR_DECLARED
 }

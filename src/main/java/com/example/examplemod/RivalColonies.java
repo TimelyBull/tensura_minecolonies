@@ -243,6 +243,36 @@ public final class RivalColonies {
             ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "garrison_aura");
 
     // ------------------------------------------------------------------
+    // STAGE E — BETRAYAL SCALING. Declaring war on a faction you have
+    // DIPLOMATIC relations with (OPEN/PACT/COVENANT) scales the garrison
+    // UP as a betrayal punishment — deeper ally = harder fight — AND the
+    // war-declaration standing crash shatters the relationship (the
+    // existing below-WARY collapse, no new code).
+    // ⚠ ALL multipliers are BALANCE GUESSES — tune at the polish playtest.
+    // ------------------------------------------------------------------
+
+    /** Extra stat multiplier on the garrison, on TOP of B's boss-EP
+     *  stat-bump, by the betrayed relationship tier. */
+    static final double BETRAYAL_MULT_OPEN = 1.25;      // Diplomacy
+    static final double BETRAYAL_MULT_PACT = 1.6;       // Alliance
+    static final double BETRAYAL_MULT_COVENANT = 2.0;   // Covenant
+    /** Standing delta written on war declaration — a large negative so the
+     *  effective standing clamps to 0 (well below WARY), tripping the
+     *  diplomacy collapse next tick. */
+    static final double BETRAYAL_STANDING_CRASH = -1000.0;
+
+    /** Betrayal stat-bump ids — SEPARATE from the B garrison ids so the
+     *  betrayal factor stacks on top (both ADD modifiers apply). */
+    private static final ResourceLocation BETRAYAL_HP_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "betrayal_hp");
+    private static final ResourceLocation BETRAYAL_DMG_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "betrayal_dmg");
+    private static final ResourceLocation BETRAYAL_MAG_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "betrayal_mag");
+    private static final ResourceLocation BETRAYAL_AURA_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "betrayal_aura");
+
+    // ------------------------------------------------------------------
     // The shared town layout — (blueprint path, dx, dz). Pack-relative
     // paths present in EVERY candidate pack (verified). Only the PACK
     // differs per faction; the footprint is shared. ~10 buildings; the
@@ -789,11 +819,14 @@ public final class RivalColonies {
         // a whole anchor).
         reviveOrHealBoss(level, s);
 
-        // Heal surviving defenders; count them for the top-up.
+        // Heal surviving defenders + strip any Stage-E betrayal stat-bump
+        // (betrayal is per-assault; a fresh assault re-derives it, so the
+        // survivors must not carry the last assault's multiplier).
         int alive = 0;
         for (UUID uuid : s.garrisonUuids) {
             Entity e = level.getEntity(uuid);
             if (e instanceof Mob mob && mob.isAlive()) {
+                stripBetrayalBuff(mob);
                 mob.setHealth(mob.getMaxHealth());
                 alive++;
             }
@@ -974,6 +1007,31 @@ public final class RivalColonies {
         s.pendingReturn = false;
         s.conquestReached = false;
 
+        // Stage E — BETRAYAL: if the player has diplomatic relations with
+        // this faction, scale the garrison up by the relationship tier and
+        // crash standing (which shatters the relationship via the existing
+        // below-WARY collapse). Always sets the faction hostile.
+        BossFaction factionEnum = BossFaction.byId(s.factionId);
+        if (factionEnum != null) {
+            RelationsState rel = DiplomacyManager.getState(originLevel, player.getUUID(), factionEnum);
+            s.betrayalFactor = betrayalMultFor(rel);
+            s.betrayalTier = rel.name();
+            // War-declaration standing crash → hostile; the diplomacy
+            // collapse pass shatters any relations next tick (no new code).
+            WorldReputationManager.modifyStanding(originLevel, player.getUUID(), factionEnum,
+                    BETRAYAL_STANDING_CRASH, WorldRepReason.WAR_DECLARED);
+            if (s.betrayalFactor > 1.0) {
+                player.sendSystemMessage(Component.literal("You turn on the "
+                        + factionEnum.displayName() + " — they remember every kindness. "
+                        + "Their garrison fights with a betrayed fury (×"
+                        + String.format("%.2f", s.betrayalFactor) + ").")
+                        .withStyle(net.minecraft.ChatFormatting.DARK_RED));
+            }
+        } else {
+            s.betrayalFactor = 1.0;
+            s.betrayalTier = "";
+        }
+
         // Snapshot the garrison (count + zero kills + ASSAULTED).
         beginAssault(settlementLevel, s);
 
@@ -1001,17 +1059,108 @@ public final class RivalColonies {
             }
         }
 
-        // Turn the garrison hostile on the invaders right away.
+        // Turn the garrison hostile on the invaders + apply the betrayal
+        // buff to whoever's loaded (the tick covers late-loaders).
         steerGarrisonToInvaders(settlementLevel, s, player);
         data.markChanged();
 
         BossFaction f = BossFaction.byId(s.factionId);
-        LOGGER.info("[TM] rival: {} DECLARED WAR on settlement #{} — party {}, {} defenders + boss",
-                player.getName().getString(), s.id, s.warParty.size(), s.defenderCountAtStart);
+        LOGGER.info("[TM] rival: {} DECLARED WAR on settlement #{} — party {}, {} defenders + boss (betrayal ×{} tier {})",
+                player.getName().getString(), s.id, s.warParty.size(), s.defenderCountAtStart,
+                String.format("%.2f", s.betrayalFactor), s.betrayalTier);
         return "War declared on the " + (f != null ? f.displayName() : s.factionId)
                 + " settlement #" + s.id + " — " + s.warParty.size() + " in your war party. "
                 + "Kill the boss and " + (int) (GARRISON_WIN_FRACTION * 100) + "% of "
-                + s.defenderCountAtStart + " defenders to conquer it.";
+                + s.defenderCountAtStart + " defenders to conquer it."
+                + (s.betrayalFactor > 1.0 ? " (BETRAYAL — garrison ×"
+                        + String.format("%.2f", s.betrayalFactor) + ")" : "");
+    }
+
+    /** Garrison stat multiplier for a betrayed relationship tier (Stage
+     *  E). 1.0 = no betrayal (NONE / no relations). */
+    static double betrayalMultFor(RelationsState rel) {
+        return switch (rel) {
+            case OPEN -> BETRAYAL_MULT_OPEN;
+            case PACT -> BETRAYAL_MULT_PACT;
+            case COVENANT -> BETRAYAL_MULT_COVENANT;
+            default -> 1.0; // NONE — not a betrayal
+        };
+    }
+
+    /**
+     * Apply the Stage-E betrayal buff to one loaded garrison member if it
+     * hasn't been applied yet (idempotent — checks the betrayal HP
+     * modifier). Stacks ON TOP of B's boss-EP stat-bump (separate
+     * modifier ids), then grants the tier's defender skills. Called from
+     * {@link #steerGarrisonToInvaders} (per tick) so late-loading
+     * defenders get buffed when they appear.
+     */
+    private static void ensureBetrayalBuffed(Mob mob, Settlement s) {
+        if (s.betrayalFactor <= 1.0) return;
+        AttributeInstance hp = mob.getAttribute(Attributes.MAX_HEALTH);
+        if (hp != null && hp.getModifier(BETRAYAL_HP_ID) != null) return; // already buffed
+        // Stat buff (separate ids → stacks on the B garrison buff).
+        multiplyAttribute(mob, Attributes.MAX_HEALTH, BETRAYAL_HP_ID, s.betrayalFactor);
+        multiplyAttribute(mob, Attributes.ATTACK_DAMAGE, BETRAYAL_DMG_ID, s.betrayalFactor);
+        try {
+            multiplyAttribute(mob, TensuraAttributes.MAX_MAGICULE, BETRAYAL_MAG_ID, s.betrayalFactor);
+        } catch (Throwable ignored) { }
+        try {
+            multiplyAttribute(mob, TensuraAttributes.MAX_AURA, BETRAYAL_AURA_ID, s.betrayalFactor);
+        } catch (Throwable ignored) { }
+        mob.setHealth(mob.getMaxHealth());
+        // Tier defender skills (PASSIVE / RESISTANCE — applied by being
+        // learned; no cast driver needed for a whole garrison).
+        for (var supplier : betrayalSkillsFor(s.betrayalTier, s.factionId)) {
+            grantDefenderSkill(mob, supplier);
+        }
+    }
+
+    /** PASSIVE/RESISTANCE skills granted to defenders by betrayed tier.
+     *  OPEN → none (stats only); PACT → physical resistance; COVENANT →
+     *  physical resistance + self-regen + the faction's own capstone. */
+    private static List<java.util.function.Supplier<
+            ? extends io.github.manasmods.manascore.skill.api.ManasSkill>> betrayalSkillsFor(
+            String tier, String factionId) {
+        List<java.util.function.Supplier<
+                ? extends io.github.manasmods.manascore.skill.api.ManasSkill>> out = new ArrayList<>();
+        if ("PACT".equals(tier) || "COVENANT".equals(tier)) {
+            out.add(io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
+        }
+        if ("COVENANT".equals(tier)) {
+            out.add(io.github.manasmods.tensura.registry.skill.CommonSkills.SELF_REGENERATION);
+            var capstone = DealSpec.covenantSkillFor(factionId);
+            if (capstone != null) out.add(capstone);
+        }
+        return out;
+    }
+
+    /** Remove the betrayal stat-bump from a defender (the skills learned
+     *  stay — Tensura can't cleanly unlearn, and a leftover passive on a
+     *  survivor is harmless). Called on reset so betrayal is per-assault. */
+    private static void stripBetrayalBuff(Mob mob) {
+        removeModifier(mob, Attributes.MAX_HEALTH, BETRAYAL_HP_ID);
+        removeModifier(mob, Attributes.ATTACK_DAMAGE, BETRAYAL_DMG_ID);
+        try { removeModifier(mob, TensuraAttributes.MAX_MAGICULE, BETRAYAL_MAG_ID); } catch (Throwable ignored) { }
+        try { removeModifier(mob, TensuraAttributes.MAX_AURA, BETRAYAL_AURA_ID); } catch (Throwable ignored) { }
+    }
+
+    private static void removeModifier(Mob mob, Holder<Attribute> attr, ResourceLocation id) {
+        AttributeInstance inst = mob.getAttribute(attr);
+        if (inst != null) inst.removeModifier(id);
+    }
+
+    /** Teach a mob a skill (idempotent — the Covenant learnSkill path,
+     *  applied to a garrison defender). */
+    private static void grantDefenderSkill(Mob mob,
+            java.util.function.Supplier<? extends io.github.manasmods.manascore.skill.api.ManasSkill> supplier) {
+        try {
+            var skill = supplier.get();
+            var storage = io.github.manasmods.manascore.skill.api.SkillAPI.getSkillsFrom(mob);
+            if (storage.getSkill(skill.getRegistryName()).isEmpty()) {
+                storage.learnSkill(skill.createDefaultInstance(), Component.literal(""));
+            }
+        } catch (Throwable ignored) { }
     }
 
     private static BlockPos partyArrivalPos(ServerLevel level, BlockPos around, int index) {
@@ -1054,6 +1203,9 @@ public final class RivalColonies {
         if (s.bossUuid != null) members.add(s.bossUuid);
         for (java.util.UUID u : members) {
             if (!(level.getEntity(u) instanceof Mob mob) || !mob.isAlive()) continue;
+            // Stage E — buff late-loading defenders the first time we see
+            // them (idempotent; declareWar covered any already loaded).
+            ensureBetrayalBuffed(mob, s);
             net.minecraft.world.entity.LivingEntity cur = mob.getTarget();
             if (cur != null && cur.isAlive()) continue; // already fighting
             net.minecraft.world.entity.LivingEntity nearest = null;
@@ -1199,6 +1351,8 @@ public final class RivalColonies {
         s.warParty.clear();
         s.assaulted = false;
         s.pendingReturn = false;
+        s.betrayalFactor = 1.0;   // Stage E — betrayal is per-assault
+        s.betrayalTier = "";
         if (!keepConquest) s.conquestReached = false;
     }
 
@@ -1358,6 +1512,10 @@ public final class RivalColonies {
             out.add("  assault: by " + s.assaultingPlayer + ", party " + s.warParty.size()
                     + ", origin " + s.assaultOrigin
                     + (s.pendingReturn ? " (RETURN PENDING)" : ""));
+        }
+        if (s.betrayalFactor > 1.0) {
+            out.add("  betrayal: ×" + String.format("%.2f", s.betrayalFactor)
+                    + " (tier " + s.betrayalTier + ")");
         }
         if (s.conquestReached) out.add("  conquestReached=true (awaiting Stage-D payoff)");
         return out;

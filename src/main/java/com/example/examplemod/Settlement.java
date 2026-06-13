@@ -95,6 +95,16 @@ public class Settlement {
      *  return trip to {@link #assaultOrigin} on next respawn / login. */
     public boolean pendingReturn = false;
 
+    // --- Stage E — betrayal scaling ------------------------------------
+    /** Betrayal multiplier on the garrison's stat-bump for the CURRENT
+     *  assault — 1.0 = not a betrayal (no diplomatic relations); >1.0 =
+     *  scaled by the broken relationship tier (the deeper the ally, the
+     *  harder the punishment). Set at Declare-War, cleared on resolve. */
+    public double betrayalFactor = 1.0;
+    /** The relationship tier that was betrayed ("OPEN"/"PACT"/"COVENANT"),
+     *  or "" — selects the defender-skill set. */
+    public String betrayalTier = "";
+
     public Settlement() {}
 
     CompoundTag save() {
@@ -145,6 +155,8 @@ public class Settlement {
         tag.put("warParty", party);
         tag.putBoolean("conquestReached", conquestReached);
         tag.putBoolean("pendingReturn", pendingReturn);
+        tag.putDouble("betrayalFactor", betrayalFactor);
+        tag.putString("betrayalTier", betrayalTier);
         return tag;
     }
 
@@ -191,6 +203,8 @@ public class Settlement {
         }
         s.conquestReached = tag.getBoolean("conquestReached");
         s.pendingReturn = tag.getBoolean("pendingReturn");
+        s.betrayalFactor = tag.contains("betrayalFactor") ? tag.getDouble("betrayalFactor") : 1.0;
+        s.betrayalTier = tag.getString("betrayalTier");
         return s;
     }
 }

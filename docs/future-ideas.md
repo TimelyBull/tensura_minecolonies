@@ -1,5 +1,32 @@
 # Future ideas (recorded, not scheduled)
 
+## The RIVAL-COLONY ARC is BUILT (A–E, 2026-06-13) — deferred follow-ons
+
+The rival-colony/settlement arc is complete: A (settlement generation —
+faux-towns + Dwargon dwarf-villages), B (boss-EP-scaled garrison +
+persistence/reset + 60%-win tracking), C (discovery + Declare-War +
+teleport-assault loop), D (conquest payoff — citizens + Covenant skill +
+loot + defeated husk), E (betrayal scaling — tier-scaled garrison +
+relationship shatter). See docs/rival-colony-investigation.md for the
+full A–E as-built records. Remaining deferred follow-ons:
+
+- **PvP colony raiding** — the same assault loop turned on another
+  PLAYER's colony (not just generated settlements). Its own pass:
+  consent/rules, PvP-safety, scheduling, defender ownership.
+- **The SIEGE system — broken-alliance super-raids** (sketched below).
+  Stage E now provides the trigger: a betrayal (declaring war on an
+  OPEN/PACT/COVENANT faction) shatters relations AND records the betrayed
+  tier on the settlement — a siege pass can fire a retaliatory super-raid
+  scaled by that tier.
+- **"Summon absent subordinates first" war-party polish** — Stage C's
+  war party is drawn from the player's LOADED subordinates; a polish pass
+  could first bulk-summon absent RaceIdentity subordinates (the existing
+  bulk-summon path, at its magicule cost) so the picker isn't limited to
+  who happens to be standing nearby.
+- **Payout / balance tuning** — all the flagged BALANCE-GUESS constants
+  (garrison `GARRISON_*` scaling, the `BETRAYAL_MULT_*` tier multipliers)
+  want a combat playtest pass.
+
 ## Generated bosses belonging to colonies (rival-colony-arc preview)
 
 Generated bosses should have a CHANCE of BELONGING to a colony. A boss
@@ -42,6 +69,11 @@ SIEGE — a super-raid above the lore-event class. Sketch:
 - Builds on: the raid engine, the lore-event spine, Stage-3 ally
   support (all exist). Needs: betrayal detection on the collapse path,
   a siege encounter descriptor, balance work.
+- UPDATE (2026-06-13): rival-colony Stage E now supplies the betrayal
+  TRIGGER — `declareWar` writes `WorldRepReason.WAR_DECLARED` and records
+  the betrayed tier (`Settlement.betrayalTier`) before the standing crash
+  shatters relations. A siege pass can key off WAR_DECLARED (and the
+  recorded tier) instead of inventing new betrayal detection.
 
 ## The faction quest catalog — the 10+ per-faction content pass
 

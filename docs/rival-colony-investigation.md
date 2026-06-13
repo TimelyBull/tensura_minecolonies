@@ -905,3 +905,101 @@ no payoff. Build green.
 Deferred to E: betrayal scaling (a Covenant ally betraying you escalates
 the settlement's garrison/boss — extends B/C, consumes the diplomacy
 tier read).
+
+---
+
+# STAGE E — betrayal scaling (as-built, 2026-06-13) — the arc is COMPLETE A–E
+
+A thin add over B/C: declaring war on a faction the player has DIPLOMATIC
+relations with (OPEN/PACT/COVENANT) scales the garrison UP as a betrayal
+punishment — the deeper the ally, the harder the fight — AND the
+war-declaration standing crash SHATTERS the relationship via the existing
+below-WARY collapse. Behind `factionSystemEnabled`. Code: `RivalColonies`
+(betrayal block in `declareWar` + `ensureBetrayalBuffed`) + new
+`Settlement.betrayalFactor`/`betrayalTier` + `WorldRepReason.WAR_DECLARED`.
+
+## Betrayal detection + tier multipliers (⚠ BALANCE GUESSES)
+
+`declareWar` reads `DiplomacyManager.getState(player, faction)`. The tier
+sets an EXTRA garrison stat multiplier ON TOP of B's boss-EP stat-bump
+(separate modifier ids → the two ADD modifiers stack):
+
+| Relationship | Multiplier | Defender skills |
+|---|---|---|
+| NONE (no relations) | ×1.0 | — (not a betrayal) |
+| OPEN (Diplomacy) | ×1.25 | — (stats only) |
+| PACT (Alliance) | ×1.6 | Physical Attack Resistance |
+| COVENANT | ×2.0 | Physical Attack Resistance + Self-Regeneration + the faction's own capstone skill |
+
+All named/tunable in `RivalColonies` (`BETRAYAL_MULT_*`); first guesses,
+flag for the polish playtest.
+
+## Application (stacks on B; covers late-loaders)
+
+`ensureBetrayalBuffed(mob, s)` applies the multiplier via the assassin
+`multiplyAttribute` idiom over MAX_HEALTH / ATTACK_DAMAGE / MAX_MAGICULE /
+MAX_AURA using SEPARATE `BETRAYAL_*` modifier ids, so it stacks on B's
+`GARRISON_*` bump rather than replacing it. Idempotent (checks the
+betrayal HP modifier). Called per-tick from `steerGarrisonToInvaders`, so
+defenders that load in after the player teleports (war declared from afar)
+get buffed the first time they're seen. On `resetGarrison` (retreat),
+`stripBetrayalBuff` removes the betrayal modifiers from survivors so the
+next assault re-derives the factor cleanly; `clearAssaultState` zeroes
+`betrayalFactor`/`betrayalTier` (betrayal is per-assault).
+
+## Defender skills — PASSIVE / RESISTANCE (no cast driver)
+
+Granted via the Covenant `learnSkill` path applied to the mob
+(`SkillAPI.getSkillsFrom(mob).learnSkill(...)`, idempotent). Chosen to be
+**passive/resistance** skills that take effect just by being learned —
+Physical Attack Resistance (damage reduction) and Self-Regeneration
+(sustain) — plus the faction's own capstone at COVENANT. This deliberately
+avoids an active-cast driver for a whole garrison (heavy for many mobs);
+the skills make the defenders tankier/stickier without needing AI to fire
+them. (A future polish could route active skills through the assassin
+cast-driver for the boss specifically.)
+
+## Standing consequence — composes automatically (no new collapse code)
+
+`declareWar` writes `WorldReputationManager.modifyStanding(...,
+BETRAYAL_STANDING_CRASH = −1000, WAR_DECLARED)`, clamping effective
+standing to 0 (well below the WARY floor). The diplomacy `checkCollapse`
+pass (per-second, derived purely from Layer-1 standing) then shatters any
+relations to NONE next tick — the SAME mechanism as the Orc-Disaster
+clamp, no betrayal-specific collapse code. The betrayal-scaled garrison is
+the *punishment*; the relationship shatter is the *consequence*. War is
+always declared hostile (the crash fires even against a NEUTRAL faction;
+the collapse simply no-ops when there were no relations).
+
+## Testing
+
+`/rivalcolony declare <id>` against: a NEUTRAL/hostile faction → ×1.0 (no
+betrayal buff); a DIPLOMACY faction → ×1.25; an ALLIANCE faction → ×1.6 +
+physical resistance on defenders; a COVENANT faction → ×2.0 + resistance +
+regen + capstone (brutal). `/rivalcolony garrison <id>` shows the betrayal
+line. The relationship collapses to NONE within a second (watch
+`/diplomacy`). The betrayal factor stacks on B's boss-EP scaling.
+`factionSystemEnabled` off → no war at all. Build green.
+
+## Siege connection (future, NOT built)
+
+Betraying a deep ally sets up the deferred SIEGE idea — a betrayed faction
+launching a retaliatory super-raid on the player's colony. Recorded in
+docs/future-ideas.md (Sieges — broken-alliance super-raids); Stage E is
+the trigger condition that a future siege pass would consume.
+
+---
+
+# THE RIVAL-COLONY ARC IS COMPLETE (A–E)
+
+- **A** — settlement generation (faux-towns + Dwargon dwarf-villages).
+- **B** — the garrison (boss-EP-scaled defenders, persistence/reset, the
+  60%-win tracking).
+- **C** — discovery + Declare-War + the teleport-assault loop.
+- **D** — the conquest payoff (citizens + Covenant skill + loot + husk).
+- **E** — betrayal scaling (tier-scaled garrison + relationship shatter).
+
+Remaining deferred (their own future passes / the polish playtest): PvP
+colony raiding, the SIEGE system (broken-alliance super-raids, which E
+sets up), the "summon absent subordinates first" war-party polish, and
+all payout/balance tuning of the flagged BALANCE-GUESS constants.
