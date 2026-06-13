@@ -5,7 +5,6 @@ import io.github.manasmods.tensura.registry.skill.ExtraSkills;
 import io.github.manasmods.tensura.registry.skill.UniqueSkills;
 import io.github.manasmods.tensura.storage.ep.IExistence;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -98,9 +97,6 @@ public class DragoNovaItem extends Item {
                     Level.ExplosionInteraction.TNT);
         }
         if (lethalToUser) {
-            user.sendSystemMessage(Component.literal(
-                    "Milim's power devours the unworthy.").withStyle(
-                            net.minecraft.ChatFormatting.DARK_RED));
             user.hurt(level.damageSources().magic(), Float.MAX_VALUE);
         }
         ExampleMod.LOGGER.info("[TM] drago nova: detonated by {} (lethal {})",
