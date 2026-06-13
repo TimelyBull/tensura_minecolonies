@@ -168,6 +168,39 @@ raid-support + action coupling. As-built record:
   SIEGES (broken-alliance super-raids) and the 10+ per-faction QUEST
   CATALOG content pass.
 
+---
+
+**Status: STAGE 4 BUILT (2026-06-12) — the MENDING RITUAL. The
+diplomacy system is COMPLETE (Stages 1–4).** As-built record:
+
+- **The rite is a deal** (the framework reused as designed): a
+  `MendingRite` Requirement variant + per-faction "Rite of Atonement"
+  specs (`DealSpec.MENDING_DEALS`, ids `mend_<faction>`, generated for
+  every faction so any future foreclosure source is covered).
+- **Offered ONLY while foreclosed:** a daily pass replaces a
+  diplomacy-closed faction's offer list with exactly the one rite
+  (foreclosure collapsed relations to NONE, so the normal offer pass
+  never touches them; accept-time validation requires the closed flag).
+  The tab shows it under "X will not treat with you — save through
+  grave atonement."; the active rite's button reads "Perform Rite".
+- **The steep price (tunables on DealSpec):** `MENDING_TRIBUTE` =
+  32 diamonds AND the SACRIFICE of the player's STRONGEST named
+  subordinate with EP ≥ `MENDING_SACRIFICE_MIN_EP` = 10 000 — the
+  body must be PRESENT (EP reads from the live body — the offering is
+  brought to the rite). All-or-nothing validation, then: tribute
+  consumed, both bodies poofed, the identity removed permanently (the
+  death-hook removal).
+- **On fulfilment:** the long-stubbed `reopenDiplomacy` finally fires
+  — the closed flag clears and standing is SET to
+  `MENDING_REOPEN_STANDING` = 25 (WARY — above the envoy-accept floor
+  of 20, far below anything prior). Relations stay NONE: the player
+  re-courts the faction normally (envoy + deals) and rebuilds from
+  almost nothing. Forgiveness to TRY AGAIN, not restoration.
+- **Repeatable (confirmed yes):** nothing is once-ever — re-foreclose
+  and the rite is offered again, costing another champion each time.
+- Follow-ons recorded in docs/future-ideas.md: sieges, the per-faction
+  quest catalog, race-citizen lending.
+
 Original investigation follows.
 
 ---

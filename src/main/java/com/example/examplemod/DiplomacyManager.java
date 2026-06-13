@@ -113,6 +113,12 @@ public final class DiplomacyManager {
     static final String SPARE_BOSS_GIFT_ID = "clayman_spare_disaster";
     static final double SPARE_BOSS_MIN_STANDING = 60.0;
 
+    // --- Stage 4: the mending ritual ---
+    /** Mending reopens the door at a LOW standing (WARY band) —
+     *  forgiveness to REBUILD, not restoration. 25 clears the envoy
+     *  accept floor (20) so the faction can be courted again. */
+    static final double MENDING_REOPEN_STANDING = 25.0;
+
     /** Which passive buff each ALLIANCE grants (re-applied while PACT
      *  holds). Representative set — the authoring seam for more. */
     private static final Map<String, net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect>>
@@ -352,7 +358,15 @@ public final class DiplomacyManager {
         ServerLevel level = player.serverLevel();
         UUID uuid = player.getUUID();
         DiplomacySavedData data = DiplomacySavedData.get(level);
-        if (getState(level, uuid, faction) == RelationsState.NONE) {
+        DealSpec spec = DealSpec.byId(dealId);
+        boolean mending = DealSpec.isMendingDeal(spec);
+        // The mending rite is offered to a FORECLOSED faction — relations
+        // are NONE by definition; everything else needs them open.
+        if (mending) {
+            if (!WorldReputationManager.isDiplomacyClosed(level, uuid, faction)) {
+                return "no atonement is owed to " + faction.displayName();
+            }
+        } else if (getState(level, uuid, faction) == RelationsState.NONE) {
             return "no relations with " + faction.displayName();
         }
         if (data.getDeal(uuid, faction.id()) != null) {
@@ -360,10 +374,9 @@ public final class DiplomacyManager {
         }
         boolean offered = data.getOffers(uuid, faction.id()).stream()
                 .anyMatch(o -> o.dealId().equals(dealId));
-        DealSpec spec = DealSpec.byId(dealId);
         if (!offered || spec == null) return "that offer is no longer on the table";
         IColony colony = IColonyManager.getInstance().getIColonyByOwner(level, uuid);
-        if (colony == null) return "you need a colony to honor a deal";
+        if (colony == null && !mending) return "you need a colony to honor a deal";
 
         // LENDING deals don't start here — accepting opens the citizen
         // PICKER; the deal is created by handleLendConfirm once the
@@ -381,7 +394,7 @@ public final class DiplomacyManager {
 
         ActiveDeal deal = new ActiveDeal();
         deal.dealId = dealId;
-        deal.colonyId = colony.getID();
+        deal.colonyId = colony != null ? colony.getID() : -1;
         deal.acceptedTick = level.getGameTime();
         deal.deadlineTick = level.getGameTime() + spec.deadlineTicks();
         data.setDeal(uuid, faction.id(), deal);
@@ -567,6 +580,10 @@ public final class DiplomacyManager {
         if (deal == null || spec == null || deal.state != ActiveDeal.STATE_ACTIVE) {
             return "nothing to deliver";
         }
+        // Stage 4 — the mending rite is performed, not delivered.
+        if (spec.requirement() instanceof DealSpec.MendingRite rite) {
+            return performMendingRite(player, faction, deal, rite);
+        }
         if (!(spec.requirement() instanceof DealSpec.SupplyItems supply)) {
             return "this deal isn't fulfilled by delivery";
         }
@@ -585,6 +602,116 @@ public final class DiplomacyManager {
             fulfillDeal(level, uuid, faction, deal, spec);
         }
         return null;
+    }
+
+    /**
+     * Stage 4 — THE MENDING RITE. The steep price, all-or-nothing in
+     * one act: the tribute is consumed from the player's inventory AND
+     * the player's STRONGEST named subordinate (EP ≥ the rite's floor;
+     * its body must be present) is sacrificed — identity and both
+     * bodies removed permanently. Fulfilment calls the long-stubbed
+     * {@code reopenDiplomacy} and sets standing to a LOW base
+     * ({@link #MENDING_REOPEN_STANDING}) — forgiveness to REBUILD, not
+     * restoration. Repeatable: a re-foreclosed faction offers the rite
+     * again.
+     */
+    private static String performMendingRite(ServerPlayer player, BossFaction faction,
+                                             ActiveDeal deal, DealSpec.MendingRite rite) {
+        ServerLevel level = player.serverLevel();
+        UUID uuid = player.getUUID();
+        if (!WorldReputationManager.isDiplomacyClosed(level, uuid, faction)) {
+            // The door opened some other way — the rite is moot.
+            DiplomacySavedData.get(level).removeDeal(uuid, faction.id());
+            return "no atonement is owed to " + faction.displayName();
+        }
+
+        // The offering: the strongest owned named subordinate whose body
+        // is present (EP reads 0 for unresolvable bodies — the offering
+        // must be brought to the altar, as it were).
+        RaceIdentitySavedData identities = RaceIdentitySavedData.get(level);
+        RaceIdentitySavedData.RaceIdentity offering = null;
+        double bestEP = 0;
+        for (RaceIdentitySavedData.RaceIdentity identity : identities.all()) {
+            if (identity.ownerPlayerUUID == null || !uuid.equals(identity.ownerPlayerUUID)) continue;
+            double ep = ExampleMod.readEPForRoster(player, identity);
+            if (ep > bestEP) { bestEP = ep; offering = identity; }
+        }
+        if (offering == null || bestEP < rite.minSacrificeEP()) {
+            return "the rite demands a named subordinate of EP "
+                    + (long) rite.minSacrificeEP() + "+ — present and yours to give"
+                    + (offering != null
+                            ? " (your strongest offers only " + (long) bestEP + ")" : "");
+        }
+        // The tribute: counted before anything is consumed.
+        int held = 0;
+        var inventory = player.getInventory();
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack stack = inventory.getItem(i);
+            if (!stack.isEmpty() && stack.is(rite.tributeItem())) held += stack.getCount();
+        }
+        if (held < rite.tributeCount()) {
+            return "the rite demands " + rite.tributeCount() + " "
+                    + new ItemStack(rite.tributeItem()).getHoverName().getString()
+                    + " (you carry " + held + ")";
+        }
+
+        // All validated — the price is paid. Tribute first, then the life.
+        consumeItems(player, rite.tributeItem(), rite.tributeCount());
+        String name = sacrificeIdentity(level, offering);
+
+        WorldReputationManager.reopenDiplomacy(level, uuid, faction);
+        WorldReputationManager.setStanding(level, uuid, faction,
+                MENDING_REOPEN_STANDING, WorldRepReason.DIPLOMACY);
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        data.removeDeal(uuid, faction.id());
+        data.setOffers(uuid, faction.id(), new ArrayList<>());
+        data.setLastActivity(uuid, faction.id(), level.getGameTime());
+        player.sendSystemMessage(Component.literal(name + " is given to the rite. "
+                + faction.displayName() + " acknowledges the atonement — the door is open"
+                + " again, though you start from almost nothing.")
+                .withStyle(faction.color()));
+        LOGGER.info("[TM] diplomacy: player {} MENDED {} — sacrificed '{}' ({} EP) + {} tribute;"
+                + " standing reset to {}",
+                uuid, faction.id(), name, String.format("%.0f", bestEP),
+                rite.tributeCount(), MENDING_REOPEN_STANDING);
+        return null;
+    }
+
+    /** Remove a named subordinate COMPLETELY — both bodies + the
+     *  identity record (the death-hook removal, performed as a rite). */
+    private static String sacrificeIdentity(ServerLevel level,
+                                            RaceIdentitySavedData.RaceIdentity identity) {
+        String name = "Your subordinate";
+        // The citizen body (IN_COLONY).
+        IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
+        if (colony != null) {
+            ICitizenData citizen = colony.getCitizenManager().getCivilian(identity.citizenId);
+            if (citizen != null) {
+                name = citizen.getName();
+                citizen.getEntity().ifPresent(entity -> {
+                    level.sendParticles(ParticleTypes.POOF,
+                            entity.getX(), entity.getY() + entity.getBbHeight() / 2.0, entity.getZ(),
+                            32, 0.4, 0.6, 0.4, 0.03);
+                    entity.discard();
+                });
+                colony.getCitizenManager().removeCivilian(citizen);
+            }
+        }
+        // The wild body (SUBORDINATE).
+        if (identity.mobEntityUUID != null) {
+            net.minecraft.world.entity.Entity mob = level.getEntity(identity.mobEntityUUID);
+            if (mob != null && !mob.isRemoved()) {
+                if (mob.hasCustomName() && mob.getCustomName() != null) {
+                    name = mob.getCustomName().getString();
+                }
+                level.sendParticles(ParticleTypes.POOF,
+                        mob.getX(), mob.getY() + mob.getBbHeight() / 2.0, mob.getZ(),
+                        32, 0.4, 0.6, 0.4, 0.03);
+                mob.discard();
+            }
+        }
+        RaceIdentitySavedData.get(level).removeIdentity(identity);
+        return name;
     }
 
     /** The Collect button — hands over a READY deal's item reward. */
@@ -765,6 +892,8 @@ public final class DiplomacyManager {
             case DealSpec.SupplyItems ignored -> false;
             // Lending fulfils through its own payoff machinery.
             case DealSpec.LendCitizens ignored -> false;
+            // The rite is performed via its own action.
+            case DealSpec.MendingRite ignored -> false;
         };
     }
 
@@ -862,6 +991,28 @@ public final class DiplomacyManager {
                     current.add(new DiplomacySavedData.Offer(pick.id(), now + OFFER_EXPIRY_TICKS));
                 }
                 data.setOffers(player, e.getKey(), current);
+            }
+        }
+
+        // Stage 4 — the mending pass: a FORECLOSED faction's offer list
+        // is exactly ONE deal — the Rite of Atonement. (Foreclosure
+        // collapsed relations to NONE, so the normal pass above never
+        // touches these factions.)
+        for (ServerPlayer player : level.players()) {
+            UUID uuid = player.getUUID();
+            for (BossFaction faction : BossFaction.values()) {
+                if (!WorldReputationManager.isDiplomacyClosed(level, uuid, faction)) continue;
+                DealSpec mend = DealSpec.MENDING_DEALS.get(faction.id());
+                if (mend == null) continue;
+                if (data.getDeal(uuid, faction.id()) != null) continue; // rite underway
+                List<DiplomacySavedData.Offer> offers = data.getOffers(uuid, faction.id());
+                if (offers.size() == 1 && offers.get(0).dealId().equals(mend.id())
+                        && now < offers.get(0).expiresTick()) {
+                    continue;
+                }
+                List<DiplomacySavedData.Offer> only = new ArrayList<>();
+                only.add(new DiplomacySavedData.Offer(mend.id(), now + OFFER_EXPIRY_TICKS));
+                data.setOffers(uuid, faction.id(), only);
             }
         }
     }
@@ -1288,8 +1439,10 @@ public final class DiplomacyManager {
                 d.putInt("hoursLeft", (int) Math.max(0, (deal.deadlineTick - now) / 1000));
                 d.putBoolean("lend", lendDeal);
                 d.putInt("returnHours", (int) Math.max(0, (deal.payoffAtTick - now) / 1000));
+                d.putBoolean("rite", spec.requirement() instanceof DealSpec.MendingRite);
                 d.putBoolean("canDeliver", deal.state == ActiveDeal.STATE_ACTIVE
-                        && spec.requirement() instanceof DealSpec.SupplyItems);
+                        && (spec.requirement() instanceof DealSpec.SupplyItems
+                                || spec.requirement() instanceof DealSpec.MendingRite));
                 d.putBoolean("canCollect", deal.state == ActiveDeal.STATE_READY);
                 f.put("active", d);
             }

@@ -48,7 +48,8 @@ public record DealSpec(
 
     /** What the faction asks for. Sealed — the extension seam. */
     public sealed interface Requirement
-            permits SupplyItems, BuildingLevel, Population, Happiness, LendCitizens {
+            permits SupplyItems, BuildingLevel, Population, Happiness, LendCitizens,
+                    MendingRite {
         /** Player-facing one-liner ("Supply 64 Iron Ingot"). */
         String summary();
     }
@@ -102,6 +103,24 @@ public record DealSpec(
         }
     }
 
+    /**
+     * Stage 4 — the MENDING RITE: grave atonement for a foreclosed
+     * faction (diplomacy-closed). The steep price: a large tribute AND
+     * the SACRIFICE of the player's strongest named subordinate (EP ≥
+     * {@code minSacrificeEP}; the body must be present for the rite).
+     * Fulfilment clears the closed flag and reopens relations at a LOW
+     * standing — forgiveness to REBUILD, not restoration.
+     */
+    public record MendingRite(Item tributeItem, int tributeCount,
+                              double minSacrificeEP) implements Requirement {
+        @Override public String summary() {
+            return "Offer " + tributeCount + " "
+                    + new ItemStack(tributeItem).getHoverName().getString()
+                    + " and SACRIFICE your strongest named subordinate (EP >= "
+                    + (long) minSacrificeEP + ")";
+        }
+    }
+
     /** Player-facing reward one-liner. */
     public String rewardSummary() {
         StringBuilder sb = new StringBuilder();
@@ -128,8 +147,36 @@ public record DealSpec(
      *  from the eligible subset, so table order doesn't shadow). */
     public static final Map<String, List<DealSpec>> FACTION_DEALS = buildFactionDeals();
 
+    // --- Stage 4: the mending ritual (tunables) ---
+    static final Item MENDING_TRIBUTE_ITEM = Items.DIAMOND;
+    static final int MENDING_TRIBUTE_COUNT = 32;
+    /** The sacrificed subordinate must carry at least this much EP. */
+    static final double MENDING_SACRIFICE_MIN_EP = 10_000.0;
+    static final long MENDING_DEADLINE = 12 * DAY;
+
+    /** faction id → its mending-rite deal ("mend_<faction>") — offered
+     *  ONLY while that faction is diplomacy-closed. Generated for every
+     *  faction so any future foreclosure source is covered. */
+    public static final Map<String, DealSpec> MENDING_DEALS = buildMendingDeals();
+
     /** Global id → spec index (accept/lookup path). */
     public static final Map<String, DealSpec> DEALS = buildIndex();
+
+    public static boolean isMendingDeal(DealSpec spec) {
+        return spec != null && spec.requirement() instanceof MendingRite;
+    }
+
+    private static Map<String, DealSpec> buildMendingDeals() {
+        Map<String, DealSpec> map = new LinkedHashMap<>();
+        for (BossFaction faction : BossFaction.values()) {
+            map.put(faction.id(), new DealSpec("mend_" + faction.id(), "Rite of Atonement",
+                    new MendingRite(MENDING_TRIBUTE_ITEM, MENDING_TRIBUTE_COUNT,
+                            MENDING_SACRIFICE_MIN_EP),
+                    List.of(), // the reward IS the reopened door
+                    0.0, 0.0, MENDING_DEADLINE, 0, FactionTier.HOSTILE, true));
+        }
+        return Map.copyOf(map);
+    }
 
     public static DealSpec byId(String id) {
         return DEALS.get(id);
@@ -264,6 +311,9 @@ public record DealSpec(
             for (DealSpec spec : table) {
                 index.put(spec.id(), spec);
             }
+        }
+        for (DealSpec spec : MENDING_DEALS.values()) {
+            index.put(spec.id(), spec);
         }
         return Map.copyOf(index);
     }

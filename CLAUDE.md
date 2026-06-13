@@ -635,7 +635,18 @@ profession (latest):**
   to colony strength (EP-primary, ×1.15 budget); hostile-spawn
   prevention inside fueled barriers. Records: docs/raid-system.md.
 
-**Diplomacy Stage 3 (rewards + ally raid-support + coupling — latest):**
+**Diplomacy Stage 4 (the mending ritual — diplomacy COMPLETE; latest):**
+- A foreclosed faction (diplomacy-closed, e.g. the Orc Disaster kill)
+  offers exactly ONE deal: the Rite of Atonement (`MendingRite`
+  Requirement; `MENDING_DEALS` per faction). Price: 32 diamonds + the
+  SACRIFICE of the player's strongest named subordinate (EP ≥ 10 000,
+  body present — identity + both bodies removed permanently).
+  Fulfilment fires the stubbed `reopenDiplomacy`, sets standing to 25
+  (WARY — rebuild from almost nothing, relations NONE, re-court
+  normally). Repeatable on re-foreclosure. Tunables on DealSpec
+  (MENDING_*) + DiplomacyManager.MENDING_REOPEN_STANDING.
+
+**Diplomacy Stage 3 (rewards + ally raid-support + coupling):**
 - Rewards: PACT factions never send lore events; alliance buffs
   (refresh-style MobEffects, `ALLIANCE_BUFFS` map); daily caravan goods
   (`FACTION_GOODS` + Claim Caravan, 1-day cooldown); "Caravan Home"

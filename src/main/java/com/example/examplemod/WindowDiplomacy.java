@@ -61,7 +61,7 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
     // ---- parsed snapshot ----
     private record OfferRow(String dealId, String title, String req, String reward, int daysLeft) {}
     private record ActiveRow(String title, String req, String reward, byte state, int pct,
-                             int hoursLeft, boolean lend, int returnHours,
+                             int hoursLeft, boolean lend, int returnHours, boolean rite,
                              boolean canDeliver, boolean canCollect) {}
     private record FactionRow(String id, String name, double standing, String tier,
                               int tierColor, RelationsState state, boolean closed,
@@ -174,7 +174,7 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
                 active = new ActiveRow(d.getString("title"), d.getString("req"),
                         d.getString("reward"), d.getByte("state"), d.getInt("progressPct"),
                         d.getInt("hoursLeft"), d.getBoolean("lend"), d.getInt("returnHours"),
-                        d.getBoolean("canDeliver"), d.getBoolean("canCollect"));
+                        d.getBoolean("rite"), d.getBoolean("canDeliver"), d.getBoolean("canCollect"));
             }
             rows.add(new FactionRow(f.getString("id"), f.getString("name"),
                     f.getDouble("standing"), f.getString("tier"), f.getInt("tierColor"),
@@ -316,7 +316,9 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
         // Status line — one sentence, gray.
         String status;
         if (row.closed()) {
-            status = row.name() + " will not treat with you.";
+            status = row.name() + " will not treat with you"
+                    + (!row.offers().isEmpty() || row.active() != null
+                            ? " — save through grave atonement." : ".");
         } else if (row.pendingReply()) {
             status = "Your envoy awaits a reply…";
         } else if (row.state() == RelationsState.NONE) {
@@ -344,8 +346,9 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
             setButton("gift", true);
         }
 
-        // Section: the active deal OR the offers — never both.
-        if (row.state() != RelationsState.NONE) {
+        // Section: the active deal OR the offers — never both. A
+        // FORECLOSED faction shows its sections too (the mending rite).
+        if (row.state() != RelationsState.NONE || row.closed()) {
             ActiveRow active = row.active();
             if (active != null) {
                 setVisible("aCard", true);
@@ -371,7 +374,14 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
                 }
                 setTextColor("aPct", active.pct() + "%", TXT_DARK);
                 setVisible("aPct", true);
-                if (active.canDeliver()) setButton("deliver", true);
+                if (active.canDeliver()) {
+                    setButton("deliver", true);
+                    Button deliver = findPaneOfTypeByID("deliver", Button.class);
+                    if (deliver != null) {
+                        deliver.setText(Component.literal(
+                                active.rite() ? "Perform Rite" : "Deliver"));
+                    }
+                }
                 if (active.canCollect()) setButton("collect", true);
             } else {
                 List<OfferRow> offers = row.offers();
