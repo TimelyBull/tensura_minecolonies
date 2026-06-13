@@ -1,6 +1,10 @@
 package com.example.examplemod;
 
 import com.ldtteam.structurize.api.RotationMirror;
+import com.ldtteam.structurize.blueprints.v1.Blueprint;
+import com.ldtteam.structurize.management.Manager;
+import com.ldtteam.structurize.operations.PlaceStructureOperation;
+import com.ldtteam.structurize.placement.StructurePlacer;
 import com.ldtteam.structurize.storage.StructurePacks;
 import com.minecolonies.api.util.CreativeBuildingStructureHandler;
 import io.github.manasmods.tensura.registry.entity.HumanEntityTypes;
@@ -97,18 +101,21 @@ public final class RivalColonies {
 
     private record Building(String path, int dx, int dz) {}
 
+    // Pack-relative blueprint paths — MUST include the ".blueprint"
+    // extension: StructurePacks resolves packRoot.resolve(path) and the
+    // path normalizer does NOT append it.
     private static final int GRID = 22;
     private static final List<Building> LAYOUT = List.of(
-            new Building("fundamentals/townhall1", 0, 0),
-            new Building("fundamentals/builder1", -GRID, 0),
-            new Building("fundamentals/tavern1", GRID, 0),
-            new Building("craftsmanship/metallurgy/blacksmith1", 0, -GRID),
-            new Building("education/library1", 0, GRID),
-            new Building("military/barracks1", -GRID, -GRID),
-            new Building("fundamentals/residence1", GRID, -GRID),
-            new Building("fundamentals/residence1", -GRID, GRID),
-            new Building("fundamentals/residence1", GRID, GRID),
-            new Building("fundamentals/residence1", 0, GRID * 2));
+            new Building("fundamentals/townhall1.blueprint", 0, 0),
+            new Building("fundamentals/builder1.blueprint", -GRID, 0),
+            new Building("fundamentals/tavern1.blueprint", GRID, 0),
+            new Building("craftsmanship/metallurgy/blacksmith1.blueprint", 0, -GRID),
+            new Building("education/library1.blueprint", 0, GRID),
+            new Building("military/barracks1.blueprint", -GRID, -GRID),
+            new Building("fundamentals/residence1.blueprint", GRID, -GRID),
+            new Building("fundamentals/residence1.blueprint", -GRID, GRID),
+            new Building("fundamentals/residence1.blueprint", GRID, GRID),
+            new Building("fundamentals/residence1.blueprint", 0, GRID * 2));
 
     // --- natural generation tuning (all named) ---
     /** Per online player, per day: chance to seed a settlement nearby. */
@@ -214,14 +221,31 @@ public final class RivalColonies {
         return boss;
     }
 
-    /** Instant complete-build of one MineColonies building schematic
-     *  (the verified CreativeBuildingStructureHandler path). */
+    /**
+     * Place one complete MineColonies building schematic.
+     *
+     * <p>The blueprint is loaded SYNCHRONOUSLY ({@code getBlueprint}, not
+     * {@code getBlueprintFuture}) — the async future isn't resolved when
+     * {@code loadAndPlaceStructureWithRotation} checks {@code
+     * hasBluePrint()}, so that path silently no-ops. We resolve the
+     * blueprint, build the handler via its BLUEPRINT ctor (so
+     * {@code hasBluePrint()} is true), and queue placement through the
+     * Structurize {@code Manager} (ticked server-side, places over a few
+     * ticks). A null blueprint logs exactly which pack/path failed.
+     */
     private static void placeBuilding(ServerLevel level, ServerPlayer placer, String pack,
                                       String path, BlockPos pos) {
         try {
-            var future = StructurePacks.getBlueprintFuture(pack, path, level.registryAccess());
-            CreativeBuildingStructureHandler.loadAndPlaceStructureWithRotation(
-                    level, future, pos, RotationMirror.NONE, true, placer);
+            Blueprint bp = StructurePacks.getBlueprint(pack, path, level.registryAccess());
+            if (bp == null) {
+                LOGGER.warn("[TM] rival: blueprint NOT FOUND — pack '{}' path '{}' (pack resolved: {})",
+                        pack, path, StructurePacks.getStructurePack(pack) != null);
+                return;
+            }
+            CreativeBuildingStructureHandler handler = new CreativeBuildingStructureHandler(
+                    level, pos, bp, RotationMirror.NONE, true);
+            StructurePlacer structurePlacer = new StructurePlacer(handler);
+            Manager.addToQueue(new PlaceStructureOperation(structurePlacer, placer));
         } catch (Throwable t) {
             LOGGER.warn("[TM] rival: failed to place '{}' from pack '{}' at {}", path, pack, pos, t);
         }

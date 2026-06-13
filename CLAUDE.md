@@ -650,8 +650,12 @@ profession (latest):**
   `/rivalcolony spawn|wild <faction>` + `list`. All behind
   factionSystemEnabled. Stages B–E extend the Settlement record's
   reserved seams. Records: docs/rival-colony-investigation.md (Stage A
-  as-built). ⚠ Tracked: confirm the getBlueprintFuture pack key (display
-  name) in-game on first spawn.
+  as-built). Placement bugfix (2026-06-13): load blueprints
+  SYNCHRONOUSLY (getBlueprint, not the async getBlueprintFuture whose
+  future isn't ready when hasBluePrint() is checked) with the
+  `.blueprint` extension in the path, via the Blueprint-ctor handler +
+  Manager.addToQueue. Pack key = display name (was correct). All 7
+  faction packs verified.
 
 **Barrier/diplomacy/Covenant batch:**
 - Barrier tiers cumulative + distinct colors: T1 wall (traps

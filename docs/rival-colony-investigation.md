@@ -263,12 +263,37 @@ The structural foundation is built. As-built record:
   only. All constants named/tunable.
 - **Gating:** the whole layer no-ops when `factionSystemEnabled` is off
   (every entry point checks).
-- **⚠ Tracked risk (verify in-game):** the pack key passed to
-  `getBlueprintFuture` is the display name ("Stalactite Caves" etc.);
-  if MineColonies registers its packs under a different key, placement
-  logs a failure and no blocks appear — a one-line swap to the folder
-  id (`truedwarven`) if so. This is the single thing to confirm on the
-  first `/rivalcolony spawn`.
+- **Placement BUGFIX (2026-06-13).** The first `/rivalcolony spawn`
+  placed the boss but NO buildings. Diagnosed (bytecode, no live log):
+  TWO silent failures, both now fixed —
+  1. **Async future.** `getBlueprintFuture` runs `supplyAsync` on a
+     background IO thread; `loadAndPlaceStructureWithRotation` checks
+     `hasBluePrint()` (reads the resolved-`blueprint` field, NOT the
+     future) synchronously right after construction — the future isn't
+     done, so it's false, and the method's `else` branch only LOGS a
+     warning (the only placement path is the `if (hasBluePrint())`
+     branch). Nothing placed.
+  2. **Missing `.blueprint` extension.** `getBlueprint` resolves
+     `packRoot.resolve(getNormalizedSubPath(path))`, and the normalizer
+     only swaps separators — it does NOT append the extension. The
+     Stage-A paths ("fundamentals/townhall1") pointed at nonexistent
+     files → null blueprint anyway.
+  - **The pack KEY was correct all along** — `packMetas` is keyed by
+     `StructurePackMeta.getName()` = the pack.json `"name"` (display
+     name "Stalactite Caves" etc.), verified by decompiling the loader.
+  - **Fix:** `placeBuilding` now loads SYNCHRONOUSLY via
+    `StructurePacks.getBlueprint(pack, path, registries)` (path INCLUDES
+    `.blueprint`), builds the handler via its public BLUEPRINT ctor
+    (`new CreativeBuildingStructureHandler(level, pos, blueprint,
+    RotationMirror.NONE, true)` → `hasBluePrint()` true), and queues
+    placement through `Manager.addToQueue(new PlaceStructureOperation(
+    placer, player))` (Structurize ticks it; places over a few ticks).
+    A null blueprint logs the exact pack/path that failed.
+  - **Verified:** all 7 building sub-paths
+    (townhall/builder/tavern/residence + blacksmith/library/barracks)
+    exist WITH `.blueprint` in ALL 7 physical-faction packs
+    (truedwarven, ancientathens, fortress, pagoda, caledonia, spacewars,
+    jungle) — the shared-footprint assumption holds across factions.
 
 Stages B–E (garrison, discovery/war, conquest→colony, betrayal) extend
 the `Settlement` record's reserved seams (garrisonUuids,
