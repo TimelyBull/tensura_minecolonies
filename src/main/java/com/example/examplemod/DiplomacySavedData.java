@@ -61,6 +61,9 @@ class DiplomacySavedData extends SavedData {
     /** Stage 3 — player → last known race side (0 human / 1 majin) for
      *  the majin-downgrade watch. Absent = not yet observed. */
     private final Map<UUID, Byte> lastSide = new HashMap<>();
+    /** Covenant — player → last Drago Nova claim (REAL-LIFE millis, not
+     *  game time: the brief specifies one per real-world hour). */
+    private final Map<UUID, Long> dragoNovaClaimMillis = new HashMap<>();
     /** Daily-pass rollover anchor (overworld day number). */
     private long lastProcessedDay = -1;
 
@@ -219,6 +222,16 @@ class DiplomacySavedData extends SavedData {
         }
     }
 
+    long getDragoNovaClaimMillis(UUID player) {
+        Long ms = dragoNovaClaimMillis.get(player);
+        return ms == null ? 0L : ms;
+    }
+
+    void setDragoNovaClaimMillis(UUID player, long ms) {
+        dragoNovaClaimMillis.put(player, ms);
+        setDirty();
+    }
+
     /** -1 = never observed; else 0 human / 1 majin. */
     int getLastSide(UUID player) {
         Byte side = lastSide.get(player);
@@ -268,6 +281,7 @@ class DiplomacySavedData extends SavedData {
         allPlayers.addAll(lastTravel.keySet());
         allPlayers.addAll(claimedGifts.keySet());
         allPlayers.addAll(lastSide.keySet());
+        allPlayers.addAll(dragoNovaClaimMillis.keySet());
 
         ListTag players = new ListTag();
         for (UUID uuid : allPlayers) {
@@ -328,6 +342,8 @@ class DiplomacySavedData extends SavedData {
             player.put("claimedGifts", giftEntries);
             Byte side = lastSide.get(uuid);
             if (side != null) player.putByte("lastSide", side);
+            Long novaMs = dragoNovaClaimMillis.get(uuid);
+            if (novaMs != null) player.putLong("dragoNovaClaimMillis", novaMs);
             players.add(player);
         }
         tag.put("players", players);
@@ -422,6 +438,9 @@ class DiplomacySavedData extends SavedData {
             if (!gifts.isEmpty()) data.claimedGifts.put(uuid, gifts);
             if (player.contains("lastSide")) {
                 data.lastSide.put(uuid, player.getByte("lastSide"));
+            }
+            if (player.contains("dragoNovaClaimMillis")) {
+                data.dragoNovaClaimMillis.put(uuid, player.getLong("dragoNovaClaimMillis"));
             }
         }
         return data;

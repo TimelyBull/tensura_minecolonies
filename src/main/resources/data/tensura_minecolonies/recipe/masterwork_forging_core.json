@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [ "CDC", "DPD", "CDC" ],
+  "key": {
+    "C": { "item": "tensura:high_quality_magic_crystal" },
+    "D": { "item": "minecraft:diamond_block" },
+    "P": { "item": "tensura:pure_magisteel_ingot" }
+  },
+  "result": { "id": "tensura_minecolonies:masterwork_forging_core", "count": 1 }
+}

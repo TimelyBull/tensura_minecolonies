@@ -51,6 +51,18 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
     private static final float TILE_SIZE = 0.5f;
     private static final int FULL_BRIGHT = 0xF000F0;
 
+    /** Per-tier wall tint (index = tier − 1): T1 blue, T2 green,
+     *  T3 magenta, T4 gold — each barrier reads as its own color. */
+    private static final float[][] TIER_TINTS = {
+            {0.45f, 0.65f, 1.00f},
+            {0.45f, 1.00f, 0.55f},
+            {0.85f, 0.45f, 1.00f},
+            {1.00f, 0.85f, 0.35f},
+    };
+    /** Tint applied to the quads currently being emitted (render is
+     *  single-threaded; set once per render call). */
+    private static float tintR = 1f, tintG = 1f, tintB = 1f;
+
     public BarrierFieldRenderer(BlockEntityRendererProvider.Context context) {}
 
     @Override
@@ -60,6 +72,11 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
         float fill = be.getFillRatio();
         if (fill <= 0f) return;
         float alpha = ALPHA_MIN + (ALPHA_MAX - ALPHA_MIN) * fill;
+
+        int tintIndex = Math.max(0, Math.min(TIER_TINTS.length - 1, be.getTier() - 1));
+        tintR = TIER_TINTS[tintIndex][0];
+        tintG = TIER_TINTS[tintIndex][1];
+        tintB = TIER_TINTS[tintIndex][2];
 
         VertexConsumer vc = bufferSource.getBuffer(RenderType.entityTranslucent(WALL_TEXTURE));
         Matrix4f pose = poseStack.last().pose();
@@ -134,16 +151,16 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
                              float x4, float y4, float z4,
                              float uLen, float vLen, float alpha,
                              float nx, float ny, float nz) {
-        vc.addVertex(pose, x1, y1, z1).setColor(1f, 1f, 1f, alpha)
+        vc.addVertex(pose, x1, y1, z1).setColor(tintR, tintG, tintB, alpha)
                 .setUv(0, vLen).setOverlay(net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY)
                 .setLight(FULL_BRIGHT).setNormal(nx, ny, nz);
-        vc.addVertex(pose, x2, y2, z2).setColor(1f, 1f, 1f, alpha)
+        vc.addVertex(pose, x2, y2, z2).setColor(tintR, tintG, tintB, alpha)
                 .setUv(uLen, vLen).setOverlay(net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY)
                 .setLight(FULL_BRIGHT).setNormal(nx, ny, nz);
-        vc.addVertex(pose, x3, y3, z3).setColor(1f, 1f, 1f, alpha)
+        vc.addVertex(pose, x3, y3, z3).setColor(tintR, tintG, tintB, alpha)
                 .setUv(uLen, 0).setOverlay(net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY)
                 .setLight(FULL_BRIGHT).setNormal(nx, ny, nz);
-        vc.addVertex(pose, x4, y4, z4).setColor(1f, 1f, 1f, alpha)
+        vc.addVertex(pose, x4, y4, z4).setColor(tintR, tintG, tintB, alpha)
                 .setUv(0, 0).setOverlay(net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY)
                 .setLight(FULL_BRIGHT).setNormal(nx, ny, nz);
     }

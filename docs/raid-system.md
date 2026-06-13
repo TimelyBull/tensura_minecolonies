@@ -10,6 +10,41 @@ Class references confirmed by `javap` against the jars in `libs/`.
 
 ---
 
+## BARRIER BATCH UPDATE (2026-06-12)
+
+**Cumulative tier FUNCTIONS** (effects stack up the core tiers, each a
+distinct wall COLOR):
+- **Tier 1 — true WALL:** blocks hostiles from ENTERING (a two-way
+  boundary band, `WALL_BAND` 1.5), but mobs already inside at
+  activation STAY trapped (the old universal eject no longer applies at
+  this tier). Wall color: blue.
+- **Tier 2 — wall + HEAL:** adds Regeneration I (refreshed each second,
+  `BARRIER_HEAL_TIER` 2) to every non-hostile inside. Wall color: green.
+- **Tier 3/4 — wall + heal + EJECT:** the original teleport-hostiles-out
+  behavior (`BARRIER_EJECT_TIER` 3), now top-tier only. Wall colors:
+  magenta (T3), gold (T4).
+- Tints live in `BarrierFieldRenderer.TIER_TINTS`; behaviors gate on
+  `getTier()` in `BarrierBlockEntity`.
+
+**Damage-proportional drain** (replaces the flat EP-fraction formula):
+```
+drain/second = attackDamage × (attackerEP × BARRIER_DRAIN_EP_MULTIPLIER)
+```
+- `BARRIER_DRAIN_EP_MULTIPLIER` = 0.002 (lowered base, EP core KEPT:
+  higher EP → higher multiplier). A 3 000-EP raider with 6 attack now
+  drains 6 × (3000 × 0.002) = 36/s, versus the old flat 60/s — and a
+  hard hitter hurts the barrier more than a tanky pacifist of equal EP.
+- `FALLBACK_ATTACK_DAMAGE` = 3 when the attribute is missing;
+  `FALLBACK_RAIDER_EP` unchanged. The legacy
+  `BARRIER_DRAIN_COEFFICIENT_PER_SECOND` is kept only for reference.
+
+**Magicule Storage recipes** (tier-climbing, item ids verified):
+silver ingot corners + a magisteel cross + a chest centre; the magisteel
+climbs (low→high→pure→hihiirokane for T1–T4) and the crystal climbs
+(low→medium→high, capping at high while the ingot keeps climbing).
+
+---
+
 ## Investigation findings (what shaped the design)
 
 ### #1 PIVOTAL — MineColonies' native raid system: scheduler closed, event framework open

@@ -93,4 +93,21 @@
             source="tensura_minecolonies:textures/gui/roster/btn_green.png"
             label="Claim Gift"/>
 
+    <!-- Covenant rewards + reroll. The reroll sits just under the
+         detail header; the gift buttons share the bottom action slot
+         (visibility-toggled — only one shows per faction/state). -->
+    <button id="reroll" size="92 14" pos="286 52" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_tan.png"
+            label="Reroll (4◆)"/>
+    <button id="nova" size="110 16" pos="244 204" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_green.png"
+            label="Claim Drago Nova"/>
+    <button id="summon" size="110 16" pos="244 204" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_green.png"
+            label="Summon Disaster"/>
+    <button id="spirits" size="110 16" pos="244 204" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_green.png"
+            label="Receive Spirits"/>
+    <text id="intel" size="216 11" pos="162 190" textscale="0.85" color="black" label=""/>
+
 </window>

@@ -8,6 +8,10 @@
   "block.tensura_minecolonies.magicule_storage_tier2": "Magicule Storage (Tier 2)",
   "block.tensura_minecolonies.magicule_storage_tier3": "Magicule Storage (Tier 3)",
   "block.tensura_minecolonies.magicule_storage_tier4": "Magicule Storage (Tier 4)",
+  "item.tensura_minecolonies.masterwork_forging_core": "Masterwork Forging Core",
+  "item.tensura_minecolonies.apito_nectar": "Apito Nectar",
+  "item.tensura_minecolonies.apitos_jelly": "Apito's Jelly",
+  "item.tensura_minecolonies.drago_nova": "Drago Nova",
   "block.examplemod.example_block": "Example Block",
   "item.examplemod.example_item": "Example Item",
 

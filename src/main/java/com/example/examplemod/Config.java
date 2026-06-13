@@ -44,6 +44,16 @@ public class Config {
                      "an already-active assassin boss remains until slain.")
             .define("enableAssassins", true);
 
+    /** Drago Nova: does the blast harm allies/citizens/subordinates? */
+    public static final ModConfigSpec.BooleanValue DRAGO_NOVA_HARM_ALLIES = BUILDER
+            .comment("Drago Nova: the blast also harms allies, citizens and named subordinates.")
+            .define("dragoNovaHarmAllies", false);
+
+    /** Drago Nova: does the blast break terrain? */
+    public static final ModConfigSpec.BooleanValue DRAGO_NOVA_BREAK_BLOCKS = BUILDER
+            .comment("Drago Nova: the blast damages the ground (a TNT-style crater).")
+            .define("dragoNovaBreakBlocks", false);
+
     public static final ModConfigSpec.BooleanValue LOG_DIRT_BLOCK = BUILDER
             .comment("Whether to log the dirt block on common setup")
             .define("logDirtBlock", true);

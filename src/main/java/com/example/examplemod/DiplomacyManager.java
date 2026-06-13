@@ -113,6 +113,42 @@ public final class DiplomacyManager {
     static final String SPARE_BOSS_GIFT_ID = "clayman_spare_disaster";
     static final double SPARE_BOSS_MIN_STANDING = 60.0;
 
+    // --- COVENANT (the tier above ALLIANCE) ---
+    /** Standing the PACT must crawl to before the faction's unique
+     *  milestone deal unlocks. */
+    static final double COVENANT_THRESHOLD = 95.0;
+    /** Post-PACT deal-standing-gain damp (the sharp drop): standing
+     *  rewards are multiplied by this once ALLIED relations exist. */
+    static final double PACT_GAIN_DAMP = 0.25;
+    /** Covenant perk: SupplyItems deal targets are reduced by this. */
+    static final double COVENANT_SUPPLY_DISCOUNT = 0.25;
+    /** Covenant grinders (auto-delivery on the daily pass): dwargon =
+     *  industry, carrion = beast/hunt — different material sets. */
+    private static final Map<String, List<ItemStack>> GRINDER_GOODS = Map.of(
+            "dwargon", List.of(new ItemStack(Items.IRON_INGOT, 16),
+                    new ItemStack(Items.COAL, 32), new ItemStack(Items.GOLD_INGOT, 6)),
+            "carrion", List.of(new ItemStack(Items.LEATHER, 16),
+                    new ItemStack(Items.BONE, 16), new ItemStack(Items.STRING, 16)));
+    /** Clayman covenant: summoned spare Disasters regroup this long. */
+    static final long SUMMON_DISASTER_COOLDOWN_TICKS = 4 * DAY;
+    /** Milim covenant: one Drago Nova per REAL-LIFE hour. */
+    static final long NOVA_CLAIM_INTERVAL_MILLIS = 3_600_000L;
+
+    // --- The offer reroll button ---
+    /** Reroll cost: this many high-quality magic crystals, consumed. */
+    static final int REROLL_CRYSTAL_COST = 4;
+    /** Reroll cooldown per faction (half an in-game day). */
+    static final long REROLL_COOLDOWN_TICKS = 12_000L;
+    /** Synthetic lastCaravan keys (never collide with faction ids). */
+    private static final String KEY_REROLL = "_reroll_";
+    private static final String KEY_SUMMON = "_summon_clayman";
+
+    private static net.minecraft.world.item.Item highQualityCrystal() {
+        return net.minecraft.core.registries.BuiltInRegistries.ITEM.get(
+                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+                        "tensura", "high_quality_magic_crystal"));
+    }
+
     // --- Stage 4: the mending ritual ---
     /** Mending reopens the door at a LOW standing (WARY band) —
      *  forgiveness to REBUILD, not restoration. 25 clears the envoy
@@ -551,6 +587,11 @@ public final class DiplomacyManager {
                 if (returned == null) continue;
                 if (trained && lend != null) {
                     returned.getCitizenSkillHandler().incrementLevel(lend.skill(), lend.skillBoost());
+                    // Covenant training: the secondary skills too.
+                    for (var secondary : lend.secondarySkills()) {
+                        returned.getCitizenSkillHandler().incrementLevel(secondary,
+                                Math.max(1, lend.skillBoost() / 2));
+                    }
                 }
                 if (returned.getEntity().isEmpty()) {
                     colony.getCitizenManager().spawnOrCreateCitizen(returned, level, spawnAt);
@@ -584,10 +625,34 @@ public final class DiplomacyManager {
         if (spec.requirement() instanceof DealSpec.MendingRite rite) {
             return performMendingRite(player, faction, deal, rite);
         }
+        // Covenant commissions: a BUNDLE delivered all-or-nothing.
+        if (spec.requirement() instanceof DealSpec.SupplyBundle bundle) {
+            var inventory = player.getInventory();
+            for (ItemStack needed : bundle.items()) {
+                int held = 0;
+                for (int i = 0; i < inventory.getContainerSize(); i++) {
+                    ItemStack stack = inventory.getItem(i);
+                    if (!stack.isEmpty() && stack.is(needed.getItem())) held += stack.getCount();
+                }
+                if (held < needed.getCount()) {
+                    return "the commission needs " + needed.getCount() + " "
+                            + needed.getHoverName().getString() + " (you carry " + held + ")";
+                }
+            }
+            for (ItemStack needed : bundle.items()) {
+                consumeItems(player, needed.getItem(), needed.getCount());
+            }
+            fulfillDeal(level, uuid, faction, deal, spec);
+            return null;
+        }
         if (!(spec.requirement() instanceof DealSpec.SupplyItems supply)) {
             return "this deal isn't fulfilled by delivery";
         }
-        int remaining = supply.count() - deal.progress;
+        // Covenant perk: reduced deal costs — the supply target shrinks.
+        int target = getState(level, uuid, faction) == RelationsState.COVENANT
+                ? (int) Math.ceil(supply.count() * (1.0 - COVENANT_SUPPLY_DISCOUNT))
+                : supply.count();
+        int remaining = target - deal.progress;
         int consumed = consumeItems(player, supply.item(), remaining);
         if (consumed <= 0) {
             return "you carry no " + new ItemStack(supply.item()).getHoverName().getString();
@@ -596,9 +661,9 @@ public final class DiplomacyManager {
         data.setDeal(uuid, faction.id(), deal);
         data.setLastActivity(uuid, faction.id(), level.getGameTime());
         player.sendSystemMessage(Component.literal("Delivered " + consumed + " — "
-                + deal.progress + "/" + supply.count() + ".")
+                + deal.progress + "/" + target + ".")
                 .withStyle(net.minecraft.ChatFormatting.YELLOW));
-        if (deal.progress >= supply.count()) {
+        if (deal.progress >= target) {
             fulfillDeal(level, uuid, faction, deal, spec);
         }
         return null;
@@ -733,15 +798,27 @@ public final class DiplomacyManager {
         return null;
     }
 
-    /** Requirement met → pay standing, promote pact, start the payoff. */
+    /** Requirement met → pay standing (damped post-PACT), forge the
+     *  COVENANT on milestone deals, start the payoff. */
     private static void fulfillDeal(ServerLevel level, UUID player, BossFaction faction,
                                     ActiveDeal deal, DealSpec spec) {
         DiplomacySavedData data = DiplomacySavedData.get(level);
+        RelationsState stateNow = getState(level, player, faction);
+        double gain = spec.standingReward()
+                * (stateNow.compareTo(RelationsState.PACT) >= 0 ? PACT_GAIN_DAMP : 1.0);
         WorldReputationManager.modifyStanding(level, player, faction,
-                spec.standingReward(), WorldRepReason.DIPLOMACY);
+                gain, WorldRepReason.DIPLOMACY);
         data.setLastActivity(player, faction.id(), level.getGameTime());
         if (spec.milestone()) {
-            data.setState(player, faction.id(), RelationsState.PACT.id());
+            // Milestone deals are now the COVENANT forges (the alliance
+            // pact is a prompt; the mending rite bypasses this path).
+            data.setState(player, faction.id(), RelationsState.COVENANT.id());
+            ServerPlayer covenantOnline = level.getServer().getPlayerList().getPlayer(player);
+            if (covenantOnline != null) {
+                covenantOnline.sendSystemMessage(Component.literal(
+                        "A COVENANT is forged with " + faction.displayName()
+                        + " — their deepest gifts are yours.").withStyle(faction.color()));
+            }
         }
         long now = level.getGameTime();
         ServerPlayer online = level.getServer().getPlayerList().getPlayer(player);
@@ -764,9 +841,8 @@ public final class DiplomacyManager {
                 player, spec.id(), faction.id(), spec.standingReward(),
                 spec.milestone() ? ", PACT formed" : "");
         if (online != null) {
-            online.sendSystemMessage(Component.literal((spec.milestone()
-                    ? "The pact is sealed — you and " + faction.displayName() + " are ALLIES."
-                    : "Deal fulfilled — " + faction.displayName() + " is pleased.")
+            online.sendSystemMessage(Component.literal(
+                    "Deal fulfilled — " + faction.displayName() + " is pleased."
                     + (spec.payoffDelayTicks() > 0
                             ? " Payment arrives within the day."
                             : " They deliver your payment: " + spec.rewardSummary() + "."))
@@ -894,6 +970,9 @@ public final class DiplomacyManager {
             case DealSpec.LendCitizens ignored -> false;
             // The rite is performed via its own action.
             case DealSpec.MendingRite ignored -> false;
+            // Bundles deliver via the button; hunts track via kills.
+            case DealSpec.SupplyBundle ignored -> false;
+            case DealSpec.SlayEntities ignored -> false;
         };
     }
 
@@ -905,6 +984,38 @@ public final class DiplomacyManager {
             }
         }
         return false;
+    }
+
+    /** SlayEntities tracking — called from the death hook for every
+     *  player kill: bump matching active hunt deals. */
+    static void onPlayerKill(ServerLevel level, UUID killer,
+                             net.minecraft.world.entity.LivingEntity victim) {
+        if (!isEnabled()) return;
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        Map<String, ActiveDeal> byFaction = data.allDeals().get(killer);
+        if (byFaction == null) return;
+        String victimType = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
+                .getKey(victim.getType()).toString();
+        for (Map.Entry<String, ActiveDeal> e : new HashMap<>(byFaction).entrySet()) {
+            ActiveDeal deal = e.getValue();
+            if (deal.state != ActiveDeal.STATE_ACTIVE) continue;
+            DealSpec spec = DealSpec.byId(deal.dealId);
+            BossFaction faction = BossFaction.byId(e.getKey());
+            if (spec == null || faction == null) continue;
+            if (!(spec.requirement() instanceof DealSpec.SlayEntities hunt)) continue;
+            if (!hunt.entityTypeIds().contains(victimType)) continue;
+            deal.progress++;
+            data.setDeal(killer, e.getKey(), deal);
+            ServerPlayer online = level.getServer().getPlayerList().getPlayer(killer);
+            if (online != null) {
+                online.sendSystemMessage(Component.literal("'" + spec.title() + "' — "
+                        + deal.progress + "/" + hunt.count() + ".")
+                        .withStyle(net.minecraft.ChatFormatting.YELLOW));
+            }
+            if (deal.progress >= hunt.count()) {
+                fulfillDeal(level, killer, faction, deal, spec);
+            }
+        }
     }
 
     /** Event-driven BuildingLevel fulfillment — called from the existing
@@ -965,10 +1076,31 @@ public final class DiplomacyManager {
                 // table. Eligible specs are collected first and drawn
                 // RANDOMLY, so a deal late in the table (the lends)
                 // isn't permanently shadowed by the ones above it.
+                List<DealSpec> candidateSpecs = new ArrayList<>(DealSpec.tableFor(e.getKey()));
+                // The COVENANT milestone deal — offered only at PACT once
+                // standing has crawled to the threshold (forges Covenant).
+                DealSpec covenantDeal = DealSpec.COVENANT_DEALS.get(e.getKey());
+                if (covenantDeal != null && state == RelationsState.PACT
+                        && WorldReputationManager.getStanding(level, player, faction)
+                                >= COVENANT_THRESHOLD) {
+                    candidateSpecs.add(covenantDeal);
+                }
+                // Covenant-only training deals (Tempest/Jura) — offered
+                // once the Covenant is forged.
+                DealSpec trainingDeal = DealSpec.COVENANT_TRAINING_DEALS.get(e.getKey());
+                if (trainingDeal != null && state == RelationsState.COVENANT) {
+                    candidateSpecs.add(trainingDeal);
+                }
                 List<DealSpec> eligibleSpecs = new ArrayList<>();
-                for (DealSpec spec : DealSpec.tableFor(e.getKey())) {
+                for (DealSpec spec : candidateSpecs) {
                     if (tier.compareTo(spec.minTier()) < 0) continue;
-                    if (spec.milestone() && state != RelationsState.OPEN) continue;
+                    // Normal-table milestones (none today) require OPEN;
+                    // the Covenant milestone gates on PACT above, so let
+                    // it through here.
+                    if (spec.milestone() && state != RelationsState.OPEN
+                            && !DealSpec.COVENANT_DEALS.containsValue(spec)) {
+                        if (state != RelationsState.PACT) continue;
+                    }
                     if (active != null && active.dealId.equals(spec.id())) continue;
                     if (current.stream().anyMatch(o -> o.dealId().equals(spec.id()))) continue;
                     // Offer-time filter: never offer an already-met
@@ -978,7 +1110,9 @@ public final class DiplomacyManager {
                     // toward; accepting while understaffed explains what
                     // is missing instead.
                     if (colony != null && !(spec.requirement() instanceof DealSpec.SupplyItems)
-                            && !(spec.requirement() instanceof DealSpec.LendCitizens)) {
+                            && !(spec.requirement() instanceof DealSpec.LendCitizens)
+                            && !(spec.requirement() instanceof DealSpec.SupplyBundle)
+                            && !(spec.requirement() instanceof DealSpec.SlayEntities)) {
                         ActiveDeal probe = new ActiveDeal();
                         probe.colonyId = colony.getID();
                         if (isRequirementMet(level, probe, spec)) continue;
@@ -1317,6 +1451,162 @@ public final class DiplomacyManager {
     }
 
     // ------------------------------------------------------------------
+    // COVENANT per-faction rewards
+    // ------------------------------------------------------------------
+
+    /** Daily passive GRINDERS — Dwargon (industry) + Carrion (beast/hunt)
+     *  Covenants deliver materials straight to the player's inventory
+     *  (or drop at their feet) once per day. Different material sets. */
+    private static void tickCovenantGrinders(ServerLevel level) {
+        for (ServerPlayer player : level.players()) {
+            for (Map.Entry<String, List<ItemStack>> e : GRINDER_GOODS.entrySet()) {
+                BossFaction faction = BossFaction.byId(e.getKey());
+                if (faction == null) continue;
+                if (getState(level, player.getUUID(), faction) != RelationsState.COVENANT) continue;
+                giveItems(player, e.getValue());
+                player.sendSystemMessage(Component.literal(faction.displayName()
+                        + "'s grinder delivers its yield.").withStyle(faction.color()));
+            }
+        }
+    }
+
+    /** Covenant gift — Milim's Drago Nova: one obtainable per REAL-LIFE
+     *  hour (wall-clock, not game time, per the brief). */
+    static String claimDragoNova(ServerPlayer player) {
+        if (!isEnabled()) return "the faction system is disabled";
+        ServerLevel level = player.serverLevel();
+        UUID uuid = player.getUUID();
+        if (getState(level, uuid, BossFaction.MILIM) != RelationsState.COVENANT) {
+            return "only Milim's Covenant grants the Drago Nova";
+        }
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        long nowMs = System.currentTimeMillis();
+        long lastMs = data.getDragoNovaClaimMillis(uuid);
+        if (nowMs - lastMs < NOVA_CLAIM_INTERVAL_MILLIS) {
+            long minsLeft = (NOVA_CLAIM_INTERVAL_MILLIS - (nowMs - lastMs)) / 60_000L;
+            return "Milim's gift recharges — about " + minsLeft + " min left";
+        }
+        data.setDragoNovaClaimMillis(uuid, nowMs);
+        giveItems(player, List.of(new ItemStack(ExampleMod.DRAGO_NOVA.get(), 1)));
+        player.sendSystemMessage(Component.literal("Milim grants you a Drago Nova!")
+                .withStyle(BossFaction.MILIM.color()));
+        return null;
+    }
+
+    /** Covenant gift — Clayman: summon a spare Orc Disaster to fight
+     *  freely (UNMARKED, no faction penalty), 4-day regroup cooldown. */
+    static String summonOrcDisaster(ServerPlayer player) {
+        if (!isEnabled()) return "the faction system is disabled";
+        ServerLevel level = player.serverLevel();
+        UUID uuid = player.getUUID();
+        if (getState(level, uuid, BossFaction.CLAYMAN) != RelationsState.COVENANT) {
+            return "only Clayman's Covenant grants the summon";
+        }
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        long now = level.getGameTime();
+        if (now - data.getLastCaravan(uuid, KEY_SUMMON) < SUMMON_DISASTER_COOLDOWN_TICKS) {
+            return "Clayman's horde needs time to regroup";
+        }
+        var type = io.github.manasmods.tensura.registry.entity.MonsterEntityTypes.ORC_DISASTER.get();
+        net.minecraft.world.entity.Mob boss = type.create(level);
+        if (boss == null) return "the summon failed";
+        int dx = level.getRandom().nextInt(17) - 8;
+        int dz = 12 + level.getRandom().nextInt(9);
+        BlockPos pos = level.getHeightmapPos(
+                net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE,
+                player.blockPosition().offset(dx, 0, dz));
+        boss.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5,
+                level.getRandom().nextFloat() * 360f, 0f);
+        boss.finalizeSpawn(level, level.getCurrentDifficultyAt(pos),
+                net.minecraft.world.entity.MobSpawnType.SPAWN_EGG, null);
+        boss.setPersistenceRequired();
+        // UNMARKED — no FactionMarkTag, so the Layer-1 movers ignore it.
+        if (!level.addFreshEntity(boss)) return "the summon failed";
+        data.setLastCaravan(uuid, KEY_SUMMON, now);
+        player.sendSystemMessage(Component.literal(
+                "Clayman lends you an Orc Disaster — slay it freely.")
+                .withStyle(BossFaction.CLAYMAN.color()));
+        return null;
+    }
+
+    /** Covenant gift — Luminous: a hero-evolution boon granting 3
+     *  elemental SPIRITS the player lacks. Does NOTHING if the player
+     *  already has spirits (the investigated cleanliness check). */
+    static String grantLuminousSpirits(ServerPlayer player) {
+        if (!isEnabled()) return "the faction system is disabled";
+        ServerLevel level = player.serverLevel();
+        if (getState(level, player.getUUID(), BossFaction.LUMINOUS) != RelationsState.COVENANT) {
+            return "only Luminous's Covenant grants the spirits";
+        }
+        int granted = LuminousSpirits.grantStarterSpirits(player);
+        if (granted < 0) return "this boon is for those without spirits — it would do nothing";
+        player.sendSystemMessage(Component.literal(
+                "Luminous bestows " + granted + " spirits upon you.")
+                .withStyle(BossFaction.LUMINOUS.color()));
+        return null;
+    }
+
+    /** Covenant perk — the caravan/teleport network across Covenant
+     *  faction LOCATIONS. Settlements are the rival-colony arc; until
+     *  then this falls back to the town-hall travel (the perk is wired,
+     *  the per-faction target is the documented stub). */
+    static String travelToCovenant(ServerPlayer player, String factionId) {
+        // v1: no settlements exist yet — route to the home town hall,
+        // same as the Stage-3 caravan-home perk. Faction target stubbed.
+        return travelHome(player);
+    }
+
+    // ------------------------------------------------------------------
+    // The offer REROLL button (4 high magic crystals, per-faction cd)
+    // ------------------------------------------------------------------
+
+    static String rerollOffers(ServerPlayer player, BossFaction faction) {
+        if (!isEnabled()) return "the faction system is disabled";
+        ServerLevel level = player.serverLevel();
+        UUID uuid = player.getUUID();
+        if (getState(level, uuid, faction) == RelationsState.NONE) {
+            return "no relations with " + faction.displayName();
+        }
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        long now = level.getGameTime();
+        // Reroll cooldown is stored under a synthetic per-faction key.
+        if (now - data.getLastCaravan(uuid, KEY_REROLL + faction.id()) < REROLL_COOLDOWN_TICKS) {
+            return faction.displayName() + "'s offers were just rerolled — wait a while";
+        }
+        net.minecraft.world.item.Item crystal = highQualityCrystal();
+        int held = 0;
+        var inventory = player.getInventory();
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack stack = inventory.getItem(i);
+            if (!stack.isEmpty() && stack.is(crystal)) held += stack.getCount();
+        }
+        if (held < REROLL_CRYSTAL_COST) {
+            return "a reroll costs " + REROLL_CRYSTAL_COST + " "
+                    + new ItemStack(crystal).getHoverName().getString() + " (you carry " + held + ")";
+        }
+        consumeItems(player, crystal, REROLL_CRYSTAL_COST);
+        data.setLastCaravan(uuid, KEY_REROLL + faction.id(), now);
+        // Clear this faction's offers + reset its seen-set; the daily
+        // refresh logic refills immediately via refreshSingleFaction.
+        data.setOffers(uuid, faction.id(), new ArrayList<>());
+        refreshSingleFaction(level, player, faction);
+        player.sendSystemMessage(Component.literal(faction.displayName()
+                + "'s offers are rerolled.").withStyle(faction.color()));
+        return null;
+    }
+
+    /** Refill ONE faction's offers immediately (the reroll path). A
+     *  thin wrapper that runs the same eligibility logic as the daily
+     *  {@link #refreshOffers} for a single faction. */
+    private static void refreshSingleFaction(ServerLevel level, ServerPlayer player,
+                                             BossFaction faction) {
+        // Force the per-faction refresh by clearing the day anchor for
+        // this one faction is overkill — instead, reuse refreshOffers
+        // which is idempotent and only refills empty slots.
+        refreshOffers(level);
+    }
+
+    // ------------------------------------------------------------------
     // The driver — 1 s cadence + the overworld-day daily pass
     // ------------------------------------------------------------------
 
@@ -1342,6 +1632,7 @@ public final class DiplomacyManager {
                 refreshOffers(overworld);
                 tickDecay(overworld);
                 rollInboundEnvoys(overworld);
+                tickCovenantGrinders(overworld);
             } catch (Throwable t) {
                 LOGGER.warn("[TM] diplomacy: daily pass failed", t);
             }
@@ -1395,6 +1686,22 @@ public final class DiplomacyManager {
                     && !data.hasClaimedGift(uuid, SPARE_BOSS_GIFT_ID)
                     && WorldReputationManager.getStanding(level, uuid, faction)
                             >= SPARE_BOSS_MIN_STANDING);
+            // Covenant reward buttons (detail pane) — only at COVENANT.
+            boolean covenant = state == RelationsState.COVENANT;
+            f.putBoolean("covenant", covenant);
+            f.putBoolean("canReroll", state != RelationsState.NONE
+                    && now - data.getLastCaravan(uuid, KEY_REROLL + faction.id())
+                            >= REROLL_COOLDOWN_TICKS);
+            f.putBoolean("novaReward", covenant && faction == BossFaction.MILIM
+                    && System.currentTimeMillis() - data.getDragoNovaClaimMillis(uuid)
+                            >= NOVA_CLAIM_INTERVAL_MILLIS);
+            f.putBoolean("summonReward", covenant && faction == BossFaction.CLAYMAN
+                    && now - data.getLastCaravan(uuid, KEY_SUMMON) >= SUMMON_DISASTER_COOLDOWN_TICKS);
+            f.putBoolean("spiritReward", covenant && faction == BossFaction.LUMINOUS);
+            // Clayman Covenant: raid INTEL — the next incoming march, if armed.
+            if (covenant && faction == BossFaction.CLAYMAN) {
+                f.putString("intel", LoreEvents.raidIntelFor(level, uuid));
+            }
 
             ListTag offers = new ListTag();
             java.util.Set<String> seen = data.getSeenOffers(uuid, faction.id());

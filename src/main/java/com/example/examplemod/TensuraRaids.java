@@ -130,6 +130,12 @@ public final class TensuraRaids {
     static final int ALLY_SUPPORT_MAX_PER_FACTION = 4;
     /** Total ally fighters per raid across ALL pact factions. */
     static final int ALLY_SUPPORT_TOTAL_CAP = 8;
+    /** Falmuth's Covenant reward: its ally support is multiplied by
+     *  this (war-faction specialty — markedly better than base PACT). */
+    static final int FALMUTH_COVENANT_SUPPORT_MULT = 2;
+    /** A COVENANT faction (any) sends this multiple of its PACT count
+     *  — the alliance deepened into a covenant fields more help. */
+    static final int COVENANT_SUPPORT_BONUS = 1;
 
     /** Which entity each faction sends — PASSIVE-category Tensura mobs
      *  on purpose: MineColonies guards auto-engage MONSTER-category
@@ -577,11 +583,22 @@ public final class TensuraRaids {
         int total = 0;
         for (BossFaction faction : BossFaction.values()) {
             if (total >= ALLY_SUPPORT_TOTAL_CAP) break;
-            if (DiplomacyManager.getState(level, owner, faction) != RelationsState.PACT) continue;
+            // PACT and COVENANT factions both aid; lower tiers don't.
+            RelationsState relState = DiplomacyManager.getState(level, owner, faction);
+            if (relState != RelationsState.PACT && relState != RelationsState.COVENANT) continue;
             double standing = WorldReputationManager.getStanding(level, owner, faction);
             int count = ALLY_SUPPORT_PER_PACT + (int) Math.max(0,
                     (standing - FactionTier.ALLIED.minInclusive()) / ALLY_SUPPORT_STANDING_STEP);
-            count = Math.min(count, ALLY_SUPPORT_MAX_PER_FACTION);
+            // Covenant fields more help; Falmuth's covenant specializes
+            // in war support (its reward — markedly stronger than base).
+            if (relState == RelationsState.COVENANT) {
+                count += COVENANT_SUPPORT_BONUS;
+                if (faction == BossFaction.FALMUTH) count *= FALMUTH_COVENANT_SUPPORT_MULT;
+            }
+            count = Math.min(count, faction == BossFaction.FALMUTH
+                    && relState == RelationsState.COVENANT
+                    ? ALLY_SUPPORT_MAX_PER_FACTION * FALMUTH_COVENANT_SUPPORT_MULT
+                    : ALLY_SUPPORT_MAX_PER_FACTION);
             count = Math.min(count, ALLY_SUPPORT_TOTAL_CAP - total);
             int spawned = 0;
             for (int i = 0; i < count; i++) {

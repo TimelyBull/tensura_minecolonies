@@ -258,6 +258,25 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public static final DeferredItem<BlockItem> STORAGE_T4_ITEM =
             ITEMS.registerSimpleBlockItem("magicule_storage_tier4", STORAGE_BLOCK_T4);
 
+    // --- Covenant items (diplomacy batch) ---
+    /** Dwargon milestone component (crafted: pure magisteel + diamond
+     *  blocks + high crystals). */
+    public static final DeferredItem<net.minecraft.world.item.Item> MASTERWORK_FORGING_CORE =
+            ITEMS.registerSimpleItem("masterwork_forging_core",
+                    new net.minecraft.world.item.Item.Properties().stacksTo(16));
+    /** Milim milestone intermediate (8 honeycomb + 1 pure magisteel). */
+    public static final DeferredItem<net.minecraft.world.item.Item> APITO_NECTAR =
+            ITEMS.registerSimpleItem("apito_nectar",
+                    new net.minecraft.world.item.Item.Properties().stacksTo(64));
+    /** Milim milestone deliverable (slime core + 8 nectar). */
+    public static final DeferredItem<net.minecraft.world.item.Item> APITOS_JELLY =
+            ITEMS.registerSimpleItem("apitos_jelly",
+                    new net.minecraft.world.item.Item.Properties().stacksTo(16));
+    /** Milim's Covenant gift — the one-use area detonation. */
+    public static final DeferredItem<DragoNovaItem> DRAGO_NOVA =
+            ITEMS.register("drago_nova",
+                    () -> new DragoNovaItem(new net.minecraft.world.item.Item.Properties().stacksTo(1)));
+
     public static final java.util.function.Supplier<net.minecraft.world.level.block.entity.BlockEntityType<BarrierBlockEntity>> BARRIER_BLOCK_ENTITY =
             BLOCK_ENTITIES.register("magicule_barrier",
                     () -> net.minecraft.world.level.block.entity.BlockEntityType.Builder
@@ -302,6 +321,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         output.accept(STORAGE_T2_ITEM.get());
                         output.accept(STORAGE_T3_ITEM.get());
                         output.accept(STORAGE_T4_ITEM.get());
+                        output.accept(MASTERWORK_FORGING_CORE.get());
+                        output.accept(APITO_NECTAR.get());
+                        output.accept(APITOS_JELLY.get());
+                        output.accept(DRAGO_NOVA.get());
                     })
                     .build());
 
@@ -476,6 +499,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // levelUp) continues normally from the biased values; the bias
         // does NOT disable progression.
         RaceSkillProfiles.applyForRace(citizenData, race, serverLevel.getRandom());
+        applyNamedAcquisitionPenalty(citizenData);
 
         LOGGER.info("[TM] CitizenData created: id={} colony='{}' count={}",
                 citizenData.getId(), colony.getName(),
@@ -632,6 +656,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // semantically equivalent to "named-then-immediately-promoted",
             // so we want the same starting bias.
             RaceSkillProfiles.applyForRace(citizenData, p.race, serverLevel.getRandom());
+            applyNamedAcquisitionPenalty(citizenData);
             colony.getTravellingManager().startTravellingTo(
                     citizenData, goblin.blockPosition(), Integer.MAX_VALUE);
 
@@ -1247,6 +1272,34 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      * </ul>
      * Same killer-attribution pattern as {@link #processBossKillFlags}.
      */
+    // --- Named-acquisition happiness (investigated: acquisition method
+    //     is NOT stored anywhere today, and NAMING is currently the
+    //     mod's ONLY citizen-intake path — so the penalty applies to
+    //     every named race-citizen at creation. Future EVOLVED/ENDOWED
+    //     intakes simply skip this call. Persisted by MineColonies'
+    //     own per-citizen happiness NBT (a STATIC modifier with a
+    //     constant supplier — both vanilla-MC-serializable). Feeds
+    //     colony happiness → reputation drift → world rep as-is. ---
+    /** The modifier id (MC happiness modifiers key on strings). */
+    private static final String NAMED_HAPPINESS_ID = "tensura_minecolonies_named";
+    /** Modifier weight in MC's happiness average. */
+    private static final double NAMED_HAPPINESS_WEIGHT = 1.0;
+    /** The supplied happiness factor (1.0 = neutral; below = unhappy):
+     *  a subdued-by-naming citizen serves, but resents it a little. */
+    private static final double NAMED_HAPPINESS_VALUE = 0.5;
+
+    static void applyNamedAcquisitionPenalty(ICitizenData citizenData) {
+        try {
+            citizenData.getCitizenHappinessHandler().addModifier(
+                    new com.minecolonies.api.entity.citizen.happiness.StaticHappinessModifier(
+                            NAMED_HAPPINESS_ID, NAMED_HAPPINESS_WEIGHT,
+                            new com.minecolonies.api.entity.citizen.happiness.StaticHappinessSupplier(
+                                    NAMED_HAPPINESS_VALUE)));
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] named-happiness modifier failed to apply", t);
+        }
+    }
+
     private static void processReputationOnDeath(ServerLevel level, LivingDeathEvent event) {
         LivingEntity victim = event.getEntity();
 
@@ -1267,6 +1320,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 && victim.hasData(Attachments.FACTION_MARK.get())) {
             WorldReputationManager.applyMarkedBossKill(level, killer.getUUID(), victim);
         }
+
+        // Diplomacy Covenant hunt deals — every player kill bumps any
+        // matching active SlayEntities deal (Falmuth/Carrion/Clayman
+        // Covenant milestones). Gated inside.
+        DiplomacyManager.onPlayerKill(level, killer.getUUID(), victim);
 
         boolean isBoss = victim instanceof io.github.manasmods.tensura.entity.monster.OrcDisasterEntity
                 || victim instanceof io.github.manasmods.tensura.entity.monster.IfritEntity;

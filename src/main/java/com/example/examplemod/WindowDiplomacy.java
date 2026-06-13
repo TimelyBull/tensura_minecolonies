@@ -67,6 +67,8 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
                               int tierColor, RelationsState state, boolean closed,
                               boolean pendingReply, boolean canSend, boolean hasNew,
                               boolean canCaravan, boolean giftAvailable,
+                              boolean covenant, boolean canReroll, boolean novaReward,
+                              boolean summonReward, boolean spiritReward, String intel,
                               List<OfferRow> offers, ActiveRow active) {}
 
     /** Most recently constructed window — {@link #openOrRefresh} refreshes
@@ -105,6 +107,15 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
                 Networking.DiplomacyActionPayload.ACTION_CLAIM_CARAVAN, "", false));
         registerButton("gift", (Button b) -> sendAction(
                 Networking.DiplomacyActionPayload.ACTION_CLAIM_GIFT, "", false));
+        // Covenant reward + reroll buttons.
+        registerButton("reroll", (Button b) -> sendAction(
+                Networking.DiplomacyActionPayload.ACTION_REROLL, "", false));
+        registerButton("nova", (Button b) -> sendAction(
+                Networking.DiplomacyActionPayload.ACTION_CLAIM_NOVA, "", false));
+        registerButton("summon", (Button b) -> sendAction(
+                Networking.DiplomacyActionPayload.ACTION_SUMMON_DISASTER, "", false));
+        registerButton("spirits", (Button b) -> sendAction(
+                Networking.DiplomacyActionPayload.ACTION_GRANT_SPIRITS, "", false));
     }
 
     /** Open the window, or refresh the already-open one in place (the
@@ -181,7 +192,10 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
                     RelationsState.byId(f.getByte("state")), f.getBoolean("closed"),
                     f.getBoolean("pendingReply"), f.getBoolean("canSend"),
                     f.getBoolean("hasNew"), f.getBoolean("canCaravan"),
-                    f.getBoolean("giftAvailable"), offers, active));
+                    f.getBoolean("giftAvailable"), f.getBoolean("covenant"),
+                    f.getBoolean("canReroll"), f.getBoolean("novaReward"),
+                    f.getBoolean("summonReward"), f.getBoolean("spiritReward"),
+                    f.getString("intel"), offers, active));
         }
         this.factions = rows;
         if (selected >= rows.size()) selected = 0;
@@ -211,21 +225,26 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
         }
         Text state = rowPane.findPaneOfTypeByID("fstate", Text.class);
         if (state != null) {
-            // Multi-deal tracking at a glance: a running deal shows its
-            // % right in the faction list.
+            // #7 — the row shows the real DISPOSITION TIER (Hostile…
+            // Allied) AND, when relations are open, the relations STATE
+            // (Diplomacy/Alliance/Covenant). A running deal shows its %.
             String label;
             int color;
             if (row.active() != null) {
                 label = "deal " + row.active().pct() + "%";
                 color = 0xFF274A6B;
+            } else if (row.closed()) {
+                label = "Closed";
+                color = 0xFF8A2E2E;
+            } else if (row.state() != RelationsState.NONE) {
+                // Relations-state word (Diplomacy / Alliance / Covenant).
+                label = row.state().displayName();
+                color = row.state() == RelationsState.COVENANT ? 0xFF9B59B6
+                        : row.state() == RelationsState.PACT ? 0xFF274A6B : 0xFF2F5A28;
             } else {
-                label = switch (row.state()) {
-                    case OPEN -> "Diplomacy";
-                    case PACT -> "Alliance";
-                    default -> row.closed() ? "Closed" : "";
-                };
-                color = row.state() == RelationsState.PACT ? 0xFF274A6B
-                        : row.closed() ? 0xFF8A2E2E : 0xFF2F5A28;
+                // No relations — show the disposition TIER instead.
+                label = row.tier();
+                color = 0xFF000000 | row.tierColor();
             }
             state.setText(Component.literal(label));
             state.setColors(color);
@@ -286,7 +305,7 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
                 "aCard", "aTitle", "aReq", "aReward", "aState",
                 "progressTrack", "progressFill", "aPct",
                 "sendEnvoy", "sendGift", "deliver", "collect",
-                "caravan", "gift"}) {
+                "caravan", "gift", "reroll", "nova", "summon", "spirits", "intel"}) {
             setVisible(id, false);
         }
         // The caravan-network travel perk (header) — shown while the
@@ -339,11 +358,24 @@ public class WindowDiplomacy extends AbstractWindowSkeleton {
         }
 
         // Stage 3 — rewards: the PACT caravan + the standing gift.
-        if (row.state() == RelationsState.PACT) {
+        if (row.state() == RelationsState.PACT || row.covenant()) {
             setButton("caravan", row.canCaravan());
         }
         if (row.giftAvailable()) {
             setButton("gift", true);
+        }
+        // Reroll — any open relationship, off cooldown.
+        if (row.state() != RelationsState.NONE && !row.closed()) {
+            setButton("reroll", row.canReroll());
+        }
+        // Covenant rewards — the per-faction gifts.
+        if (row.covenant()) {
+            if (row.novaReward()) setButton("nova", true);
+            if (row.summonReward()) setButton("summon", true);
+            if (row.spiritReward()) setButton("spirits", true);
+            if (row.intel() != null && !row.intel().isEmpty()) {
+                setTextColor("intel", "Intel: " + row.intel(), 0xFF6B3FA0);
+            }
         }
 
         // Section: the active deal OR the offers — never both. A

@@ -201,6 +201,17 @@ public final class Networking {
                 AllianceResponsePayload.CODEC,
                 Networking::onAllianceResponse
         );
+        // Drago Nova — Sage-foresight warning before detonation.
+        registrar.playToClient(
+                OpenDragoNovaWarningPayload.TYPE,
+                OpenDragoNovaWarningPayload.CODEC,
+                Networking::onOpenDragoNovaWarning
+        );
+        registrar.playToServer(
+                DragoNovaConfirmPayload.TYPE,
+                DragoNovaConfirmPayload.CODEC,
+                Networking::onDragoNovaConfirm
+        );
     }
 
     /**
@@ -935,6 +946,16 @@ public final class Networking {
         public static final byte ACTION_TRAVEL_HOME = 7;
         /** Stage 3 — claim a standing gift (the spare Orc Disaster). */
         public static final byte ACTION_CLAIM_GIFT = 8;
+        /** Covenant — reroll this faction's offers (4 high crystals). */
+        public static final byte ACTION_REROLL = 9;
+        /** Covenant — Milim: claim a Drago Nova. */
+        public static final byte ACTION_CLAIM_NOVA = 10;
+        /** Covenant — Clayman: summon a spare Orc Disaster. */
+        public static final byte ACTION_SUMMON_DISASTER = 11;
+        /** Covenant — Luminous: receive the starter spirits. */
+        public static final byte ACTION_GRANT_SPIRITS = 12;
+        /** Covenant — travel to a Covenant faction's location (stub). */
+        public static final byte ACTION_TRAVEL_COVENANT = 13;
         public static final Type<DiplomacyActionPayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "diplomacy_action"));
         public static final StreamCodec<ByteBuf, DiplomacyActionPayload> CODEC = StreamCodec.composite(
@@ -1080,6 +1101,41 @@ public final class Networking {
         });
     }
 
+    /** S2C: the Sage/Great-Sage foresight warning before a Drago Nova
+     *  detonation (the collapse-confirm screen pattern). {@code lethal}
+     *  = the user is not a true demon lord / hero (it will kill them). */
+    public record OpenDragoNovaWarningPayload(boolean lethal) implements CustomPacketPayload {
+        public static final Type<OpenDragoNovaWarningPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "drago_nova_warning"));
+        public static final StreamCodec<ByteBuf, OpenDragoNovaWarningPayload> CODEC =
+                StreamCodec.composite(
+                        ByteBufCodecs.BOOL, OpenDragoNovaWarningPayload::lethal,
+                        OpenDragoNovaWarningPayload::new);
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** C2S: the player confirmed the Drago Nova warning — detonate. */
+    public record DragoNovaConfirmPayload() implements CustomPacketPayload {
+        public static final Type<DragoNovaConfirmPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "drago_nova_confirm"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, DragoNovaConfirmPayload> CODEC =
+                StreamCodec.unit(new DragoNovaConfirmPayload());
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** Client-side delegate for the Drago Nova warning. Installed by ClientEvents. */
+    public static Consumer<OpenDragoNovaWarningPayload> dragoNovaWarningClientHandler = payload ->
+            LOGGER.info("[TM] drago nova warning (no client handler): lethal={}", payload.lethal());
+
+    private static void onOpenDragoNovaWarning(OpenDragoNovaWarningPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> dragoNovaWarningClientHandler.accept(payload));
+    }
+
+    private static void onDragoNovaConfirm(DragoNovaConfirmPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer sp)) return;
+        context.enqueueWork(() -> DragoNovaItem.confirmAndDetonate(sp));
+    }
+
     /** Client-side delegate for the alliance prompt. Installed by ClientEvents. */
     public static Consumer<OpenAlliancePromptPayload> alliancePromptClientHandler = payload ->
             LOGGER.info("[TM] alliance prompt (no client handler): {}", payload.factionId());
@@ -1145,6 +1201,16 @@ public final class Networking {
                         failure = DiplomacyManager.travelHome(sp);
                 case DiplomacyActionPayload.ACTION_CLAIM_GIFT -> failure = faction == null
                         ? "unknown faction" : DiplomacyManager.claimGift(sp, faction);
+                case DiplomacyActionPayload.ACTION_REROLL -> failure = faction == null
+                        ? "unknown faction" : DiplomacyManager.rerollOffers(sp, faction);
+                case DiplomacyActionPayload.ACTION_CLAIM_NOVA ->
+                        failure = DiplomacyManager.claimDragoNova(sp);
+                case DiplomacyActionPayload.ACTION_SUMMON_DISASTER ->
+                        failure = DiplomacyManager.summonOrcDisaster(sp);
+                case DiplomacyActionPayload.ACTION_GRANT_SPIRITS ->
+                        failure = DiplomacyManager.grantLuminousSpirits(sp);
+                case DiplomacyActionPayload.ACTION_TRAVEL_COVENANT -> failure =
+                        DiplomacyManager.travelToCovenant(sp, payload.factionId());
                 default -> { }
             }
             if (failure != null) {

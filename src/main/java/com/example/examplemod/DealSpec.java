@@ -49,9 +49,32 @@ public record DealSpec(
     /** What the faction asks for. Sealed — the extension seam. */
     public sealed interface Requirement
             permits SupplyItems, BuildingLevel, Population, Happiness, LendCitizens,
-                    MendingRite {
+                    MendingRite, SupplyBundle, SlayEntities {
         /** Player-facing one-liner ("Supply 64 Iron Ingot"). */
         String summary();
+    }
+
+    /** Deliver a BUNDLE of different items in one act (all-or-nothing
+     *  via the Deliver button) — the Covenant-commission shape. */
+    public record SupplyBundle(List<ItemStack> items) implements Requirement {
+        @Override public String summary() {
+            StringBuilder sb = new StringBuilder("Deliver ");
+            for (int i = 0; i < items.size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(items.get(i).getCount()).append(" ")
+                        .append(items.get(i).getHoverName().getString());
+            }
+            return sb.toString();
+        }
+    }
+
+    /** Slay {@code count} of the listed entity types (tracked from the
+     *  player's kills while the deal runs) — the hunt/combat shape. */
+    public record SlayEntities(java.util.Set<String> entityTypeIds, int count,
+                               String label) implements Requirement {
+        @Override public String summary() {
+            return "Slay " + count + " — " + label;
+        }
     }
 
     /** Deliver N of an item via the tab's Deliver button (PUSH —
@@ -95,11 +118,21 @@ public record DealSpec(
      * — the Stage-2 identity-collision guard.
      */
     public record LendCitizens(Skill skill, int minLevel, int count,
-                               long durationTicks, int skillBoost) implements Requirement {
+                               long durationTicks, int skillBoost,
+                               List<Skill> secondarySkills) implements Requirement {
+        /** The Stage-2 shape (no secondary skills). */
+        public LendCitizens(Skill skill, int minLevel, int count,
+                            long durationTicks, int skillBoost) {
+            this(skill, minLevel, count, durationTicks, skillBoost, List.of());
+        }
+
         @Override public String summary() {
+            String extras = secondarySkills.isEmpty() ? "" : " +"
+                    + secondarySkills.stream().map(Enum::name)
+                            .collect(java.util.stream.Collectors.joining("/"));
             return "Lend " + count + " citizens with " + skill.name() + " >= " + minLevel
                     + " for " + (durationTicks / DealSpec.DAY) + " days (return +"
-                    + skillBoost + " " + skill.name() + ")";
+                    + skillBoost + " " + skill.name() + extras + ")";
         }
     }
 
@@ -158,6 +191,81 @@ public record DealSpec(
      *  ONLY while that faction is diplomacy-closed. Generated for every
      *  faction so any future foreclosure source is covered. */
     public static final Map<String, DealSpec> MENDING_DEALS = buildMendingDeals();
+
+    /** faction id → its UNIQUE Covenant milestone deal — offered only
+     *  at PACT with standing ≥ the COVENANT threshold; completing it
+     *  forges the COVENANT. A representative set (the 10+ quest catalog
+     *  is the separate content pass). */
+    public static final Map<String, DealSpec> COVENANT_DEALS = buildCovenantDeals();
+
+    /** faction id → Covenant-only TRAINING deal (Tempest physical /
+     *  Jura mental — the approved skill split). */
+    public static final Map<String, DealSpec> COVENANT_TRAINING_DEALS = buildTrainingDeals();
+
+    private static Map<String, DealSpec> buildCovenantDeals() {
+        Map<String, DealSpec> map = new LinkedHashMap<>();
+        map.put("dwargon", new DealSpec("cov_dwargon", "The Masterwork Commission",
+                new SupplyBundle(List.of(
+                        new ItemStack(net.minecraft.core.registries.BuiltInRegistries.ITEM.get(
+                                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+                                        "tensura", "hihiirokane_katana")), 1),
+                        new ItemStack(net.minecraft.core.registries.BuiltInRegistries.ITEM.get(
+                                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+                                        "tensura", "pure_magisteel_ingot")), 8),
+                        new ItemStack(ExampleMod.MASTERWORK_FORGING_CORE.get(), 1))),
+                List.of(new ItemStack(Items.EMERALD, 64)),
+                10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
+        map.put("tempest", new DealSpec("cov_tempest", "A Thriving Metropolis",
+                new Population(25),
+                List.of(new ItemStack(Items.EMERALD, 48)),
+                10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
+        map.put("jura_alliance", new DealSpec("cov_jura", "The Grand Academy",
+                new BuildingLevel("university", 5),
+                List.of(new ItemStack(Items.EMERALD, 48)),
+                10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
+        map.put("milim", new DealSpec("cov_milim", "Apito's Jelly",
+                new SupplyItems(ExampleMod.APITOS_JELLY.get(), 1),
+                List.of(new ItemStack(Items.EMERALD, 48)),
+                10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
+        map.put("falmuth", new DealSpec("cov_falmuth", "Prove Your Might",
+                new SlayEntities(java.util.Set.of("minecraft:wither"), 1, "the Wither"),
+                List.of(new ItemStack(Items.EMERALD, 48)),
+                10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
+        map.put("carrion", new DealSpec("cov_carrion", "The Great Hunt",
+                new SlayEntities(java.util.Set.of("minecraft:wither", "minecraft:warden",
+                        "minecraft:elder_guardian", "tensura:charybdis", "tensura:ifrit"),
+                        3, "great beasts (Wither / Warden / Elder Guardian / Charybdis / Ifrit)"),
+                List.of(new ItemStack(Items.EMERALD, 48)),
+                10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
+        map.put("luminous", new DealSpec("cov_luminous", "The Grand Offering",
+                new SupplyBundle(List.of(new ItemStack(Items.DIAMOND_BLOCK, 8),
+                        new ItemStack(Items.GOLD_BLOCK, 16))),
+                List.of(new ItemStack(Items.EMERALD, 64)),
+                10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
+        map.put("clayman", new DealSpec("cov_clayman", "Souls for the Core",
+                new SlayEntities(java.util.Set.of("minecraft:villager"), 10,
+                        "villagers (their souls feed the Charybdis core)"),
+                List.of(),
+                10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
+        return Map.copyOf(map);
+    }
+
+    private static Map<String, DealSpec> buildTrainingDeals() {
+        Map<String, DealSpec> map = new LinkedHashMap<>();
+        // Tempest — PHYSICAL/community: Strength + Stamina + Adaptability.
+        map.put("tempest", new DealSpec("cov_train_tempest", "Warrior Training",
+                new LendCitizens(Skill.Strength, 5, 2, 2 * DAY, 4,
+                        List.of(Skill.Stamina, Skill.Adaptability)),
+                List.of(new ItemStack(Items.EMERALD, 16)),
+                4.0, 0.0, 2 * DAY, 0, FactionTier.ALLIED, false));
+        // Jura — MENTAL: Knowledge + Focus + Intelligence.
+        map.put("jura_alliance", new DealSpec("cov_train_jura", "Sage Training",
+                new LendCitizens(Skill.Knowledge, 5, 2, 2 * DAY, 4,
+                        List.of(Skill.Focus, Skill.Intelligence)),
+                List.of(new ItemStack(Items.EMERALD, 16)),
+                4.0, 0.0, 2 * DAY, 0, FactionTier.ALLIED, false));
+        return Map.copyOf(map);
+    }
 
     /** Global id → spec index (accept/lookup path). */
     public static final Map<String, DealSpec> DEALS = buildIndex();
@@ -313,6 +421,12 @@ public record DealSpec(
             }
         }
         for (DealSpec spec : MENDING_DEALS.values()) {
+            index.put(spec.id(), spec);
+        }
+        for (DealSpec spec : COVENANT_DEALS.values()) {
+            index.put(spec.id(), spec);
+        }
+        for (DealSpec spec : COVENANT_TRAINING_DEALS.values()) {
             index.put(spec.id(), spec);
         }
         return Map.copyOf(index);

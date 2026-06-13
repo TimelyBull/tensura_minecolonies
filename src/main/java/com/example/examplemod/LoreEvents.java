@@ -116,6 +116,32 @@ public final class LoreEvents {
         return EVENTS.get(id);
     }
 
+    /**
+     * Clayman's Covenant raid-INTEL: a one-line read of how close the
+     * player is to the next Orc Disaster march (the same arm signals the
+     * trigger uses — provocation + defeat + cooldown). Covenant grants
+     * foresight, not immunity.
+     */
+    static String raidIntelFor(ServerLevel level, UUID player) {
+        LoreEvent event = byId(TensuraRaids.ORC_DISASTER_EVENT_ID);
+        if (event == null) return "All is quiet.";
+        if (WorldReputationManager.isLoreEventDefeated(level, player, event.id())) {
+            return "The Disaster is slain — it will not march again.";
+        }
+        long cooldownUntil = WorldReputationManager.getLoreEventCooldownUntil(level, player, event.id());
+        if (level.getGameTime() < cooldownUntil) {
+            long daysLeft = Math.max(1, (cooldownUntil - level.getGameTime()) / 24_000L);
+            return "The horde regroups — no march for ~" + daysLeft + " days.";
+        }
+        if (!WorldReputationManager.isProvoked(level, player, event.faction())) {
+            return "Clayman is not yet provoked — no march looms.";
+        }
+        double standing = WorldReputationManager.getStanding(level, player, event.faction());
+        int chancePct = (int) Math.round(
+                100 * (event.baseChance() + event.hostilityChanceScale() * hostility01(standing)));
+        return "A march is ARMED — ~" + chancePct + "% chance each night.";
+    }
+
     /** How offended the faction FEELS (0 at NEUTRAL+, 1 at standing 0) —
      *  the soft-influence input for both the roll and the budget. */
     static double hostility01(double standing) {

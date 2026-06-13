@@ -1,0 +1,22 @@
+<window size="300 140" lightbox="true"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/ldtteam/BlockUI/version/main/src/main/resources/assets/blockui/gui/block_ui.xsd">
+
+    <image source="minecolonies:textures/gui/builderhut/builder_paper_wide2.png" size="300 140"/>
+
+    <text id="title" size="268 16" pos="16 12" textalign="MIDDLE" color="black"
+          textscale="1.2" label="§lThe Sage Warns§r"/>
+    <box id="divider" size="268 1" pos="16 32" color="black"/>
+
+    <text id="line1" size="268 12" pos="16 44" textalign="MIDDLE" color="black" label=""/>
+    <text id="line2" size="268 11" pos="16 60" textalign="MIDDLE" textscale="0.9" color="black" label=""/>
+    <text id="line3" size="268 11" pos="16 74" textalign="MIDDLE" textscale="0.85" color="black" label=""/>
+
+    <button id="confirm" size="110 16" pos="34 108" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_green.png"
+            label="Unleash It"/>
+    <button id="cancel" size="100 16" pos="166 108" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_tan.png"
+            label="Hold"/>
+
+</window>

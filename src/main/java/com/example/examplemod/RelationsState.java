@@ -21,7 +21,12 @@ public enum RelationsState {
 
     NONE((byte) 0, "No relations", ChatFormatting.GRAY),
     OPEN((byte) 1, "Diplomacy", ChatFormatting.YELLOW),
-    PACT((byte) 2, "Alliance", ChatFormatting.AQUA);
+    PACT((byte) 2, "Alliance", ChatFormatting.AQUA),
+    /** The top tier (above ALLIANCE): post-pact standing gain is
+     *  damped, standing must crawl to the COVENANT threshold, then the
+     *  faction's UNIQUE milestone deal unlocks — completing it forges
+     *  the COVENANT (per-faction rewards + reduced deal costs). */
+    COVENANT((byte) 3, "Covenant", ChatFormatting.LIGHT_PURPLE);
 
     private final byte id;
     private final String displayName;

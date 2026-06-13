@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [ "SCS", "MXM", "SCS" ],
+  "key": {
+    "S": { "item": "tensura:silver_ingot" },
+    "C": { "item": "tensura:medium_quality_magic_crystal" },
+    "M": { "item": "tensura:high_magisteel_ingot" },
+    "X": { "item": "minecraft:chest" }
+  },
+  "result": { "id": "tensura_minecolonies:magicule_storage_tier2", "count": 1 }
+}

@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [ "NNN", "NSN", "NNN" ],
+  "key": {
+    "N": { "item": "tensura_minecolonies:apito_nectar" },
+    "S": { "item": "tensura:slime_core" }
+  },
+  "result": { "id": "tensura_minecolonies:apitos_jelly", "count": 1 }
+}

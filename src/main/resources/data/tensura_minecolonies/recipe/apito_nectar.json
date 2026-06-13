@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [ "HHH", "HPH", "HHH" ],
+  "key": {
+    "H": { "item": "minecraft:honeycomb" },
+    "P": { "item": "tensura:pure_magisteel_ingot" }
+  },
+  "result": { "id": "tensura_minecolonies:apito_nectar", "count": 1 }
+}

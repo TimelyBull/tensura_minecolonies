@@ -1,5 +1,34 @@
 # Future ideas (recorded, not scheduled)
 
+## Generated bosses belonging to colonies (rival-colony-arc preview)
+
+Generated bosses should have a CHANCE of BELONGING to a colony. A boss
+WITHOUT a colony carries no kill-penalty (killing it is consequence-free
+progression); a boss WITH a colony is that colony's, and killing it
+feeds the physical-colony-connected systems (faction standing, sieges,
+intel). Configurable mode:
+- **ALL** — every generated boss belongs to some colony.
+- **SOME** — a per-spawn chance (the intended default once rival
+  colonies exist).
+- **NONE** — disables the physical-colony-connected systems entirely
+  (bosses are free-floating; no colony attribution).
+This is a preview of the rival-colony / settlement arc — the marked-boss
+machinery (FactionMarkTag) already exists; this adds the colony
+attribution + the config mode on top.
+
+## The 10+-quests-per-faction CATALOG (pending content pass)
+
+Re-noted: every diplomable faction should carry 10+ faction-exclusive,
+faction-geared quests. The FRAMEWORK is complete (per-faction DealSpec
+tables, all the Requirement variants incl. SupplyBundle/SlayEntities/
+LendCitizens-with-secondaries, tier gating, Covenant milestones, reward
+kinds). This remains a dedicated CONTENT-AUTHORING pass — NOT done in
+the systems batches — with fullest variety unlocking once Stage-3
+rewards (done) and the rival-colony/settlement arc are available as
+quest ingredients.
+
+
+
 ## Sieges — broken-alliance super-raids
 
 A BETRAYED ally hits harder than any stranger: when an ALLIANCE is

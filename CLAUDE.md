@@ -635,7 +635,25 @@ profession (latest):**
   to colony strength (EP-primary, ×1.15 budget); hostile-spawn
   prevention inside fueled barriers. Records: docs/raid-system.md.
 
-**Diplomacy Stage 4 (the mending ritual — diplomacy COMPLETE; latest):**
+**Barrier/diplomacy/Covenant batch (latest):**
+- Barrier tiers cumulative + distinct colors: T1 wall (traps
+  inside-mobs), T2 +heal, T3/T4 +eject. Drain reworked to
+  attackDamage × (EP × BARRIER_DRAIN_EP_MULTIPLIER 0.002).
+- Magicule Storage recipes (silver corners + magisteel cross + chest;
+  ingot/crystal climb by tier). New items: Masterwork Forging Core,
+  Apito Nectar, Apito's Jelly, Drago Nova.
+- Named race-citizens get a 0.5 StaticHappinessModifier (acquisition
+  method isn't stored; naming is the only intake today).
+- COVENANT tier (NONE→OPEN→PACT→COVENANT): damped post-PACT gain,
+  threshold 95, per-faction milestone deal forges it. Rewards: Dwargon/
+  Carrion grinders, Tempest/Jura training split, Milim Drago Nova
+  (Sage warning + non-DL/hero death), Falmuth 2× ally support, Luminous
+  3 spirits (if none), Clayman intel + summon. Reroll button (4 high
+  crystals). Faction row shows real tier/relations-state.
+  Records: docs/diplomacy.md (Covenant batch), docs/raid-system.md
+  (barrier batch), docs/future-ideas.md (boss-colony chance).
+
+**Diplomacy Stage 4 (the mending ritual — diplomacy COMPLETE):**
 - A foreclosed faction (diplomacy-closed, e.g. the Orc Disaster kill)
   offers exactly ONE deal: the Rite of Atonement (`MendingRite`
   Requirement; `MENDING_DEALS` per faction). Price: 32 diamonds + the

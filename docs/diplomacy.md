@@ -201,6 +201,72 @@ diplomacy system is COMPLETE (Stages 1–4).** As-built record:
 - Follow-ons recorded in docs/future-ideas.md: sieges, the per-faction
   quest catalog, race-citizen lending.
 
+---
+
+**Status: COVENANT + BATCH BUILT (2026-06-12)** — a new top tier above
+ALLIANCE plus a barrier/economy batch. As-built record:
+
+- **COVENANT** (`RelationsState.COVENANT`, the tier above PACT): once
+  ALLIED, deal-standing gain is DAMPED (`PACT_GAIN_DAMP` 0.25) so
+  standing crawls; at standing ≥ `COVENANT_THRESHOLD` (95) the
+  faction's UNIQUE milestone deal unlocks; completing it forges the
+  Covenant. General perks: reduced supply-deal costs
+  (`COVENANT_SUPPLY_DISCOUNT` 0.25), a Covenant travel perk (stub →
+  routes to the town hall until the rival-colony settlement arc adds
+  real targets), and stronger ally raid-support.
+- **Per-faction Covenant rewards + milestones** (representative set —
+  the 10+ catalog is the separate content pass in future-ideas.md):
+  - **Dwargon** — reward: daily auto-GRINDER (industry: iron/coal/gold).
+    Milestone "The Masterwork Commission": a Hihiirokane katana + 8
+    pure magisteel + a new **Masterwork Forging Core** (recipe: pure
+    magisteel centre, 4 diamond blocks edges, 4 high crystals corners).
+  - **Tempest** — reward: Covenant TRAINING deal (PHYSICAL split:
+    Strength primary +4, Stamina/Adaptability secondary +2). Milestone
+    "A Thriving Metropolis": population 25.
+  - **Jura** — reward: TRAINING deal (MENTAL split: Knowledge primary
+    +4, Focus/Intelligence secondary +2). Milestone "The Grand
+    Academy": university L5.
+  - **Carrion** — reward: daily auto-GRINDER (beast/hunt: leather/bone/
+    string — distinct from Dwargon's). Milestone "The Great Hunt": slay
+    3 great beasts (Wither / Warden / Elder Guardian / Charybdis /
+    Ifrit).
+  - **Milim** — reward: **Drago Nova** (one-use AoE detonation, 1 per
+    REAL-LIFE hour). Radius 12, magic damage 150. Configs
+    `dragoNovaHarmAllies` / `dragoNovaBreakBlocks` (both default false);
+    never harms the user UNLESS they are neither true demon lord nor
+    hero → it KILLS them; Sage/Great-Sage holders get a foresight
+    WARNING screen first (the collapse-confirm pattern). Milestone:
+    deliver **Apito's Jelly** (craft: 8 honeycomb + 1 pure magisteel →
+    Apito Nectar ×8, then 8 nectar around a slime core → the Jelly).
+  - **Falmuth** — reward: stronger ally raid-support
+    (`FALMUTH_COVENANT_SUPPORT_MULT` 2×). Milestone "Prove Your Might":
+    slay the Wither.
+  - **Luminous** — reward: grant 3 starter SPIRITS (Flame/Water/Wind
+    at LESSER) IF the player has none, else does nothing (investigated:
+    `TensuraStorages.getSpiritFrom` → `ISpiritWielder.setSpiritLevel`;
+    "has none" = every element's `getSpiritLevelId == 0`). Milestone
+    "The Grand Offering": 8 diamond blocks + 16 gold blocks.
+  - **Clayman** (Covenant-able): reward: raid INTEL (next-march
+    foresight via `LoreEvents.raidIntelFor`) + SUMMON a spare Orc
+    Disaster (4-day cooldown, UNMARKED → no penalty). Milestone "Souls
+    for the Core": slay 10 villagers (kill-tracked via `onPlayerKill`;
+    the literal Charybdis-core EP-feed is simplified to kill tracking
+    for v1).
+- **#7 faction status label:** the Diplomacy row now shows the real
+  DISPOSITION TIER (Hostile…Allied, tier-colored) when relations are
+  NONE, or the relations STATE (Diplomacy/Alliance/Covenant) when open
+  — never the static word "Diplomacy".
+- **Quest REROLL button** (`ACTION_REROLL`): rerolls a faction's
+  offers for `REROLL_CRYSTAL_COST` (4) high magic crystals, consumed,
+  with a `REROLL_COOLDOWN_TICKS` (half-day) per-faction cooldown.
+- **Named-citizen happiness:** investigated — acquisition method is NOT
+  stored and NAMING is the only intake path today, so every named
+  race-citizen gets a `StaticHappinessModifier` (factor 0.5) at
+  creation; feeds colony rep → world rep via the existing chains.
+- **New requirement variants:** `SupplyBundle` (all-or-nothing
+  multi-item delivery), `SlayEntities` (kill-tracked hunts),
+  `LendCitizens` gained `secondarySkills` for the training split.
+
 Original investigation follows.
 
 ---

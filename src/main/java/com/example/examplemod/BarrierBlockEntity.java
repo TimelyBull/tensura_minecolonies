@@ -54,7 +54,35 @@ public class BarrierBlockEntity extends BlockEntity {
      * 8-mob wave of those empties a full 100k tank in ~3.5 minutes of
      * constant press).
      */
+    /** LEGACY (replaced by the damage-proportional formula below; kept
+     *  for reference in docs): flat EP-fraction drain per second. */
     public static final double BARRIER_DRAIN_COEFFICIENT_PER_SECOND = 0.02;
+
+    // --- Damage-proportional drain (the rework): drain/second =
+    //     attackDamage × (attacker EP × BARRIER_DRAIN_EP_MULTIPLIER).
+    //     The EP core is KEPT (higher EP → higher multiplier) but the
+    //     base is LOWER, and a hard hitter now hurts the barrier more
+    //     than a tanky pacifist of equal EP. All named + tunable. ---
+    /** The fraction of the attacker's EP that forms the per-damage-point
+     *  drain multiplier. 0.002 → a 3 000-EP raider with 6 attack drains
+     *  6 × 6 = 36/s (the old flat formula charged 60/s). */
+    public static final double BARRIER_DRAIN_EP_MULTIPLIER = 0.002;
+    /** Attack damage assumed when the attribute is missing. */
+    public static final double FALLBACK_ATTACK_DAMAGE = 3.0;
+
+    // --- Cumulative tier FUNCTIONS (docs/raid-system.md):
+    //     T1 = WALL (two-way; mobs inside at activation stay trapped),
+    //     T2 = wall + HEALING inside, T3/T4 = wall + heal + EJECT. ---
+    /** Core tier at which the healing aura activates. */
+    public static final int BARRIER_HEAL_TIER = 2;
+    /** Core tier at which hostiles inside are TELEPORTED OUT (the old
+     *  universal behavior, now top-tier only). */
+    public static final int BARRIER_EJECT_TIER = 3;
+    /** Boundary band (blocks) the T1/T2 wall acts across — entrants are
+     *  bounced back out; trapped mobs nudged back in. */
+    public static final double WALL_BAND = 1.5;
+    /** Healing applied inside (Regeneration I, refreshed each second). */
+    public static final int BARRIER_HEAL_DURATION_TICKS = 60;
     /** EP assumed for a raider whose existence storage can't be read. */
     public static final double FALLBACK_RAIDER_EP = 1_000.0;
     /** How far past the shell surface still counts as "pressing" it. */
@@ -560,20 +588,41 @@ public class BarrierBlockEntity extends BlockEntity {
             double dz = mob.getZ() - center.z;
             double cheb = Math.max(Math.abs(dx), Math.abs(dz));
 
-            // Pushback — clamp any raider inside the square back out
-            // through the NEAREST face, horizontal velocity zeroed
-            // (vertical kept so gravity still applies).
+            // CUMULATIVE TIER FUNCTIONS.
+            // T3+: the EJECT — any hostile inside is clamped back out
+            // through the nearest face (the old universal behavior).
+            // T1/T2: a true WALL — only the boundary band acts: an
+            // entrant is bounced OUT, a trapped mob brushing the wall
+            // from inside is nudged back IN. Mobs deep inside at
+            // activation stay trapped.
             if (cheb < radius) {
-                if (Math.abs(dx) >= Math.abs(dz)) {
-                    double sign = dx >= 0 ? 1 : -1;
-                    mob.setPos(center.x + sign * (radius + 0.25), mob.getY(), mob.getZ());
-                } else {
-                    double sign = dz >= 0 ? 1 : -1;
-                    mob.setPos(mob.getX(), mob.getY(), center.z + sign * (radius + 0.25));
+                boolean eject = be.getTier() >= BARRIER_EJECT_TIER;
+                if (eject) {
+                    if (Math.abs(dx) >= Math.abs(dz)) {
+                        double sign = dx >= 0 ? 1 : -1;
+                        mob.setPos(center.x + sign * (radius + 0.25), mob.getY(), mob.getZ());
+                    } else {
+                        double sign = dz >= 0 ? 1 : -1;
+                        mob.setPos(mob.getX(), mob.getY(), center.z + sign * (radius + 0.25));
+                    }
+                    Vec3 vel = mob.getDeltaMovement();
+                    mob.setDeltaMovement(0, Math.min(0, vel.y), 0);
+                    cheb = radius + 0.25;
+                } else if (cheb > radius - WALL_BAND) {
+                    // Two-way wall: shove to the nearer side of the band.
+                    boolean outward = cheb > radius - WALL_BAND / 2;
+                    double target = outward ? radius + 0.25 : radius - WALL_BAND - 0.25;
+                    if (Math.abs(dx) >= Math.abs(dz)) {
+                        double sign = dx >= 0 ? 1 : -1;
+                        mob.setPos(center.x + sign * target, mob.getY(), mob.getZ());
+                    } else {
+                        double sign = dz >= 0 ? 1 : -1;
+                        mob.setPos(mob.getX(), mob.getY(), center.z + sign * target);
+                    }
+                    Vec3 vel = mob.getDeltaMovement();
+                    mob.setDeltaMovement(0, Math.min(0, vel.y), 0);
+                    if (outward) cheb = radius + 0.25;
                 }
-                Vec3 vel = mob.getDeltaMovement();
-                mob.setDeltaMovement(0, Math.min(0, vel.y), 0);
-                cheb = radius + 0.25;
             }
 
             // EP-scaled contact drain — RAID mobs only. Wild hostiles are
@@ -583,7 +632,17 @@ public class BarrierBlockEntity extends BlockEntity {
             if (isRaider && cheb <= radius + CONTACT_BAND) {
                 ExistenceStorage exist = ExampleMod.readExistence(mob);
                 double ep = exist != null && exist.getEP() > 0 ? exist.getEP() : FALLBACK_RAIDER_EP;
-                double drain = ep * BARRIER_DRAIN_COEFFICIENT_PER_SECOND / 20.0;
+                // Damage-proportional drain: what the raider HITS for ×
+                // an EP-derived multiplier (a fraction of its own EP).
+                double attack = FALLBACK_ATTACK_DAMAGE;
+                try {
+                    if (mob.getAttributes().hasAttribute(
+                            net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE)) {
+                        attack = mob.getAttributeValue(
+                                net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+                    }
+                } catch (Throwable ignored) { }
+                double drain = attack * (ep * BARRIER_DRAIN_EP_MULTIPLIER) / 20.0;
                 drainThisTick += drain;
                 // Summed over the second = magicule/s for the readout.
                 be.contactDrainAccumulator += drain;
@@ -606,6 +665,24 @@ public class BarrierBlockEntity extends BlockEntity {
         // request; the CRIT particles remain the drain telegraph.)
         if (drainThisTick > 0) {
             be.drainFromPool(drainThisTick);
+        }
+
+        // T2+ HEALING — everyone friendly INSIDE the field gets a gentle
+        // regeneration, refreshed each second (hostiles excluded).
+        if (be.getTier() >= BARRIER_HEAL_TIER && gameTime % 20 == 0) {
+            for (net.minecraft.world.entity.LivingEntity living
+                    : serverLevel.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class,
+                            AABB.ofSize(center, radius * 2, 64, radius * 2))) {
+                double hx = Math.abs(living.getX() - center.x);
+                double hz = Math.abs(living.getZ() - center.z);
+                if (Math.max(hx, hz) >= radius) continue;
+                if (living.hasData(Attachments.RAID_TAG.get())) continue;
+                if (living.getType().builtInRegistryHolder().is(TensuraRaids.HOSTILE_MONSTER_TAG)) continue;
+                if (living instanceof com.minecolonies.api.entity.mobs.AbstractEntityMinecoloniesRaider) continue;
+                living.addEffect(new net.minecraft.world.effect.MobEffectInstance(
+                        net.minecraft.world.effect.MobEffects.REGENERATION,
+                        BARRIER_HEAL_DURATION_TICKS, 0, true, false, false));
+            }
         }
     }
 

@@ -82,6 +82,11 @@ public final class ClientEvents {
             }
         };
 
+        // Covenant — Milim's Drago Nova: the Sage-foresight warning
+        // screen before a detonation commits.
+        Networking.dragoNovaWarningClientHandler = payload ->
+                new WindowDragoNovaWarning(payload.lethal()).open();
+
         // Magicule cost — install the collapse-confirm prompt handler.
         Networking.confirmCollapseClientHandler = ConfirmCollapseHandler::handle;
 
