@@ -12,6 +12,22 @@ Planning documents live in `docs/` and should be kept current as work progresses
 - [docs/decisions.md](docs/decisions.md) — record of key architectural and design decisions with reasoning; add new entries when a non-obvious choice is made
 - [docs/dependencies.md](docs/dependencies.md) — exact jar versions in `libs/` and confirmed registry IDs; update when new deps are added
 
+## Player wiki (`wiki/` + `mkdocs.yml`)
+
+A player-facing MkDocs Material site lives in `wiki/` (separate from the
+implementation notes in `docs/`). Build with the venv:
+`.\.mkdocs-venv\Scripts\mkdocs.exe build --strict` (or `serve`).
+
+**STANDING STYLE RULE (applies to every wiki page, existing and future):**
+state what a feature IS and what it DOES, plainly. Favor concrete mechanics
+over atmosphere. Cut promotional/evocative language — no "prosper," "draw
+trouble," "spoils," "sworn," "the great powers," "real rewards," "win the
+world over," marketing tag-lines, or atmospheric scene-setting intros. Open
+a page with one factual sentence (what it is), not a mood paragraph. Keep it
+clear and useful — informative-and-tight over flavorful-and-long. A player
+should learn how something WORKS, fast. NO API names, class names, commit
+hashes, "tracked risks," or balance-guess flags (those stay in `docs/`).
+
 ## Project layout
 
 ```

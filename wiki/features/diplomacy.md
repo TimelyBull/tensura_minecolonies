@@ -1,17 +1,14 @@
 # Diplomacy
 
-**Diplomacy is the builder's path to power.** Instead of fighting the great
-factions of the Tensura world, you win them over: open relations, do jobs
-for them, and grow a casual acquaintance into a sworn alliance that pays
-real dividends to your colony.
-
-It's the peaceful counterpart to [conquering rival colonies](rival-colonies.md)
-— and the two can be mixed however you like.
+Diplomacy is the non-combat way to deal with factions: open relations,
+complete deals to raise standing, and progress through three relationship
+tiers that unlock rewards. It runs in parallel with
+[Rival Colonies](rival-colonies.md); you can use both.
 
 !!! info "Where to find it"
     Open your roster with the **`G`** key and click the **Diplomacy** tab.
-    Every faction you know about appears as a row showing how it feels about
-    you and what it's currently offering.
+    Each known faction is a row showing its current standing and any offered
+    deals.
 
 ## Opening relations
 
@@ -37,11 +34,11 @@ are two ways relations open:
 
 ## Deals: the heart of diplomacy
 
-Once relations are open, a faction offers you **deals** — small jobs in
-exchange for goods and goodwill. Each faction offers things that fit its
-character, and completing deals is the main way your standing climbs.
+Once relations are open, a faction offers **deals** — tasks in exchange for
+items and standing. Each faction offers tasks themed to it, and completing
+deals is the main way standing rises.
 
-A deal asks for one of a few things:
+A deal asks for one of:
 
 | The faction wants… | You fulfil it by… |
 |---|---|
@@ -71,85 +68,74 @@ returning with that skill noticeably higher than when they left.
     colony you own), or relations break down mid-loan (they come straight
     home, untrained but unharmed).
 
-## The relationship tiers
+## Relationship tiers
 
-Relations deepen through three named tiers. Each is a bigger commitment with
-bigger rewards.
+Relations progress through three tiers, each unlocking more.
 
 === "Diplomacy"
 
-    **The starting tier — open but fragile.** You can take deals and trade,
-    but the relationship is shallow: if you ignore it, your earned goodwill
-    slowly decays, and a hard enough fall in standing breaks relations off
-    entirely. An active relationship (with deals on the go) doesn't rot — it's
-    *neglect* that costs you.
+    The entry tier. You can take deals and trade. Earned standing decays
+    slowly while the relationship is idle (no active or in-progress deal),
+    and a large enough drop in standing ends relations. An active
+    relationship does not decay.
 
 === "Alliance"
 
-    **A durable pact.** Reached by completing a faction's special
-    **Alliance Pact** deal, offered once your standing with them is high. An
-    alliance is sturdy — it survives rough patches that would end mere
-    diplomacy — and unlocks the real perks:
+    Reached by completing a faction's **Alliance Pact** deal, offered once
+    your standing with it is high. An alliance survives standing drops that
+    would end Diplomacy, and unlocks:
 
-    - **No raids from an ally** — an allied faction's monsters won't march on
-      your colony.
-    - **An alliance buff** — a small ambient blessing themed to the faction
-      (Dwargon lends Haste, Tempest Regeneration, Luminous Resistance, and
-      so on) for as long as the pact holds.
-    - **A daily trade caravan** — claim a bundle of that faction's wares each
-      day, no shop needed.
-    - **Caravan Home** — a quick teleport back to your town hall.
+    - **No raids from the faction** — its monster events won't target your
+      colony.
+    - **An alliance buff** — an ambient effect themed to the faction (Dwargon
+      Haste, Tempest Regeneration, Luminous Resistance, etc.), active while
+      the alliance holds.
+    - **A daily trade caravan** — claim a bundle of that faction's items once
+      per day.
+    - **Caravan Home** — teleport to your town hall.
 
 === "Covenant"
 
-    **The highest bond — a sworn covenant.** Above alliance sits a rare,
-    deep tier. After you're allied, standing climbs slowly toward a covenant
-    threshold; cross it and the faction offers a unique **milestone deal**.
-    Complete that and the covenant is forged, granting that faction's
-    **signature reward** — for example:
+    The top tier. After Alliance, standing rises slowly toward a Covenant
+    threshold; crossing it unlocks the faction's unique **milestone deal**.
+    Completing it forms the Covenant and grants that faction's unique reward,
+    for example:
 
-    - **Dwargon** — a daily auto-grinder of industrial goods, plus a
-      masterwork forging commission.
-    - **Milim** — the **Drago Nova**, a devastating one-use blast (once per
+    - **Dwargon** — a daily generator of industrial goods, plus a masterwork
+      forging recipe.
+    - **Milim** — the **Drago Nova**, a one-use area blast (once per
       real-world hour).
-    - **Luminous** — a gift of starter elemental spirits (if you have none).
-    - **Falmuth** — markedly stronger allied reinforcements during raids.
-    - **Clayman** — battle intel on coming raids, and the loan of a tame
-      Orc Disaster to slay freely.
+    - **Luminous** — starter elemental spirits (only if you have none).
+    - **Falmuth** — stronger faction reinforcements during raids.
+    - **Clayman** — advance notice of incoming raids, and a tame Orc Disaster
+      to kill without penalty.
 
-    Covenants also reduce the cost of supply deals and send stronger help
-    when your colony is raided.
+    Covenant also reduces supply-deal costs and increases raid reinforcements.
 
-!!! tip "Two ways to a faction's signature skill"
-    Each faction also teaches a **signature Tensura skill** as the reward for
-    its toughest deal. You can earn it the diplomatic way — or take it by
-    force by [conquering that faction's settlement](rival-colonies.md). The
-    warlord and the diplomat end up with similar prizes.
+!!! tip "Two ways to a faction's skill"
+    Each faction teaches a Tensura skill as the reward for its hardest deal.
+    You can earn it through diplomacy, or by
+    [conquering that faction's settlement](rival-colonies.md) — both grant the
+    same skill.
 
-## When relations break
+## Ending relations
 
-Relations aren't permanent. Two things can end them:
+Two things end relations:
 
-- **Decay** — a neglected Diplomacy-tier relationship slowly cools and can
-  lapse. Alliances barely decay, but a *completely* abandoned one will
-  eventually fray and break.
-- **A shattering blow** — if your standing with a faction crashes (for
-  instance, by killing one of its champion bosses, or by [declaring war on
-  it](rival-colonies.md)), the relationship **shatters** back to nothing,
-  any active deals are cancelled, and lent citizens come straight home.
+- **Decay** — idle Diplomacy-tier relations decay and can lapse. Alliances
+  decay much more slowly, but a fully abandoned one eventually breaks.
+- **Standing crash** — a large drop in standing (e.g. killing one of the
+  faction's marked bosses, or [declaring war on it](rival-colonies.md))
+  resets relations to none, cancels active deals, and returns lent citizens.
 
 ### The Rite of Atonement
 
-If a faction has been pushed so far that it **refuses to deal with you at
-all**, one path back remains. While you're foreclosed, that faction offers
-a single grim deal: the **Rite of Atonement**. It is deliberately costly —
-a tribute of diamonds **and** the sacrifice of your strongest named
-subordinate (the champion must be present for the rite). Pay it, and the
-door reopens at the lowest possible standing: you don't get your old
-relationship back, only the chance to start courting them again from almost
-nothing. It's forgiveness to *try again*, not restoration — and you can
-perform it as many times as you keep burning bridges, at the cost of a
-champion each time.
+If a faction is pushed far enough that it refuses to deal with you at all, it
+offers one deal while in that state: the **Rite of Atonement**. It costs a
+tribute of diamonds plus the sacrifice of your strongest named subordinate
+(the subordinate must be present). Completing it reopens relations at the
+lowest standing — you restart from near zero rather than recovering the prior
+relationship. It is repeatable; each performance costs another subordinate.
 
 ## Quick reference
 
