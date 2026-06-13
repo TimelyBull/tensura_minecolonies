@@ -64,6 +64,9 @@ class DiplomacySavedData extends SavedData {
     /** Covenant — player → last Drago Nova claim (REAL-LIFE millis, not
      *  game time: the brief specifies one per real-world hour). */
     private final Map<UUID, Long> dragoNovaClaimMillis = new HashMap<>();
+    /** Catalog — player → deal ids whose capstone SKILL reward is owed
+     *  (granted on next login if the deal completed offline). */
+    private final Map<UUID, Set<String>> pendingSkillDeals = new HashMap<>();
     /** Daily-pass rollover anchor (overworld day number). */
     private long lastProcessedDay = -1;
 
@@ -232,6 +235,22 @@ class DiplomacySavedData extends SavedData {
         setDirty();
     }
 
+    Set<String> getPendingSkillDeals(UUID player) {
+        Set<String> s = pendingSkillDeals.get(player);
+        return s == null ? new HashSet<>() : new HashSet<>(s);
+    }
+
+    void addPendingSkillDeal(UUID player, String dealId) {
+        if (pendingSkillDeals.computeIfAbsent(player, k -> new HashSet<>()).add(dealId)) {
+            setDirty();
+        }
+    }
+
+    void clearPendingSkillDeal(UUID player, String dealId) {
+        Set<String> s = pendingSkillDeals.get(player);
+        if (s != null && s.remove(dealId)) setDirty();
+    }
+
     /** -1 = never observed; else 0 human / 1 majin. */
     int getLastSide(UUID player) {
         Byte side = lastSide.get(player);
@@ -282,6 +301,7 @@ class DiplomacySavedData extends SavedData {
         allPlayers.addAll(claimedGifts.keySet());
         allPlayers.addAll(lastSide.keySet());
         allPlayers.addAll(dragoNovaClaimMillis.keySet());
+        allPlayers.addAll(pendingSkillDeals.keySet());
 
         ListTag players = new ListTag();
         for (UUID uuid : allPlayers) {
@@ -344,6 +364,11 @@ class DiplomacySavedData extends SavedData {
             if (side != null) player.putByte("lastSide", side);
             Long novaMs = dragoNovaClaimMillis.get(uuid);
             if (novaMs != null) player.putLong("dragoNovaClaimMillis", novaMs);
+            ListTag pendingSkills = new ListTag();
+            for (String dealId : pendingSkillDeals.getOrDefault(uuid, Set.of())) {
+                pendingSkills.add(net.minecraft.nbt.StringTag.valueOf(dealId));
+            }
+            player.put("pendingSkillDeals", pendingSkills);
             players.add(player);
         }
         tag.put("players", players);
@@ -442,6 +467,10 @@ class DiplomacySavedData extends SavedData {
             if (player.contains("dragoNovaClaimMillis")) {
                 data.dragoNovaClaimMillis.put(uuid, player.getLong("dragoNovaClaimMillis"));
             }
+            ListTag pendingSkills = player.getList("pendingSkillDeals", Tag.TAG_STRING);
+            Set<String> skillDeals = new HashSet<>();
+            for (int j = 0; j < pendingSkills.size(); j++) skillDeals.add(pendingSkills.getString(j));
+            if (!skillDeals.isEmpty()) data.pendingSkillDeals.put(uuid, skillDeals);
         }
         return data;
     }

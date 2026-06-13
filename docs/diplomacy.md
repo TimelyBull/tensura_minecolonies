@@ -297,6 +297,45 @@ new requirement mechanics):
   progression up to the milestone. Tensura items referenced via the
   `DealSpec.ten(path)` helper (silver/magisteel/crystals).
 
+---
+
+**Status: REWARDS DIVERSIFIED + SKILL CAPSTONES (2026-06-12).** A
+content/balance pass on the catalog's rewards (no new requirement
+mechanics) plus capstone skill grants:
+
+- **De-emeralded.** Emerald-dominant rewards are replaced by
+  faction-flavored useful payouts: **colony-loop resources** (building
+  blocks, food, iron/gold/coal, leather, bone meal), **diamonds**
+  (MC-useful, premium), and **Tensura materials** that feed our own
+  systems. Emeralds survive only as small trader-flavor filler on
+  Tempest "Meat for the Market" and Otherworlders "Settlers."
+- **Tensura mats, conservatively** (they're currency in our own
+  economy — barrier fuel, storage/Covenant crafts): magisteel
+  (low common, high at FRIENDLY+, exactly ONE pure on Dwargon's top
+  deal), magic crystals (low/medium common, **~8 high crystals across
+  the ENTIRE catalog**, ALLIED/FRIENDLY only), `magic_stone` as a
+  moderate craft-currency. Tiers scale: low deals → common goods,
+  ALLIED → the richer mats.
+- **Tensura flavor items:** typed `magic_tome_*` (earth/water/mental/
+  recovery/enhancement/gravity/illusion/fire/summoning — 1 per
+  magic-faction FRIENDLY/ALLIED deal, teaches a spell), `battlewill_
+  manual` (war factions), all conservative.
+- **MineColonies-useful items:** `ancienttome` (Jura/Luminous research),
+  `scroll_tp`/`scroll_area_tp`/`scroll_guard_help`/`scroll_buff`
+  (utility gifts), `compost` (Carrion farming), bulk building blocks.
+- **Capstone SKILL rewards** (`DealSpec.SKILL_REWARDS`, granted on each
+  faction's TOP ALLIED catalog quest; aloof factions on their highest
+  quest): Dwargon Body Armor, Tempest Self-Regeneration, Jura Thought
+  Communication, Luminous Holy-Attack Resistance, Falmuth Physical-
+  Attack Resistance, Milim Strength, **Carrion Giantification** (the
+  size-change giant intrinsic, per request), Clayman Charm, Leon
+  Flame-Attack Resistance, Shizu Heat Resistance, Otherworlders Eye of
+  Truth. **Grant rules** (`DiplomacyManager.grantSkillReward`): lack →
+  learn; have + resistance → nothing; have + not-resistance + mastery
+  not maxed → fully master it (the upgrade); have + no upgrade left →
+  1 pure magisteel ingot instead. Idempotent; queued in
+  `pendingSkillDeals` so offline completion grants on next login.
+
 Original investigation follows.
 
 ---

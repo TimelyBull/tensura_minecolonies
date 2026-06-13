@@ -809,6 +809,12 @@ public final class DiplomacyManager {
         WorldReputationManager.modifyStanding(level, player, faction,
                 gain, WorldRepReason.DIPLOMACY);
         data.setLastActivity(player, faction.id(), level.getGameTime());
+        // Catalog capstone — a top-tier quest that carries a SKILL
+        // reward queues it (granted now if online via the drain pass,
+        // or on next login if completed offline).
+        if (DealSpec.SKILL_REWARDS.containsKey(spec.id())) {
+            data.addPendingSkillDeal(player, spec.id());
+        }
         if (spec.milestone()) {
             // Milestone deals are now the COVENANT forges (the alliance
             // pact is a prompt; the mending rite bypasses this path).
@@ -1529,6 +1535,72 @@ public final class DiplomacyManager {
         return null;
     }
 
+    /** Catalog capstone — grant any owed SKILL rewards to online
+     *  players (queued at fulfillment; this runs them once the player
+     *  is present, covering offline completion). */
+    private static void drainSkillGrants(ServerLevel level) {
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        for (ServerPlayer player : level.players()) {
+            for (String dealId : data.getPendingSkillDeals(player.getUUID())) {
+                var supplier = DealSpec.SKILL_REWARDS.get(dealId);
+                data.clearPendingSkillDeal(player.getUUID(), dealId);
+                if (supplier == null) continue;
+                try {
+                    grantSkillReward(player, supplier.get());
+                } catch (Throwable t) {
+                    LOGGER.warn("[TM] diplomacy: skill grant failed for deal {}", dealId, t);
+                }
+            }
+        }
+    }
+
+    /**
+     * Grant a capstone skill (user-defined rules):
+     * <ul>
+     *   <li>player LACKS it → learn it;</li>
+     *   <li>player HAS it + RESISTANCE → nothing (resistances don't
+     *       upgrade and re-getting does nothing);</li>
+     *   <li>player HAS it + not a resistance + mastery not maxed →
+     *       fully MASTER it (the upgrade);</li>
+     *   <li>player HAS it + no upgrade left → 1 pure magisteel ingot
+     *       instead.</li>
+     * </ul>
+     */
+    private static void grantSkillReward(ServerPlayer player,
+                                         io.github.manasmods.manascore.skill.api.ManasSkill skill) {
+        var storage = io.github.manasmods.manascore.skill.api.SkillAPI.getSkillsFrom(player);
+        net.minecraft.resources.ResourceLocation id = skill.getRegistryName();
+        var existing = storage.getSkill(id);
+        net.minecraft.network.chat.MutableComponent name = skill.getName();
+        if (existing.isEmpty()) {
+            storage.learnSkill(skill.createDefaultInstance(), Component.literal(""));
+            player.sendSystemMessage(Component.literal("You have learned a new skill: ")
+                    .append(name).withStyle(net.minecraft.ChatFormatting.LIGHT_PURPLE));
+            return;
+        }
+        boolean resistance = skill instanceof io.github.manasmods.tensura.ability.skill.Skill ts
+                && ts.getType() == io.github.manasmods.tensura.ability.skill.Skill.SkillType.RESISTANCE;
+        if (resistance) {
+            return; // already have it; resistances don't upgrade
+        }
+        var inst = existing.get();
+        if (inst.getMastery() < inst.getMaxMastery()) {
+            inst.setMastery(inst.getMaxMastery());
+            storage.updateSkill(inst, true);
+            player.sendSystemMessage(Component.literal("Your mastery of ")
+                    .append(name).append(Component.literal(" deepens to its peak."))
+                    .withStyle(net.minecraft.ChatFormatting.LIGHT_PURPLE));
+        } else {
+            giveItems(player, List.of(new ItemStack(
+                    net.minecraft.core.registries.BuiltInRegistries.ITEM.get(
+                            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+                                    "tensura", "pure_magisteel_ingot")), 1)));
+            player.sendSystemMessage(Component.literal("You already wield ").append(name)
+                    .append(Component.literal(" at its peak — a pure magisteel ingot instead."))
+                    .withStyle(net.minecraft.ChatFormatting.LIGHT_PURPLE));
+        }
+    }
+
     /** Covenant gift — Luminous: a hero-evolution boon granting 3
      *  elemental SPIRITS the player lacks. Does NOTHING if the player
      *  already has spirits (the investigated cleanliness check). */
@@ -1620,6 +1692,7 @@ public final class DiplomacyManager {
             checkAlliancePrompts(overworld);
             tickAllianceBuffs(overworld);
             tickSideWatch(overworld);
+            drainSkillGrants(overworld);
         } catch (Throwable t) {
             LOGGER.warn("[TM] diplomacy: tick failed", t);
         }
