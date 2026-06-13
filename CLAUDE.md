@@ -635,7 +635,25 @@ profession (latest):**
   to colony strength (EP-primary, ×1.15 budget); hostile-spawn
   prevention inside fueled barriers. Records: docs/raid-system.md.
 
-**Barrier/diplomacy/Covenant batch (latest):**
+**Rival-colony arc — Stage A (settlement generation; latest):**
+- `RivalColonies` + `Settlement` + `SettlementSavedData`: per-faction
+  themed faux-towns built instantly from MineColonies schematics
+  (`StructurePacks.getBlueprintFuture` → `CreativeBuildingStructureHandler
+  .loadAndPlaceStructureWithRotation`). Physical factions + packs:
+  Luminous=Ancient Athens, Dwargon=Stalactite Caves, Falmuth=Fortress,
+  Shizu=Pagoda, Leon=Caledonia, Otherworlders=Space Wars, Jura=Jungle
+  Treehouse. Abstract (no settlement): Tempest, Carrion, Milim, Clayman.
+  Wild/colony split via `SettlementMode` config (ALL/SOME/NONE, default
+  SOME) — colony = settlement + FactionMarkTag boss; wild = unmarked
+  boss alone. Our-own scheduler generation pass (not vanilla world-gen),
+  rare/capped/tunable; `rivalNaturalGeneration` toggle. Debug:
+  `/rivalcolony spawn|wild <faction>` + `list`. All behind
+  factionSystemEnabled. Stages B–E extend the Settlement record's
+  reserved seams. Records: docs/rival-colony-investigation.md (Stage A
+  as-built). ⚠ Tracked: confirm the getBlueprintFuture pack key (display
+  name) in-game on first spawn.
+
+**Barrier/diplomacy/Covenant batch:**
 - Barrier tiers cumulative + distinct colors: T1 wall (traps
   inside-mobs), T2 +heal, T3/T4 +eject. Drain reworked to
   attackDamage × (EP × BARRIER_DRAIN_EP_MULTIPLIER 0.002).

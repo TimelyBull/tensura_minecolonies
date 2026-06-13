@@ -4222,6 +4222,23 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                                         .executes(ctx -> handleWorldRepMarkCommand(ctx,
                                                 StringArgumentType.getString(ctx, "faction")))))
         );
+        // Rival-colony Stage A debug — force-generate / inspect
+        // settlements without waiting for natural generation.
+        //   /rivalcolony spawn <faction>  — force a COLONY settlement
+        //   /rivalcolony wild <faction>   — spawn the WILD (unmarked) boss
+        //   /rivalcolony list             — inspect SettlementSavedData
+        event.getDispatcher().register(
+                Commands.literal("rivalcolony")
+                        .requires(src -> src.hasPermission(2))
+                        .then(Commands.literal("spawn")
+                                .then(Commands.argument("faction", StringArgumentType.word())
+                                        .executes(ctx -> handleRivalCommand(ctx, "spawn"))))
+                        .then(Commands.literal("wild")
+                                .then(Commands.argument("faction", StringArgumentType.word())
+                                        .executes(ctx -> handleRivalCommand(ctx, "wild"))))
+                        .then(Commands.literal("list")
+                                .executes(ctx -> handleRivalCommand(ctx, "list")))
+        );
         // Diplomacy Stage 1 debug — state readout, force-open relations,
         // force-refresh offers, force the pending envoy reply.
         event.getDispatcher().register(
@@ -4373,6 +4390,33 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     src.sendSuccess(() -> Component.literal(line), false);
                 }
             }
+        }
+        return 1;
+    }
+
+    /** {@code /rivalcolony spawn|wild|list} — Stage A settlement debug. */
+    private int handleRivalCommand(CommandContext<CommandSourceStack> ctx, String action) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/rivalcolony must be run by a player"));
+            return 0;
+        }
+        switch (action) {
+            case "list" -> {
+                for (String line : RivalColonies.debugList(player)) {
+                    src.sendSuccess(() -> Component.literal(line), false);
+                }
+            }
+            case "spawn", "wild" -> {
+                String factionId = StringArgumentType.getString(ctx, "faction")
+                        .toLowerCase(java.util.Locale.ROOT);
+                String result = RivalColonies.debugSpawn(player, factionId, action.equals("wild"));
+                src.sendSuccess(() -> Component.literal(result), true);
+            }
+            default -> { }
         }
         return 1;
     }
@@ -5689,6 +5733,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // collapse check; daily pass (offers, decay, inbound envoys)
             // rolls over inside. Faction-gated inside.
             DiplomacyManager.tick(server);
+            // Rival-colony Stage A — rare natural settlement generation
+            // (config + faction gated inside).
+            RivalColonies.tick(server);
         }
 
         // Dawn-restock pass — refresh every named subordinate merchant's

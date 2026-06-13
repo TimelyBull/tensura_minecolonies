@@ -44,6 +44,30 @@ public class Config {
                      "an already-active assassin boss remains until slain.")
             .define("enableAssassins", true);
 
+    /** How many physical-faction bosses generate as the COLONY version
+     *  (a settlement around them) vs. WILD (boss alone). ALL = every
+     *  physical boss gets a settlement; SOME = a fraction (see chance);
+     *  NONE = the physical-settlement layer is disabled entirely
+     *  (factions stay abstract, no settlements generate). */
+    public enum SettlementMode { ALL, SOME, NONE }
+
+    public static final ModConfigSpec.EnumValue<SettlementMode> RIVAL_SETTLEMENT_MODE = BUILDER
+            .comment("Rival-colony settlements: ALL (every physical faction boss gets a town),",
+                     "SOME (a fraction — see rivalSettlementSomeChance), NONE (disabled).")
+            .defineEnum("rivalSettlementMode", SettlementMode.SOME);
+
+    /** Under SOME: the fraction of physical-boss generations that become
+     *  the COLONY version (the rest are WILD). */
+    public static final ModConfigSpec.DoubleValue RIVAL_SETTLEMENT_SOME_CHANCE = BUILDER
+            .comment("Under SOME mode: chance (0..1) a physical faction boss generates as a settlement.")
+            .defineInRange("rivalSettlementSomeChance", 0.5, 0.0, 1.0);
+
+    /** Allow rare NATURAL settlement generation on the scheduler. When
+     *  false, settlements only appear via the debug command (testing). */
+    public static final ModConfigSpec.BooleanValue RIVAL_NATURAL_GEN = BUILDER
+            .comment("Allow rival settlements to generate naturally over time (false = debug-command only).")
+            .define("rivalNaturalGeneration", true);
+
     /** Drago Nova: does the blast harm allies/citizens/subordinates? */
     public static final ModConfigSpec.BooleanValue DRAGO_NOVA_HARM_ALLIES = BUILDER
             .comment("Drago Nova: the blast also harms allies, citizens and named subordinates.")

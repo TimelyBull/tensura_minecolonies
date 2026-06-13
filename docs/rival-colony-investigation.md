@@ -210,6 +210,73 @@ instruction.
 
 ---
 
+# STAGE A — BUILT (2026-06-12): settlement generation
+
+The structural foundation is built. As-built record:
+
+- **Files:** `RivalColonies` (driver: anchor/pack maps, shared layout,
+  placement, wild/colony split, natural pass, debug), `Settlement`
+  (the mutable per-settlement record with B–E seams), and
+  `SettlementSavedData` (sole-door storage). Config: `SettlementMode
+  {ALL, SOME, NONE}` (`rivalSettlementMode`, default SOME) +
+  `rivalSettlementSomeChance` (0.5) + `rivalNaturalGeneration` (true).
+  Debug: `/rivalcolony spawn|wild <faction>` + `/rivalcolony list`.
+- **Placement (verified path):** each building =
+  `StructurePacks.getBlueprintFuture(packDisplayName, path,
+  registries)` → `CreativeBuildingStructureHandler.
+  loadAndPlaceStructureWithRotation(level, future, pos,
+  RotationMirror.NONE, true, placer)` (queues a server-side ticked
+  PlaceStructureOperation — instant-ish complete build). The pack key
+  is the StructurePacks DISPLAY name.
+- **Shared layout, themed by pack:** one ~10-building footprint
+  (townhall + builder + tavern + blacksmith + library + barracks + 4
+  residences) on a 22-block grid, using pack-relative paths present in
+  EVERY candidate pack (verified) — only the PACK differs per faction.
+  The town hall anchors the center; the boss spawns there.
+- **PER-FACTION PACK / ANCHOR (physical = has anchor mob):**
+  | Faction | Anchor boss | MineColonies pack (theme) |
+  |---|---|---|
+  | Luminous | Hinata Sakaguchi | Ancient Athens (holy marble) |
+  | Dwargon | Gazel Dwargo | Stalactite Caves (dwarven) |
+  | Falmuth | Folgen | Fortress (militaristic) |
+  | Shizu | Shizu | Pagoda (Japanese) |
+  | Leon | Ifrit | Caledonia (grand keep) |
+  | Otherworlders | Mai Furuki | Space Wars (sci-fi) |
+  | Jura Alliance | Shin Ryusei | Jungle Treehouse (forest) |
+- **ABSTRACT (no anchor → never settle, per the brief):** Tempest,
+  Carrion, Milim, **Clayman** (his orcs roam as calamities — the
+  marked-boss anchors for the world-rep system are separate from
+  settlement anchors; Clayman has no settlement anchor by design). The
+  abstractness is reported by `/rivalcolony spawn clayman` ("ABSTRACT
+  — no anchor mob, no settlement").
+- **Wild/colony split:** `RivalColonies.generate` rolls per config —
+  ALL → colony, NONE → wild boss only (no settlement; layer off), SOME
+  → `rivalSettlementSomeChance` colony else wild. COLONY = settlement
+  cluster + boss MARKED via the existing `FactionMarkTag` (rep-
+  affecting); WILD = anchor boss alone, UNMARKED (the Stage-3 spare-boss
+  free-kill behavior — Layer-1 movers ignore it).
+- **Generation pass = OURS, not vanilla world-gen** (per Phase 1):
+  `RivalColonies.tick` on the shared 1 s scheduler rolls a rare daily
+  per-player chance (`NATURAL_GEN_CHANCE_PER_DAY` 0.05) to seed a
+  settlement ~220 blocks from a player, min-spacing 400, capped at 12,
+  config-gated; `rivalNaturalGeneration=false` makes it debug-command-
+  only. All constants named/tunable.
+- **Gating:** the whole layer no-ops when `factionSystemEnabled` is off
+  (every entry point checks).
+- **⚠ Tracked risk (verify in-game):** the pack key passed to
+  `getBlueprintFuture` is the display name ("Stalactite Caves" etc.);
+  if MineColonies registers its packs under a different key, placement
+  logs a failure and no blocks appear — a one-line swap to the folder
+  id (`truedwarven`) if so. This is the single thing to confirm on the
+  first `/rivalcolony spawn`.
+
+Stages B–E (garrison, discovery/war, conquest→colony, betrayal) extend
+the `Settlement` record's reserved seams (garrisonUuids,
+defenderCountAtStart, assaultingPlayer, assaultOrigin, discoveredBy,
+conquered) — already persisted, unused in A.
+
+---
+
 # PHASE 2 — the deferred technical pieces (2026-06-12)
 
 Investigation only, no production code. With both Phase-1 foundations
