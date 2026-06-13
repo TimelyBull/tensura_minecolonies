@@ -16,16 +16,13 @@ This is a preview of the rival-colony / settlement arc — the marked-boss
 machinery (FactionMarkTag) already exists; this adds the colony
 attribution + the config mode on top.
 
-## The 10+-quests-per-faction CATALOG (pending content pass)
+## The 10+-quests-per-faction CATALOG — DONE (2026-06-12)
 
-Re-noted: every diplomable faction should carry 10+ faction-exclusive,
-faction-geared quests. The FRAMEWORK is complete (per-faction DealSpec
-tables, all the Requirement variants incl. SupplyBundle/SlayEntities/
-LendCitizens-with-secondaries, tier gating, Covenant milestones, reward
-kinds). This remains a dedicated CONTENT-AUTHORING pass — NOT done in
-the systems batches — with fullest variety unlocking once Stage-3
-rewards (done) and the rival-colony/settlement arc are available as
-quest ingredients.
+Authored: 8 diplomable factions × 10 quests + 3 aloof factions × 4, on
+the existing framework. See docs/diplomacy.md "FACTION QUEST CATALOG
+AUTHORED". Remaining future expansion: territory/settlement quests
+("build at the faction's settlement", "defend their holdings") once the
+rival-colony/settlement arc lands as a quest ingredient.
 
 
 

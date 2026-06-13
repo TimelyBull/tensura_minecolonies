@@ -267,6 +267,36 @@ ALLIANCE plus a barrier/economy batch. As-built record:
   multi-item delivery), `SlayEntities` (kill-tracked hunts),
   `LendCitizens` gained `secondarySkills` for the training split.
 
+---
+
+**Status: FACTION QUEST CATALOG AUTHORED (2026-06-12).** The pending
+content pass is done — the per-faction deal tables expanded from the
+Stage-2 starter sets to a full catalog on the existing framework (no
+new requirement mechanics):
+
+- **8 diplomable factions × 10 quests each** (Dwargon, Tempest, Jura,
+  Luminous, Falmuth, Milim, Carrion, Clayman), tier-gated into a
+  NEUTRAL → FRIENDLY → ALLIED progression, varied across the five base
+  Requirement types (supply / build / population / happiness / lend),
+  faction-flavored requirements AND rewards. Existing Stage-2 deal ids
+  preserved; ~60 new deals added.
+- **Clayman INCLUDED** (user-approved): a 10-quest schemer table
+  (magic crystals, dark goods, pawns) leading to its Covenant
+  milestone — Clayman is Covenant-able and relations open via outbound
+  envoy.
+- **The 3 aloof factions get small sets** (user-approved, 4 each):
+  Leon (fire/flame), Shizu (teaching/Ifrit-lore), Otherworlders
+  (otherworld goods). They have no Covenant milestone but can now reach
+  Alliance through their deals.
+- **Building names all verified** against `ModBuildings` constants —
+  archery / stable / enchanter / tavern / mysticalsite / hospital all
+  exist; no substitutions were needed.
+- The Covenant MILESTONE deal (built earlier) still sits above each
+  faction's catalog; the offer pass draws ≤3 random eligible deals
+  from the faction's table by standing tier, so the catalog forms the
+  progression up to the milestone. Tensura items referenced via the
+  `DealSpec.ten(path)` helper (silver/magisteel/crystals).
+
 Original investigation follows.
 
 ---
