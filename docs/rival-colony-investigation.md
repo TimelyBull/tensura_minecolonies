@@ -207,3 +207,183 @@ instruction.
 - Set built level: `building.setBuildingLevel(n)` (ISchematicProvider)
 - Mark the colony boss: the existing `FactionMarkTag` / marked-boss
   system; WILD bosses stay unmarked (free kill).
+
+---
+
+# PHASE 2 — the deferred technical pieces (2026-06-12)
+
+Investigation only, no production code. With both Phase-1 foundations
+FEASIBLE, this pass checks the four deferred mechanics. **All four are
+FEASIBLE**, each reusing a pattern already shipped in this mod — the
+verified call sites are noted so the build phase starts grounded.
+Still deferred by instruction: PvP, payout-balance tuning, the siege
+system.
+
+## 1. GARRISON (defenders + scaling + persistence) — FEASIBLE
+
+**Composition — confirmed available.** Tensura ships rich
+faction-appropriate rosters (verified in `MonsterEntityTypes` +
+`HumanEntityTypes`): Falmuth → Falmuth Knight / Folgen / Kirara / Kyoya
+/ Shogo; Dwargon → Dwarf / Gazel / War Gnome / Beast Gnome; Clayman →
+Orc / Orc Lord / Lesser-Greater-Arch Daemon; Carrion → Giant Bear /
+Direwolf / Horned Bear / Blade Tiger / Barghest; Leon/Shizu → Ifrit
+Clone / Salamander / Hell Caterpillar / Hell Moth; Tempest/Jura →
+Tempest Serpent / Goblin / Lizardman / Slime; Milim → dragon-themed
+beasts. A per-faction `EntityType[]` defender table — the exact pattern
+as `TensuraRaids.rosters()` — covers this. Spawn uses the raid engine's
+proven path (`type.create` + `finalizeSpawn(SPAWN_EGG)` +
+`setPersistenceRequired` + a tag), so defenders don't despawn.
+
+**Scale to the BOSS, not the player — confirmed.** Read the boss's EP
+via the existing `ExampleMod.readExistence(boss).getEP()` (the same read
+`computeColonyStrength` and the raid budget use). Derive a scale factor
+from boss EP vs. a baseline, then apply it to each defender with the
+EXISTING stat-bump helper — `Assassins.multiplyAttribute(mob, attr, id,
+factor)` (stable-id ADD modifier, remove-first, never compounds), over
+`TensuraAttributes.MAX_MAGICULE` / `MAX_AURA` + vanilla `MAX_HEALTH` /
+`ATTACK_DAMAGE`. Garrison COUNT also scales with boss tier (more/bigger
+defenders for a stronger boss). This is the assassin manifestation
+buff applied to a squad — no new mechanic.
+
+**PERSISTENCE + reset (the key one) — FEASIBLE via a settlement
+SavedData record.** A new `SettlementSavedData` (the established
+overworld-SavedData idiom) holds, per settlement: id, faction id,
+center pos, structure-pack/theme, the boss UUID, the live defender
+UUID set, `defenderCountAtStart`, an `assaultState` (idle / under
+assault by player X), `conquered` flag, and the per-player
+discovered-by set. On an assault that ends WITHOUT conquest
+(retreat / player death / logout):
+- surviving defenders are despawned (envoy-poof) and the full garrison
+  is RESPAWNED fresh on the next assault (or immediately, lazily),
+- the boss is HEALED to full: `boss.setHealth(boss.getMaxHealth())`
+  plus restoring magicule/aura via the `ExistenceStorage` setters
+  (write side of the EP read — ⚠ confirm the exact restore call in
+  build; HP alone is the floor, EP-restore is the polish).
+Each assault is therefore a fresh full fight, exactly as designed. The
+boss + garrison are tied to the settlement record, not to a transient
+event, so they survive save/reload by construction.
+
+**Win condition (boss dead AND ≥60% defenders cleared) — FEASIBLE.**
+Snapshot `defenderCountAtStart` when the assault begins; a death hook
+on garrison-tagged mobs (the existing `RaidTag`-style death-bookkeeping
+pattern, a new `GarrisonTag(settlementId)`) decrements a live count /
+tallies kills. Conquest fires when `bossDead && kills >=
+ceil(0.6 * defenderCountAtStart)`. All arithmetic on the SavedData
+record.
+
+⚠ Tracked risks: (a) the exact EP/magicule restore call for the
+boss-heal (HP is trivial; the Tensura EP write is the detail); (b)
+keeping defenders tethered to the settlement (reuse the raid
+WALK_TARGET tether so they don't wander off and break the count).
+
+## 2. DISCOVERY + DECLARE-WAR FLOW — FEASIBLE
+
+**Discovery (proximity, per-player) — FEASIBLE.** On the existing 1 s
+scheduler, for each online player, test distance to each known
+settlement center; within a discovery radius → add the player to that
+settlement's discovered-by set (SavedData). This is the SAME shape as
+`runPerPlayerEnvoyPasses`' dwarven-village containment poll. Unlocks
+the per-faction Declare War button on the roster.
+
+**Declare War + war-party teleport — FEASIBLE, reuses three systems.**
+- War-party SELECTION: a 15-slot picker UI — the `WindowLendPicker`
+  pattern exactly (list the player's subordinate `RaceIdentity`
+  records, click to toggle, confirm at the cap).
+- TELEPORT IN: the player via `ServerPlayer.teleportTo` (the Drago-Nova
+  / Covenant-travel call); each chosen subordinate via the SUMMON path
+  (reconstruct/relocate the subordinate body — `summonGoblin`-style
+  `EntityType.create` from the identity snapshot, or relocate the live
+  body) then `moveTo` the settlement. ⚠ Decide whether war-party summon
+  bypasses the normal magicule summon-cost gate (design choice; a war
+  muster probably should be free or flat-priced).
+- "ALL ENTITIES HOSTILE": stamp garrison mobs with the `GarrisonTag`
+  and run the raid target-assist (`Assassins.lockTarget` /
+  `BrainUtils.setTargetOfEntity` dual-write) so defenders attack the
+  player + party, and the party's subordinates target defenders — the
+  raid steering pass, inverted ally-style, already does both halves.
+
+**Round-trip (Declare War ⇄ Retreat) — FEASIBLE.** The roster button
+swaps to RETREAT while `assaultState` is active for that player (a
+snapshot flag, the Diplomacy-button/`canX` idiom). Retreat or death →
+teleport the player + surviving party back to the muster point
+(stored origin pos in the assault record), then reset the garrison
+(#1). Player logout mid-assault = treated as retreat (the scheduler
+notices the player left and resets). The assault origin + party roster
+live in the SavedData so the return survives a reload.
+
+⚠ Tracked risks: subordinate bodies come in two modes (IN_COLONY
+citizen vs. SUBORDINATE wild body) — the muster must resolve each to a
+combat body (the summon path already handles this); and the summon-cost
+decision above.
+
+## 3. BETRAYAL SCALING — FEASIBLE
+
+Declaring war on a faction you have relations with scales the garrison
+UP by relationship tier. Read the tier from the built diplomacy system:
+`DiplomacyManager.getState(level, player, faction)` →
+{NONE, OPEN, PACT, COVENANT}. Map to an extra multiplier on the
+defender stat-bump (#1) — e.g. OPEN ×1.25, PACT ×1.6, COVENANT ×2.0
+(named/tunable) — and GRANT the defenders Tensura skills via the
+existing `DiplomacyManager.grantSkillReward` / `learnSkill` path
+(deeper ally → resistances + a combat skill), so a Covenant betrayal is
+genuinely brutal. Both halves reuse shipped patterns (the assassin
+stat-bump + the Covenant skill-grant).
+
+**Composes with the standing system — confirmed.** Declaring war
+itself sets the faction HOSTILE by writing standing down through the
+sole door (`WorldReputationManager.modifyStanding(..., a large
+negative, reason)`), which trips the existing below-WARY collapse —
+relations shatter exactly like the Orc-Disaster forced-HOSTILE clamp
+(the "Clayman-clamp freebie" from Stage 1). No new shatter logic; the
+betrayal flows through the standing spine. (A dedicated
+`WorldRepReason.WAR_DECLARED` keeps the log readable.)
+
+## 4. CITIZEN BOOST (conquest aftermath) — FEASIBLE
+
+Conquest grants 10–20 themed citizens. Two reuse paths, both proven:
+- spawn fresh citizens via `colony.getCitizenManager()
+  .createAndRegisterCivilianData()` (the naming-flow call) and set their
+  themed skills with `getCitizenSkillHandler().incrementLevel(skill, n)`
+  (the lend-return training call). Dwargon → Strength/Stamina miners,
+  Jura → Knowledge/Intelligence, etc. — a per-faction
+  (count, skill-profile) table.
+- The themed COUNT (10–20) and skill emphasis is one small data table
+  per faction, mirroring the deal-table data pattern.
+
+⚠ Tracked risk: the receiving colony's citizen CAP (housing) — like the
+lend-return, MineColonies absorbs overflow via happiness, but a 20-
+citizen dump may exceed `getMaxCitizens()`; decide whether to raise the
+cap, spill across the player's colonies, or stagger arrivals. Edge
+handling, not a blocker.
+
+## Recommended BUILD STAGING
+
+Each stage is independently testable; build in order, since later
+stages consume earlier records:
+
+- **Stage A — Settlement generation + record.** The wild/colony split
+  (config ALL/SOME/NONE, the future-ideas preview), the faux-town
+  placement (Phase-1 APIs), `SettlementSavedData`, boss spawn + mark
+  (colony) / unmarked (wild). Foundation for everything.
+- **Stage B — Garrison + persistence.** Per-faction defender tables,
+  boss-EP-scaled stat-bump, the GarrisonTag death-tally + 60% win
+  tracking, respawn-on-incomplete + boss-heal reset. Testable via a
+  debug "spawn settlement here" command.
+- **Stage C — Discovery + Declare-War flow.** Proximity discovery, the
+  15-slot war-party picker, teleport in/out, hostility application, the
+  Declare⇄Retreat button swap. The player-facing loop.
+- **Stage D — Conquest → colony.** The Phase-1 conversion
+  (`createColony` + hut registration — the FLAGGED moderate risk; keep
+  the "controlled outpost" fallback ready) + loot chests + the citizen
+  boost (#4) + the boss's Covenant skill grant.
+- **Stage E — Betrayal scaling.** A thin add over B/C: tier-read +
+  extra multiplier + defender skill grants + the WAR_DECLARED standing
+  crash. Last because it depends on B (garrison) and C (declare flow)
+  existing.
+
+**Recommendation: proceed to build, Stage A first.** No deferred piece
+is infeasible; all reuse verified call sites. Carry forward the tracked
+risks (Phase-1 hut-registration in Stage D; boss EP-restore + defender
+tether in Stage B; war-party summon-cost + body-mode resolution in
+Stage C; citizen-cap overflow in Stage D). PvP, payout balance, and the
+siege system remain explicitly deferred to their own later passes.
