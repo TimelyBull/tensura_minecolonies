@@ -26,8 +26,19 @@ import java.util.UUID;
  */
 public class Settlement {
 
+    /** What physical form the settlement takes — the two coexisting
+     *  types. MINECOLONIES_CLUSTER: a generated faux-town of MC
+     *  schematics (the 6 town factions). DWARVEN_VILLAGE: an EXISTING
+     *  Tensura dwarf village adopted as Dwargon's settlement (no
+     *  generated buildings; the village's own structures stand). B/C
+     *  operate on location + anchor boss, so they're type-agnostic;
+     *  only generation (A) and any building-registration differ. */
+    public enum StructureType { MINECOLONIES_CLUSTER, DWARVEN_VILLAGE }
+
     /** Stable per-world id. */
     public int id;
+    /** Which structure form this settlement is. */
+    public StructureType structureType = StructureType.MINECOLONIES_CLUSTER;
     /** Anchor faction (BossFaction id string). */
     public String factionId;
     /** Dimension the settlement sits in. */
@@ -63,6 +74,7 @@ public class Settlement {
     CompoundTag save() {
         CompoundTag tag = new CompoundTag();
         tag.putInt("id", id);
+        tag.putString("structureType", structureType.name());
         tag.putString("faction", factionId);
         tag.putString("dimension", dimension.location().toString());
         tag.putLong("center", center.asLong());
@@ -100,6 +112,11 @@ public class Settlement {
     static Settlement load(CompoundTag tag) {
         Settlement s = new Settlement();
         s.id = tag.getInt("id");
+        try {
+            s.structureType = StructureType.valueOf(tag.getString("structureType"));
+        } catch (IllegalArgumentException ignored) {
+            s.structureType = StructureType.MINECOLONIES_CLUSTER; // legacy default
+        }
         s.factionId = tag.getString("faction");
         s.dimension = ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION,
                 ResourceLocation.parse(tag.getString("dimension")));

@@ -237,12 +237,12 @@ The structural foundation is built. As-built record:
   | Faction | Anchor boss | MineColonies pack (theme) |
   |---|---|---|
   | Luminous | Hinata Sakaguchi | Ancient Athens (holy marble) |
-  | Dwargon | Gazel Dwargo | Stalactite Caves (dwarven) |
   | Falmuth | Folgen | Fortress (militaristic) |
   | Shizu | Shizu | Pagoda (Japanese) |
   | Leon | Ifrit | Caledonia (grand keep) |
   | Otherworlders | Mai Furuki | Space Wars (sci-fi) |
   | Jura Alliance | Shin Ryusei | Jungle Treehouse (forest) |
+  | Dwargon | Gazel Dwargo | *(no pack — see DESIGN CHANGE 1: uses existing dwarf villages)* |
 - **ABSTRACT (no anchor → never settle, per the brief):** Tempest,
   Carrion, Milim, **Clayman** (his orcs roam as calamities — the
   marked-boss anchors for the world-rep system are separate from
@@ -295,10 +295,80 @@ The structural foundation is built. As-built record:
     (truedwarven, ancientathens, fortress, pagoda, caledonia, spacewars,
     jungle) — the shared-footprint assumption holds across factions.
 
-Stages B–E (garrison, discovery/war, conquest→colony, betrayal) extend
+Stages B–E (garrison, discovery/war, conquest, betrayal) extend
 the `Settlement` record's reserved seams (garrisonUuids,
 defenderCountAtStart, assaultingPlayer, assaultOrigin, discoveredBy,
 conquered) — already persisted, unused in A.
+
+---
+
+# DESIGN CHANGES to the rival-colony arc (2026-06-13)
+
+Two adjustments applied to Stage A before B–E build on its assumptions.
+
+## CHANGE 1 — Dwargon uses existing Tensura DWARVEN VILLAGES (not a generated town)
+
+Gazel already spawns in Tensura's `tensura:dwarf_village` jigsaw
+worldgen structures, so generating a *separate* MineColonies faux-town
+for Dwargon was redundant. Dwargon is now a **DWARVEN_VILLAGE-type**
+settlement that ADOPTS existing dwarf villages.
+
+- **New `Settlement.StructureType` field:** `MINECOLONIES_CLUSTER` (the 6
+  town factions — generated faux-towns) vs `DWARVEN_VILLAGE` (Dwargon —
+  an adopted in-world village). Persisted in NBT with a legacy fallback
+  to `MINECOLONIES_CLUSTER`. B/C stages operate on **center + anchor
+  boss**, so they're structure-type-agnostic; only generation (A) and
+  building-registration differ.
+- **The generation HOOK — runtime detection, not chunk-gen.** Dwarf
+  villages are data-driven jigsaw structures; there's no clean chunk-gen
+  callback to hook. So Dwargon registration is RUNTIME, reusing the
+  envoy system's proven pattern: `RivalColonies.tickDwarvenVillages`
+  polls every tick for any player whose `blockPosition()` falls inside a
+  dwarf village via `level.structureManager().getStructureAt(pos,
+  dwarfVillageStructure).isValid()` (structure resolved from the registry
+  by `tensura:dwarf_village`, null-guarded for Tensura-disabled). The
+  FIRST time a village is seen, the wild/colony split is rolled ONCE for
+  it; the village center (`StructureStart.getBoundingBox().getCenter()`)
+  is recorded in `SettlementSavedData.evaluatedVillages` (a persisted
+  `Set<Long>`) so it's never re-rolled on revisit.
+- **`registerDwarvenVillage`:** on a COLONY roll, finds a Gazel already
+  inside the village bounds (`getEntitiesOfClass(Mob, villageAABB,
+  type==GAZEL && alive)`) — or spawns one at the center if absent — and
+  MARKS him as the anchor boss via the existing `WorldReputationManager.
+  markBoss(boss, "dwargon", "rival_colony", true)`. `structureType =
+  DWARVEN_VILLAGE`, `packName = ""`, `buildingPositions` empty (the
+  village's own buildings stand). A WILD roll just records the village as
+  evaluated and leaves it plain.
+- **Natural TOWN gen excludes Dwargon:** `randomPhysicalFaction` now
+  draws from `PACKS.keySet()` (the 6 town factions) — Dwargon never
+  scatters a faux-town. `ANCHORS` still holds all 7 (Gazel included) so
+  `isPhysical` and boss spawning work; `PACKS`/`isTownFaction` is the 6.
+- **Debug:** `/rivalcolony spawn dwargon` (and `wild dwargon`) now
+  require the player to be **standing inside a dwarf village**, marking
+  THAT village (else "stand inside a dwarven village…"). The 6 town
+  factions still spawn a faux-town 40 blocks ahead as before.
+
+## CHANGE 2 — Conquest does NOT create a second colony (rewards-only)
+
+MineColonies is designed around ONE player colony, so the Phase-1
+"conquest → `createColony` + hut-registration" conversion (the flagged
+moderate risk) is **REMOVED from the plan**. Conquest is now REWARDS-ONLY
+and the settlement becomes a defeated HUSK:
+
+- **KEPT rewards (all to the player's EXISTING colony):** the citizen
+  boost (10–20 faction-themed citizens added to the player's current
+  colony), the boss's Covenant skill (via `grantSkillReward`), and loot
+  chests (from the faction's quest-reward catalog).
+- **DROPPED:** `IColonyManager.createColony(...)` + manual hut
+  registration. No second player colony is ever founded.
+- **DEFEATED HUSK (over razing):** post-conquest the settlement's
+  buildings STAY as a sacked ruin — boss dead, defenders cleared, loot
+  spawned, `Settlement.conquered = true`, garrison won't respawn. The
+  `conquered` flag already exists on the record (persisted, unused in A).
+- **Convergence:** because conquest no longer founds a colony, Dwargon
+  (DWARVEN_VILLAGE) and the 6 town factions (MINECOLONIES_CLUSTER)
+  behave IDENTICALLY at conquest — rewards + husk — regardless of
+  structure type. Stage D is structure-type-agnostic.
 
 ---
 
@@ -432,6 +502,12 @@ betrayal flows through the standing spine. (A dedicated
 
 ## 4. CITIZEN BOOST (conquest aftermath) — FEASIBLE
 
+> **Superseded by DESIGN CHANGE 2 (2026-06-13):** conquest no longer
+> founds a second colony. The citizen boost below is now applied to the
+> player's EXISTING colony (not a freshly-created one). The reuse paths
+> are unchanged — they target whichever colony the conquering player
+> already owns.
+
 Conquest grants 10–20 themed citizens. Two reuse paths, both proven:
 - spawn fresh citizens via `colony.getCitizenManager()
   .createAndRegisterCivilianData()` (the naming-flow call) and set their
@@ -464,10 +540,14 @@ stages consume earlier records:
 - **Stage C — Discovery + Declare-War flow.** Proximity discovery, the
   15-slot war-party picker, teleport in/out, hostility application, the
   Declare⇄Retreat button swap. The player-facing loop.
-- **Stage D — Conquest → colony.** The Phase-1 conversion
-  (`createColony` + hut registration — the FLAGGED moderate risk; keep
-  the "controlled outpost" fallback ready) + loot chests + the citizen
-  boost (#4) + the boss's Covenant skill grant.
+- **Stage D — Conquest (rewards-only; DESIGN CHANGE 2).** NO colony is
+  founded. Rewards go to the player's EXISTING colony: loot chests + the
+  citizen boost (#4) + the boss's Covenant skill grant. The settlement
+  becomes a DEFEATED HUSK (`Settlement.conquered = true` — buildings
+  stay as a sacked ruin, boss dead, defenders cleared, garrison won't
+  respawn). Structure-type-agnostic (towns and Dwargon villages alike).
+  The dropped `createColony` + hut-registration path retires the
+  Phase-1 moderate risk.
 - **Stage E — Betrayal scaling.** A thin add over B/C: tier-read +
   extra multiplier + defender skill grants + the WAR_DECLARED standing
   crash. Last because it depends on B (garrison) and C (declare flow)
@@ -475,7 +555,8 @@ stages consume earlier records:
 
 **Recommendation: proceed to build, Stage A first.** No deferred piece
 is infeasible; all reuse verified call sites. Carry forward the tracked
-risks (Phase-1 hut-registration in Stage D; boss EP-restore + defender
-tether in Stage B; war-party summon-cost + body-mode resolution in
-Stage C; citizen-cap overflow in Stage D). PvP, payout balance, and the
+risks (boss EP-restore + defender tether in Stage B; war-party
+summon-cost + body-mode resolution in Stage C; citizen-cap overflow in
+Stage D). The Phase-1 hut-registration risk is RETIRED by DESIGN CHANGE
+2 (conquest no longer founds a colony). PvP, payout balance, and the
 siege system remain explicitly deferred to their own later passes.

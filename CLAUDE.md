@@ -640,7 +640,7 @@ profession (latest):**
   themed faux-towns built instantly from MineColonies schematics
   (`StructurePacks.getBlueprintFuture` → `CreativeBuildingStructureHandler
   .loadAndPlaceStructureWithRotation`). Physical factions + packs:
-  Luminous=Ancient Athens, Dwargon=Stalactite Caves, Falmuth=Fortress,
+  6 TOWN factions + packs: Luminous=Ancient Athens, Falmuth=Fortress,
   Shizu=Pagoda, Leon=Caledonia, Otherworlders=Space Wars, Jura=Jungle
   Treehouse. Abstract (no settlement): Tempest, Carrion, Milim, Clayman.
   Wild/colony split via `SettlementMode` config (ALL/SOME/NONE, default
@@ -650,12 +650,32 @@ profession (latest):**
   `/rivalcolony spawn|wild <faction>` + `list`. All behind
   factionSystemEnabled. Stages B–E extend the Settlement record's
   reserved seams. Records: docs/rival-colony-investigation.md (Stage A
-  as-built). Placement bugfix (2026-06-13): load blueprints
-  SYNCHRONOUSLY (getBlueprint, not the async getBlueprintFuture whose
-  future isn't ready when hasBluePrint() is checked) with the
-  `.blueprint` extension in the path, via the Blueprint-ctor handler +
-  Manager.addToQueue. Pack key = display name (was correct). All 7
-  faction packs verified.
+  as-built + DESIGN CHANGES). Placement bugfix (2026-06-13): load
+  blueprints SYNCHRONOUSLY (getBlueprint, not the async
+  getBlueprintFuture whose future isn't ready when hasBluePrint() is
+  checked) with the `.blueprint` extension in the path, via the
+  Blueprint-ctor handler + Manager.addToQueue. Pack key = display name
+  (was correct). All 7 faction packs verified.
+- DESIGN CHANGE 1 (2026-06-13) — Dwargon uses existing Tensura DWARVEN
+  VILLAGES, not a generated town. New `Settlement.StructureType`
+  (MINECOLONIES_CLUSTER = the 6 towns / DWARVEN_VILLAGE = Dwargon).
+  `RivalColonies.tickDwarvenVillages` polls per-tick for players inside
+  `tensura:dwarf_village` (via `structureManager().getStructureAt`,
+  same as the envoy pass), rolls the wild/colony split ONCE per village
+  (`SettlementSavedData.evaluatedVillages` persisted Set<Long>), and on
+  colony marks Gazel (found-in-bounds or spawned) as the anchor — no MC
+  buildings, the village's own structures stand. `ANCHORS` holds all 7
+  (Gazel incl.); `PACKS`/`isTownFaction` is the 6. Natural town gen
+  excludes Dwargon. `/rivalcolony spawn|wild dwargon` requires standing
+  inside a dwarf village.
+- DESIGN CHANGE 2 (2026-06-13) — conquest is REWARDS-ONLY, no second
+  colony. Dropped the planned `createColony` + hut-registration (MC is
+  one-player-colony by design; retires the Phase-1 risk). KEEP citizen
+  boost (10–20 themed citizens → the player's EXISTING colony), the
+  boss's Covenant skill, loot chests. Settlement → DEFEATED HUSK
+  (`Settlement.conquered = true`; buildings stay as a sacked ruin, boss
+  dead, defenders cleared, garrison won't respawn). Structure-type-
+  agnostic — towns and Dwargon villages behave the same at conquest.
 
 **Barrier/diplomacy/Covenant batch:**
 - Barrier tiers cumulative + distinct colors: T1 wall (traps

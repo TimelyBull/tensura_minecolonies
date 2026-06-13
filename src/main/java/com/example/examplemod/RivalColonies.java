@@ -52,17 +52,20 @@ public final class RivalColonies {
     // Pack names are the StructurePacks DISPLAY names (verified ids).
     // ------------------------------------------------------------------
 
-    /** faction id → anchor boss entity-type supplier (lazy; registries). */
+    /** faction id → anchor boss entity-type supplier (lazy; registries).
+     *  All PHYSICAL factions (the 6 town factions + Dwargon-village). */
     private static final Map<String, Supplier<? extends EntityType<?>>> ANCHORS = new LinkedHashMap<>();
-    /** faction id → MineColonies structure-pack display name (theme). */
+    /** faction id → MineColonies structure-pack display name (theme).
+     *  ONLY the 6 MINECOLONIES_CLUSTER (town) factions — Dwargon is NOT
+     *  here (it uses existing Tensura dwarven villages, not a generated
+     *  town; see {@link #DWARGON}). */
     private static final Map<String, String> PACKS = new LinkedHashMap<>();
+    /** Dwargon's id — the DWARVEN_VILLAGE-type faction (Change 1). */
+    static final String DWARGON = "dwargon";
     static {
         // Luminous — holy marble city.
         ANCHORS.put("luminous", HumanEntityTypes.HINATA_SAKAGUCHI);
         PACKS.put("luminous", "Ancient Athens");
-        // Dwargon — the dwarven kingdom.
-        ANCHORS.put("dwargon", HumanEntityTypes.GAZEL_DWARGO);
-        PACKS.put("dwargon", "Stalactite Caves");
         // Falmuth — militaristic human kingdom.
         ANCHORS.put("falmuth", HumanEntityTypes.FOLGEN);
         PACKS.put("falmuth", "Fortress");
@@ -78,13 +81,30 @@ public final class RivalColonies {
         // Jura Alliance — the forest nation.
         ANCHORS.put("jura_alliance", HumanEntityTypes.SHIN_RYUSEI);
         PACKS.put("jura_alliance", "Jungle Treehouse");
+        // Dwargon — DWARVEN_VILLAGE type: anchor exists (Gazel) but NO
+        // town pack; SOME existing dwarf villages become its settlements.
+        ANCHORS.put(DWARGON, HumanEntityTypes.GAZEL_DWARGO);
         // ABSTRACT (no anchor mob, never settle): tempest, carrion,
         // milim, clayman (his orcs roam as calamities, not a settled town).
     }
 
-    /** True when the faction can generate a physical settlement. */
+    /** Cached structure key for Tensura's dwarf village. */
+    static final net.minecraft.resources.ResourceKey<
+            net.minecraft.world.level.levelgen.structure.Structure> DWARF_VILLAGE_KEY =
+            net.minecraft.resources.ResourceKey.create(
+                    net.minecraft.core.registries.Registries.STRUCTURE,
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+                            "tensura", "dwarf_village"));
+
+    /** True when the faction can generate a physical settlement (the 6
+     *  town factions + Dwargon-village). */
     public static boolean isPhysical(String factionId) {
         return ANCHORS.containsKey(factionId);
+    }
+
+    /** True for the 6 MINECOLONIES_CLUSTER (generated-town) factions. */
+    public static boolean isTownFaction(String factionId) {
+        return PACKS.containsKey(factionId);
     }
 
     public static String packFor(String factionId) {
@@ -153,6 +173,13 @@ public final class RivalColonies {
                                BlockPos center) {
         if (!WorldReputationManager.isFactionSystemEnabled()) return null;
         if (!isPhysical(factionId)) return null;
+        // Dwargon never generates a TOWN — it adopts existing dwarven
+        // villages (the village poll). Route any stray call to a WILD
+        // Gazel rather than a faux-town.
+        if (!isTownFaction(factionId)) {
+            spawnAnchorBoss(level, factionId, center, false);
+            return null;
+        }
         if (Config.RIVAL_SETTLEMENT_MODE.get() == Config.SettlementMode.NONE) {
             // Layer disabled — still allow the WILD boss (free roaming).
             spawnAnchorBoss(level, factionId, center, false);
@@ -169,13 +196,14 @@ public final class RivalColonies {
     /** Force the COLONY version (the debug command + ALL mode). */
     static Settlement generateColony(ServerLevel level, ServerPlayer placer, String factionId,
                                      BlockPos rawCenter) {
-        if (!WorldReputationManager.isFactionSystemEnabled() || !isPhysical(factionId)) return null;
+        if (!WorldReputationManager.isFactionSystemEnabled() || !isTownFaction(factionId)) return null;
         String pack = PACKS.get(factionId);
         BlockPos center = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, rawCenter);
 
         Settlement s = new Settlement();
         SettlementSavedData data = SettlementSavedData.get(level);
         s.id = data.allocateId();
+        s.structureType = Settlement.StructureType.MINECOLONIES_CLUSTER;
         s.factionId = factionId;
         s.dimension = level.dimension();
         s.center = center;
@@ -267,6 +295,10 @@ public final class RivalColonies {
         if (Config.RIVAL_SETTLEMENT_MODE.get() == Config.SettlementMode.NONE) return;
 
         for (ServerLevel level : server.getAllLevels()) {
+            // Dwargon: poll every tick for players standing in an
+            // unevaluated dwarf village (cheap — a structure lookup).
+            tickDwarvenVillages(level);
+
             long day = level.getDayTime() / 24_000L;
             Long prev = lastNaturalDay.put(level.dimension(), day);
             if (prev == null || prev == day) continue; // once per in-game day
@@ -286,8 +318,101 @@ public final class RivalColonies {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Dwargon — adopting EXISTING Tensura dwarven villages (Change 1).
+    // Gazel already spawns in dwarf villages, so a separate MC town is
+    // redundant. Instead, the FIRST time a player stands in a dwarf
+    // village we roll the wild/colony split ONCE for that village: on a
+    // COLONY roll it becomes a DWARVEN_VILLAGE-type Dwargon settlement
+    // (Gazel marked as anchor, the village's own buildings stand); a WILD
+    // roll leaves it a plain village. Either way the village center is
+    // remembered so it's never re-rolled.
+    // ------------------------------------------------------------------
+
+    /** Resolve {@code tensura:dwarf_village}, or null if absent (Tensura
+     *  disabled / datapack override) — caller skips the pass. */
+    private static net.minecraft.world.level.levelgen.structure.Structure dwarfVillageStructure(
+            ServerLevel level) {
+        return level.registryAccess()
+                .registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE)
+                .get(DWARF_VILLAGE_KEY);
+    }
+
+    /** Per-tick poll: any player standing in an unevaluated dwarf village
+     *  triggers a one-time wild/colony roll for that village. */
+    private static void tickDwarvenVillages(ServerLevel level) {
+        if (Config.RIVAL_SETTLEMENT_MODE.get() == Config.SettlementMode.NONE) return;
+        net.minecraft.world.level.levelgen.structure.Structure dwarfVillage =
+                dwarfVillageStructure(level);
+        if (dwarfVillage == null) return;
+        SettlementSavedData data = SettlementSavedData.get(level);
+
+        for (ServerPlayer player : level.players()) {
+            net.minecraft.world.level.levelgen.structure.StructureStart start =
+                    level.structureManager().getStructureAt(player.blockPosition(), dwarfVillage);
+            if (!start.isValid()) continue;
+            net.minecraft.world.level.levelgen.structure.BoundingBox box = start.getBoundingBox();
+            BlockPos villageCenter = box.getCenter();
+            if (data.isVillageEvaluated(villageCenter)) continue;
+            data.markVillageEvaluated(villageCenter);
+            if (rollColony(level)) {
+                registerDwarvenVillage(level, data, villageCenter, box);
+            } else {
+                LOGGER.info("[TM] rival: dwarf village @ {} rolled WILD (plain village)", villageCenter);
+            }
+        }
+    }
+
+    /** Register an existing dwarf village as a DWARVEN_VILLAGE-type
+     *  Dwargon settlement: find Gazel within the village bounds (spawn one
+     *  at the center if absent) and MARK him as the anchor boss. No
+     *  buildings are placed — the village's own structures stand. */
+    private static Settlement registerDwarvenVillage(
+            ServerLevel level, SettlementSavedData data, BlockPos center,
+            net.minecraft.world.level.levelgen.structure.BoundingBox box) {
+        Settlement s = new Settlement();
+        s.id = data.allocateId();
+        s.structureType = Settlement.StructureType.DWARVEN_VILLAGE;
+        s.factionId = DWARGON;
+        s.dimension = level.dimension();
+        s.center = center;
+        s.packName = ""; // no MC pack — the village's own buildings
+        // buildingPositions stays empty; B/C operate on center + boss.
+
+        Mob gazel = findOrSpawnGazel(level, center, box);
+        if (gazel != null) {
+            s.bossUuid = gazel.getUUID();
+            WorldReputationManager.markBoss(gazel, DWARGON, "rival_colony", true);
+        }
+
+        data.put(s);
+        LOGGER.info("[TM] rival: dwarf village @ {} adopted as Dwargon settlement #{} (Gazel {})",
+                center, s.id, gazel != null ? "marked" : "MISSING");
+        return s;
+    }
+
+    /** Find a Gazel already inside the village bounds, else spawn one at
+     *  the village center. */
+    private static Mob findOrSpawnGazel(
+            ServerLevel level, BlockPos center,
+            net.minecraft.world.level.levelgen.structure.BoundingBox box) {
+        EntityType<?> gazelType = ANCHORS.get(DWARGON).get();
+        net.minecraft.world.phys.AABB aabb = new net.minecraft.world.phys.AABB(
+                box.minX(), box.minY(), box.minZ(),
+                box.maxX() + 1, box.maxY() + 1, box.maxZ() + 1);
+        for (Mob m : level.getEntitiesOfClass(Mob.class, aabb,
+                m -> m.getType() == gazelType && m.isAlive())) {
+            return m; // adopt the village's existing Gazel
+        }
+        // No Gazel present — spawn one unmarked; the caller marks it once.
+        return spawnAnchorBoss(level, DWARGON, center.above(), false);
+    }
+
+    /** Natural TOWN gen picks only from the 6 MINECOLONIES_CLUSTER
+     *  factions — Dwargon is excluded (it adopts dwarf villages via the
+     *  {@link #tickDwarvenVillages} poll, not faux-town scattering). */
     private static String randomPhysicalFaction(ServerLevel level) {
-        List<String> ids = new ArrayList<>(ANCHORS.keySet());
+        List<String> ids = new ArrayList<>(PACKS.keySet());
         if (ids.isEmpty()) return null;
         return ids.get(level.getRandom().nextInt(ids.size()));
     }
@@ -324,6 +449,34 @@ public final class RivalColonies {
             return faction.displayName() + " is ABSTRACT — it has no anchor mob, no settlement.";
         }
         ServerLevel level = player.serverLevel();
+
+        // Dwargon is DWARVEN_VILLAGE-type: it adopts the dwarf village the
+        // player is standing in, rather than generating a faux-town.
+        if (!isTownFaction(factionId)) {
+            net.minecraft.world.level.levelgen.structure.Structure dwarfVillage =
+                    dwarfVillageStructure(level);
+            if (dwarfVillage == null) {
+                return "tensura:dwarf_village isn't in the structure registry (Tensura disabled?).";
+            }
+            net.minecraft.world.level.levelgen.structure.StructureStart start =
+                    level.structureManager().getStructureAt(player.blockPosition(), dwarfVillage);
+            if (!start.isValid()) {
+                return "stand inside a dwarven village to mark it as a Dwargon settlement.";
+            }
+            net.minecraft.world.level.levelgen.structure.BoundingBox box = start.getBoundingBox();
+            BlockPos villageCenter = box.getCenter();
+            SettlementSavedData data = SettlementSavedData.get(level);
+            if (wild) {
+                data.markVillageEvaluated(villageCenter);
+                return "this dwarf village marked as WILD (won't become a Dwargon settlement).";
+            }
+            data.markVillageEvaluated(villageCenter);
+            Settlement vs = registerDwarvenVillage(level, data, villageCenter, box);
+            return faction.displayName() + " settlement #" + vs.id
+                    + " registered on this dwarf village @ " + vs.center
+                    + " (Gazel " + (vs.bossUuid != null ? "marked" : "MISSING") + ").";
+        }
+
         // Place ~40 blocks ahead of the player so they don't stand in it.
         BlockPos center = player.blockPosition().relative(player.getDirection(), 40);
         if (wild) {
@@ -346,9 +499,11 @@ public final class RivalColonies {
         out.add("Generated settlements (" + data.all().size() + "):");
         for (Settlement s : data.all()) {
             BossFaction f = BossFaction.byId(s.factionId);
+            String form = s.structureType == Settlement.StructureType.DWARVEN_VILLAGE
+                    ? "dwarven village"
+                    : s.buildingPositions.size() + " buildings";
             out.add("  #" + s.id + " " + (f != null ? f.displayName() : s.factionId)
-                    + " @ " + s.center + " [" + s.dimension.location() + "] — "
-                    + s.buildingPositions.size() + " buildings"
+                    + " @ " + s.center + " [" + s.dimension.location() + "] — " + form
                     + (s.conquered ? ", CONQUERED" : "")
                     + (s.discoveredBy.isEmpty() ? "" : ", discovered×" + s.discoveredBy.size()));
         }

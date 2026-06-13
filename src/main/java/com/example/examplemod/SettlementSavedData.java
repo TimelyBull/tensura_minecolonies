@@ -27,6 +27,11 @@ class SettlementSavedData extends SavedData {
 
     private final Map<Integer, Settlement> settlements = new HashMap<>();
     private int nextId = 1;
+    /** Dwarven-village anchors already evaluated for the wild/colony
+     *  roll (as packed longs), so a village isn't re-rolled each visit.
+     *  Villages that became settlements are also in {@link #settlements};
+     *  this set additionally remembers the ones that rolled "normal". */
+    private final java.util.Set<Long> evaluatedVillages = new java.util.HashSet<>();
 
     private SettlementSavedData() {}
 
@@ -63,6 +68,14 @@ class SettlementSavedData extends SavedData {
         setDirty();
     }
 
+    boolean isVillageEvaluated(net.minecraft.core.BlockPos center) {
+        return evaluatedVillages.contains(center.asLong());
+    }
+
+    void markVillageEvaluated(net.minecraft.core.BlockPos center) {
+        if (evaluatedVillages.add(center.asLong())) setDirty();
+    }
+
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         tag.putInt("nextId", nextId);
@@ -71,6 +84,10 @@ class SettlementSavedData extends SavedData {
             list.add(s.save());
         }
         tag.put("settlements", list);
+        long[] evaluated = new long[evaluatedVillages.size()];
+        int i = 0;
+        for (Long v : evaluatedVillages) evaluated[i++] = v;
+        tag.putLongArray("evaluatedVillages", evaluated);
         return tag;
     }
 
@@ -82,6 +99,9 @@ class SettlementSavedData extends SavedData {
         for (int i = 0; i < list.size(); i++) {
             Settlement s = Settlement.load(list.getCompound(i));
             data.settlements.put(s.id, s);
+        }
+        for (long v : tag.getLongArray("evaluatedVillages")) {
+            data.evaluatedVillages.add(v);
         }
         return data;
     }
