@@ -715,6 +715,42 @@ profession (latest):**
   loop that drives beginAssault/resetGarrison (C), conquest payoff (D),
   betrayal (E).
 
+**Rival-colony arc — Stage C (discovery + Declare-War + assault loop; latest):**
+- `RivalColonies` Stage-C block + new `Settlement` fields (assaultOriginDim,
+  warParty Set<UUID>, conquestReached, pendingReturn; assaultingPlayer/
+  assaultOrigin already reserved; all persisted) + Wars UI (WindowWarList /
+  WindowWarPicker + XML) + Networking (OpenWarPayload S2C / WarActionPayload
+  C2S). The loop that DRIVES the Stage-B garrison. Behind factionSystemEnabled.
+- Discovery: `tickDiscovery` (per-second), player within DISCOVERY_RANGE=80
+  of a settlement center → added to discoveredBy (per-player Declare-War
+  unlock) + one-time notice.
+- Declare War: roster **Wars** button → WindowWarList (discovered
+  settlements; per-row Declare/Retreat button-swap via canDeclare/
+  canRetreat) → WindowWarPicker (15-slot lend-picker shape; lists the
+  player's LOADED owned Tensura subordinates). `declareWar` records origin
+  (+dim), beginAssault (snapshots defenderCountAtStart from persisted
+  garrisonUuids — robust when chunks unloaded), teleports player
+  (ServerPlayer.teleportTo cross-dim) + party (Entity.teleportTo, set
+  aggressive) in, stores warParty UUIDs, steerGarrisonToInvaders turns
+  garrison hostile. WAR_PARTY_CAP=15; solo allowed.
+- Resolution (`tickAssaults` per-second): WIN on isConquestEligible →
+  resolveWin (party+player home, conquestReached=true [Stage D hooks it],
+  IDLE; garrison NOT reset). Else re-assert garrison targeting on invaders
+  (raid steerRaider dual-write inverted). RETREAT (button/resolveRetreat):
+  home + resetGarrison. DEATH/LOGOUT (onAssaultingPlayerDown via
+  onLivingDeath + PlayerLoggedOutEvent) = retreat + pendingReturn; RETURN
+  (onPlayerReturn via PlayerRespawnEvent + PlayerLoggedInEvent) teleports
+  to origin.
+- ⚠ TRACKED RISK handled: resetGarrison may revive the boss as a NEW
+  entity (new UUID) — C never caches old bossUuid; resetGarrison writes the
+  fresh uuid into s.bossUuid and all reads go through resolveBoss.
+- Persistence: all assault fields round-trip in SettlementSavedData
+  (logout-mid-assault returns on login; survives reload).
+- Debug: `/rivalcolony declare|win|retreat [id]`; garrison report shows
+  discovery+assault state. Records: docs/rival-colony-investigation.md
+  (Stage C as-built). Deferred: D = conquest payoff (citizens/skill/loot/
+  husk) consuming conquestReached; E = betrayal scaling.
+
 **Barrier/diplomacy/Covenant batch:**
 - Barrier tiers cumulative + distinct colors: T1 wall (traps
   inside-mobs), T2 +heal, T3/T4 +eject. Drain reworked to

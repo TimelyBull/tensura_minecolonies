@@ -212,6 +212,17 @@ public final class Networking {
                 DragoNovaConfirmPayload.CODEC,
                 Networking::onDragoNovaConfirm
         );
+        // Rival-colony Stage C — the Wars tab (S2C window, C2S actions).
+        registrar.playToClient(
+                OpenWarPayload.TYPE,
+                OpenWarPayload.CODEC,
+                Networking::onOpenWar
+        );
+        registrar.playToServer(
+                WarActionPayload.TYPE,
+                WarActionPayload.CODEC,
+                Networking::onWarAction
+        );
     }
 
     /**
@@ -1134,6 +1145,83 @@ public final class Networking {
     private static void onDragoNovaConfirm(DragoNovaConfirmPayload payload, IPayloadContext context) {
         if (!(context.player() instanceof ServerPlayer sp)) return;
         context.enqueueWork(() -> DragoNovaItem.confirmAndDetonate(sp));
+    }
+
+    // ------------------------------------------------------------------
+    // Rival-colony Stage C — the Wars tab (discover → declare → assault)
+    // ------------------------------------------------------------------
+
+    /** S2C: open a Wars window. The body's {@code mode} field selects the
+     *  view — "list" (discovered settlements) or "picker" (the war-party
+     *  selection for one settlement). Built by {@link #sendWarListTo} /
+     *  {@link #sendWarPickerTo}. */
+    public record OpenWarPayload(net.minecraft.nbt.CompoundTag data) implements CustomPacketPayload {
+        public static final Type<OpenWarPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "open_war"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, OpenWarPayload> CODEC =
+                StreamCodec.of(
+                        (buf, p) -> buf.writeNbt(p.data),
+                        buf -> new OpenWarPayload((net.minecraft.nbt.CompoundTag) buf.readNbt()));
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** C2S: a Wars-window action. action 0 = request list, 1 = request
+     *  picker (settlementId), 2 = confirm-declare (settlementId + party),
+     *  3 = retreat (settlementId). The party list is empty except for 2. */
+    public record WarActionPayload(byte action, int settlementId, List<Integer> party)
+            implements CustomPacketPayload {
+        public static final byte LIST = 0, PICKER = 1, DECLARE = 2, RETREAT = 3;
+        public static final Type<WarActionPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "war_action"));
+        public static final StreamCodec<ByteBuf, WarActionPayload> CODEC = StreamCodec.composite(
+                ByteBufCodecs.BYTE, WarActionPayload::action,
+                ByteBufCodecs.VAR_INT, WarActionPayload::settlementId,
+                ByteBufCodecs.VAR_INT.apply(ByteBufCodecs.list(64)), WarActionPayload::party,
+                WarActionPayload::new
+        );
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** Client-side delegate for the Wars window. Installed by ClientEvents. */
+    public static Consumer<OpenWarPayload> warClientHandler = payload ->
+            LOGGER.info("[TM] war window (no client handler installed)");
+
+    static void sendWarListTo(ServerPlayer player) {
+        PacketDistributor.sendToPlayer(player, new OpenWarPayload(RivalColonies.buildWarListTag(player)));
+    }
+
+    static void sendWarPickerTo(ServerPlayer player, int settlementId) {
+        net.minecraft.nbt.CompoundTag tag = RivalColonies.buildWarPickerTag(player, settlementId);
+        if (tag == null) { sendWarListTo(player); return; }
+        PacketDistributor.sendToPlayer(player, new OpenWarPayload(tag));
+    }
+
+    private static void onOpenWar(OpenWarPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> warClientHandler.accept(payload));
+    }
+
+    private static void onWarAction(WarActionPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer sp)) return;
+        context.enqueueWork(() -> {
+            switch (payload.action()) {
+                case WarActionPayload.LIST -> sendWarListTo(sp);
+                case WarActionPayload.PICKER -> sendWarPickerTo(sp, payload.settlementId());
+                case WarActionPayload.DECLARE -> {
+                    String msg = RivalColonies.declareWar(sp, payload.settlementId(), payload.party());
+                    sp.sendSystemMessage(net.minecraft.network.chat.Component.literal(msg));
+                    // No window re-open — the player is now at the settlement.
+                }
+                case WarActionPayload.RETREAT -> {
+                    ServerLevel level = sp.serverLevel();
+                    Settlement s = SettlementSavedData.get(level).get(payload.settlementId());
+                    if (s != null && s.assaulted && sp.getUUID().equals(s.assaultingPlayer)) {
+                        ServerLevel sLevel = level.getServer().getLevel(s.dimension);
+                        RivalColonies.resolveRetreat(sLevel != null ? sLevel : level, s, sp);
+                    }
+                }
+                default -> { }
+            }
+        });
     }
 
     /** Client-side delegate for the alliance prompt. Installed by ClientEvents. */

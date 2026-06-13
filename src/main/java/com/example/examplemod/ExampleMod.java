@@ -3586,6 +3586,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // offline (the boss died without them).
         Assassins.onPlayerLogin(sp);
 
+        // Rival-colony Stage C — if the player logged out mid-assault, the
+        // return trip to the assault origin is owed now.
+        RivalColonies.onPlayerReturn(sp);
+
         // Sync festival skill bonuses so the citizen-window "+X" is present after relog.
         try { sendFestivalBonus(sp); } catch (Throwable t) { LOGGER.warn("[TM] festival bonus login sync failed", t); }
 
@@ -3602,6 +3606,24 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             LOGGER.info("[TM] colony '{}' pending — re-sending picker to {} on login",
                     colony.getName(), sp.getName().getString());
         }
+    }
+
+    /** Rival-colony Stage C — logging out mid-assault is treated as a
+     *  retreat (garrison resets, party goes home); the return trip is
+     *  owed and completed on the next login. */
+    @SubscribeEvent
+    public void onPlayerLoggedOut(net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer sp)) return;
+        if (!(sp.level() instanceof ServerLevel level)) return;
+        RivalColonies.onAssaultingPlayerDown(level, sp.getUUID());
+    }
+
+    /** Rival-colony Stage C — on respawn after dying mid-assault, complete
+     *  the owed return trip to the assault origin. */
+    @SubscribeEvent
+    public void onPlayerRespawn(net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerRespawnEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer sp)) return;
+        RivalColonies.onPlayerReturn(sp);
     }
 
     /**
@@ -3710,6 +3732,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // Rival-colony Stage B — garrison death-tally (defender kills +
         // boss-down flag for the 60%-conquest check).
         RivalColonies.onGarrisonMobDeath(serverLevel, event.getEntity());
+
+        // Rival-colony Stage C — an assaulting player DYING mid-assault is
+        // treated as a retreat (garrison reset + party home now; the
+        // player teleports back to the origin on respawn).
+        if (event.getEntity() instanceof ServerPlayer downed) {
+            RivalColonies.onAssaultingPlayerDown(serverLevel, downed.getUUID());
+        }
 
         // Assassin death — clear bar + cold shoulder BEFORE the case-A
         // identity cleanup below removes the identity record (v2: also
@@ -4254,6 +4283,19 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                                 .then(Commands.argument("id",
                                         com.mojang.brigadier.arguments.IntegerArgumentType.integer(1))
                                         .executes(ctx -> handleRivalGarrisonCommand(ctx, "reset"))))
+                        .then(Commands.literal("declare")
+                                .then(Commands.argument("id",
+                                        com.mojang.brigadier.arguments.IntegerArgumentType.integer(1))
+                                        .executes(ctx -> handleRivalGarrisonCommand(ctx, "declare"))))
+                        .then(Commands.literal("win")
+                                .then(Commands.argument("id",
+                                        com.mojang.brigadier.arguments.IntegerArgumentType.integer(1))
+                                        .executes(ctx -> handleRivalGarrisonCommand(ctx, "win"))))
+                        .then(Commands.literal("retreat")
+                                .executes(ctx -> handleRivalGarrisonCommand(ctx, "retreat-cur"))
+                                .then(Commands.argument("id",
+                                        com.mojang.brigadier.arguments.IntegerArgumentType.integer(1))
+                                        .executes(ctx -> handleRivalGarrisonCommand(ctx, "retreat"))))
         );
         // Diplomacy Stage 1 debug — state readout, force-open relations,
         // force-refresh offers, force the pending envoy reply.
@@ -4447,6 +4489,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             src.sendFailure(Component.literal("/rivalcolony must be run by a player"));
             return 0;
         }
+        // retreat-cur has no id argument; everything else does.
+        if (action.equals("retreat-cur")) {
+            String result = RivalColonies.debugForceRetreat(player, null);
+            src.sendSuccess(() -> Component.literal(result), true);
+            return 1;
+        }
         int id = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "id");
         switch (action) {
             case "garrison" -> {
@@ -4460,6 +4508,18 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             }
             case "reset" -> {
                 String result = RivalColonies.debugReset(player, id);
+                src.sendSuccess(() -> Component.literal(result), true);
+            }
+            case "declare" -> {
+                String result = RivalColonies.debugDeclare(player, id);
+                src.sendSuccess(() -> Component.literal(result), true);
+            }
+            case "win" -> {
+                String result = RivalColonies.debugForceWin(player, id);
+                src.sendSuccess(() -> Component.literal(result), true);
+            }
+            case "retreat" -> {
+                String result = RivalColonies.debugForceRetreat(player, id);
                 src.sendSuccess(() -> Component.literal(result), true);
             }
             default -> { }

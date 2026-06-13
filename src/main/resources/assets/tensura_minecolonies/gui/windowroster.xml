@@ -75,11 +75,14 @@
 
     <!-- Counts (hidden while the bulk bar is showing). Moved up off the edge.
          Narrowed to make room for the centered Diplomacy tab button. -->
-    <text id="countCitizens" size="140 10" pos="16 226" color="black" label="0 citizens"/>
+    <text id="countCitizens" size="80 10" pos="16 226" color="black" label="0 citizens"/>
     <text id="countAtSide" size="140 10" pos="244 226" textalign="MIDDLE_RIGHT" color="black" label="0 at your side"/>
 
-    <!-- Diplomacy tab — centered in the footer counters row; hidden while
-         the bulk bar is showing (it shares the band). -->
+    <!-- Diplomacy + Wars tabs — centered in the footer counters row;
+         hidden while the bulk bar is showing (they share the band). -->
+    <button id="wars" size="58 16" pos="104 222" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_tan.png"
+            label="Wars"/>
     <button id="diplomacy" size="64 16" pos="168 222" color="black"
             source="tensura_minecolonies:textures/gui/roster/btn_tan.png"
             label="Diplomacy"/>

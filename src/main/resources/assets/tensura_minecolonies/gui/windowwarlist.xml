@@ -1,0 +1,28 @@
+<window size="300 240" lightbox="true"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/ldtteam/BlockUI/version/main/src/main/resources/assets/blockui/gui/block_ui.xsd">
+
+    <image source="minecolonies:textures/gui/builderhut/builder_paper_wide2.png" size="300 240"/>
+
+    <text id="title" size="268 14" pos="16 10" color="black" textscale="1.15" label="§lRival Settlements§r"/>
+    <text id="subtitle" size="268 11" pos="16 26" textscale="0.9" color="black"
+          label="Settlements you have discovered."/>
+    <box id="divider" size="268 1" pos="16 40" color="black"/>
+
+    <!-- One row per discovered settlement. -->
+    <list id="settlements" size="268 156" pos="16 46">
+        <view size="100% 34">
+            <box id="scard" size="256 31" pos="0 0" color="black"/>
+            <text id="sfaction" size="200 11" pos="8 4" color="black"/>
+            <text id="swhere" size="200 9" pos="8 15" textscale="0.8" color="black"/>
+            <text id="sstate" size="200 9" pos="8 23" textscale="0.8" color="black"/>
+            <button id="wact" size="60 16" pos="190 8" color="black"
+                    source="tensura_minecolonies:textures/gui/roster/btn_tan.png" label=""/>
+        </view>
+    </list>
+
+    <button id="close" size="80 16" pos="110 212" color="black"
+            source="tensura_minecolonies:textures/gui/roster/btn_tan.png"
+            label="Close"/>
+
+</window>

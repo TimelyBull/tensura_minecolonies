@@ -7,14 +7,17 @@ import com.ldtteam.structurize.operations.PlaceStructureOperation;
 import com.ldtteam.structurize.placement.StructurePlacer;
 import com.ldtteam.structurize.storage.StructurePacks;
 import com.minecolonies.api.util.CreativeBuildingStructureHandler;
+import io.github.manasmods.tensura.entity.template.subclass.ISubordinate;
 import io.github.manasmods.tensura.registry.entity.HumanEntityTypes;
 import io.github.manasmods.tensura.registry.entity.MonsterEntityTypes;
 import io.github.manasmods.tensura.registry.attribute.TensuraAttributes;
 import io.github.manasmods.tensura.storage.ep.ExistenceStorage;
 import io.github.manasmods.tensura.util.EnergyHelper;
+import io.github.manasmods.tensura.util.SubordinateHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -30,8 +33,11 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import net.tslat.smartbrainlib.util.BrainUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -417,6 +423,9 @@ public final class RivalColonies {
             // Runs whenever the faction system is on (independent of the
             // natural-gen toggle) so debug-spawned garrisons behave too.
             tickGarrison(level);
+            // Stage C — proximity discovery + drive any active assault.
+            tickDiscovery(level);
+            tickAssaults(level);
 
             if (!settlementsOn) continue;
 
@@ -735,11 +744,13 @@ public final class RivalColonies {
         return s.bossDead && s.defenderKills >= requiredDefenderKills(s);
     }
 
-    /** Begin an assault (Stage C entry): re-snapshot the live garrison as
-     *  the denominator, zero the kill tally, clear the boss-down flag,
-     *  flip to ASSAULTED. */
+    /** Begin an assault (Stage C entry): snapshot the TRACKED garrison
+     *  roster ({@code garrisonUuids} — the persisted living count, robust
+     *  to the settlement chunks being unloaded when war is declared from
+     *  afar) as the denominator, zero the kill tally, clear the boss-down
+     *  flag, flip to ASSAULTED. */
     static void beginAssault(ServerLevel level, Settlement s) {
-        s.defenderCountAtStart = liveDefenderCount(level, s);
+        s.defenderCountAtStart = s.garrisonUuids.size();
         s.defenderKills = 0;
         s.bossDead = false;
         s.assaulted = true;
@@ -855,6 +866,394 @@ public final class RivalColonies {
         data.markChanged();
     }
 
+    // ==================================================================
+    // STAGE C — discovery + Declare-War + the teleport-assault loop
+    // ==================================================================
+
+    /** A player within this many blocks of a settlement center DISCOVERS
+     *  it (per-player; unlocks Declare War for them). */
+    static final int DISCOVERY_RANGE = 80;
+    /** Max war-party size taken into an assault. */
+    static final int WAR_PARTY_CAP = 15;
+    /** Party members materialize within this radius of the player on
+     *  teleport-in / teleport-back. */
+    private static final int WAR_PARTY_SPREAD = 3;
+
+    // --- discovery -----------------------------------------------------
+
+    /** Per-second proximity discovery: any player within
+     *  {@link #DISCOVERY_RANGE} of a settlement center records it in the
+     *  settlement's {@code discoveredBy} (the per-player Declare-War
+     *  unlock). The dwarven-village/envoy per-player pass shape. */
+    private static void tickDiscovery(ServerLevel level) {
+        SettlementSavedData data = SettlementSavedData.get(level);
+        if (data.all().isEmpty()) return;
+        boolean changed = false;
+        long rangeSq = (long) DISCOVERY_RANGE * DISCOVERY_RANGE;
+        for (Settlement s : data.all()) {
+            if (!s.dimension.equals(level.dimension())) continue;
+            for (ServerPlayer player : level.players()) {
+                if (s.discoveredBy.contains(player.getUUID())) continue;
+                if (player.blockPosition().distSqr(s.center) <= rangeSq) {
+                    s.discoveredBy.add(player.getUUID());
+                    changed = true;
+                    BossFaction f = BossFaction.byId(s.factionId);
+                    player.sendSystemMessage(Component.literal("You have discovered a "
+                            + (f != null ? f.displayName() : s.factionId)
+                            + " settlement — you may Declare War on it from the roster.")
+                            .withStyle(f != null ? f.color() : net.minecraft.ChatFormatting.GOLD));
+                    LOGGER.info("[TM] rival: settlement #{} discovered by {}",
+                            s.id, player.getName().getString());
+                }
+            }
+        }
+        if (changed) data.markChanged();
+    }
+
+    static boolean isDiscoveredBy(Settlement s, java.util.UUID player) {
+        return s.discoveredBy.contains(player);
+    }
+
+    // --- Declare War + teleport-in -------------------------------------
+
+    /** The player's LOADED Tensura subordinates (the war-party candidate
+     *  pool) — owned mobs in the player's current level. */
+    static List<Mob> loadedSubordinates(ServerPlayer player) {
+        ServerLevel level = player.serverLevel();
+        List<Mob> out = new ArrayList<>();
+        java.util.UUID me = player.getUUID();
+        AABB scan = player.getBoundingBox().inflate(256);
+        for (Mob mob : level.getEntitiesOfClass(Mob.class, scan, m -> m.isAlive()
+                && m instanceof ISubordinate
+                && me.equals(SubordinateHelper.getSubordinateOwnerUUID(m)))) {
+            out.add(mob);
+        }
+        return out;
+    }
+
+    /**
+     * Declare War on a discovered settlement: validate, record the return
+     * origin, snapshot the garrison ({@link #beginAssault}), teleport the
+     * player + the chosen war party in, and turn the garrison hostile on
+     * the invaders. {@code partyEntityIds} are network ids of LOADED owned
+     * subordinates (resolved server-side). Returns a player-facing string.
+     */
+    static String declareWar(ServerPlayer player, int settlementId, List<Integer> partyEntityIds) {
+        if (!WorldReputationManager.isFactionSystemEnabled()) {
+            return "the faction system is disabled (factionSystemEnabled=false)";
+        }
+        ServerLevel originLevel = player.serverLevel();
+        SettlementSavedData data = SettlementSavedData.get(originLevel);
+        Settlement s = data.get(settlementId);
+        if (s == null) return "no settlement #" + settlementId + ".";
+        if (!isDiscoveredBy(s, player.getUUID())) return "you haven't discovered that settlement yet.";
+        if (s.conquered) return "that settlement is already a conquered husk.";
+        if (s.assaulted) {
+            return s.assaultingPlayer != null && s.assaultingPlayer.equals(player.getUUID())
+                    ? "you are already assaulting that settlement."
+                    : "that settlement is already under assault.";
+        }
+        ServerLevel settlementLevel = originLevel.getServer().getLevel(s.dimension);
+        if (settlementLevel == null) return "the settlement's dimension isn't loaded.";
+
+        // Record the return trip BEFORE moving the player.
+        s.assaultingPlayer = player.getUUID();
+        s.assaultOrigin = player.blockPosition();
+        s.assaultOriginDim = originLevel.dimension();
+        s.pendingReturn = false;
+        s.conquestReached = false;
+
+        // Snapshot the garrison (count + zero kills + ASSAULTED).
+        beginAssault(settlementLevel, s);
+
+        // Teleport the player to the settlement edge, then bring the party.
+        BlockPos arrival = settlementLevel.getHeightmapPos(Heightmap.Types.WORLD_SURFACE,
+                s.center.offset(GARRISON_SPAWN_RADIUS + 6, 0, 0));
+        player.teleportTo(settlementLevel, arrival.getX() + 0.5, arrival.getY(), arrival.getZ() + 0.5,
+                player.getYRot(), player.getXRot());
+
+        s.warParty.clear();
+        if (partyEntityIds != null) {
+            int taken = 0;
+            for (Integer id : partyEntityIds) {
+                if (taken >= WAR_PARTY_CAP) break;
+                if (id == null) continue;
+                net.minecraft.world.entity.Entity e = originLevel.getEntity(id);
+                if (!(e instanceof Mob mob) || !mob.isAlive()) continue;
+                if (!player.getUUID().equals(SubordinateHelper.getSubordinateOwnerUUID(mob))) continue;
+                BlockPos at = partyArrivalPos(settlementLevel, arrival, taken);
+                mob.teleportTo(settlementLevel, at.getX() + 0.5, at.getY(), at.getZ() + 0.5,
+                        java.util.Set.of(), mob.getYRot(), mob.getXRot());
+                SubordinateHelper.setAggressive(mob);
+                s.warParty.add(mob.getUUID());
+                taken++;
+            }
+        }
+
+        // Turn the garrison hostile on the invaders right away.
+        steerGarrisonToInvaders(settlementLevel, s, player);
+        data.markChanged();
+
+        BossFaction f = BossFaction.byId(s.factionId);
+        LOGGER.info("[TM] rival: {} DECLARED WAR on settlement #{} — party {}, {} defenders + boss",
+                player.getName().getString(), s.id, s.warParty.size(), s.defenderCountAtStart);
+        return "War declared on the " + (f != null ? f.displayName() : s.factionId)
+                + " settlement #" + s.id + " — " + s.warParty.size() + " in your war party. "
+                + "Kill the boss and " + (int) (GARRISON_WIN_FRACTION * 100) + "% of "
+                + s.defenderCountAtStart + " defenders to conquer it.";
+    }
+
+    private static BlockPos partyArrivalPos(ServerLevel level, BlockPos around, int index) {
+        int dx = (index % 5 - 2) * WAR_PARTY_SPREAD;
+        int dz = (index / 5 - 1) * WAR_PARTY_SPREAD;
+        return level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, around.offset(dx, 0, dz));
+    }
+
+    // --- the assault drive + resolution --------------------------------
+
+    /** Per-second: drive every ASSAULTED settlement — resolve a WIN the
+     *  moment B's {@link #isConquestEligible} trips, else keep the
+     *  garrison locked onto the invaders (the raid steer, inverted). */
+    private static void tickAssaults(ServerLevel level) {
+        SettlementSavedData data = SettlementSavedData.get(level);
+        for (Settlement s : data.all()) {
+            if (!s.assaulted) continue;
+            if (!s.dimension.equals(level.dimension())) continue;
+            if (s.assaultingPlayer == null) { s.assaulted = false; continue; }
+            ServerPlayer player = level.getServer().getPlayerList().getPlayer(s.assaultingPlayer);
+            if (player == null) continue; // offline — the logout handler resolves it
+            if (isConquestEligible(s)) {
+                resolveWin(level, s, player);
+                continue;
+            }
+            steerGarrisonToInvaders(level, s, player);
+        }
+    }
+
+    /** Make every loaded garrison member (defenders + boss) target the
+     *  nearest invader (player or war-party mob) when it has no live
+     *  target — the raid {@code steerRaider} dual-write, inverted. */
+    private static void steerGarrisonToInvaders(ServerLevel level, Settlement s, ServerPlayer player) {
+        List<net.minecraft.world.entity.LivingEntity> invaders = new ArrayList<>();
+        invaders.add(player);
+        for (java.util.UUID u : s.warParty) {
+            if (level.getEntity(u) instanceof Mob m && m.isAlive()) invaders.add(m);
+        }
+        java.util.List<java.util.UUID> members = new ArrayList<>(s.garrisonUuids);
+        if (s.bossUuid != null) members.add(s.bossUuid);
+        for (java.util.UUID u : members) {
+            if (!(level.getEntity(u) instanceof Mob mob) || !mob.isAlive()) continue;
+            net.minecraft.world.entity.LivingEntity cur = mob.getTarget();
+            if (cur != null && cur.isAlive()) continue; // already fighting
+            net.minecraft.world.entity.LivingEntity nearest = null;
+            double best = Double.MAX_VALUE;
+            for (net.minecraft.world.entity.LivingEntity inv : invaders) {
+                if (!inv.isAlive()) continue;
+                double d = inv.distanceToSqr(mob);
+                if (d < best) { best = d; nearest = inv; }
+            }
+            if (nearest != null) {
+                BrainUtils.setTargetOfEntity(mob, nearest);
+                mob.setTarget(nearest);
+            }
+        }
+    }
+
+    /**
+     * WIN — conquest-eligible reached (bossDead && ≥60% defenders). C
+     * resolves the assault: flag {@code conquestReached} (Stage D hooks
+     * this for the payoff), bring the player + survivors home, return to
+     * IDLE. The garrison is NOT reset — it has been beaten.
+     */
+    private static void resolveWin(ServerLevel level, Settlement s, ServerPlayer player) {
+        bringPartyHome(level, s, player);
+        teleportPlayerHome(s, player);
+        s.conquestReached = true;
+        BossFaction f = BossFaction.byId(s.factionId);
+        player.sendSystemMessage(Component.literal("The " + (f != null ? f.displayName() : s.factionId)
+                + " settlement has fallen! (The spoils await — Stage D.)")
+                .withStyle(net.minecraft.ChatFormatting.GREEN));
+        LOGGER.info("[TM] rival: settlement #{} CONQUERED by {} — conquestReached flagged (payoff = Stage D)",
+                s.id, player.getName().getString());
+        clearAssaultState(s, true); // keep conquestReached
+        SettlementSavedData.get(level).markChanged();
+    }
+
+    /**
+     * RETREAT — an INCOMPLETE assault (player pressed Retreat). Bring the
+     * party + player home and RESET the garrison (respawn defenders + heal
+     * /revive the boss). The player is alive and online here.
+     *
+     * <p>⚠ TRACKED RISK — {@link #resetGarrison} may REVIVE the boss as a
+     * NEW entity (new UUID). We never cache the old bossUuid across the
+     * reset: reset writes the fresh uuid into {@code s.bossUuid}, and any
+     * later read goes through {@link #resolveBoss}.
+     */
+    static void resolveRetreat(ServerLevel level, Settlement s, ServerPlayer player) {
+        bringPartyHome(level, s, player);
+        teleportPlayerHome(s, player);
+        resetGarrison(level, s); // respawns garrison + revives/heals boss (updates bossUuid)
+        BossFaction f = BossFaction.byId(s.factionId);
+        if (player != null) {
+            player.sendSystemMessage(Component.literal("You retreat from the "
+                    + (f != null ? f.displayName() : s.factionId)
+                    + " settlement — its garrison regroups.")
+                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+        }
+        LOGGER.info("[TM] rival: settlement #{} assault ABORTED (retreat) — garrison reset, boss re-resolved {}",
+                s.id, s.bossUuid);
+        clearAssaultState(s, false);
+        SettlementSavedData.get(level).markChanged();
+    }
+
+    /**
+     * The assaulting player DIED or LOGGED OUT mid-assault → treat as a
+     * retreat: reset the garrison and send the party home, but the player
+     * can't be teleported now, so mark {@link Settlement#pendingReturn}
+     * and keep the origin until they come back (login / respawn).
+     */
+    static void onAssaultingPlayerDown(ServerLevel level, java.util.UUID playerId) {
+        // SettlementSavedData is overworld-global — one instance covers all
+        // dimensions; fetch once and scan its settlements.
+        SettlementSavedData data = SettlementSavedData.get(level);
+        for (Settlement s : data.all()) {
+            if (!s.assaulted || !playerId.equals(s.assaultingPlayer)) continue;
+            ServerLevel sLevel = level.getServer().getLevel(s.dimension);
+            if (sLevel == null) continue;
+            bringPartyHome(sLevel, s, null); // no player to anchor; sent to origin
+            resetGarrison(sLevel, s);
+            s.assaulted = false;
+            s.pendingReturn = true; // teleport the player home on return
+            data.markChanged();
+            LOGGER.info("[TM] rival: settlement #{} assailant down (death/logout) — garrison reset, return pending",
+                    s.id);
+        }
+    }
+
+    /** On respawn / login: if this player owes a return trip from an
+     *  interrupted assault, teleport them to the stored origin and clear
+     *  the assault link. */
+    static void onPlayerReturn(ServerPlayer player) {
+        for (ServerLevel level : player.getServer().getAllLevels()) {
+            SettlementSavedData data = SettlementSavedData.get(level);
+            for (Settlement s : data.all()) {
+                if (!s.pendingReturn || !player.getUUID().equals(s.assaultingPlayer)) continue;
+                teleportPlayerHome(s, player);
+                clearAssaultState(s, false);
+                data.markChanged();
+                LOGGER.info("[TM] rival: returned {} to assault origin from settlement #{}",
+                        player.getName().getString(), s.id);
+                return;
+            }
+        }
+    }
+
+    private static void teleportPlayerHome(Settlement s, ServerPlayer player) {
+        if (player == null || s.assaultOrigin == null) return;
+        ServerLevel dest = s.assaultOriginDim != null
+                ? player.getServer().getLevel(s.assaultOriginDim) : player.serverLevel();
+        if (dest == null) dest = player.serverLevel();
+        player.teleportTo(dest, s.assaultOrigin.getX() + 0.5, s.assaultOrigin.getY(),
+                s.assaultOrigin.getZ() + 0.5, player.getYRot(), player.getXRot());
+    }
+
+    /** Bring the loaded war party back to the assault origin (near the
+     *  player if given, else to the stored origin). */
+    private static void bringPartyHome(ServerLevel assaultLevel, Settlement s, ServerPlayer player) {
+        if (s.assaultOrigin == null || s.assaultOriginDim == null) return;
+        ServerLevel dest = assaultLevel.getServer().getLevel(s.assaultOriginDim);
+        if (dest == null) return;
+        int i = 0;
+        for (java.util.UUID u : s.warParty) {
+            net.minecraft.world.entity.Entity e = assaultLevel.getEntity(u);
+            if (!(e instanceof Mob mob) || !mob.isAlive()) { i++; continue; }
+            BlockPos at = partyArrivalPos(dest, s.assaultOrigin, i++);
+            mob.teleportTo(dest, at.getX() + 0.5, at.getY(), at.getZ() + 0.5,
+                    java.util.Set.of(), mob.getYRot(), mob.getXRot());
+            SubordinateHelper.removeTarget(mob);
+        }
+    }
+
+    /** Reset the per-assault link. {@code keepConquest} preserves the
+     *  {@link Settlement#conquestReached} flag for Stage D. */
+    private static void clearAssaultState(Settlement s, boolean keepConquest) {
+        s.assaultingPlayer = null;
+        s.assaultOrigin = null;
+        s.assaultOriginDim = null;
+        s.warParty.clear();
+        s.assaulted = false;
+        s.pendingReturn = false;
+        if (!keepConquest) s.conquestReached = false;
+    }
+
+    /** Find the settlement this player is actively assaulting, or null. */
+    static Settlement findAssaultFor(ServerLevel level, java.util.UUID player) {
+        for (Settlement s : SettlementSavedData.get(level).all()) {
+            if (s.assaulted && player.equals(s.assaultingPlayer)) return s;
+        }
+        return null;
+    }
+
+    // --- UI data builders (the roster Wars tab) ------------------------
+
+    /** Build the war-list snapshot for the player's DISCOVERED settlements
+     *  (the roster Wars window). Per row: id, faction, coords, state, and
+     *  the canDeclare / canRetreat flags the button-swap reads. */
+    static net.minecraft.nbt.CompoundTag buildWarListTag(ServerPlayer player) {
+        net.minecraft.nbt.CompoundTag root = new net.minecraft.nbt.CompoundTag();
+        root.putString("mode", "list");
+        net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
+        SettlementSavedData data = SettlementSavedData.get(player.serverLevel());
+        for (Settlement s : data.all()) {
+            if (!isDiscoveredBy(s, player.getUUID())) continue;
+            BossFaction f = BossFaction.byId(s.factionId);
+            net.minecraft.nbt.CompoundTag e = new net.minecraft.nbt.CompoundTag();
+            e.putInt("id", s.id);
+            e.putString("faction", f != null ? f.displayName() : s.factionId);
+            e.putString("where", "[" + s.center.getX() + ", " + s.center.getZ() + "] "
+                    + s.dimension.location().getPath());
+            boolean mine = player.getUUID().equals(s.assaultingPlayer);
+            String state = s.conquered ? "conquered husk"
+                    : s.conquestReached ? "fallen (awaiting spoils)"
+                    : mine && s.assaulted ? "you are assaulting it"
+                    : s.assaulted ? "under assault"
+                    : "garrison " + liveDefenderCount(player.serverLevel(), s) + "/"
+                            + s.defenderCountAtStart + " + boss";
+            e.putString("state", state);
+            e.putBoolean("canDeclare", !s.conquered && !s.conquestReached && !s.assaulted);
+            e.putBoolean("canRetreat", mine && s.assaulted);
+            list.add(e);
+        }
+        root.put("settlements", list);
+        return root;
+    }
+
+    /** Build the war-party picker snapshot for one settlement — the
+     *  player's LOADED subordinates as candidates (entity id, name, EP). */
+    static net.minecraft.nbt.CompoundTag buildWarPickerTag(ServerPlayer player, int settlementId) {
+        SettlementSavedData data = SettlementSavedData.get(player.serverLevel());
+        Settlement s = data.get(settlementId);
+        if (s == null) return null;
+        BossFaction f = BossFaction.byId(s.factionId);
+        net.minecraft.nbt.CompoundTag root = new net.minecraft.nbt.CompoundTag();
+        root.putString("mode", "picker");
+        root.putInt("settlementId", settlementId);
+        root.putString("faction", f != null ? f.displayName() : s.factionId);
+        root.putInt("cap", WAR_PARTY_CAP);
+        net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
+        for (Mob mob : loadedSubordinates(player)) {
+            net.minecraft.nbt.CompoundTag c = new net.minecraft.nbt.CompoundTag();
+            c.putInt("id", mob.getId());
+            c.putString("name", mob.hasCustomName()
+                    ? mob.getCustomName().getString() : mob.getType().getDescription().getString());
+            ExistenceStorage ex = ExampleMod.readExistence(mob);
+            c.putInt("ep", ex != null ? (int) ex.getEP() : 0);
+            list.add(c);
+        }
+        root.put("candidates", list);
+        return root;
+    }
+
     // ------------------------------------------------------------------
     // Debug command support (/rivalcolony …)
     // ------------------------------------------------------------------
@@ -937,7 +1336,59 @@ public final class RivalColonies {
         }
         out.add("  conquest-eligible: " + isConquestEligible(s)
                 + "  (bossDead=" + s.bossDead + ")");
+        out.add("  discovered-by-you: " + isDiscoveredBy(s, player.getUUID())
+                + "  (total " + s.discoveredBy.size() + ")");
+        if (s.assaultingPlayer != null) {
+            out.add("  assault: by " + s.assaultingPlayer + ", party " + s.warParty.size()
+                    + ", origin " + s.assaultOrigin
+                    + (s.pendingReturn ? " (RETURN PENDING)" : ""));
+        }
+        if (s.conquestReached) out.add("  conquestReached=true (awaiting Stage-D payoff)");
         return out;
+    }
+
+    /** {@code /rivalcolony declare <id>} — declare war with NO picker
+     *  (debug): take the player's loaded subordinates (≤cap) as the party
+     *  and teleport in. The UI path uses the war-party picker. */
+    static String debugDeclare(ServerPlayer player, int id) {
+        List<Integer> party = new ArrayList<>();
+        for (Mob m : loadedSubordinates(player)) {
+            if (party.size() >= WAR_PARTY_CAP) break;
+            party.add(m.getId());
+        }
+        return declareWar(player, id, party);
+    }
+
+    /** {@code /rivalcolony win <id>} — force the WIN resolution (debug):
+     *  flag the boss dead + the kills past 60%, then resolve. */
+    static String debugForceWin(ServerPlayer player, int id) {
+        ServerLevel level = player.serverLevel();
+        Settlement s = SettlementSavedData.get(level).get(id);
+        if (s == null) return "No settlement #" + id + ".";
+        if (!s.assaulted || !player.getUUID().equals(s.assaultingPlayer)) {
+            return "You aren't assaulting settlement #" + id + " (declare war first).";
+        }
+        s.bossDead = true;
+        s.defenderKills = Math.max(s.defenderKills, requiredDefenderKills(s));
+        ServerLevel sLevel = level.getServer().getLevel(s.dimension);
+        resolveWin(sLevel != null ? sLevel : level, s, player);
+        return "Forced WIN on settlement #" + id + " — conquestReached, teleported home (payoff = Stage D).";
+    }
+
+    /** {@code /rivalcolony retreat [id]} — force the RETREAT resolution
+     *  (debug): teleport home + reset garrison. With no id, resolves the
+     *  settlement the player is currently assaulting. */
+    static String debugForceRetreat(ServerPlayer player, Integer id) {
+        ServerLevel level = player.serverLevel();
+        Settlement s = id != null ? SettlementSavedData.get(level).get(id)
+                : findAssaultFor(level, player.getUUID());
+        if (s == null) return id != null ? "No settlement #" + id + "." : "You aren't assaulting anything.";
+        if (!s.assaulted || !player.getUUID().equals(s.assaultingPlayer)) {
+            return "You aren't assaulting settlement #" + s.id + ".";
+        }
+        ServerLevel sLevel = level.getServer().getLevel(s.dimension);
+        resolveRetreat(sLevel != null ? sLevel : level, s, player);
+        return "Retreated from settlement #" + s.id + " — garrison reset, boss re-resolved.";
     }
 
     /** {@code /rivalcolony assault <id>} — begin an assault (Stage-C entry

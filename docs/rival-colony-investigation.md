@@ -709,3 +709,103 @@ Deferred to C–E: the discovery/Declare-War/teleport-assault loop that
 DRIVES the assault and calls `beginAssault`/`resetGarrison` (C), the
 conquest→rewards/husk payoff that consumes `isConquestEligible` (D), and
 betrayal scaling (E).
+
+---
+
+# STAGE C — discovery + Declare-War + the teleport-assault loop (as-built, 2026-06-13)
+
+The loop that DRIVES the Stage-B garrison: discover → Declare War →
+teleport in with a war party → fight → WIN (B's `isConquestEligible`) or
+RETREAT/die/logout → teleport back + B's `resetGarrison`. C ENDS at
+"conquest-eligible reached" (Stage D does the payoff) and "incomplete →
+reset". All behind `factionSystemEnabled`. Code: `RivalColonies`
+(Stage-C block) + new `Settlement` fields + the Wars UI (`WindowWarList`
+/ `WindowWarPicker`) + `Networking` (OpenWarPayload / WarActionPayload).
+
+## Discovery (proximity, per-player)
+
+`tickDiscovery` (per-second, the dwarven-village/envoy per-player pass
+shape): any player within **`DISCOVERY_RANGE` = 80 blocks** of a
+settlement center is added to that settlement's `discoveredBy` set (the
+per-player Declare-War unlock) with a one-time chat notice. Persisted in
+the settlement record.
+
+## Declare War + the war-party teleport
+
+- **UI:** a **Wars** button on the roster footer (beside Diplomacy) →
+  `WindowWarList` (the player's discovered settlements; each row's button
+  is **Declare** or **Retreat** — the snapshot-flag button-swap idiom
+  driven by `canDeclare`/`canRetreat`). Declare → `WindowWarPicker` (the
+  15-slot `WindowLendPicker` shape) listing the player's **loaded Tensura
+  subordinates** (owned `ISubordinate` mobs found via
+  `SubordinateHelper.getSubordinateOwnerUUID`). March confirms.
+- **`declareWar(player, settlementId, partyEntityIds)`** (the spine):
+  validate discovered/not-conquered/not-already-assaulted → record
+  `assaultingPlayer` + `assaultOrigin` (+ `assaultOriginDim`) → B's
+  `beginAssault` (snapshots `defenderCountAtStart` from the persisted
+  `garrisonUuids` roster — robust when the settlement chunks aren't
+  loaded yet — zeroes kills, sets ASSAULTED) → teleport the player to the
+  settlement edge (`ServerPlayer.teleportTo(ServerLevel,…)`, handles the
+  cross-dimension trip) → teleport each chosen subordinate in
+  (`Entity.teleportTo(ServerLevel,…)`, set aggressive), recording their
+  UUIDs in `warParty` → `steerGarrisonToInvaders` turns the garrison
+  hostile. **War-party source = loaded owned subordinates** (a deliberate
+  simplification — the RaceIdentity bulk-summon path stays available for a
+  future "summon absent subordinates first" polish).
+- **Cap:** `WAR_PARTY_CAP = 15`. A solo assault (empty party) is allowed.
+
+## The assault drive + resolution
+
+`tickAssaults` (per-second) drives every ASSAULTED settlement:
+- resolve the assaulting `ServerPlayer` (offline → the logout handler
+  owns it; skip);
+- **WIN** — `isConquestEligible(s)` true → `resolveWin`: bring the party
+  + player home, set `conquestReached = true` (Stage D hooks this), back
+  to IDLE. The garrison is NOT reset — it's been beaten;
+- else **re-assert** garrison targeting on the invaders
+  (`steerGarrisonToInvaders` — the raid `steerRaider` dual-write
+  `BrainUtils.setTargetOfEntity` + `mob.setTarget`, inverted onto
+  player + party; yields while a member has a live target).
+
+**RETREAT** (Retreat button / `resolveRetreat`): bring party + player
+home → B's `resetGarrison` (respawn defenders + heal/revive boss) → IDLE.
+
+**DEATH / LOGOUT** (`onAssaultingPlayerDown`, wired into `onLivingDeath`
++ `PlayerLoggedOutEvent`): treated as retreat — reset the garrison +
+party home now, but the player can't be teleported, so set
+`pendingReturn` and keep the origin. **Return** (`onPlayerReturn`, wired
+into `PlayerRespawnEvent` + `PlayerLoggedInEvent`): teleport the player
+to the stored origin and clear the assault link.
+
+## ⚠ THE TRACKED RISK — post-reset boss re-resolution (handled)
+
+`resetGarrison` may **revive the boss as a NEW entity (new UUID)** when
+the boss died in an incomplete assault. Stage C never caches the old
+`bossUuid` across a reset: `resetGarrison` writes the fresh uuid into
+`s.bossUuid`, and every later read goes through `resolveBoss(level, s)`.
+`resolveRetreat` calls `resetGarrison` and only then logs `s.bossUuid`
+(the fresh value). Confirmed: no path in C reuses a pre-reset boss
+reference.
+
+## Persistence
+
+`assaultingPlayer`, `assaultOrigin`, `assaultOriginDim`, `warParty`,
+`conquestReached`, `pendingReturn` all round-trip in NBT
+(`SettlementSavedData`), so a player logging out mid-assault returns
+correctly on next login, and the assault state survives reload.
+
+## Debug (Stage C is testable without the UI)
+
+- `/rivalcolony declare <id>` — declare war with the player's loaded
+  subordinates as the party (no picker), teleport in.
+- `/rivalcolony win <id>` — force the WIN resolution (sets boss-dead +
+  kills past 60%, resolves, teleports home; payoff = Stage D).
+- `/rivalcolony retreat [id]` — force the RETREAT resolution (teleport
+  home + garrison reset + boss re-resolve); no id = the current assault.
+- `/rivalcolony garrison <id>` now also reports discovery + assault state
+  + `conquestReached`.
+
+Deferred to D–E: the conquest PAYOFF (citizens to the existing colony +
+the boss's Covenant skill + loot chests + the DEFEATED-HUSK conversion)
+that consumes `conquestReached`/`isConquestEligible` (D); betrayal
+scaling (E).

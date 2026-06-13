@@ -73,6 +73,14 @@ public final class ClientEvents {
         // Stage 2 — the lend-citizen picker.
         Networking.lendPickerClientHandler = payload ->
                 new WindowLendPicker(payload.data()).open();
+        // Rival-colony Stage C — the Wars window (list vs party picker).
+        Networking.warClientHandler = payload -> {
+            if ("picker".equals(payload.data().getString("mode"))) {
+                new WindowWarPicker(payload.data()).open();
+            } else {
+                new WindowWarList(payload.data()).open();
+            }
+        };
         // The alliance prompt — Accept/Decline modal at ALLIED standing.
         // Not shown over another open screen (it re-prompts in a minute).
         Networking.alliancePromptClientHandler = payload -> {

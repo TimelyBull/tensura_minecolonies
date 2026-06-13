@@ -86,6 +86,7 @@ public class WindowRoster extends AbstractWindowSkeleton {
     private static final String ID_CNT_CITIZENS = "countCitizens";
     private static final String ID_CNT_ATSIDE   = "countAtSide";
     private static final String ID_DIPLOMACY    = "diplomacy";
+    private static final String ID_WARS         = "wars";
     // row pane ids
     private static final String ROW_CARD = "card";
     private static final String ROW_SEL  = "sel";
@@ -148,6 +149,7 @@ public class WindowRoster extends AbstractWindowSkeleton {
     private Button groupSendButton;
     private Button clearButton;
     private Button diplomacyButton;
+    private Button warsButton;
     private Text countCitizensText;
     private Text countAtSideText;
 
@@ -173,6 +175,11 @@ public class WindowRoster extends AbstractWindowSkeleton {
         registerButton(ID_DIPLOMACY, (Button b) ->
                 PacketDistributor.sendToServer(new Networking.DiplomacyActionPayload(
                         Networking.DiplomacyActionPayload.ACTION_OPEN_TAB, "", "", false)));
+        // Rival-colony Stage C — the Wars tab. Server replies with an
+        // OpenWarPayload that opens the war-list window in place.
+        registerButton(ID_WARS, (Button b) ->
+                PacketDistributor.sendToServer(new Networking.WarActionPayload(
+                        Networking.WarActionPayload.LIST, 0, new java.util.ArrayList<>())));
     }
 
     @Override
@@ -186,6 +193,7 @@ public class WindowRoster extends AbstractWindowSkeleton {
         this.groupSendButton   = findPaneOfTypeByID(ID_GROUP_SEND, Button.class);
         this.clearButton       = findPaneOfTypeByID(ID_CLEAR, Button.class);
         this.diplomacyButton   = findPaneOfTypeByID(ID_DIPLOMACY, Button.class);
+        this.warsButton        = findPaneOfTypeByID(ID_WARS, Button.class);
         this.countCitizensText = findPaneOfTypeByID(ID_CNT_CITIZENS, Text.class);
         this.countAtSideText   = findPaneOfTypeByID(ID_CNT_ATSIDE, Text.class);
         this.list              = findPaneOfTypeByID(ID_LIST, ScrollingList.class);
@@ -392,6 +400,7 @@ public class WindowRoster extends AbstractWindowSkeleton {
         if (countCitizensText != null) countCitizensText.setVisible(!show);
         if (countAtSideText != null) countAtSideText.setVisible(!show);
         if (diplomacyButton != null) diplomacyButton.setVisible(!show);
+        if (warsButton != null) warsButton.setVisible(!show);
     }
 
     /** Footer counts reflect the WHOLE roster (not the search filter). */

@@ -76,11 +76,24 @@ public class Settlement {
      *  reads/exposes it and clears it on reset). */
     public boolean assaulted = false;
 
-    // --- Reserved seams for Stage C (persisted, unused in B) ---
-    /** Stage C — UUID of the player currently assaulting, or null. */
+    // --- Stage C — the discovery + Declare-War + assault loop ----------
+    /** UUID of the player currently assaulting, or null (IDLE). */
     public UUID assaultingPlayer = null;
-    /** Stage C — the assaulting party's muster/return origin. */
+    /** The assaulting player's pre-war location (where they teleport back
+     *  to on win / retreat / death / logout). */
     public BlockPos assaultOrigin = null;
+    /** Dimension of {@link #assaultOrigin} (the return trip may cross
+     *  dimensions). */
+    public ResourceKey<Level> assaultOriginDim = null;
+    /** Entity UUIDs of the teleported-in war party (to bring home). */
+    public Set<UUID> warParty = new HashSet<>();
+    /** Set by Stage C when an assault is WON (bossDead && ≥60% defenders).
+     *  Stage D consumes this to grant the payoff + set {@link #conquered};
+     *  C only flags + teleports the party home. */
+    public boolean conquestReached = false;
+    /** The assaulting player died / logged out mid-assault and owes a
+     *  return trip to {@link #assaultOrigin} on next respawn / login. */
+    public boolean pendingReturn = false;
 
     public Settlement() {}
 
@@ -122,6 +135,16 @@ public class Settlement {
         tag.putBoolean("assaulted", assaulted);
         if (assaultingPlayer != null) tag.putUUID("assaultingPlayer", assaultingPlayer);
         if (assaultOrigin != null) tag.putLong("assaultOrigin", assaultOrigin.asLong());
+        if (assaultOriginDim != null) tag.putString("assaultOriginDim", assaultOriginDim.location().toString());
+        ListTag party = new ListTag();
+        for (UUID u : warParty) {
+            CompoundTag p = new CompoundTag();
+            p.putUUID("u", u);
+            party.add(p);
+        }
+        tag.put("warParty", party);
+        tag.putBoolean("conquestReached", conquestReached);
+        tag.putBoolean("pendingReturn", pendingReturn);
         return tag;
     }
 
@@ -158,6 +181,16 @@ public class Settlement {
         s.assaulted = tag.getBoolean("assaulted");
         if (tag.hasUUID("assaultingPlayer")) s.assaultingPlayer = tag.getUUID("assaultingPlayer");
         if (tag.contains("assaultOrigin")) s.assaultOrigin = BlockPos.of(tag.getLong("assaultOrigin"));
+        if (tag.contains("assaultOriginDim")) {
+            s.assaultOriginDim = ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION,
+                    ResourceLocation.parse(tag.getString("assaultOriginDim")));
+        }
+        ListTag party = tag.getList("warParty", Tag.TAG_COMPOUND);
+        for (int i = 0; i < party.size(); i++) {
+            s.warParty.add(party.getCompound(i).getUUID("u"));
+        }
+        s.conquestReached = tag.getBoolean("conquestReached");
+        s.pendingReturn = tag.getBoolean("pendingReturn");
         return s;
     }
 }
