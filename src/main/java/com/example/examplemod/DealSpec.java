@@ -319,6 +319,32 @@ public record DealSpec(
             ? extends io.github.manasmods.manascore.skill.api.ManasSkill>> SKILL_REWARDS =
             buildSkillRewards();
 
+    /** The faction's capstone (Covenant) skill — the supplier behind that
+     *  faction's top ALLIED catalog quest. Used by the rival-colony
+     *  conquest payoff (Stage D) to grant the boss's faction skill by
+     *  FORCE, the same idempotent reward the diplomatic route gives.
+     *  Returns null for factions with no capstone skill. */
+    public static java.util.function.Supplier<
+            ? extends io.github.manasmods.manascore.skill.api.ManasSkill> covenantSkillFor(String factionId) {
+        for (DealSpec d : FACTION_DEALS.getOrDefault(factionId, List.of())) {
+            if (SKILL_REWARDS.containsKey(d.id())) return SKILL_REWARDS.get(d.id());
+        }
+        return null;
+    }
+
+    /** All distinct reward ItemStacks across a faction's catalog deals —
+     *  the conquest loot pool (Stage D), so a warlord's spoils ≈ what the
+     *  diplomat would earn. Returns fresh copies. */
+    public static List<ItemStack> factionRewardPool(String factionId) {
+        List<ItemStack> pool = new java.util.ArrayList<>();
+        for (DealSpec d : FACTION_DEALS.getOrDefault(factionId, List.of())) {
+            for (ItemStack stack : d.rewardItems()) {
+                if (!stack.isEmpty()) pool.add(stack.copy());
+            }
+        }
+        return pool;
+    }
+
     private static Map<String, java.util.function.Supplier<
             ? extends io.github.manasmods.manascore.skill.api.ManasSkill>> buildSkillRewards() {
         Map<String, java.util.function.Supplier<

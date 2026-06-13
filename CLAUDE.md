@@ -751,6 +751,38 @@ profession (latest):**
   (Stage C as-built). Deferred: D = conquest payoff (citizens/skill/loot/
   husk) consuming conquestReached; E = betrayal scaling.
 
+**Rival-colony arc — Stage D (conquest payoff; latest):**
+- `ConquestPayoff` (sole-door) + `DealSpec.covenantSkillFor`/
+  `factionRewardPool` + the `resolveWin` hook. Runs when an assault is WON
+  (Stage C resolveWin, gated by Stage B isConquestEligible). NO second
+  colony (retired by DESIGN CHANGE 2). Behind factionSystemEnabled.
+  Structure-type-agnostic.
+- Citizen levy → the player's EXISTING colony (lend-return path:
+  createAndRegisterCivilianData + incrementLevel + spawnOrCreateCitizen).
+  Per-faction CitizenProfile (count 10–20 + themed skill pair): Dwargon=15
+  Strength/Stamina, Falmuth=16 Stamina/Strength, Luminous=12 Mana/
+  Knowledge, Shizu=10 Mana/Focus, Leon=12 Strength/Mana, Otherworlders=13
+  Adaptability/Creativity, Jura=18 Knowledge/Intelligence. TRACKED RISK
+  (housing overflow) handled: adds min(count, maxCitizens−current),
+  reports unhoused remainder, never crashes/drops. No-colony edge: skip
+  levy + notify, keep skill+loot.
+- Boss's Covenant skill granted by FORCE via DiplomacyManager.
+  grantSkillReward (made package-visible) — the faction's capstone
+  SKILL_REWARDS entry; idempotent (learn/master/resistance/fallback).
+- Loot chest(s): DealSpec.factionRewardPool (all the faction's catalog
+  reward stacks) → 6–12 stacks (with replacement) into 1–2 vanilla chests
+  at the town center.
+- Husk conversion (convertToHusk): survivors POOF-discarded, garrisonUuids
+  cleared, bossUuid nulled, conquered=true (buildings REMAIN as a ruin).
+  Excluded from all garrison/assault logic (declareWar rejects,
+  buildWarListTag canDeclare=false, tickGarrison/beginAssault/
+  resetGarrison early-return on conquered).
+- World-rep: the marked-boss kill during the assault already fired the
+  Layer-1 two-sided fan-out; D does NOT touch reputation (no double-apply).
+- Test via /rivalcolony declare → win. Records: docs/rival-colony-
+  investigation.md (Stage D as-built + per-faction citizen table). Deferred:
+  E = betrayal scaling.
+
 **Barrier/diplomacy/Covenant batch:**
 - Barrier tiers cumulative + distinct colors: T1 wall (traps
   inside-mobs), T2 +heal, T3/T4 +eject. Drain reworked to

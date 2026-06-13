@@ -809,3 +809,99 @@ Deferred to D–E: the conquest PAYOFF (citizens to the existing colony +
 the boss's Covenant skill + loot chests + the DEFEATED-HUSK conversion)
 that consumes `conquestReached`/`isConquestEligible` (D); betrayal
 scaling (E).
+
+---
+
+# STAGE D — the conquest PAYOFF (as-built, 2026-06-13)
+
+The climax: when an assault is WON (Stage C's `resolveWin`, gated by
+Stage B's `isConquestEligible` — boss dead AND ≥60% defenders killed),
+the player gets three rewards and the settlement becomes a permanent
+defeated husk. **NO second colony** — that mechanic is RETIRED (DESIGN
+CHANGE 2; MineColonies is one-player-colony by design). Behind
+`factionSystemEnabled`. Code: `ConquestPayoff` (the sole-door payoff) +
+`DealSpec.covenantSkillFor`/`factionRewardPool` + the `resolveWin` hook.
+Structure-type-agnostic (town husks and dwarven-village husks identical).
+
+## 1. Citizen levy → the player's EXISTING colony (per-faction profiles)
+
+10–20 faction-themed citizens added via the lend-return path
+(`createAndRegisterCivilianData` + `getCitizenSkillHandler().
+incrementLevel(skill, n)` + `spawnOrCreateCitizen`). Per-faction
+`CitizenProfile` (count + a themed skill pair) — flavour over balance
+(citizens are non-combat), all named/tunable in `ConquestPayoff`:
+
+| Faction | Count | Primary (+lvls) | Secondary (+lvls) | Theme |
+|---|---|---|---|---|
+| Dwargon | 15 | Strength +25 | Stamina +12 | miners/smiths |
+| Falmuth | 16 | Stamina +22 | Strength +14 | soldiers |
+| Luminous | 12 | Mana +22 | Knowledge +14 | clergy-mages |
+| Shizu | 10 | Mana +22 | Focus +12 | fire-mage pupils |
+| Leon | 12 | Strength +22 | Mana +14 | demon retainers |
+| Otherworlders | 13 | Adaptability +20 | Creativity +12 | specialists |
+| Jura Alliance | 18 | Knowledge +22 | Intelligence +14 | sages |
+
+(Default for any unmapped physical faction: 10, Stamina/Adaptability.)
+
+**TRACKED RISK — housing overflow (handled):** the levy respects the
+colony's capacity. `headroom = max(0, getMaxCitizens() −
+getCurrentCitizenCount())`; it adds `min(profileCount, headroom)` and
+REPORTS the unhoused remainder to the player ("N more could not be
+housed — your colony is at capacity X/Y. Expand to take more.") — never
+crashes, never silently drops. **No-colony edge case:** if the player
+owns no colony (no town hall), the levy is SKIPPED with a notice; the
+skill + loot rewards still apply (skill to the player, loot at the ruin).
+
+## 2. The boss's Covenant skill — granted by FORCE
+
+`DealSpec.covenantSkillFor(factionId)` returns the faction's capstone
+skill supplier (the same `SKILL_REWARDS` entry the diplomatic Covenant
+route grants), and `DiplomacyManager.grantSkillReward` (made
+package-visible) applies it idempotently: lack→learn, have+resistance→
+no-op, have+upgradable→master, have+maxed→pure-magisteel fallback. So
+conquering a faction grants its Covenant skill WITHOUT the Covenant
+milestone — taking it by force.
+
+## 3. Loot chest(s) from the faction's reward catalog
+
+`DealSpec.factionRewardPool(factionId)` gathers every reward ItemStack
+across that faction's catalog deals (the diplomatic-route rewards), so a
+warlord earns ≈ what a diplomat would. 6–12 stacks drawn (with
+replacement, so a small pool still fills) into 1–2 vanilla chests placed
+at the town center (`Blocks.CHEST` + the `Container` block entity).
+
+## 4. Defeated-husk conversion (permanent, inert)
+
+`convertToHusk`: surviving defenders (up to 40% may remain) are POOF-
+discarded, `garrisonUuids` cleared, `bossUuid` nulled (the anchor is gone
+for good), `conquered = true`, `assaulted = false`. `conquestReached`
+stays true (it recorded the WIN). **Buildings REMAIN** — a sacked ruin.
+A conquered settlement is **excluded from all garrison/assault logic**:
+- `declareWar` rejects it ("already a conquered husk");
+- `buildWarListTag` sets `canDeclare = false` (no re-discovery-to-war);
+- `tickGarrison`, `beginAssault`, `resetGarrison` all early-return on
+  `s.conquered` (no garrison tick, no respawn, no re-assault).
+
+## The world-rep consequence — composes, no double-apply
+
+The marked boss's death DURING the assault already routed through the
+Layer-1 two-sided marked-kill fan-out (faction standing down, its enemies
+up) via `onLivingDeath` → the existing `FactionMarkTag` handling. Stage D
+does **not** touch reputation — it layers the citizen/skill/loot/husk
+payoff on top of the ripple that already fired. Confirmed: no D path
+calls a world-rep mover.
+
+## Testing
+
+`/rivalcolony declare <id>` then `/rivalcolony win <id>` (or fight to
+60%+boss-dead) → the player receives the faction levy in their existing
+colony (Dwargon = high-Strength miners, etc.), the faction's Covenant
+skill, and loot chest(s) at the ruin; the settlement flips to a husk
+(buildings remain, `conquered` set, garrison cleared, excluded from
+re-war); the boss-kill world-rep fan-out fired during the fight; overflow
+is reported; no second colony is created; `factionSystemEnabled` off →
+no payoff. Build green.
+
+Deferred to E: betrayal scaling (a Covenant ally betraying you escalates
+the settlement's garrison/boss — extends B/C, consumes the diplomacy
+tier read).

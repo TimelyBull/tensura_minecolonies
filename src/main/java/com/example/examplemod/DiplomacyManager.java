@@ -1600,7 +1600,7 @@ public final class DiplomacyManager {
      *       instead.</li>
      * </ul>
      */
-    private static void grantSkillReward(ServerPlayer player,
+    static void grantSkillReward(ServerPlayer player,
                                          io.github.manasmods.manascore.skill.api.ManasSkill skill) {
         var storage = io.github.manasmods.manascore.skill.api.SkillAPI.getSkillsFrom(player);
         net.minecraft.resources.ResourceLocation id = skill.getRegistryName();

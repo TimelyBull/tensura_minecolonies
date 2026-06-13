@@ -6,7 +6,12 @@ import com.ldtteam.structurize.management.Manager;
 import com.ldtteam.structurize.operations.PlaceStructureOperation;
 import com.ldtteam.structurize.placement.StructurePlacer;
 import com.ldtteam.structurize.storage.StructurePacks;
+import com.minecolonies.api.colony.IColony;
+import com.minecolonies.api.colony.IColonyManager;
+import com.minecolonies.api.colony.ICitizenData;
+import com.minecolonies.api.entity.citizen.Skill;
 import com.minecolonies.api.util.CreativeBuildingStructureHandler;
+import com.minecolonies.api.util.EntityUtils;
 import io.github.manasmods.tensura.entity.template.subclass.ISubordinate;
 import io.github.manasmods.tensura.registry.entity.HumanEntityTypes;
 import io.github.manasmods.tensura.registry.entity.MonsterEntityTypes;
@@ -31,9 +36,12 @@ import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.Container;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -709,6 +717,7 @@ public final class RivalColonies {
         boolean changed = false;
         for (Settlement s : data.all()) {
             if (!s.dimension.equals(level.dimension())) continue;
+            if (s.conquered) continue; // husk — inert, no garrison
             if (s.garrisonUuids.isEmpty()) continue;
             long tetherSq = (long) GARRISON_TETHER_RADIUS * GARRISON_TETHER_RADIUS;
             Iterator<UUID> it = s.garrisonUuids.iterator();
@@ -750,6 +759,7 @@ public final class RivalColonies {
      *  afar) as the denominator, zero the kill tally, clear the boss-down
      *  flag, flip to ASSAULTED. */
     static void beginAssault(ServerLevel level, Settlement s) {
+        if (s.conquered) return; // husk — never re-assaulted
         s.defenderCountAtStart = s.garrisonUuids.size();
         s.defenderKills = 0;
         s.bossDead = false;
@@ -774,6 +784,7 @@ public final class RivalColonies {
      * not every anchor has Tensura energy pools).
      */
     static void resetGarrison(ServerLevel level, Settlement s) {
+        if (s.conquered) return; // husk — never respawns its garrison
         // Heal/revive the boss first (so the topped-up garrison rallies to
         // a whole anchor).
         reviveOrHealBoss(level, s);
@@ -1061,9 +1072,10 @@ public final class RivalColonies {
 
     /**
      * WIN — conquest-eligible reached (bossDead && ≥60% defenders). C
-     * resolves the assault: flag {@code conquestReached} (Stage D hooks
-     * this for the payoff), bring the player + survivors home, return to
-     * IDLE. The garrison is NOT reset — it has been beaten.
+     * resolves the assault: bring the player + survivors home, apply the
+     * Stage-D conquest PAYOFF (citizens + Covenant skill + loot), convert
+     * the settlement to a DEFEATED HUSK, return to IDLE. The garrison is
+     * NOT reset — it has been beaten.
      */
     private static void resolveWin(ServerLevel level, Settlement s, ServerPlayer player) {
         bringPartyHome(level, s, player);
@@ -1071,10 +1083,14 @@ public final class RivalColonies {
         s.conquestReached = true;
         BossFaction f = BossFaction.byId(s.factionId);
         player.sendSystemMessage(Component.literal("The " + (f != null ? f.displayName() : s.factionId)
-                + " settlement has fallen! (The spoils await — Stage D.)")
+                + " settlement has fallen!")
                 .withStyle(net.minecraft.ChatFormatting.GREEN));
-        LOGGER.info("[TM] rival: settlement #{} CONQUERED by {} — conquestReached flagged (payoff = Stage D)",
+        LOGGER.info("[TM] rival: settlement #{} CONQUERED by {} — applying conquest payoff",
                 s.id, player.getName().getString());
+        // Stage D — the conquest payoff + husk conversion (the boss's
+        // marked-kill world-rep fan-out already fired on its death; D
+        // layers rewards on top, no double-apply).
+        ConquestPayoff.apply(level, s, player);
         clearAssaultState(s, true); // keep conquestReached
         SettlementSavedData.get(level).markChanged();
     }
