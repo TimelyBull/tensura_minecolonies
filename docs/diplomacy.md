@@ -336,6 +336,29 @@ mechanics) plus capstone skill grants:
   1 pure magisteel ingot instead. Idempotent; queued in
   `pendingSkillDeals` so offline completion grants on next login.
 
+---
+
+**Status: OFFER DRAW WEIGHTED BY TIER (2026-06-12).** Lower-tier deals
+no longer dominate-or-vanish — they persist and surface rarer:
+
+- **Eligibility was already correct** — `minTier` is a FLOOR
+  (`tier.compareTo(spec.minTier()) < 0 → skip`), so a deal stays
+  eligible at every tier at or above its gate; passing a tier never
+  removed lower deals.
+- **The draw is now WEIGHTED** (`weightedPick`): weight =
+  `TIER_WEIGHT_FALLOFF (0.4) ^ (playerTierOrdinal − dealTierOrdinal)`.
+  A deal at the player's tier = weight 1.0; one tier below = 0.4; two
+  = 0.16; etc. Never zero — every eligible deal can still be offered,
+  just progressively rarer the further below the player's tier it is.
+  (Previously the draw was uniform, so a NEUTRAL deal at ALLIED was as
+  likely as an ALLIED one.) For a typical 4/4/2 table an ALLIED player
+  sees ≈47% ALLIED / 38% FRIENDLY / 15% NEUTRAL offers.
+- **Covenant milestone + mending deals unaffected** — they enter the
+  candidate pool (or the separate mending pass) by their own special
+  gating; the weighting only reorders draw probability among already-
+  eligible deals, and their ALLIED gate puts them at distance 0
+  (full weight) anyway.
+
 Original investigation follows.
 
 ---

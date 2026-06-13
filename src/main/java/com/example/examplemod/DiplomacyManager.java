@@ -95,6 +95,11 @@ public final class DiplomacyManager {
     static final int MAX_OFFERS = 3;
     /** Un-accepted offers expire (and nudge standing −1) after this. */
     static final long OFFER_EXPIRY_TICKS = 3 * DAY;
+    /** Offer-draw tier weighting: a deal one tier below the player's
+     *  current tier is this fraction as likely to be drawn; two below
+     *  is this-squared, etc. Lower-tier deals stay ELIGIBLE (never
+     *  vanish) but surface progressively rarer — never zero. Tunable. */
+    static final double TIER_WEIGHT_FALLOFF = 0.4;
 
     /** Relations shatter below this standing (the WARY floor — also what
      *  makes the Orc Disaster's forced-HOSTILE clamp break Clayman
@@ -1125,9 +1130,14 @@ public final class DiplomacyManager {
                     }
                     eligibleSpecs.add(spec);
                 }
+                // WEIGHTED draw — every eligible deal (all tiers up to the
+                // player's) can be offered, but a deal is weighted by how
+                // close its gate is to the player's current tier, so
+                // current-tier deals dominate and lower ones surface
+                // rarely-but-never-zero (see weightedPick).
                 while (current.size() < MAX_OFFERS && !eligibleSpecs.isEmpty()) {
-                    DealSpec pick = eligibleSpecs.remove(
-                            level.getRandom().nextInt(eligibleSpecs.size()));
+                    DealSpec pick = weightedPick(eligibleSpecs, tier, level.getRandom());
+                    eligibleSpecs.remove(pick);
                     current.add(new DiplomacySavedData.Offer(pick.id(), now + OFFER_EXPIRY_TICKS));
                 }
                 data.setOffers(player, e.getKey(), current);
@@ -1155,6 +1165,30 @@ public final class DiplomacyManager {
                 data.setOffers(uuid, faction.id(), only);
             }
         }
+    }
+
+    /**
+     * Pick one deal weighted by tier-distance below the player's current
+     * tier: weight = {@link #TIER_WEIGHT_FALLOFF}^(playerTier −
+     * dealTier). Deals AT the player's tier dominate; lower-tier deals
+     * are progressively rarer but always possible. Deals above the
+     * player's tier never reach here (filtered as ineligible).
+     */
+    private static DealSpec weightedPick(List<DealSpec> specs, FactionTier playerTier,
+                                         net.minecraft.util.RandomSource rng) {
+        double total = 0;
+        double[] weights = new double[specs.size()];
+        for (int i = 0; i < specs.size(); i++) {
+            int dist = Math.max(0, playerTier.ordinal() - specs.get(i).minTier().ordinal());
+            weights[i] = Math.pow(TIER_WEIGHT_FALLOFF, dist);
+            total += weights[i];
+        }
+        double r = rng.nextDouble() * total;
+        for (int i = 0; i < specs.size(); i++) {
+            r -= weights[i];
+            if (r <= 0) return specs.get(i);
+        }
+        return specs.get(specs.size() - 1);
     }
 
     // ------------------------------------------------------------------
