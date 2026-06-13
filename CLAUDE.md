@@ -677,6 +677,44 @@ profession (latest):**
   dead, defenders cleared, garrison won't respawn). Structure-type-
   agnostic — towns and Dwargon villages behave the same at conquest.
 
+**Rival-colony arc — Stage B (garrison; latest):**
+- `RivalColonies` garrison block + `GarrisonTag` + new `Settlement`
+  fields (`defenderKills`, `bossDead`, `assaulted`; persisted). The
+  defending force + persistence/respawn/heal reset + 60%-win tracking
+  Stage C drives. Structure-type-agnostic (towns + dwarven villages).
+- Per-faction themed `EntityType[]` rosters (the boss is part of the
+  garrison): Luminous=Falmuth Knight/Clone/Bone Golem, Falmuth=knights
+  (Kirara/Kyoya/Shogo), Shizu=Ifrit Clone/Salamander/Hell Caterpillar/
+  Hell Moth, Leon=+Arch/Greater/Lesser Daemon, Otherworlders=Clone/Mark
+  Lauren/Shinji/Kirara, Jura=Tempest Serpent/Goblin/Lizardman/Slime,
+  Dwargon=Dwarf/War Gnome/Beast Gnome.
+- Scale to the BOSS not the player: `readExistence(boss).getEP()` →
+  scale = clamp((EP/BASELINE)^0.5, 1..6); count = clamp(round(6×scale),
+  4..20); stat× = min(4, 1+(scale−1)×0.5) over MAX_HEALTH/ATTACK_DAMAGE/
+  MAX_MAGICULE/MAX_AURA via the assassin `multiplyAttribute` idiom. ⚠ ALL
+  `GARRISON_*` constants are BALANCE GUESSES (no combat playtest) —
+  flagged in docs for the polish pass.
+- Spawn = raid-engine path (create+finalizeSpawn(SPAWN_EGG)+persist+
+  GARRISON_TAG); UUIDs in `garrisonUuids`. Tether: `tickGarrison`
+  (per-second, runs whenever faction system on, independent of natural-
+  gen toggle) walks strays back to center within GARRISON_TETHER_RADIUS,
+  yields to native combat (SubordinatePatrol/raid-steer idiom).
+- RESET primitive `resetGarrison` (Stage C calls on incomplete assault):
+  revive-or-heal boss (respawn marked boss if dead, else setHealth(max)+
+  EnergyHelper.gain magicule/aura to max — guarded; ⚠ tracked risk), top
+  garrison up to defenderCountAtStart, clear counters → IDLE. State
+  machine IDLE/ASSAULTED on `Settlement.assaulted`.
+- 60%-win: `onGarrisonMobDeath` (wired into onLivingDeath beside the raid
+  tally) — boss death → bossDead; defender death → defenderKills++.
+  `isConquestEligible(s) = bossDead && defenderKills ≥ ceil(0.6×
+  defenderCountAtStart)`. Tally counts continuously (testable now);
+  `beginAssault` re-snapshots+zeroes. Stage D consumes the check.
+- Debug: `/rivalcolony garrison|assault|reset <id>` + spawn/list now show
+  garrison. Records: docs/rival-colony-investigation.md (Stage B
+  as-built + the balance-constant table). Deferred to C–E: the assault
+  loop that drives beginAssault/resetGarrison (C), conquest payoff (D),
+  betrayal (E).
+
 **Barrier/diplomacy/Covenant batch:**
 - Barrier tiers cumulative + distinct colors: T1 wall (traps
   inside-mobs), T2 +heal, T3/T4 +eject. Drain reworked to

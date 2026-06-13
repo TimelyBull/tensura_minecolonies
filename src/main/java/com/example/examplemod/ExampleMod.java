@@ -3707,6 +3707,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // boss bar and the victory check track precisely.
         TensuraRaids.onRaidMobDeath(serverLevel, event.getEntity());
 
+        // Rival-colony Stage B — garrison death-tally (defender kills +
+        // boss-down flag for the 60%-conquest check).
+        RivalColonies.onGarrisonMobDeath(serverLevel, event.getEntity());
+
         // Assassin death — clear bar + cold shoulder BEFORE the case-A
         // identity cleanup below removes the identity record (v2: also
         // triggers the EP reclaim for the victim).
@@ -4238,6 +4242,18 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                                         .executes(ctx -> handleRivalCommand(ctx, "wild"))))
                         .then(Commands.literal("list")
                                 .executes(ctx -> handleRivalCommand(ctx, "list")))
+                        .then(Commands.literal("garrison")
+                                .then(Commands.argument("id",
+                                        com.mojang.brigadier.arguments.IntegerArgumentType.integer(1))
+                                        .executes(ctx -> handleRivalGarrisonCommand(ctx, "garrison"))))
+                        .then(Commands.literal("assault")
+                                .then(Commands.argument("id",
+                                        com.mojang.brigadier.arguments.IntegerArgumentType.integer(1))
+                                        .executes(ctx -> handleRivalGarrisonCommand(ctx, "assault"))))
+                        .then(Commands.literal("reset")
+                                .then(Commands.argument("id",
+                                        com.mojang.brigadier.arguments.IntegerArgumentType.integer(1))
+                                        .executes(ctx -> handleRivalGarrisonCommand(ctx, "reset"))))
         );
         // Diplomacy Stage 1 debug — state readout, force-open relations,
         // force-refresh offers, force the pending envoy reply.
@@ -4414,6 +4430,36 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 String factionId = StringArgumentType.getString(ctx, "faction")
                         .toLowerCase(java.util.Locale.ROOT);
                 String result = RivalColonies.debugSpawn(player, factionId, action.equals("wild"));
+                src.sendSuccess(() -> Component.literal(result), true);
+            }
+            default -> { }
+        }
+        return 1;
+    }
+
+    /** {@code /rivalcolony garrison|assault|reset <id>} — Stage B debug. */
+    private int handleRivalGarrisonCommand(CommandContext<CommandSourceStack> ctx, String action) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/rivalcolony must be run by a player"));
+            return 0;
+        }
+        int id = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "id");
+        switch (action) {
+            case "garrison" -> {
+                for (String line : RivalColonies.debugGarrison(player, id)) {
+                    src.sendSuccess(() -> Component.literal(line), false);
+                }
+            }
+            case "assault" -> {
+                String result = RivalColonies.debugBeginAssault(player, id);
+                src.sendSuccess(() -> Component.literal(result), true);
+            }
+            case "reset" -> {
+                String result = RivalColonies.debugReset(player, id);
                 src.sendSuccess(() -> Component.literal(result), true);
             }
             default -> { }

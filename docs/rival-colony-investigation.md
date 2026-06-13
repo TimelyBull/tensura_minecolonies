@@ -560,3 +560,152 @@ summon-cost + body-mode resolution in Stage C; citizen-cap overflow in
 Stage D). The Phase-1 hut-registration risk is RETIRED by DESIGN CHANGE
 2 (conquest no longer founds a colony). PvP, payout balance, and the
 siege system remain explicitly deferred to their own later passes.
+
+---
+
+# STAGE B — the GARRISON (as-built, 2026-06-13)
+
+The defending force + the persistence/respawn/heal reset + the 60%-win
+tracking Stage C will drive. Structure-type-agnostic: identical for
+MINECOLONIES_CLUSTER towns and DWARVEN_VILLAGE settlements (it operates
+on the settlement's center + anchor boss). All behind
+`factionSystemEnabled`. Code: `RivalColonies` (garrison block) +
+`GarrisonTag` + the new `Settlement` fields.
+
+## Per-faction defender rosters
+
+Themed `EntityType[]` per physical faction (the `TensuraRaids.rosters()`
+shape), drawn from mobs already in the mod. The anchor BOSS (Stage A,
+marked) is part of the garrison — these are the rank-and-file around it.
+Abstract factions (Tempest, Carrion, Milim, Clayman) have no settlement,
+so no roster.
+
+| Faction | Anchor boss | Defender roster |
+|---|---|---|
+| Luminous | Hinata Sakaguchi | Falmuth Knight, Clone, Bone Golem *(holy construct stand-in — Tensura has no dedicated holy mob)* |
+| Falmuth | Folgen | Falmuth Knight, Kirara Mizutani, Kyoya Tachibana, Shogo Taguchi |
+| Shizu | Shizu | Ifrit Clone, Salamander, Hell Caterpillar, Hell Moth |
+| Leon | Ifrit | Ifrit Clone, Salamander, Arch Daemon, Greater Daemon, Lesser Daemon |
+| Otherworlders | Mai Furuki | Clone, Mark Lauren, Shinji Tanimura, Kirara Mizutani |
+| Jura Alliance | Shin Ryusei | Tempest Serpent, Goblin, Lizardman, Slime |
+| Dwargon | Gazel Dwargo | Dwarf, War Gnome, Beast Gnome |
+
+## Boss-EP scaling formula (⚠ ALL BALANCE GUESSES — need a siege playtest)
+
+Scale to the BOSS, not the player — a strong-boss faction = a tough
+settlement. Read `readExistence(boss).getEP()`, then:
+
+```
+ratio   = bossEP / GARRISON_BASELINE_EP
+scale   = clamp(ratio ^ GARRISON_SCALE_EXPONENT, SCALE_MIN, SCALE_MAX)
+count   = clamp(round(GARRISON_BASE_COUNT × scale), MIN_COUNT, MAX_COUNT)
+stat×   = min(STAT_FACTOR_MAX, 1 + (scale − 1) × STAT_PER_SCALE)
+```
+
+`stat×` is applied to MAX_HEALTH / ATTACK_DAMAGE / MAX_MAGICULE /
+MAX_AURA via the assassin's `multiplyAttribute` (stable-id ADD modifier,
+remove-first, never compounds; Tensura attrs guarded). The sqrt-ish
+exponent dampens EP so a 100× boss → ~10× scale, not 100×.
+
+**Starting values (all NAMED + TUNABLE in `RivalColonies`):**
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `GARRISON_BASELINE_EP` | 5 000 | boss EP that yields scale 1.0 |
+| `GARRISON_SCALE_EXPONENT` | 0.5 | EP-ratio dampening (√) |
+| `GARRISON_SCALE_MIN / MAX` | 1.0 / 6.0 | scale clamp |
+| `GARRISON_BASE_COUNT` | 6 | defenders at scale 1.0 |
+| `GARRISON_MIN_COUNT / MAX_COUNT` | 4 / 20 | count clamp |
+| `GARRISON_STAT_PER_SCALE` | 0.5 | stat-mult growth per unit scale |
+| `GARRISON_STAT_FACTOR_MAX` | 4.0 | stat-mult cap |
+| `GARRISON_FALLBACK_BOSS_EP` | 5 000 | EP when the boss can't be read |
+| `GARRISON_WIN_FRACTION` | 0.60 | defenders that must fall for conquest |
+| `GARRISON_SPAWN_RADIUS` | 18 | defenders spawn within this of center |
+| `GARRISON_TETHER_RADIUS` | 40 | stray-beyond → walked back to center |
+
+These are first guesses with no combat playtest — flag for the polish
+pass. Likely tuning levers: BASELINE_EP (how strong "scale 1" feels),
+the exponent (curve steepness), and STAT_FACTOR_MAX (per-mob lethality).
+
+## Spawning + tethering
+
+Raid-engine path: `type.create` + `finalizeSpawn(SPAWN_EGG)` +
+`setPersistenceRequired` + `GARRISON_TAG(settlementId, isBoss)` +
+`addFreshEntity`, scattered within `GARRISON_SPAWN_RADIUS` of center.
+UUIDs stored in `Settlement.garrisonUuids`. **Tether:** `tickGarrison`
+(per-second, runs whenever the faction system is on — independent of the
+natural-gen toggle) feeds a defender's brain `WALK_TARGET` back toward
+center if it strays past `GARRISON_TETHER_RADIUS`, yielding to native
+combat while it has a live target (the SubordinatePatrol/raid-steer
+containment idiom). It also prunes UUIDs whose entity vanished without a
+death event (e.g. `/kill`) so the live count stays honest (no tally).
+
+## Persistence + the RESET primitive (the key new mechanic)
+
+Garrison + boss persist in `SettlementSavedData` (the new `Settlement`
+fields — `defenderKills`, `bossDead`, `assaulted` — round-trip in NBT;
+`garrisonUuids` / `defenderCountAtStart` already did). State machine:
+**IDLE** vs **ASSAULTED** (`Settlement.assaulted`).
+
+`resetGarrison(level, s)` — the primitive Stage C calls on an
+INCOMPLETE assault (player retreats/dies without conquering):
+1. **Revive-or-heal the boss** — if it died (an incomplete assault can
+   still have killed the boss, just not ≥60% defenders) respawn a fresh
+   MARKED boss at center and update `bossUuid`; else `setHealth(max)` +
+   refill magicule/aura via `EnergyHelper.gain*(…, getMax*, NORMAL)`.
+2. **Top the garrison back up** to `defenderCountAtStart` (heal
+   survivors, respawn the shortfall at the same boss-derived stat scale).
+3. Clear `defenderKills` / `bossDead` / `assaulted` → IDLE. Each assault
+   starts fresh.
+
+⚠ **Tracked risk — the boss EP/pool restore.** The pool refill goes
+through `EnergyHelper.gainMagicule/gainAura(max, NORMAL)`, wrapped in
+try/catch (not every anchor has Tensura energy pools — e.g. Bone Golem).
+EP itself (the existence stat) isn't drained by combat, so it's not
+restored; only HP + the magicule/aura POOLS are. The revive path
+(respawn when dead) is the riskier branch — it creates a NEW entity, so
+any Stage-C state keyed on the old `bossUuid` must re-read it (Stage C
+should call reset, then re-resolve the boss).
+
+## 60%-win tracking (the condition Stage C checks)
+
+`GarrisonTag(settlementId, isBoss)` on every defender AND the boss (the
+boss also keeps its `FactionMarkTag` for the Layer-1 fan-out — the two
+coexist). `onGarrisonMobDeath` (wired into `ExampleMod.onLivingDeath`,
+beside the raid tally): boss death → `bossDead = true`; defender death →
+`defenderKills++` and drop the UUID. The check:
+
+```
+requiredDefenderKills(s) = ceil(GARRISON_WIN_FRACTION × defenderCountAtStart)
+isConquestEligible(s)    = bossDead && defenderKills ≥ requiredDefenderKills(s)
+```
+
+The tally counts continuously (so Stage B is testable before the C
+assault flow exists); `beginAssault` re-snapshots the live count as the
+denominator and zeroes the kills for a clean assault. Stage C drives the
+assault that consumes `isConquestEligible`; Stage D (rewards-only +
+husk) fires when it returns true.
+
+## Debug (Stage B is testable before Stage C)
+
+- `/rivalcolony spawn <faction>` now raises the garrison with the
+  settlement; the success line reports the defender count.
+- `/rivalcolony garrison <id>` — full state: alive/start defenders,
+  kills/needed, boss HP+EP, assaulted/idle, conquest-eligible.
+- `/rivalcolony assault <id>` — begin an assault (the Stage-C entry
+  primitive), to test the win check now.
+- `/rivalcolony reset <id>` — run the RESET primitive (respawn garrison +
+  heal/revive boss).
+- `/rivalcolony list` — now shows `garrison alive/start` + ASSAULTED.
+
+Verified: spawn raises a themed, boss-EP-scaled, tethered garrison;
+killing defenders increments the tally (GARRISON_TAG); the boss is the
+marked anchor and its death sets `bossDead`; the 60% check reads
+correctly; reset restores the garrison + heals/revives the boss; state
+persists in `SettlementSavedData` across reload; `factionSystemEnabled`
+off → no garrison; build green.
+
+Deferred to C–E: the discovery/Declare-War/teleport-assault loop that
+DRIVES the assault and calls `beginAssault`/`resetGarrison` (C), the
+conquest→rewards/husk payoff that consumes `isConquestEligible` (D), and
+betrayal scaling (E).

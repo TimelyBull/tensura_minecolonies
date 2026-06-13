@@ -121,6 +121,19 @@ public final class Attachments {
                             .serialize(AllyTag.SERIALIZER)
                             .build());
 
+    /**
+     * Garrison-member marker — see {@link GarrisonTag} and
+     * {@link RivalColonies}. Stamped on a rival settlement's defenders
+     * and anchor boss (rival-colony Stage B); checked by the tether pass
+     * and the assault death-tally. Default null → {@code hasData(...)}
+     * is the authoritative presence check.
+     */
+    public static final Supplier<AttachmentType<GarrisonTag>> GARRISON_TAG =
+            ATTACHMENTS.register("garrison_tag",
+                    () -> AttachmentType.<GarrisonTag>builder(() -> null)
+                            .serialize(GarrisonTag.SERIALIZER)
+                            .build());
+
     private Attachments() {}
 
     public static void register(IEventBus modBus) {

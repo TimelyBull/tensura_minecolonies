@@ -58,12 +58,25 @@ public class Settlement {
     /** Conquered flag (set by Stage D). */
     public boolean conquered = false;
 
-    // --- Reserved seams for later stages (persisted, unused in A) ---
-    /** Stage B — live garrison defender entity UUIDs. */
+    // --- Stage B — the garrison + the assault win-tracking machinery ---
+    /** Live garrison defender entity UUIDs (the boss is tracked
+     *  separately via {@link #bossUuid}). */
     public Set<UUID> garrisonUuids = new HashSet<>();
-    /** Stage B — defender count snapshotted at an assault's start (the
-     *  60%-cleared win calc). */
+    /** Defender count snapshotted when the garrison was raised (and
+     *  re-snapshotted at each assault's start) — the denominator of the
+     *  60%-cleared win calc. */
     public int defenderCountAtStart = 0;
+    /** Defenders confirmed killed (the GARRISON_TAG death-tally). Reset to
+     *  0 at each assault start; the numerator of the 60% check. */
+    public int defenderKills = 0;
+    /** Anchor boss confirmed dead (one half of the conquest condition). */
+    public boolean bossDead = false;
+    /** Settlement state machine: IDLE (garrison at rest) vs ASSAULTED (an
+     *  assault is in progress — Stage C drives the flag; Stage B only
+     *  reads/exposes it and clears it on reset). */
+    public boolean assaulted = false;
+
+    // --- Reserved seams for Stage C (persisted, unused in B) ---
     /** Stage C — UUID of the player currently assaulting, or null. */
     public UUID assaultingPlayer = null;
     /** Stage C — the assaulting party's muster/return origin. */
@@ -104,6 +117,9 @@ public class Settlement {
         }
         tag.put("garrison", garrison);
         tag.putInt("defenderCountAtStart", defenderCountAtStart);
+        tag.putInt("defenderKills", defenderKills);
+        tag.putBoolean("bossDead", bossDead);
+        tag.putBoolean("assaulted", assaulted);
         if (assaultingPlayer != null) tag.putUUID("assaultingPlayer", assaultingPlayer);
         if (assaultOrigin != null) tag.putLong("assaultOrigin", assaultOrigin.asLong());
         return tag;
@@ -137,6 +153,9 @@ public class Settlement {
             s.garrisonUuids.add(garrison.getCompound(i).getUUID("u"));
         }
         s.defenderCountAtStart = tag.getInt("defenderCountAtStart");
+        s.defenderKills = tag.getInt("defenderKills");
+        s.bossDead = tag.getBoolean("bossDead");
+        s.assaulted = tag.getBoolean("assaulted");
         if (tag.hasUUID("assaultingPlayer")) s.assaultingPlayer = tag.getUUID("assaultingPlayer");
         if (tag.contains("assaultOrigin")) s.assaultOrigin = BlockPos.of(tag.getLong("assaultOrigin"));
         return s;
