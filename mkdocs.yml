@@ -1,5 +1,13 @@
 site_name: Tensura × MineColonies
 site_description: "Player guide for the Tensura: Reincarnated × MineColonies integration mod."
+# GitHub Pages serves a project site from https://<user>.github.io/<repo>/.
+# This repo's remote is github.com/TimelyBull/tensura_minecolonies, so the
+# published URL is the one below. (MkDocs uses relative asset paths, so the
+# theme styling works on the subpath regardless; site_url is still set for a
+# correct sitemap.xml and canonical links.)
+site_url: https://timelybull.github.io/tensura_minecolonies/
+repo_url: https://github.com/TimelyBull/tensura_minecolonies
+repo_name: TimelyBull/tensura_minecolonies
 docs_dir: wiki
 site_dir: site
 
