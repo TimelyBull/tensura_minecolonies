@@ -67,6 +67,14 @@ class DiplomacySavedData extends SavedData {
     /** Catalog — player → deal ids whose capstone SKILL reward is owed
      *  (granted on next login if the deal completed offline). */
     private final Map<UUID, Set<String>> pendingSkillDeals = new HashMap<>();
+    /** Envoy dispatch (model A) — subordinate identityId → the faction id
+     *  it is AWAY serving as an envoy to. While present, the subordinate
+     *  is unavailable (its body is despawned); the entry clears when the
+     *  envoy mission resolves. Server-global (not per-player). */
+    private final Map<UUID, String> envoyAway = new HashMap<>();
+    /** Envoy dispatch — identityIds whose mission RESOLVED while the owner
+     *  was offline; the subordinate's body re-materializes on next login. */
+    private final Set<UUID> envoyReturnPending = new HashSet<>();
     /** Daily-pass rollover anchor (overworld day number). */
     private long lastProcessedDay = -1;
 
@@ -272,6 +280,46 @@ class DiplomacySavedData extends SavedData {
         setDirty();
     }
 
+    // --- envoy dispatch (away / return) ---
+    void setEnvoyAway(UUID identityId, String factionId) {
+        envoyAway.put(identityId, factionId);
+        setDirty();
+    }
+
+    /** The faction this identity is away serving, or null if not away. */
+    String envoyAwayFaction(UUID identityId) {
+        return envoyAway.get(identityId);
+    }
+
+    boolean isEnvoyAway(UUID identityId) {
+        return envoyAway.containsKey(identityId);
+    }
+
+    void clearEnvoyAway(UUID identityId) {
+        if (envoyAway.remove(identityId) != null) setDirty();
+    }
+
+    /** identityId → factionId for every subordinate currently out on an envoy. */
+    Map<UUID, String> allEnvoyAway() {
+        return envoyAway;
+    }
+
+    void markEnvoyReturnPending(UUID identityId) {
+        if (envoyReturnPending.add(identityId)) setDirty();
+    }
+
+    boolean isEnvoyReturnPending(UUID identityId) {
+        return envoyReturnPending.contains(identityId);
+    }
+
+    Set<UUID> allEnvoyReturnPending() {
+        return envoyReturnPending;
+    }
+
+    void clearEnvoyReturnPending(UUID identityId) {
+        if (envoyReturnPending.remove(identityId)) setDirty();
+    }
+
     long lastProcessedDay() {
         return lastProcessedDay;
     }
@@ -372,6 +420,24 @@ class DiplomacySavedData extends SavedData {
             players.add(player);
         }
         tag.put("players", players);
+
+        // Envoy dispatch — server-global away/return bookkeeping.
+        ListTag awayList = new ListTag();
+        for (Map.Entry<UUID, String> e : envoyAway.entrySet()) {
+            CompoundTag entry = new CompoundTag();
+            entry.putUUID("id", e.getKey());
+            entry.putString("faction", e.getValue());
+            awayList.add(entry);
+        }
+        tag.put("envoyAway", awayList);
+        ListTag returnList = new ListTag();
+        for (UUID id : envoyReturnPending) {
+            CompoundTag entry = new CompoundTag();
+            entry.putUUID("id", id);
+            returnList.add(entry);
+        }
+        tag.put("envoyReturnPending", returnList);
+
         tag.putLong("lastProcessedDay", lastProcessedDay);
         return tag;
     }
@@ -402,6 +468,16 @@ class DiplomacySavedData extends SavedData {
     static DiplomacySavedData load(CompoundTag tag, HolderLookup.Provider registries) {
         DiplomacySavedData data = new DiplomacySavedData();
         data.lastProcessedDay = tag.getLong("lastProcessedDay");
+        ListTag awayList = tag.getList("envoyAway", Tag.TAG_COMPOUND);
+        for (int i = 0; i < awayList.size(); i++) {
+            CompoundTag entry = awayList.getCompound(i);
+            if (entry.hasUUID("id")) data.envoyAway.put(entry.getUUID("id"), entry.getString("faction"));
+        }
+        ListTag returnList = tag.getList("envoyReturnPending", Tag.TAG_COMPOUND);
+        for (int i = 0; i < returnList.size(); i++) {
+            CompoundTag entry = returnList.getCompound(i);
+            if (entry.hasUUID("id")) data.envoyReturnPending.add(entry.getUUID("id"));
+        }
         ListTag players = tag.getList("players", Tag.TAG_COMPOUND);
         for (int i = 0; i < players.size(); i++) {
             CompoundTag player = players.getCompound(i);

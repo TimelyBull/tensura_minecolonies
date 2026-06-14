@@ -363,6 +363,53 @@ Original investigation follows.
 
 ---
 
+**Status: ENVOY ENTRY REWORKED — colony-gated subordinate dispatch (2026-06-13).**
+The outbound envoy is no longer an abstract "send + gift" button; it is a
+colony-gated dispatch of a Tensura SUBORDINATE whose EP must meet the
+faction's danger threshold. As-built:
+
+- **Colony gate.** `sendEnvoy` and the gift both require the player to OWN
+  a colony with a town hall (`DiplomacyManager.ownsColony`). The snapshot
+  `canSend` now includes `hasColony`, so both buttons disable without a
+  colony; the server-side gate returns "Found a colony first…" if invoked
+  anyway. Behind `factionSystemEnabled` like the rest.
+- **Envoy = subordinate dispatch (the picker).** Clicking Send Envoy
+  (or Send Gift) validates, then opens a PICKER (`WindowEnvoyPicker`, the
+  lend/war-picker shape) listing the player's at-your-side subordinates
+  ELIGIBLE for that faction — owned Tensura `ISubordinate` bodies with a
+  named identity whose `readExistence(mob).getEP()` ≥ the faction
+  threshold, not already away. The player picks ONE; confirm →
+  `EnvoyConfirmPayload` → `DiplomacyManager.dispatchEnvoy`. If no
+  subordinate qualifies, Send Envoy fails with the EP requirement.
+- **Per-faction EP threshold, danger-scaled** (`ENVOY_EP_THRESHOLD`,
+  tunable BALANCE GUESSES): Tempest/Jura 500 (safe) · Shizu 1500 · Dwargon
+  2000 (mid) · Carrion/Otherworlders 2500 · Falmuth/Leon 4000 ·
+  Clayman/Luminous 5000 · Milim 6000 (most dangerous); default 2000. The
+  threshold gates only PICKER ELIGIBILITY ("can the envoy survive the
+  trip").
+- **Model A — away then returns (never consumed, never at risk).** On
+  dispatch: the chosen subordinate's snapshot is refreshed (`mob.save`),
+  its body is despawned, its `mobEntityUUID` cleared, and it is recorded
+  AWAY in `DiplomacySavedData.envoyAway` (identityId → factionId,
+  persisted). While away it is unavailable — the roster action
+  (`handleMenuAction`) blocks it ("away on an envoy mission"), and with no
+  live body it never appears in loaded-subordinate scans (war party, etc.).
+  When the mission RESOLVES (the existing reply pass — relations OPEN, or
+  the faction rebuffs), `resolveEnvoyReturn` re-materializes the body from
+  the snapshot at the owner's side and re-links the identity; if the owner
+  is offline it's marked `envoyReturnPending` and re-materializes on next
+  login (`onPlayerLogin`). Survives reload (both maps persist).
+- **Race-gate composes, unchanged.** The EP/picker step only governs
+  whether the envoy can be SENT; whether the faction RECEIVES it is still
+  the existing reply-time check (`processPendingReplies`: accepted iff
+  standing ≥ `ENTRY_ACCEPT_STANDING` (20) and not diplomacy-closed). A
+  majin's base standing with the Holy bloc (Luminous 10 / Falmuth 15) is
+  below 20, so a majin is rebuffed regardless of the envoy's EP — and the
+  subordinate returns either way. The two gates are orthogonal: EP =
+  survive the trip; standing/race = will they treat with you.
+
+---
+
 **Investigated:** 2026-06-11 (built the same day).
 
 **What this is:** the builder's-path parallel to the hostility arc — a

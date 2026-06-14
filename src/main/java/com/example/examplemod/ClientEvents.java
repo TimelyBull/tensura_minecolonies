@@ -81,6 +81,9 @@ public final class ClientEvents {
                 new WindowWarList(payload.data()).open();
             }
         };
+        // Diplomacy — the envoy subordinate picker.
+        Networking.envoyPickerClientHandler = payload ->
+                new WindowEnvoyPicker(payload.data()).open();
         // The alliance prompt — Accept/Decline modal at ALLIED standing.
         // Not shown over another open screen (it re-prompts in a minute).
         Networking.alliancePromptClientHandler = payload -> {

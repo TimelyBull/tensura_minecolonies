@@ -223,6 +223,17 @@ public final class Networking {
                 WarActionPayload.CODEC,
                 Networking::onWarAction
         );
+        // Diplomacy envoy dispatch — the subordinate picker (S2C open, C2S confirm).
+        registrar.playToClient(
+                OpenEnvoyPickerPayload.TYPE,
+                OpenEnvoyPickerPayload.CODEC,
+                Networking::onOpenEnvoyPicker
+        );
+        registrar.playToServer(
+                EnvoyConfirmPayload.TYPE,
+                EnvoyConfirmPayload.CODEC,
+                Networking::onEnvoyConfirm
+        );
     }
 
     /**
@@ -1221,6 +1232,84 @@ public final class Networking {
                 }
                 default -> { }
             }
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Diplomacy envoy dispatch — the subordinate picker (S2C open + C2S confirm)
+    // ------------------------------------------------------------------
+
+    /** S2C: open the envoy subordinate picker. Body = faction id/name,
+     *  the EP threshold, the withGift flag, and a candidates list of
+     *  {entityId, name, ep}. Built by {@link #sendEnvoyPickerTo}. */
+    public record OpenEnvoyPickerPayload(net.minecraft.nbt.CompoundTag data)
+            implements CustomPacketPayload {
+        public static final Type<OpenEnvoyPickerPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "open_envoy_picker"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, OpenEnvoyPickerPayload> CODEC =
+                StreamCodec.of(
+                        (buf, p) -> buf.writeNbt(p.data),
+                        buf -> new OpenEnvoyPickerPayload((net.minecraft.nbt.CompoundTag) buf.readNbt()));
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** C2S: the chosen envoy subordinate (its loaded entity id) for a
+     *  faction, plus whether a gift rides along. */
+    public record EnvoyConfirmPayload(String factionId, int entityId, boolean withGift)
+            implements CustomPacketPayload {
+        public static final Type<EnvoyConfirmPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "envoy_confirm"));
+        public static final StreamCodec<ByteBuf, EnvoyConfirmPayload> CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, EnvoyConfirmPayload::factionId,
+                ByteBufCodecs.VAR_INT, EnvoyConfirmPayload::entityId,
+                ByteBufCodecs.BOOL, EnvoyConfirmPayload::withGift,
+                EnvoyConfirmPayload::new
+        );
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** Client-side delegate for the envoy picker. Installed by ClientEvents. */
+    public static Consumer<OpenEnvoyPickerPayload> envoyPickerClientHandler = payload ->
+            LOGGER.info("[TM] envoy picker (no client handler installed)");
+
+    /** Build + send the envoy-picker snapshot for a faction. */
+    static void sendEnvoyPickerTo(ServerPlayer player, BossFaction faction, boolean withGift) {
+        net.minecraft.nbt.CompoundTag root = new net.minecraft.nbt.CompoundTag();
+        root.putString("factionId", faction.id());
+        root.putString("factionName", faction.displayName());
+        root.putInt("threshold", (int) DiplomacyManager.envoyEpThreshold(faction));
+        root.putBoolean("withGift", withGift);
+        net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
+        for (net.minecraft.world.entity.Mob mob
+                : DiplomacyManager.eligibleEnvoySubordinates(player, faction)) {
+            net.minecraft.nbt.CompoundTag c = new net.minecraft.nbt.CompoundTag();
+            c.putInt("id", mob.getId());
+            c.putString("name", mob.hasCustomName()
+                    ? mob.getCustomName().getString() : mob.getType().getDescription().getString());
+            io.github.manasmods.tensura.storage.ep.ExistenceStorage ex = ExampleMod.readExistence(mob);
+            c.putInt("ep", ex != null ? (int) ex.getEP() : 0);
+            list.add(c);
+        }
+        root.put("candidates", list);
+        PacketDistributor.sendToPlayer(player, new OpenEnvoyPickerPayload(root));
+    }
+
+    private static void onOpenEnvoyPicker(OpenEnvoyPickerPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> envoyPickerClientHandler.accept(payload));
+    }
+
+    private static void onEnvoyConfirm(EnvoyConfirmPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer sp)) return;
+        context.enqueueWork(() -> {
+            BossFaction faction = BossFaction.byId(payload.factionId());
+            if (faction == null) return;
+            String failure = DiplomacyManager.dispatchEnvoy(
+                    sp, faction, payload.entityId(), payload.withGift());
+            if (failure != null) {
+                sp.sendSystemMessage(net.minecraft.network.chat.Component.literal(failure)
+                        .withStyle(net.minecraft.ChatFormatting.GRAY));
+            }
+            sendDiplomacySnapshot(sp);
         });
     }
 

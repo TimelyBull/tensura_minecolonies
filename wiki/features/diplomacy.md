@@ -12,17 +12,28 @@ tiers that unlock rewards. It runs in parallel with
 
 ## Opening relations
 
-Before you can deal with a faction, you have to be on speaking terms. There
-are two ways relations open:
+You must **own a colony** (have a town hall) before you can send an envoy or
+a gift — the buttons are disabled until then. There are two ways relations
+open:
 
 - **They send an envoy to you.** Friendly and neutral factions occasionally
   send a diplomatic envoy that appears near your town hall. Right-click it to
   hear them out and accept — relations open on the spot.
 - **You send an envoy to them.** On the Diplomacy tab, press **Send Envoy**
-  for a faction. You can attach a gift (it's taken from your inventory and
-  earns a little goodwill). After about a day, they reply: if your standing
-  is high enough, relations open. If not, they decline — but asking costs you
-  nothing except the gift.
+  for a faction. You dispatch one of your **Tensura subordinates** as the
+  envoy: a picker lists the subordinates at your side that are strong enough
+  for the trip (their EP must meet the faction's requirement — higher for
+  more dangerous factions). Pick one and it leaves on the mission. After
+  about a day the faction replies: if your standing is high enough, relations
+  open; otherwise they decline. **Either way your subordinate returns to your
+  side** when the mission resolves — it's only away temporarily, never lost.
+  You can attach a gift (taken from your inventory) for a little extra
+  goodwill.
+
+!!! note "Your envoy is away while travelling"
+    A subordinate sent as an envoy is unavailable until the mission
+    resolves — you can't summon or use it in the meantime. It comes back
+    automatically (even across a logout) when the faction replies.
 
 !!! warning "Race matters"
     Some factions are picky about who they'll deal with. The Holy Empire and

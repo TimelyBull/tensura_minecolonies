@@ -3598,6 +3598,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // return trip to the assault origin is owed now.
         RivalColonies.onPlayerReturn(sp);
 
+        // Diplomacy — re-materialize any envoy subordinate whose mission
+        // resolved while the player was offline.
+        DiplomacyManager.onPlayerLogin(sp);
+
         // Sync festival skill bonuses so the citizen-window "+X" is present after relog.
         try { sendFestivalBonus(sp); } catch (Throwable t) { LOGGER.warn("[TM] festival bonus login sync failed", t); }
 
@@ -5319,6 +5323,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (identity.ownerPlayerUUID == null
                 || !player.getUUID().equals(identity.ownerPlayerUUID)) {
             sendAdvisoryNotice(player, "That citizen isn't yours.");
+            return;
+        }
+        // Envoy gate — a subordinate away on (or returning from) an envoy
+        // mission is unavailable until the mission resolves.
+        if (DiplomacyManager.isSubordinateAway(player.serverLevel(), identityId)) {
+            sendAdvisoryNotice(player, "That subordinate is away on an envoy mission.");
             return;
         }
         // Resolve the live body whose IExistence we'll read for the cost gate.

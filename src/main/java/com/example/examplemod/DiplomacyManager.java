@@ -4,6 +4,9 @@ import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.util.EntityUtils;
+import io.github.manasmods.tensura.entity.template.subclass.ISubordinate;
+import io.github.manasmods.tensura.storage.ep.ExistenceStorage;
+import io.github.manasmods.tensura.util.SubordinateHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
@@ -14,11 +17,14 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,6 +91,33 @@ public final class DiplomacyManager {
     static final long INBOUND_COOLDOWN_TICKS = 3 * DAY;
     /** Inbound envoys require at least NEUTRAL standing. */
     static final double INBOUND_MIN_STANDING = 40.0;
+
+    // --- envoy dispatch: per-faction minimum subordinate EP (model A) ---
+    /** Minimum EP a subordinate must have to be SENT as an envoy to a
+     *  faction, scaled to how DANGEROUS the trip is — a frail envoy can't
+     *  survive a visit to a hostile court. These gate the picker's
+     *  eligibility only; the faction's acceptance (race/standing) is the
+     *  separate check at reply time. ⚠ BALANCE GUESSES — tunable; the
+     *  exact numbers depend on Tensura's EP economy. */
+    private static final Map<String, Double> ENVOY_EP_THRESHOLD = Map.ofEntries(
+            Map.entry("tempest", 500.0),        // friendly monster nation — safe
+            Map.entry("jura_alliance", 500.0),  // same bloc — safe
+            Map.entry("shizu", 1500.0),         // kind to all, but a strong domain
+            Map.entry("dwargon", 2000.0),       // neutral, violence-sensitive — mid
+            Map.entry("carrion", 2500.0),       // beastmen — moderate
+            Map.entry("otherworlders", 2500.0), // aloof, unknown — moderate
+            Map.entry("falmuth", 4000.0),       // Holy-bloc muscle — dangerous
+            Map.entry("leon", 4000.0),          // a demon lord's domain — dangerous
+            Map.entry("clayman", 5000.0),       // schemer — dangerous
+            Map.entry("luminous", 5000.0),      // Holy Empire — dangerous
+            Map.entry("milim", 6000.0));        // a destroyer demon lord — most dangerous
+    /** Fallback threshold for any faction not in the map above. */
+    private static final double ENVOY_EP_THRESHOLD_DEFAULT = 2000.0;
+
+    /** The minimum subordinate EP to envoy {@code faction}. */
+    static double envoyEpThreshold(BossFaction faction) {
+        return ENVOY_EP_THRESHOLD.getOrDefault(faction.id(), ENVOY_EP_THRESHOLD_DEFAULT);
+    }
 
     // --- the outbound gift ---
     static final Item GIFT_ITEM = Items.GOLD_INGOT;
@@ -237,14 +270,35 @@ public final class DiplomacyManager {
     // Entry — outbound (the tab's Send-envoy button)
     // ------------------------------------------------------------------
 
-    /** @return a player-facing failure string, or null on success. */
+    /** True when the player owns a colony with a town hall — the gate on
+     *  sending an envoy or a gift. */
+    static boolean ownsColony(ServerLevel level, UUID player) {
+        IColony colony = IColonyManager.getInstance().getIColonyByOwner(level, player);
+        return colony != null && colony.getServerBuildingManager().hasTownHall();
+    }
+
+    /**
+     * Step 1 of the outbound flow: VALIDATE that an envoy can be sent, and
+     * if so OPEN the subordinate picker (the actual dispatch happens on
+     * confirm via {@link #dispatchEnvoy}). Returns a player-facing failure
+     * string, or null on success (picker opened).
+     *
+     * <p>Gates: faction system on, the player OWNS A COLONY, the faction's
+     * diplomacy door isn't closed, relations are NONE, no envoy is pending,
+     * the resend cooldown has elapsed, and the player has at least one
+     * eligible subordinate (EP ≥ the faction's danger threshold).
+     */
     static String sendEnvoy(ServerPlayer player, BossFaction faction, boolean withGift) {
         if (!isEnabled()) return "the faction system is disabled";
         ServerLevel level = player.serverLevel();
         UUID uuid = player.getUUID();
         DiplomacySavedData data = DiplomacySavedData.get(level);
 
-        // The Orc Disaster door — checked FIRST.
+        // Colony gate — no diplomacy until you have a seat to send from.
+        if (!ownsColony(level, uuid)) {
+            return "Found a colony first — you need a town hall to send envoys.";
+        }
+        // The Orc Disaster door — checked FIRST among faction gates.
         if (WorldReputationManager.isDiplomacyClosed(level, uuid, faction)) {
             return faction.displayName() + " will not treat with you.";
         }
@@ -258,29 +312,185 @@ public final class DiplomacyManager {
         if (now - data.getLastSend(uuid, faction.id()) < SEND_COOLDOWN_TICKS) {
             return faction.displayName() + " needs time before receiving another envoy";
         }
+        // Need at least one subordinate strong enough for the trip.
+        if (eligibleEnvoySubordinates(player, faction).isEmpty()) {
+            return "no subordinate is strong enough to envoy " + faction.displayName()
+                    + " (need a subordinate at your side with EP ≥ "
+                    + (int) envoyEpThreshold(faction) + ").";
+        }
+        // Open the picker — the dispatch waits for the player's choice.
+        Networking.sendEnvoyPickerTo(player, faction, withGift);
+        return null;
+    }
+
+    /** The player's LOADED, at-your-side subordinates eligible to envoy
+     *  {@code faction}: owned Tensura subordinates whose EP meets the
+     *  faction's threshold and that aren't already away on a mission. */
+    static List<Mob> eligibleEnvoySubordinates(ServerPlayer player, BossFaction faction) {
+        ServerLevel level = player.serverLevel();
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        RaceIdentitySavedData identities = RaceIdentitySavedData.get(level);
+        double threshold = envoyEpThreshold(faction);
+        UUID me = player.getUUID();
+        List<Mob> out = new ArrayList<>();
+        AABB scan = player.getBoundingBox().inflate(256);
+        for (Mob mob : level.getEntitiesOfClass(Mob.class, scan, m -> m.isAlive()
+                && m instanceof ISubordinate
+                && me.equals(SubordinateHelper.getSubordinateOwnerUUID(m)))) {
+            RaceIdentitySavedData.RaceIdentity id = identities.getByMobUUID(mob.getUUID());
+            if (id == null) continue;                       // only named identities
+            if (data.isEnvoyAway(id.identityId)) continue;  // already out
+            ExistenceStorage ex = ExampleMod.readExistence(mob);
+            double ep = ex != null ? ex.getEP() : 0.0;
+            if (ep >= threshold) out.add(mob);
+        }
+        return out;
+    }
+
+    /**
+     * Step 2: the player picked a subordinate (by its loaded entity id) in
+     * the envoy picker. Re-validate, send that subordinate AWAY (model A —
+     * its body despawns, it's marked unavailable, NOT consumed), pay the
+     * optional gift, and start the reply timer. Returns a failure string,
+     * or null on success.
+     */
+    static String dispatchEnvoy(ServerPlayer player, BossFaction faction,
+                                int subordinateEntityId, boolean withGift) {
+        if (!isEnabled()) return "the faction system is disabled";
+        ServerLevel level = player.serverLevel();
+        UUID uuid = player.getUUID();
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+
+        if (!ownsColony(level, uuid)) {
+            return "Found a colony first — you need a town hall to send envoys.";
+        }
+        if (WorldReputationManager.isDiplomacyClosed(level, uuid, faction)) {
+            return faction.displayName() + " will not treat with you.";
+        }
+        if (getState(level, uuid, faction) != RelationsState.NONE) {
+            return "relations with " + faction.displayName() + " are already open";
+        }
+        if (data.getPendingReply(uuid, faction.id()) != null) {
+            return "your envoy to " + faction.displayName() + " has not yet returned";
+        }
+        long now = level.getGameTime();
+        if (now - data.getLastSend(uuid, faction.id()) < SEND_COOLDOWN_TICKS) {
+            return faction.displayName() + " needs time before receiving another envoy";
+        }
+
+        // Resolve the chosen subordinate + its identity; re-check EP/ownership.
+        Entity e = level.getEntity(subordinateEntityId);
+        if (!(e instanceof Mob mob) || !mob.isAlive()
+                || !uuid.equals(SubordinateHelper.getSubordinateOwnerUUID(mob))) {
+            return "that subordinate is no longer at your side.";
+        }
+        RaceIdentitySavedData identities = RaceIdentitySavedData.get(level);
+        RaceIdentitySavedData.RaceIdentity identity = identities.getByMobUUID(mob.getUUID());
+        if (identity == null) return "that subordinate has no identity record.";
+        if (data.isEnvoyAway(identity.identityId)) {
+            return "that subordinate is already away on an envoy.";
+        }
+        ExistenceStorage ex = ExampleMod.readExistence(mob);
+        double ep = ex != null ? ex.getEP() : 0.0;
+        if (ep < envoyEpThreshold(faction)) {
+            return "that subordinate is too weak for " + faction.displayName()
+                    + " (need EP ≥ " + (int) envoyEpThreshold(faction) + ").";
+        }
+
+        // Optional gift — consume now (the only consuming step).
         if (withGift) {
             int consumed = consumeItems(player, GIFT_ITEM, GIFT_COUNT);
             if (consumed < GIFT_COUNT) {
-                // Partial consumption shouldn't happen (we check first),
-                // but refund defensively if it somehow did.
                 if (consumed > 0) giveItems(player, List.of(new ItemStack(GIFT_ITEM, consumed)));
                 return "a gift needs " + GIFT_COUNT + " "
                         + new ItemStack(GIFT_ITEM).getHoverName().getString();
             }
             WorldReputationManager.modifyStanding(level, uuid, faction,
                     STANDING_GIFT, WorldRepReason.DIPLOMACY);
-            player.sendSystemMessage(Component.literal(
-                    "Your gift precedes you to " + faction.displayName() + ".")
-                    .withStyle(net.minecraft.ChatFormatting.YELLOW));
         }
+
+        // Send the subordinate AWAY (model A): refresh its snapshot, despawn
+        // the body, mark it unavailable. It returns when the mission resolves.
+        CompoundTag snapshot = new CompoundTag();
+        if (mob.save(snapshot)) {
+            identities.updateEntitySnapshot(identity, snapshot);
+        }
+        String subName = mob.hasCustomName() ? mob.getCustomName().getString()
+                : mob.getType().getDescription().getString();
+        identities.updateMobUUID(identity, null); // no live body while away
+        mob.discard();
+        data.setEnvoyAway(identity.identityId, faction.id());
+
         data.setLastSend(uuid, faction.id(), now);
         data.setPendingReply(uuid, faction.id(), now + REPLY_DELAY_TICKS);
-        player.sendSystemMessage(Component.literal("Your envoy departs for "
-                + faction.displayName() + " — expect a reply in a day.")
+        player.sendSystemMessage(Component.literal(subName + " departs for "
+                + faction.displayName() + " as your envoy — expect a reply in a day.")
                 .withStyle(net.minecraft.ChatFormatting.GRAY));
-        LOGGER.info("[TM] diplomacy: player {} sent envoy to {} (gift {})",
-                uuid, faction.id(), withGift);
+        LOGGER.info("[TM] diplomacy: {} sent subordinate {} as envoy to {} (gift {})",
+                uuid, identity.identityId, faction.id(), withGift);
         return null;
+    }
+
+    /** True if this identity is away on an envoy mission (unavailable to
+     *  summon / send / use). Exposed for the roster/summon guards. */
+    static boolean isSubordinateAway(ServerLevel level, UUID identityId) {
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        return data.isEnvoyAway(identityId) || data.isEnvoyReturnPending(identityId);
+    }
+
+    /** Re-materialize an envoy subordinate's body from its snapshot near
+     *  the (online) owner, re-link the identity, and clear the away/return
+     *  flags. The subordinate is available again. */
+    private static void returnEnvoySubordinate(MinecraftServer server, UUID identityId) {
+        RaceIdentitySavedData identities = RaceIdentitySavedData.get(server.overworld());
+        RaceIdentitySavedData.RaceIdentity identity = identities.getById(identityId);
+        DiplomacySavedData data = DiplomacySavedData.get(server.overworld());
+        if (identity == null) { // identity gone — drop the bookkeeping
+            data.clearEnvoyAway(identityId);
+            data.clearEnvoyReturnPending(identityId);
+            return;
+        }
+        ServerPlayer owner = identity.ownerPlayerUUID == null ? null
+                : server.getPlayerList().getPlayer(identity.ownerPlayerUUID);
+        if (owner == null) {
+            // Offline — defer the body spawn to next login.
+            data.clearEnvoyAway(identityId);
+            data.markEnvoyReturnPending(identityId);
+            return;
+        }
+        ServerLevel level = owner.serverLevel();
+        if (identity.entitySnapshot != null) {
+            java.util.Optional<Entity> created =
+                    EntityType.create(identity.entitySnapshot, level);
+            if (created.isPresent() && created.get() instanceof Mob body) {
+                BlockPos at = EntityUtils.getSpawnPoint(level, owner.blockPosition());
+                if (at == null) at = owner.blockPosition();
+                body.moveTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5,
+                        owner.getYRot(), 0f);
+                body.setPersistenceRequired();
+                if (level.addFreshEntity(body)) {
+                    identities.updateMobUUID(identity, body.getUUID());
+                }
+            }
+        }
+        data.clearEnvoyAway(identityId);
+        data.clearEnvoyReturnPending(identityId);
+        owner.sendSystemMessage(Component.literal("Your envoy has returned to your side.")
+                .withStyle(net.minecraft.ChatFormatting.GRAY));
+    }
+
+    /** Login hook — spawn back any envoy subordinates whose mission
+     *  resolved while their owner was offline. */
+    static void onPlayerLogin(ServerPlayer player) {
+        if (!isEnabled()) return;
+        DiplomacySavedData data = DiplomacySavedData.get(player.serverLevel());
+        RaceIdentitySavedData identities = RaceIdentitySavedData.get(player.serverLevel());
+        for (UUID identityId : new java.util.ArrayList<>(data.allEnvoyReturnPending())) {
+            RaceIdentitySavedData.RaceIdentity id = identities.getById(identityId);
+            if (id != null && player.getUUID().equals(id.ownerPlayerUUID)) {
+                returnEnvoySubordinate(player.getServer(), identityId);
+            }
+        }
     }
 
     private static void processPendingReplies(ServerLevel level) {
@@ -307,7 +517,24 @@ public final class DiplomacyManager {
                             + String.format("%.0f", standing) + ".)")
                             .withStyle(net.minecraft.ChatFormatting.GRAY));
                 }
+                // The mission concluded either way — bring the dispatched
+                // subordinate home (return the away envoy for this faction).
+                resolveEnvoyReturn(level.getServer(), player, faction);
             }
+        }
+    }
+
+    /** Find the subordinate this player sent away as an envoy to
+     *  {@code faction} (if any) and return it (re-materialize / defer). */
+    private static void resolveEnvoyReturn(MinecraftServer server, UUID player, BossFaction faction) {
+        DiplomacySavedData data = DiplomacySavedData.get(server.overworld());
+        RaceIdentitySavedData identities = RaceIdentitySavedData.get(server.overworld());
+        for (Map.Entry<UUID, String> e : new HashMap<>(data.allEnvoyAway()).entrySet()) {
+            if (!faction.id().equals(e.getValue())) continue;
+            RaceIdentitySavedData.RaceIdentity id = identities.getById(e.getKey());
+            if (id == null || !player.equals(id.ownerPlayerUUID)) continue;
+            returnEnvoySubordinate(server, e.getKey());
+            break; // one envoy per (player, faction) at a time
         }
     }
 
@@ -1781,6 +2008,9 @@ public final class DiplomacyManager {
         }
         root.putBoolean("canTravel", anyPact
                 && now - data.getLastTravel(uuid) >= TRAVEL_COOLDOWN_TICKS);
+        // Colony gate — envoy + gift require owning a colony (town hall).
+        boolean hasColony = ownsColony(level, uuid);
+        root.putBoolean("hasColony", hasColony);
 
         ListTag factions = new ListTag();
         for (BossFaction faction : BossFaction.values()) {
@@ -1798,7 +2028,7 @@ public final class DiplomacyManager {
             f.putBoolean("closed", closed);
             boolean pending = data.getPendingReply(uuid, faction.id()) != null;
             f.putBoolean("pendingReply", pending);
-            f.putBoolean("canSend", state == RelationsState.NONE && !closed && !pending
+            f.putBoolean("canSend", hasColony && state == RelationsState.NONE && !closed && !pending
                     && now - data.getLastSend(uuid, faction.id()) >= SEND_COOLDOWN_TICKS);
             // Stage 3 — reward availability for the detail pane.
             f.putBoolean("canCaravan", state == RelationsState.PACT
