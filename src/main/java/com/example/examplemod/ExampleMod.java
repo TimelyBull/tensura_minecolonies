@@ -983,6 +983,14 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      */
     private static final long ENVOY_SCHEDULER_PERIOD_TICKS = 20L;
 
+    /** Cadence for AMBIENT / slow passes that don't need per-second
+     *  granularity — envoy scheduling + dwarven-village discovery and the
+     *  daily reputation drift / assassin-determination buildup. 100 ticks
+     *  (5 s). These are day-gated or proximity processes, so a few seconds
+     *  of latency is imperceptible; combat/assault/boss passes stay on the
+     *  1 s cadence above. */
+    private static final long AMBIENT_PERIOD_TICKS = 100L;
+
     /** Count named-goblin identities the player has registered in {@code colonyId}.
      *  Iterates the global identity store; N is small for a typical save. */
     private static int countNamedGoblinsInColony(ServerLevel level, int colonyId) {
@@ -5823,25 +5831,31 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // scheduler use level.getGameTime() so the actual spawn cadence is
         // still "first eligible tick after a 3-day in-game gap." Frequent
         // ticking is what makes /time advancement immediately visible.
+        // 1 s cadence — REALTIME passes (combat/assault/boss). Each manager
+        // self-throttles its OWN slow sub-passes to AMBIENT_PERIOD_TICKS
+        // internally, so only the timing-sensitive work runs every second.
         if (now > 0 && now % ENVOY_SCHEDULER_PERIOD_TICKS == 0) {
-            runEnvoyScheduler(server);
-            // Raid v1 — same 1 s cadence: drive active raids (steering,
-            // boss bar, resolution) + nightfall trigger checks.
+            // Raid v1 — drive active raids (steering, boss bar, resolution)
+            // + nightfall trigger checks.
             TensuraRaids.tick(server);
-            // Reputation — once-per-day drift toward each colony's
-            // happiness-determined resting point (day-rollover detected
-            // inside, same idiom as the dawn restock).
-            tickReputationDrift(server);
             // Assassins — ARMED strike checks (vulnerability windows) +
             // ACTIVE boss upkeep (bar, hostility re-assert).
             Assassins.tick(server);
-            // Diplomacy Stage 1 — envoy replies, deal deadlines/payoffs,
-            // collapse check; daily pass (offers, decay, inbound envoys)
-            // rolls over inside. Faction-gated inside.
+            // Diplomacy — alliance-buff refresh each second; the slow
+            // sub-passes (deals, collapse, side-watch, …) self-throttle.
             DiplomacyManager.tick(server);
-            // Rival-colony Stage A — rare natural settlement generation
-            // (config + faction gated inside).
+            // Rival-colony — active-assault drive each second; garrison
+            // tether, discovery, and village polling self-throttle.
             RivalColonies.tick(server);
+        }
+
+        // 5 s cadence — AMBIENT passes. Envoy scheduling + dwarven-village
+        // discovery (day-gated / proximity) and the once-per-day reputation
+        // drift + assassin-determination buildup. No per-second granularity
+        // needed; a few seconds of latency changes nothing observable.
+        if (now > 0 && now % AMBIENT_PERIOD_TICKS == 0) {
+            runEnvoyScheduler(server);
+            tickReputationDrift(server);
         }
 
         // Dawn-restock pass — refresh every named subordinate merchant's

@@ -110,6 +110,13 @@ public final class DiplomacyManager {
     /** Alliance buff refresh window (re-applied every 1 s tick while
      *  the pact holds; lapses by itself when it doesn't). */
     static final int ALLIANCE_BUFF_DURATION_TICKS = 60;
+    /** Cadence for the AMBIENT tick sub-passes (deal deadlines/payoffs,
+     *  relations collapse, side-watch, prompts, skill grants). 100 ticks
+     *  (5 s) — all deadline/standing-derived with day-or-slower scales, so
+     *  a few seconds of latency is imperceptible. The alliance-buff refresh
+     *  stays on the per-second cadence (its effect window is only 60 ticks,
+     *  so throttling it would let the buff flicker). */
+    static final long AMBIENT_PERIOD_TICKS = 100L;
     /** Caravan goods claimable once per this period per PACT faction. */
     static final long CARAVAN_COOLDOWN_TICKS = DAY;
     /** Caravan-home travel cooldown. */
@@ -1720,13 +1727,21 @@ public final class DiplomacyManager {
         if (!isEnabled()) return;
         ServerLevel overworld = server.overworld();
         try {
-            processPendingReplies(overworld);
-            processDeals(overworld);
-            checkCollapse(overworld);
-            checkAlliancePrompts(overworld);
+            // Per second — the alliance buff has only a 60-tick window, so
+            // it must be refreshed every second or it flickers off.
             tickAllianceBuffs(overworld);
-            tickSideWatch(overworld);
-            drainSkillGrants(overworld);
+            // Every 5 s — deadline/standing-derived sub-passes (deal
+            // payoffs, relations collapse, side-watch, prompts, skill
+            // grants). Day-or-slower scales; a few seconds' latency is
+            // imperceptible.
+            if (server.getTickCount() % AMBIENT_PERIOD_TICKS == 0) {
+                processPendingReplies(overworld);
+                processDeals(overworld);
+                checkCollapse(overworld);
+                checkAlliancePrompts(overworld);
+                tickSideWatch(overworld);
+                drainSkillGrants(overworld);
+            }
         } catch (Throwable t) {
             LOGGER.warn("[TM] diplomacy: tick failed", t);
         }

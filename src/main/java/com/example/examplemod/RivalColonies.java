@@ -449,26 +449,40 @@ public final class RivalColonies {
     private static final Map<net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>, Long>
             lastNaturalDay = new java.util.HashMap<>();
 
-    /** Called once per second from the server tick (the shared cadence).
-     *  Rolls a rare daily per-player chance to seed a settlement in the
-     *  world near a player — capped, spaced, config-gated. */
+    /** Cadence for the AMBIENT sub-passes (garrison tether, proximity
+     *  discovery, dwarven-village polling, natural gen). 100 ticks (5 s) —
+     *  these are slow/proximity/daily processes; only the active-assault
+     *  drive stays on the per-second cadence. */
+    private static final long AMBIENT_PERIOD_TICKS = 100L;
+
+    /** Called every second from the server tick. The active-assault drive
+     *  runs every call (combat targeting); the garrison tether, proximity
+     *  discovery, village polling, and rare natural generation run every
+     *  {@link #AMBIENT_PERIOD_TICKS} (no per-second granularity needed). */
     public static void tick(MinecraftServer server) {
         if (!WorldReputationManager.isFactionSystemEnabled()) return;
         boolean settlementsOn = Config.RIVAL_SETTLEMENT_MODE.get() != Config.SettlementMode.NONE;
+        boolean ambient = server.getTickCount() % AMBIENT_PERIOD_TICKS == 0;
 
         for (ServerLevel level : server.getAllLevels()) {
+            // Stage C — drive any active assault EVERY second (combat
+            // targeting / win check are timing-sensitive).
+            tickAssaults(level);
+
+            // Everything below is ambient — throttled to AMBIENT_PERIOD_TICKS.
+            if (!ambient) continue;
+
             // Stage B — keep each garrison tethered to its settlement.
             // Runs whenever the faction system is on (independent of the
             // natural-gen toggle) so debug-spawned garrisons behave too.
             tickGarrison(level);
-            // Stage C — proximity discovery + drive any active assault.
+            // Stage C — proximity discovery.
             tickDiscovery(level);
-            tickAssaults(level);
 
             if (!settlementsOn) continue;
 
-            // Dwargon: poll every tick for players standing in an
-            // unevaluated dwarf village (cheap — a structure lookup).
+            // Dwargon: poll for players standing in an unevaluated dwarf
+            // village (a structure lookup per player).
             tickDwarvenVillages(level);
 
             // Natural TOWN scatter — gated by the natural-gen toggle.
