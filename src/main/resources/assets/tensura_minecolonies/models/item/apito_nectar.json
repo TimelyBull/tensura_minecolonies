@@ -1,1 +1,1 @@
-{ "parent": "minecraft:item/generated", "textures": { "layer0": "minecraft:item/honeycomb" } }
+{ "parent": "minecraft:item/generated", "textures": { "layer0": "tensura_minecolonies:item/apito_nectar" } }
