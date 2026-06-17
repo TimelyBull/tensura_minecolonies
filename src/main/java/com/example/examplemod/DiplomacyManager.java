@@ -91,6 +91,21 @@ public final class DiplomacyManager {
     static final long INBOUND_COOLDOWN_TICKS = 3 * DAY;
     /** Inbound envoys require at least NEUTRAL standing. */
     static final double INBOUND_MIN_STANDING = 40.0;
+    /** Inbound envoys require a DEVELOPED colony — a faction won't reach
+     *  out to a bare town hall. Tunable. */
+    static final int INBOUND_BUILDING_COUNT_REQ = 4;   // ≥ this many buildings
+    static final int INBOUND_BUILDING_LEVEL_REQ = 2;   // ≥ one building at this level
+
+    /** True when the colony has at least {@link #INBOUND_BUILDING_COUNT_REQ}
+     *  buildings and at least one at level {@link #INBOUND_BUILDING_LEVEL_REQ}+. */
+    private static boolean colonyDevelopedEnough(IColony colony) {
+        var buildings = colony.getServerBuildingManager().getBuildings().values();
+        if (buildings.size() < INBOUND_BUILDING_COUNT_REQ) return false;
+        for (var b : buildings) {
+            if (b.getBuildingLevel() >= INBOUND_BUILDING_LEVEL_REQ) return true;
+        }
+        return false;
+    }
 
     // --- envoy dispatch: per-faction minimum subordinate EP (model A) ---
     /** Minimum EP a subordinate must have to be SENT as an envoy to a
@@ -100,19 +115,24 @@ public final class DiplomacyManager {
      *  separate check at reply time. ⚠ BALANCE GUESSES — tunable; the
      *  exact numbers depend on Tensura's EP economy. */
     private static final Map<String, Double> ENVOY_EP_THRESHOLD = Map.ofEntries(
-            Map.entry("tempest", 500.0),        // friendly monster nation — safe
-            Map.entry("jura_alliance", 500.0),  // same bloc — safe
-            Map.entry("shizu", 1500.0),         // kind to all, but a strong domain
-            Map.entry("dwargon", 2000.0),       // neutral, violence-sensitive — mid
-            Map.entry("carrion", 2500.0),       // beastmen — moderate
-            Map.entry("otherworlders", 2500.0), // aloof, unknown — moderate
-            Map.entry("falmuth", 4000.0),       // Holy-bloc muscle — dangerous
-            Map.entry("leon", 4000.0),          // a demon lord's domain — dangerous
-            Map.entry("clayman", 5000.0),       // schemer — dangerous
-            Map.entry("luminous", 5000.0),      // Holy Empire — dangerous
-            Map.entry("milim", 6000.0));        // a destroyer demon lord — most dangerous
+            // Friendly / high-base-standing — the 5,000 floor (early-game).
+            Map.entry("tempest", 5000.0),        // friendly monster nation
+            Map.entry("jura_alliance", 5000.0),  // same bloc — friendly
+            // Neutral, safe to approach.
+            Map.entry("dwargon", 6000.0),        // diplomacy-open, violence-sensitive
+            Map.entry("shizu", 6000.0),          // kind to all
+            // Neutral, moderately risky.
+            Map.entry("carrion", 8000.0),        // beastmen, swingable
+            Map.entry("otherworlders", 8000.0),  // aloof, unknown
+            // Dangerous — demon lords / schemers.
+            Map.entry("leon", 11000.0),          // a demon lord's domain
+            Map.entry("milim", 11000.0),         // a destroyer demon lord
+            Map.entry("clayman", 12000.0),       // schemer
+            // Hostile to you (low base, especially to majin) — Holy bloc.
+            Map.entry("falmuth", 13000.0),       // Holy-bloc muscle
+            Map.entry("luminous", 15000.0));     // Holy Empire — hates monsters
     /** Fallback threshold for any faction not in the map above. */
-    private static final double ENVOY_EP_THRESHOLD_DEFAULT = 2000.0;
+    private static final double ENVOY_EP_THRESHOLD_DEFAULT = 8000.0;
 
     /** The minimum subordinate EP to envoy {@code faction}. */
     static double envoyEpThreshold(BossFaction faction) {
@@ -550,6 +570,8 @@ public final class DiplomacyManager {
             if (now - data.getLastInbound(uuid) < INBOUND_COOLDOWN_TICKS) continue;
             IColony colony = IColonyManager.getInstance().getIColonyByOwner(level, uuid);
             if (colony == null || !colony.getServerBuildingManager().hasTownHall()) continue;
+            // Colony-development gate — a faction won't court a bare colony.
+            if (!colonyDevelopedEnough(colony)) continue;
             boolean majin = WorldReputationManager.isMajinSide(player);
             for (BossFaction faction : BossFaction.values()) {
                 FactionProfile profile = FactionProfile.byId(faction.id());

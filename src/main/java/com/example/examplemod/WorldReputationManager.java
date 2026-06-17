@@ -252,11 +252,20 @@ public final class WorldReputationManager {
                 new FactionMarkTag(factionId, sourceEventId));
         if (title) {
             BossFaction faction = BossFaction.byId(factionId);
-            String owner = faction != null ? faction.displayName() : factionId;
-            Component name = Component.literal(owner + "'s ")
-                    .append(boss.getType().getDescription())
-                    .withStyle(faction != null ? faction.color()
-                            : net.minecraft.ChatFormatting.WHITE);
+            // The nameplate is the entity's own name in the faction colour —
+            // NO faction-possessive prefix. EXCEPTION: the Orc Disaster
+            // (Geld) keeps its "<faction>'s …" form so its lore identity is
+            // unchanged.
+            boolean orcDisaster = boss.getType()
+                    == io.github.manasmods.tensura.registry.entity.MonsterEntityTypes.ORC_DISASTER.get();
+            net.minecraft.network.chat.MutableComponent name;
+            if (orcDisaster) {
+                String owner = faction != null ? faction.displayName() : factionId;
+                name = Component.literal(owner + "'s ").append(boss.getType().getDescription());
+            } else {
+                name = Component.empty().append(boss.getType().getDescription());
+            }
+            name.withStyle(faction != null ? faction.color() : net.minecraft.ChatFormatting.WHITE);
             boss.setCustomName(name);
             boss.setCustomNameVisible(true);
         }

@@ -1003,3 +1003,64 @@ Remaining deferred (their own future passes / the polish playtest): PvP
 colony raiding, the SIEGE system (broken-alliance super-raids, which E
 sets up), the "summon absent subordinates first" war-party polish, and
 all payout/balance tuning of the flagged BALANCE-GUESS constants.
+
+---
+
+# BATCH FIXES + bone-golem combat (as-built, 2026-06-13, v0.1.0)
+
+A maintenance + feature batch on the rival-colony arc and diplomacy entry.
+
+## Generation quality (#2 / #3 / #5)
+- **Site selection** (`findBuildableCenter`): samples `SITE_SAMPLES` (8)
+  candidate centers within `SITE_SCATTER` (24) blocks and keeps the flattest
+  (min `surfaceRange` over the footprint), stopping early at
+  `SITE_FLAT_ENOUGH` (4). Rejects cliff/steep spots; never fails (falls back).
+- **Foundation leveling** (`levelPad`): before each building places, a flat
+  pad is laid — solid ground at baseY−1 + `PAD_CLEAR_HEIGHT` (12) cleared
+  above — over `BUILDING_PAD_HALF` (12). Buildings sit flush, not half off a
+  ledge. Tradeoff: a flat platform is carved (terrain scarring); honest
+  practical version, not full terrain-fitting.
+- **Coplanar placement**: every building places at the chosen center's base
+  Y (not per-building heightmap), so slopes can't terrace the town.
+- **#3 spacing**: `GRID` widened 22 → 32 so buildings can't intersect.
+- **#5 hut strip**: `queueHutStrip` records the footprint; `tickHutStrips`
+  runs `HUT_STRIP_DELAY_TICKS` (100) after generation (placement is async)
+  and replaces every `AbstractBlockHut` in each building's footprint with
+  stone bricks. Settlements are decorative — conquest is rewards-only, so the
+  huts were vestigial; nothing in garrison/war/conquest reads them.
+
+## Defenders (#4 / #7)
+- **#4 Clone fix**: `CloneEntity` (the copy-skill entity) renders with the
+  missing-texture skin when spawned without a source to copy. Removed from
+  the Luminous + Otherworlder rosters (Luminous → Falmuth Knight / Kyoya /
+  Bone Golem; Otherworlders → Shogo / Mark Lauren / Shinji / Kirara).
+- **#7 War highlight**: `steerGarrisonToInvaders` sets each loaded garrison
+  member glowing during an assault; `clearGarrisonGlow` removes it on every
+  resolve path (win / retreat / death-logout).
+
+## #9 Bone golem combat AI
+- **Element at spawn** (`assignBoneGolemElement`): a bone golem learns ONE
+  random element's attack skill — darkness=Black Flame, wind=Voice Cannon
+  (sonic), earth=Earth Manipulation, fire=Heat Wave, water=Water Blade. (The
+  first four cast cleanly as mob spells; Earth Manipulation is the only earth
+  attack available and is less battle-tested as a mob cast — the driver
+  try/catches.)
+- **Cast driver** (`driveBoneGolemCast`, the assassin pattern): during an
+  assault, off-cooldown, it faces the nearest invader within
+  `BONE_GOLEM_CAST_RANGE` (24) and fires its learned element skill via
+  `onPressed` (canInteractSkill-gated, try/catch). Cooldown
+  `BONE_GOLEM_CAST_COOLDOWN_TICKS` (80 / 4 s — ⚠ BALANCE GUESS).
+- **Faction lore-power → skill mastery** (`boneGolemMasteryFraction`, ⚠
+  proposed): apex (Milim, Tempest) 1.0 · demon lords/great powers (Leon,
+  Carrion, Luminous, Clayman) 0.8 · strong realms (Dwargon, Shizu) 0.6 ·
+  others (Falmuth, Jura, Otherworlders) 0.4. Mastery = fraction × maxMastery.
+- Hostility/targeting reuses the existing `steerGarrisonToInvaders` lock —
+  golems are hostile to the player + war party like any defender.
+
+## Envoy prereqs (diplomacy — see also docs/diplomacy.md)
+- **#1a inbound**: a faction won't reach out until the colony has
+  `INBOUND_BUILDING_COUNT_REQ` (4) buildings and one at
+  `INBOUND_BUILDING_LEVEL_REQ` (2)+ — added to the existing inbound bars.
+- **#1b outbound**: the dispatched subordinate's EP threshold is now scaled
+  inverse to faction friendliness — 5,000 floor (Tempest/Jura) up to 15,000
+  (Luminous). All `ENVOY_EP_THRESHOLD` values tunable.

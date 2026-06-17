@@ -156,9 +156,12 @@ public final class RivalColonies {
         return switch (factionId) {
             // Luminous — the Holy Empire: elite human knights + a holy
             // construct (no dedicated "holy" mob exists; Bone Golem reads
-            // as a sanctified guardian).
+            // as a sanctified guardian and is the spellcaster — see the
+            // bone-golem combat AI). NOTE: CloneEntity is deliberately NOT
+            // used — it renders with the missing-texture skin when spawned
+            // without a source entity to copy.
             case "luminous" -> new EntityType[] {
-                    HumanEntityTypes.FALMUTH_KNIGHT.get(), HumanEntityTypes.CLONE.get(),
+                    HumanEntityTypes.FALMUTH_KNIGHT.get(), HumanEntityTypes.KYOYA_TACHIBANA.get(),
                     HumanEntityTypes.BONE_GOLEM.get() };
             // Falmuth — militaristic kingdom: Folgen's named knights.
             case "falmuth" -> new EntityType[] {
@@ -174,8 +177,9 @@ public final class RivalColonies {
                     MonsterEntityTypes.ARCH_DAEMON.get(), MonsterEntityTypes.GREATER_DAEMON.get(),
                     MonsterEntityTypes.LESSER_DAEMON.get() };
             // Otherworlders — summoned-from-elsewhere: a cohort of humans.
+            // (CloneEntity excluded — missing-texture when sourceless.)
             case "otherworlders" -> new EntityType[] {
-                    HumanEntityTypes.CLONE.get(), HumanEntityTypes.MARK_LAUREN.get(),
+                    HumanEntityTypes.SHOGO_TAGUCHI.get(), HumanEntityTypes.MARK_LAUREN.get(),
                     HumanEntityTypes.SHINJI_TANIMURA.get(), HumanEntityTypes.KIRARA_MIZUTANI.get() };
             // Jura Alliance — the forest nation: serpents, slimes, kin.
             case "jura_alliance" -> new EntityType[] {
@@ -285,7 +289,9 @@ public final class RivalColonies {
     // Pack-relative blueprint paths — MUST include the ".blueprint"
     // extension: StructurePacks resolves packRoot.resolve(path) and the
     // path normalizer does NOT append it.
-    private static final int GRID = 22;
+    // Widened from 22 → 32 so adjacent/diagonal buildings can't intersect
+    // (the MC schematics here run ~16–20 wide; 32 leaves clear margin). #3
+    private static final int GRID = 32;
     private static final List<Building> LAYOUT = List.of(
             new Building("fundamentals/townhall1.blueprint", 0, 0),
             new Building("fundamentals/builder1.blueprint", -GRID, 0),
@@ -307,6 +313,21 @@ public final class RivalColonies {
     static final int MIN_SETTLEMENT_SPACING = 400;
     /** Hard cap on naturally-generated settlements per world. */
     static final int MAX_NATURAL_SETTLEMENTS = 12;
+
+    // --- #2 site selection + foundation leveling (tunable) ---
+    /** Candidate centers sampled when siting a settlement; the flattest
+     *  wins (rejecting cliff/steep spots). */
+    private static final int SITE_SAMPLES = 8;
+    /** How far (blocks) candidate centers scatter from the requested spot. */
+    private static final int SITE_SCATTER = 24;
+    /** A site whose surface-height RANGE over the footprint is ≤ this is
+     *  "flat enough" — the search stops early when one is found. */
+    private static final int SITE_FLAT_ENOUGH = 4;
+    /** Half-extent (blocks) of the flat foundation pad laid under each
+     *  building before it places (clears slope, fills holes). */
+    private static final int BUILDING_PAD_HALF = 12;
+    /** Blocks of terrain cleared to air above each pad's base. */
+    private static final int PAD_CLEAR_HEIGHT = 12;
 
     private RivalColonies() {}
 
@@ -359,7 +380,10 @@ public final class RivalColonies {
                                      BlockPos rawCenter) {
         if (!WorldReputationManager.isFactionSystemEnabled() || !isTownFaction(factionId)) return null;
         String pack = PACKS.get(factionId);
-        BlockPos center = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, rawCenter);
+        // #2 — site selection: pick the FLATTEST nearby spot for the town
+        // (rejects cliff/steep sites that left buildings half-off ledges).
+        BlockPos center = findBuildableCenter(level, rawCenter);
+        int baseY = center.getY();
 
         Settlement s = new Settlement();
         SettlementSavedData data = SettlementSavedData.get(level);
@@ -371,11 +395,18 @@ public final class RivalColonies {
         s.packName = pack;
 
         for (Building b : LAYOUT) {
-            BlockPos at = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE,
-                    center.offset(b.dx(), 0, b.dz()));
+            // #3 — coplanar placement on the WIDENED grid: every building
+            // sits at the town's single base Y (not per-building terrain),
+            // so a slope can't terrace or overlap them.
+            BlockPos at = new BlockPos(center.getX() + b.dx(), baseY, center.getZ() + b.dz());
+            // #2 — level a flat foundation pad under the building first.
+            levelPad(level, at);
             placeBuilding(level, placer, pack, b.path(), at);
             s.buildingPositions.add(at);
         }
+        // #5 — strip vestigial MineColonies hut blocks once placement
+        // settles (placement is queued async over a few ticks).
+        queueHutStrip(level, s);
 
         // The anchor boss at the town center, MARKED (rep-affecting).
         Mob boss = spawnAnchorBoss(level, factionId, center.above(), true);
@@ -443,6 +474,113 @@ public final class RivalColonies {
     }
 
     // ------------------------------------------------------------------
+    // #2 — site selection + foundation leveling
+    // ------------------------------------------------------------------
+
+    /** Pick the FLATTEST nearby surface for a settlement center: sample a
+     *  handful of candidates and keep the one with the smallest
+     *  surface-height range over the footprint (stops early on a flat
+     *  enough spot). Never fails — falls back to the requested spot. */
+    private static BlockPos findBuildableCenter(ServerLevel level, BlockPos raw) {
+        BlockPos best = null;
+        int bestRange = Integer.MAX_VALUE;
+        for (int i = 0; i < SITE_SAMPLES; i++) {
+            BlockPos cand = (i == 0) ? raw : raw.offset(
+                    level.getRandom().nextInt(SITE_SCATTER * 2 + 1) - SITE_SCATTER, 0,
+                    level.getRandom().nextInt(SITE_SCATTER * 2 + 1) - SITE_SCATTER);
+            BlockPos surf = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, cand);
+            int range = surfaceRange(level, surf);
+            if (range < bestRange) { bestRange = range; best = surf; }
+            if (range <= SITE_FLAT_ENOUGH) break;
+        }
+        return best != null ? best : level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, raw);
+    }
+
+    /** Max−min WORLD_SURFACE height over a coarse grid spanning the layout
+     *  footprint — the "how steep is this site" metric. */
+    private static int surfaceRange(ServerLevel level, BlockPos center) {
+        int min = Integer.MAX_VALUE, max = Integer.MIN_VALUE;
+        int ext = GRID + BUILDING_PAD_HALF;
+        for (int dx = -ext; dx <= ext; dx += 8) {
+            for (int dz = -ext; dz <= ext + GRID; dz += 8) {
+                int y = level.getHeight(Heightmap.Types.WORLD_SURFACE,
+                        center.getX() + dx, center.getZ() + dz);
+                if (y < min) min = y;
+                if (y > max) max = y;
+            }
+        }
+        return max - min;
+    }
+
+    /** Lay a flat foundation pad at a building's base Y: a solid ground
+     *  layer below + cleared air above, so the schematic sits flush
+     *  instead of half-buried or off a ledge. */
+    private static void levelPad(ServerLevel level, BlockPos at) {
+        int baseY = at.getY();
+        net.minecraft.world.level.block.state.BlockState foundation = Blocks.STONE.defaultBlockState();
+        net.minecraft.world.level.block.state.BlockState air = Blocks.AIR.defaultBlockState();
+        for (int dx = -BUILDING_PAD_HALF; dx <= BUILDING_PAD_HALF; dx++) {
+            for (int dz = -BUILDING_PAD_HALF; dz <= BUILDING_PAD_HALF; dz++) {
+                int x = at.getX() + dx, z = at.getZ() + dz;
+                level.setBlock(new BlockPos(x, baseY - 1, z), foundation, 2);
+                for (int dy = 0; dy < PAD_CLEAR_HEIGHT; dy++) {
+                    level.setBlock(new BlockPos(x, baseY + dy, z), air, 2);
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // #5 — strip vestigial MineColonies hut blocks (deferred, post-placement)
+    // ------------------------------------------------------------------
+
+    private record HutStrip(net.minecraft.resources.ResourceKey<Level> dim,
+                            java.util.List<BlockPos> positions, long execTick) {}
+
+    private static final java.util.List<HutStrip> pendingHutStrips = new java.util.ArrayList<>();
+    /** Placement is queued async over a few ticks; strip after it settles. */
+    private static final long HUT_STRIP_DELAY_TICKS = 100L;
+
+    private static void queueHutStrip(ServerLevel level, Settlement s) {
+        pendingHutStrips.add(new HutStrip(level.dimension(),
+                new java.util.ArrayList<>(s.buildingPositions),
+                level.getGameTime() + HUT_STRIP_DELAY_TICKS));
+    }
+
+    /** Process due hut-strips: replace every MineColonies hut block in each
+     *  building's footprint with stone bricks. Settlements are decorative
+     *  (conquest is rewards-only — no colony is founded), so the functional
+     *  huts are vestigial. */
+    private static void tickHutStrips(MinecraftServer server) {
+        if (pendingHutStrips.isEmpty()) return;
+        java.util.Iterator<HutStrip> it = pendingHutStrips.iterator();
+        while (it.hasNext()) {
+            HutStrip hs = it.next();
+            ServerLevel level = server.getLevel(hs.dim());
+            if (level == null) { it.remove(); continue; }
+            if (level.getGameTime() < hs.execTick()) continue;
+            for (BlockPos at : hs.positions()) stripHutsAround(level, at);
+            it.remove();
+        }
+    }
+
+    private static void stripHutsAround(ServerLevel level, BlockPos at) {
+        int h = BUILDING_PAD_HALF + 2;
+        net.minecraft.world.level.block.state.BlockState sub = Blocks.STONE_BRICKS.defaultBlockState();
+        for (int dx = -h; dx <= h; dx++) {
+            for (int dz = -h; dz <= h; dz++) {
+                for (int dy = -1; dy < PAD_CLEAR_HEIGHT; dy++) {
+                    BlockPos p = new BlockPos(at.getX() + dx, at.getY() + dy, at.getZ() + dz);
+                    if (level.getBlockState(p).getBlock()
+                            instanceof com.minecolonies.api.blocks.AbstractBlockHut) {
+                        level.setBlock(p, sub, 2);
+                    }
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Natural generation — our own scheduler pass (NOT vanilla world-gen)
     // ------------------------------------------------------------------
 
@@ -461,6 +599,8 @@ public final class RivalColonies {
      *  {@link #AMBIENT_PERIOD_TICKS} (no per-second granularity needed). */
     public static void tick(MinecraftServer server) {
         if (!WorldReputationManager.isFactionSystemEnabled()) return;
+        // #5 — run any due post-placement hut strips (cheap when none queued).
+        tickHutStrips(server);
         boolean settlementsOn = Config.RIVAL_SETTLEMENT_MODE.get() != Config.SettlementMode.NONE;
         boolean ambient = server.getTickCount() % AMBIENT_PERIOD_TICKS == 0;
 
@@ -709,6 +849,11 @@ public final class RivalColonies {
         mob.setPersistenceRequired();
         mob.setData(Attachments.GARRISON_TAG.get(), new GarrisonTag(s.id, false));
         buffDefender(mob, statFactor);
+        // #9 — a bone golem gets ONE random element's casting skill, at a
+        // mastery scaled to its faction's lore power.
+        if (type == HumanEntityTypes.BONE_GOLEM.get()) {
+            assignBoneGolemElement(mob, s.factionId);
+        }
         if (!level.addFreshEntity(mob)) return null;
         return mob;
     }
@@ -746,6 +891,106 @@ public final class RivalColonies {
         if (s.bossUuid == null) return null;
         Entity e = level.getEntity(s.bossUuid);
         return e instanceof Mob mob && mob.isAlive() ? mob : null;
+    }
+
+    // ==================================================================
+    // #9 — BONE GOLEM combat AI (one element + an active cast driver)
+    // ==================================================================
+    // Each garrison bone golem learns ONE random element's attack skill at
+    // spawn; during an assault it actively casts it (the assassin
+    // cast-driver pattern) at the nearest invader, on a cooldown. The
+    // skill's mastery (its power) scales with the faction's lore power.
+
+    /** Cast cooldown between a bone golem's spells. ⚠ BALANCE GUESS. */
+    private static final long BONE_GOLEM_CAST_COOLDOWN_TICKS = 80L; // 4 s
+    private static final double BONE_GOLEM_CAST_RANGE = 24.0;
+    private static final int BONE_GOLEM_ELEMENT_COUNT = 5;
+    /** Per-golem next-allowed-cast tick (mirrors the assassin pacing map). */
+    private static final java.util.Map<UUID, Long> boneGolemNextCast = new java.util.HashMap<>();
+
+    /** The single attack skill for each element (0=darkness 1=wind 2=earth
+     *  3=fire 4=water). Wind uses Voice Cannon (sonic); earth uses Earth
+     *  Manipulation (the only earth attack — less battle-tested as a mob
+     *  cast than the others). */
+    private static io.github.manasmods.manascore.skill.api.ManasSkill boneGolemElementSkill(int element) {
+        return switch (element) {
+            case 0 -> io.github.manasmods.tensura.registry.skill.ExtraSkills.BLACK_FLAME.get();
+            case 1 -> io.github.manasmods.tensura.registry.skill.CommonSkills.VOICE_CANNON.get();
+            case 2 -> io.github.manasmods.tensura.registry.skill.ExtraSkills.EARTH_MANIPULATION.get();
+            case 3 -> io.github.manasmods.tensura.registry.skill.ExtraSkills.HEAT_WAVE.get();
+            default -> io.github.manasmods.tensura.registry.skill.CommonSkills.WATER_BLADE.get();
+        };
+    }
+
+    /** The ids the cast driver recognizes as a bone golem's element spell. */
+    private static final java.util.Set<ResourceLocation> BONE_GOLEM_CASTABLE = java.util.Set.of(
+            io.github.manasmods.tensura.registry.skill.ExtraSkills.BLACK_FLAME.getId(),
+            io.github.manasmods.tensura.registry.skill.CommonSkills.VOICE_CANNON.getId(),
+            io.github.manasmods.tensura.registry.skill.ExtraSkills.EARTH_MANIPULATION.getId(),
+            io.github.manasmods.tensura.registry.skill.ExtraSkills.HEAT_WAVE.getId(),
+            io.github.manasmods.tensura.registry.skill.CommonSkills.WATER_BLADE.getId());
+
+    /** Faction lore-power → cast skill mastery as a fraction of max.
+     *  ⚠ BALANCE GUESS / proposed ranking (pending approval). */
+    private static double boneGolemMasteryFraction(String factionId) {
+        return switch (factionId) {
+            case "milim", "tempest" -> 1.0;                        // apex powers
+            case "leon", "carrion", "luminous", "clayman" -> 0.8;  // demon lords / great powers
+            case "dwargon", "shizu" -> 0.6;                        // strong realms
+            default -> 0.4;                                        // falmuth, jura_alliance, otherworlders…
+        };
+    }
+
+    /** Teach a freshly-spawned bone golem one random element's attack skill
+     *  at a faction-scaled mastery. */
+    private static void assignBoneGolemElement(Mob golem, String factionId) {
+        int element = golem.getRandom().nextInt(BONE_GOLEM_ELEMENT_COUNT);
+        io.github.manasmods.manascore.skill.api.ManasSkill skill = boneGolemElementSkill(element);
+        try {
+            var storage = io.github.manasmods.manascore.skill.api.SkillAPI.getSkillsFrom(golem);
+            if (storage.getSkill(skill.getRegistryName()).isEmpty()) {
+                storage.learnSkill(skill.createDefaultInstance(), Component.literal(""));
+            }
+            double frac = boneGolemMasteryFraction(factionId);
+            storage.getSkill(skill.getRegistryName()).ifPresent(inst -> {
+                inst.setMastery((int) Math.max(1, inst.getMaxMastery() * frac));
+                storage.updateSkill(inst, true);
+            });
+        } catch (Throwable ignored) { }
+    }
+
+    /** Drive a bone golem to cast its element spell at the nearest invader
+     *  on a cooldown (the assassin cast-driver, applied to a garrison mob). */
+    private static void driveBoneGolemCast(ServerLevel level, Mob golem,
+                                           List<net.minecraft.world.entity.LivingEntity> invaders) {
+        if (golem.getType() != HumanEntityTypes.BONE_GOLEM.get()) return;
+        long now = level.getGameTime();
+        Long next = boneGolemNextCast.get(golem.getUUID());
+        if (next != null && now < next) return;
+        net.minecraft.world.entity.LivingEntity target = null;
+        double best = BONE_GOLEM_CAST_RANGE * BONE_GOLEM_CAST_RANGE;
+        for (net.minecraft.world.entity.LivingEntity inv : invaders) {
+            if (!inv.isAlive()) continue;
+            double d = inv.distanceToSqr(golem);
+            if (d < best) { best = d; target = inv; }
+        }
+        if (target == null) return;
+        try {
+            var storage = io.github.manasmods.manascore.skill.api.SkillAPI.getSkillsFrom(golem);
+            for (var inst : storage.getLearnedSkills()) {
+                if (!BONE_GOLEM_CASTABLE.contains(inst.getSkillId())) continue;
+                if (!inst.canInteractSkill(golem)) continue;
+                golem.getLookControl().setLookAt(target, 30f, 30f);
+                golem.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES,
+                        target.position());
+                inst.onPressed(golem, 1, 0);
+                boneGolemNextCast.put(golem.getUUID(), now + BONE_GOLEM_CAST_COOLDOWN_TICKS);
+                return;
+            }
+            boneGolemNextCast.put(golem.getUUID(), now + 40L); // nothing ready — short retry
+        } catch (Throwable t) {
+            boneGolemNextCast.put(golem.getUUID(), now + BONE_GOLEM_CAST_COOLDOWN_TICKS);
+        }
     }
 
     /**
@@ -1220,6 +1465,10 @@ public final class RivalColonies {
             // Stage E — buff late-loading defenders the first time we see
             // them (idempotent; declareWar covered any already loaded).
             ensureBetrayalBuffed(mob, s);
+            // #7 — highlight defenders so the player can see their targets.
+            mob.setGlowingTag(true);
+            // #9 — bone golems actively cast their element's magic.
+            driveBoneGolemCast(level, mob, invaders);
             net.minecraft.world.entity.LivingEntity cur = mob.getTarget();
             if (cur != null && cur.isAlive()) continue; // already fighting
             net.minecraft.world.entity.LivingEntity nearest = null;
@@ -1233,6 +1482,16 @@ public final class RivalColonies {
                 BrainUtils.setTargetOfEntity(mob, nearest);
                 mob.setTarget(nearest);
             }
+        }
+    }
+
+    /** Turn off the war-highlight on a settlement's garrison + boss (called
+     *  when the assault ends, however it ends). */
+    private static void clearGarrisonGlow(ServerLevel level, Settlement s) {
+        java.util.List<java.util.UUID> members = new ArrayList<>(s.garrisonUuids);
+        if (s.bossUuid != null) members.add(s.bossUuid);
+        for (java.util.UUID u : members) {
+            if (level.getEntity(u) instanceof Mob mob) mob.setGlowingTag(false);
         }
     }
 
@@ -1257,6 +1516,7 @@ public final class RivalColonies {
         // marked-kill world-rep fan-out already fired on its death; D
         // layers rewards on top, no double-apply).
         ConquestPayoff.apply(level, s, player);
+        clearGarrisonGlow(level, s);
         clearAssaultState(s, true); // keep conquestReached
         SettlementSavedData.get(level).markChanged();
     }
@@ -1272,6 +1532,7 @@ public final class RivalColonies {
      * later read goes through {@link #resolveBoss}.
      */
     static void resolveRetreat(ServerLevel level, Settlement s, ServerPlayer player) {
+        clearGarrisonGlow(level, s); // #7 — un-highlight before the garrison resets
         bringPartyHome(level, s, player);
         teleportPlayerHome(s, player);
         resetGarrison(level, s); // respawns garrison + revives/heals boss (updates bossUuid)
@@ -1302,6 +1563,7 @@ public final class RivalColonies {
             if (!s.assaulted || !playerId.equals(s.assaultingPlayer)) continue;
             ServerLevel sLevel = level.getServer().getLevel(s.dimension);
             if (sLevel == null) continue;
+            clearGarrisonGlow(sLevel, s); // #7 — un-highlight before reset
             bringPartyHome(sLevel, s, null); // no player to anchor; sent to origin
             resetGarrison(sLevel, s);
             s.assaulted = false;
