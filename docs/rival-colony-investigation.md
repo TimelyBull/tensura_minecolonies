@@ -1051,9 +1051,9 @@ A maintenance + feature batch on the rival-colony arc and diplomacy entry.
   `onPressed` (canInteractSkill-gated, try/catch). Cooldown
   `BONE_GOLEM_CAST_COOLDOWN_TICKS` (80 / 4 s — ⚠ BALANCE GUESS).
 - **Faction lore-power → skill mastery** (`boneGolemMasteryFraction`, ⚠
-  proposed): apex (Milim, Tempest) 1.0 · demon lords/great powers (Leon,
-  Carrion, Luminous, Clayman) 0.8 · strong realms (Dwargon, Shizu) 0.6 ·
-  others (Falmuth, Jura, Otherworlders) 0.4. Mastery = fraction × maxMastery.
+  tunable): apex (Milim) 1.0 · demon lords/great powers (Leon, Carrion,
+  Luminous, Clayman) 0.8 · strong realms (Dwargon, Shizu, Otherworlders)
+  0.6 · others (Falmuth, Jura, Tempest) 0.4. Mastery = fraction × maxMastery.
 - Hostility/targeting reuses the existing `steerGarrisonToInvaders` lock —
   golems are hostile to the player + war party like any defender.
 

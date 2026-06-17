@@ -934,10 +934,10 @@ public final class RivalColonies {
      *  ⚠ BALANCE GUESS / proposed ranking (pending approval). */
     private static double boneGolemMasteryFraction(String factionId) {
         return switch (factionId) {
-            case "milim", "tempest" -> 1.0;                        // apex powers
-            case "leon", "carrion", "luminous", "clayman" -> 0.8;  // demon lords / great powers
-            case "dwargon", "shizu" -> 0.6;                        // strong realms
-            default -> 0.4;                                        // falmuth, jura_alliance, otherworlders…
+            case "milim" -> 1.0;                                          // apex power
+            case "leon", "carrion", "luminous", "clayman" -> 0.8;         // demon lords / great powers
+            case "dwargon", "shizu", "otherworlders" -> 0.6;              // strong realms
+            default -> 0.4;                                               // falmuth, jura_alliance, tempest…
         };
     }
 
