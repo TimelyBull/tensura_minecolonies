@@ -410,6 +410,21 @@ faction's danger threshold. As-built:
 
 ---
 
+**Status: ENVOY PREREQS REVISED (2026-06-13, v0.1.0).**
+
+- **INBOUND colony-development gate** (`colonyDevelopedEnough`, added to
+  `rollInboundEnvoys` on top of the existing bars): a faction won't send an
+  envoy until the player's colony has ≥ `INBOUND_BUILDING_COUNT_REQ` (4)
+  buildings AND at least one at level ≥ `INBOUND_BUILDING_LEVEL_REQ` (2).
+- **OUTBOUND EP rebalanced + danger-scaled** (`ENVOY_EP_THRESHOLD`): the
+  dispatched subordinate's required EP is now inverse to faction
+  friendliness — 5,000 floor (Tempest/Jura) · 6,000 (Dwargon/Shizu) ·
+  8,000 (Carrion/Otherworlders) · 11,000 (Leon/Milim) · 12,000 (Clayman) ·
+  13,000 (Falmuth) · 15,000 (Luminous); default 8,000. All tunable. The
+  standing ≥ 20 + not-foreclosed accept checks at reply time are unchanged.
+
+---
+
 **Investigated:** 2026-06-11 (built the same day).
 
 **What this is:** the builder's-path parallel to the hostility arc — a
