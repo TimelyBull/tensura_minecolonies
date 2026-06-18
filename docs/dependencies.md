@@ -35,6 +35,7 @@ the build, source these versions manually from CurseForge / Modrinth / GitHub.
 | `manascore-storage-neoforge-4.0.0.2.jar` | 4.0.0.2 | Sub-module, extracted for compile classpath |
 | `SmartBrainLib-neoforge-1.21.1-1.16.11.jar` | 1.16.11 | Required by Tensura for AI |
 | `TerraBlender-neoforge-1.21.1-4.1.0.8.jar` | 4.1.0.8 | Required by Tensura for biome blending |
+| `nightmareutils-0.1.2.jar` | 0.1.2 | Nightmare's Tensura Utils. Provides `dev.shadowako.nightmareutils.api.NightmareUtilsApi` — the mob-skill autocaster that drives bone-golem + assassin spell use. Integrated through the PUBLIC API ONLY (author granted permission; no mixins into their classes). Declared `required` in `neoforge.mods.toml` (`modId="nightmareutils"`, `[0.1,)`). |
 
 ## Runtime-only dependencies
 

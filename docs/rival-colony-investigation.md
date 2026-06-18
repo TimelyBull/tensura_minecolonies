@@ -1045,11 +1045,19 @@ A maintenance + feature batch on the rival-colony arc and diplomacy entry.
   first four cast cleanly as mob spells; Earth Manipulation is the only earth
   attack available and is less battle-tested as a mob cast — the driver
   try/catches.)
-- **Cast driver** (`driveBoneGolemCast`, the assassin pattern): during an
-  assault, off-cooldown, it faces the nearest invader within
-  `BONE_GOLEM_CAST_RANGE` (24) and fires its learned element skill via
-  `onPressed` (canInteractSkill-gated, try/catch). Cooldown
-  `BONE_GOLEM_CAST_COOLDOWN_TICKS` (80 / 4 s — ⚠ BALANCE GUESS).
+- **Cast driver — now Nightmare's Tensura Utils (reworked 2026-06-17):**
+  the hand-built `driveBoneGolemCast` has been DELETED and replaced by a
+  single registration against the public
+  `NightmareUtilsApi.registerReflectiveManascoreAutocaster(...)`
+  (`RivalColonies.registerBoneGolemAutocaster()`, called once at common
+  setup). Predicate = `mob.getType() == BONE_GOLEM`; skill filter =
+  `BONE_GOLEM_CASTABLE` (the 5 element ids only — never autocasts a golem's
+  other innate skills); cooldown = `BONE_GOLEM_CAST_COOLDOWN_TICKS` (80 /
+  4 s — ⚠ BALANCE GUESS). The lib reads `mob.getTarget()`, which
+  `steerGarrisonToInvaders` keeps locked onto an invader during an assault,
+  so casting fires ONLY in combat (no target → no cast). PUBLIC-API-ONLY:
+  no mixins into the lib. `assignBoneGolemElement` (one element skill per
+  golem at spawn) is UNCHANGED.
 - **Faction lore-power → skill mastery** (`boneGolemMasteryFraction`, ⚠
   tunable): apex (Milim) 1.0 · demon lords/great powers (Leon, Carrion,
   Luminous, Clayman) 0.8 · strong realms (Dwargon, Shizu, Otherworlders)

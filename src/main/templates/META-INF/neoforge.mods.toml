@@ -88,6 +88,15 @@ config="${mod_id}.mixins.json"
     ordering="NONE"
     side="BOTH"
 
+# Nightmare's Tensura Utils — provides the mob-skill autocaster used to drive
+# bone-golem + assassin spell-casting (integrated via its public API only).
+[[dependencies.${mod_id}]]
+    modId="nightmareutils"
+    type="required"
+    versionRange="[0.1,)"
+    ordering="AFTER"
+    side="BOTH"
+
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.

@@ -901,12 +901,10 @@ public final class RivalColonies {
     // cast-driver pattern) at the nearest invader, on a cooldown. The
     // skill's mastery (its power) scales with the faction's lore power.
 
-    /** Cast cooldown between a bone golem's spells. ⚠ BALANCE GUESS. */
-    private static final long BONE_GOLEM_CAST_COOLDOWN_TICKS = 80L; // 4 s
-    private static final double BONE_GOLEM_CAST_RANGE = 24.0;
+    /** Cast cooldown between a bone golem's spells, handed to the
+     *  Nightmare's Tensura Utils autocaster. ⚠ BALANCE GUESS. */
+    private static final int BONE_GOLEM_CAST_COOLDOWN_TICKS = 80; // 4 s
     private static final int BONE_GOLEM_ELEMENT_COUNT = 5;
-    /** Per-golem next-allowed-cast tick (mirrors the assassin pacing map). */
-    private static final java.util.Map<UUID, Long> boneGolemNextCast = new java.util.HashMap<>();
 
     /** The single attack skill for each element (0=darkness 1=wind 2=earth
      *  3=fire 4=water). Wind uses Voice Cannon (sonic); earth uses Earth
@@ -959,38 +957,24 @@ public final class RivalColonies {
         } catch (Throwable ignored) { }
     }
 
-    /** Drive a bone golem to cast its element spell at the nearest invader
-     *  on a cooldown (the assassin cast-driver, applied to a garrison mob). */
-    private static void driveBoneGolemCast(ServerLevel level, Mob golem,
-                                           List<net.minecraft.world.entity.LivingEntity> invaders) {
-        if (golem.getType() != HumanEntityTypes.BONE_GOLEM.get()) return;
-        long now = level.getGameTime();
-        Long next = boneGolemNextCast.get(golem.getUUID());
-        if (next != null && now < next) return;
-        net.minecraft.world.entity.LivingEntity target = null;
-        double best = BONE_GOLEM_CAST_RANGE * BONE_GOLEM_CAST_RANGE;
-        for (net.minecraft.world.entity.LivingEntity inv : invaders) {
-            if (!inv.isAlive()) continue;
-            double d = inv.distanceToSqr(golem);
-            if (d < best) { best = d; target = inv; }
-        }
-        if (target == null) return;
-        try {
-            var storage = io.github.manasmods.manascore.skill.api.SkillAPI.getSkillsFrom(golem);
-            for (var inst : storage.getLearnedSkills()) {
-                if (!BONE_GOLEM_CASTABLE.contains(inst.getSkillId())) continue;
-                if (!inst.canInteractSkill(golem)) continue;
-                golem.getLookControl().setLookAt(target, 30f, 30f);
-                golem.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES,
-                        target.position());
-                inst.onPressed(golem, 1, 0);
-                boneGolemNextCast.put(golem.getUUID(), now + BONE_GOLEM_CAST_COOLDOWN_TICKS);
-                return;
-            }
-            boneGolemNextCast.put(golem.getUUID(), now + 40L); // nothing ready — short retry
-        } catch (Throwable t) {
-            boneGolemNextCast.put(golem.getUUID(), now + BONE_GOLEM_CAST_COOLDOWN_TICKS);
-        }
+    /** Register the bone-golem autocaster with Nightmare's Tensura Utils
+     *  (public API only — no mixin into their code). The lib drives every
+     *  BONE_GOLEM mob to cast its learned element spell at its current
+     *  target ({@code mob.getTarget()}, set by {@link #steerGarrisonToInvaders}
+     *  during an assault), with weighted selection + the cooldown below.
+     *  Restricted to the five element skills so it never autocasts a
+     *  golem's other innate skills. Called once at common setup. */
+    static void registerBoneGolemAutocaster() {
+        EntityType<?> boneGolem = HumanEntityTypes.BONE_GOLEM.get();
+        dev.shadowako.nightmareutils.api.NightmareUtilsApi.registerReflectiveManascoreAutocaster(
+                mob -> mob.getType() == boneGolem,          // which mobs
+                target -> true,                              // target validity (we set it)
+                BONE_GOLEM_CASTABLE::contains,               // only the 5 element ids
+                new java.util.Random(),
+                1.0,                                         // attempt whenever off cooldown
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "bone_golem_autocast"),
+                BONE_GOLEM_CAST_COOLDOWN_TICKS);
+        LOGGER.info("[TM] rival: bone-golem autocaster registered with nightmareutils");
     }
 
     /**
@@ -1467,8 +1451,9 @@ public final class RivalColonies {
             ensureBetrayalBuffed(mob, s);
             // #7 — highlight defenders so the player can see their targets.
             mob.setGlowingTag(true);
-            // #9 — bone golems actively cast their element's magic.
-            driveBoneGolemCast(level, mob, invaders);
+            // Bone golems cast via the Nightmare's Tensura Utils autocaster
+            // (registered once at setup); it reads mob.getTarget(), which the
+            // target-lock below sets — so no per-tick cast call here.
             net.minecraft.world.entity.LivingEntity cur = mob.getTarget();
             if (cur != null && cur.isAlive()) continue; // already fighting
             net.minecraft.world.entity.LivingEntity nearest = null;

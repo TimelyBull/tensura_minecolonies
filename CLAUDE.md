@@ -231,7 +231,8 @@ MDK-1.21.1-ModDevGradle-main/
                                        # triggered strike, boss manifestation
                                        # (buffs + bar + town-hall tether),
                                        # v2 EP theft (reversible) + skill copy
-                                       # + cast driver (curated whitelist),
+                                       # + autocast (Nightmare's Tensura Utils
+                                       # public API, registerAutocaster),
                                        # reclaim-on-kill, /assassin debug.
         AssassinTag.java               # Boss-body attachment (identity,
                                        # colony, target, stolen amounts).
@@ -350,6 +351,8 @@ MDK-1.21.1-ModDevGradle-main/
 - `manascore-neoforge-4.0.0.2.jar`
 - `SmartBrainLib-neoforge-1.21.1-1.16.11.jar`
 - `TerraBlender-neoforge-1.21.1-4.1.0.8.jar`
+- `nightmareutils-0.1.2.jar` (Nightmare's Tensura Utils — mob-skill
+  autocaster; public-API-only integration, no mixins; required dep)
 
 **Runtime only** (transitive deps, not coded against):
 - `blockui-1.0.209-1.21.1.jar`
@@ -636,9 +639,10 @@ profession (latest):**
   (trade + envoys). v2: killing the PLAYER steals half their base max EP
   (reversible stable-id modifiers; slay the boss to reclaim — offline
   reclaim on login) and copies their best skills (1/5/10/≤10 by type);
-  resistances work passively, a curated whitelist of actives is cast
-  every 5 s (CASTABLE_PRESS/TOGGLE sets in Assassins — extend via smoke
-  testing). One assassin per colony EVER; `enableAssassins` config
+  resistances work passively, and actives are cast in combat by the
+  Nightmare's Tensura Utils autocaster (public API, `registerAutocaster`;
+  replaced the old CASTABLE_PRESS/TOGGLE whitelist + hand cast driver
+  2026-06-17). One assassin per colony EVER; `enableAssassins` config
   kill-switch; `/assassin state|arm|strike|defuse`. Record:
   docs/assassin-system.md.
 

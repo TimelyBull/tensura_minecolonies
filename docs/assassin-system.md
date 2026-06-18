@@ -1,7 +1,22 @@
 # Investigation: Assassin system — technical foundations
 
-**Status:** v1 + v2 BUILT (2026-06-10). The castable-skill WHITELIST is
-the one open task — curated via in-game smoke testing (see v2 below).
+**Status:** v1 + v2 BUILT (2026-06-10). Spell-casting REWORKED
+(2026-06-17) — see below.
+
+**Casting now runs on Nightmare's Tensura Utils (2026-06-17):**
+The hand-built cast driver (curated `CASTABLE_PRESS`/`CASTABLE_TOGGLE`
+whitelist, `tryCastSkill`, per-mob cooldown/rotation maps) has been
+DELETED and replaced by a single registration against the public
+`NightmareUtilsApi.registerReflectiveManascoreAutocaster(...)`
+(`Assassins.registerAutocaster()`, called once at common setup). It
+targets any `ASSASSIN_TAG`-marked mob, allows ANY learned skill (the lib
+filters passives/ambients itself), and reads the boss's `mob.getTarget()`
+— which the boss driver's `lockTarget` keeps pointed at the victim — so
+casting still fires ONLY in combat (no target → no cast). Integration is
+PUBLIC-API-ONLY: no mixins into the lib's classes. Cooldown lives in
+`ASSASSIN_CAST_COOLDOWN_TICKS` (100 / 5 s). The old whitelist curation
+task is retired. The sections below describing the in-house cast driver
+are HISTORICAL.
 
 **Post-build amendments (2026-06-10):**
 - Boss speed buff lowered ×1.4 → **×1.15**.

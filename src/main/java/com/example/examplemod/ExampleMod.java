@@ -6886,6 +6886,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     net.minecraft.world.level.GameRules.IntegerValue.create(4));
             LOGGER.info("[TM] gamerule 'tensuraMaxNonColonistEnvoys' registered (default 4)");
 
+            // Nightmare's Tensura Utils — register the mob-skill autocasters
+            // (public API only) that drive bone-golem + assassin spell use,
+            // replacing the old hand-built cast-drivers.
+            RivalColonies.registerBoneGolemAutocaster();
+            Assassins.registerAutocaster();
+
             // Case B death cleanup. EntityCitizen.die() already called
             // removeCivilian before posting this event — count is correct,
             // we only clean our SavedData record.

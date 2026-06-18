@@ -8,7 +8,15 @@ Copy the relevant version's section into the CurseForge release notes on each up
 
 ## [Unreleased]
 
-_Nothing yet._
+### Changed
+- **Enemy spell-casting now runs on Nightmare's Tensura Utils.** Garrison
+  bone golems and the colony assassin still cast their magic in combat, but
+  the casting is now handled by the Nightmare's Tensura Utils mod's
+  autocaster instead of our own hand-built logic. Behaviour is the same —
+  golems cast their element spell, the assassin uses the skills it copied
+  from you, and nothing casts unless it has a target — but the timing and
+  skill-choice are smarter (weighted selection, passive skills filtered out).
+  **This makes Nightmare's Tensura Utils a required dependency.**
 
 ## [0.1.0] - 2026-06-13
 

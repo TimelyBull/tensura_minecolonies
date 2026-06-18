@@ -168,6 +168,11 @@ dependencies {
         'libs/manascore-storage-neoforge-4.0.0.2.jar'
     )
 
+    // Nightmare's Tensura Utils — the mob-skill autocaster (public API only;
+    // author granted permission, no mixins into their code). Required dep.
+    compileOnly files('libs/nightmareutils-0.1.2.jar')
+    localRuntime files('libs/nightmareutils-0.1.2.jar')
+
     // SmartBrainLib (required by Tensura for AI)
     compileOnly files('libs/SmartBrainLib-neoforge-1.21.1-1.16.11.jar')
     localRuntime files('libs/SmartBrainLib-neoforge-1.21.1-1.16.11.jar')

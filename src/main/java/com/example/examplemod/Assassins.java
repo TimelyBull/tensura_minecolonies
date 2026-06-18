@@ -86,9 +86,9 @@ public final class Assassins {
 
     /** Fraction of the player's base max EP stolen on a successful kill. */
     static final double EP_STEAL_FRACTION = 0.5;
-    /** Cast driver: cooldown between casts and max cast range. */
-    static final long CAST_COOLDOWN_TICKS = 100L; // 5 s
-    static final double CAST_RANGE = 24.0;
+    /** Cooldown handed to the Nightmare's Tensura Utils autocaster that
+     *  drives the assassin's spell use (replaces the old cast driver). */
+    static final int ASSASSIN_CAST_COOLDOWN_TICKS = 100; // 5 s
     /** Skill copy limits by Tensura SkillType (highest mastery first). */
     static final int COPY_UNIQUE = 1, COPY_EXTRA = 5, COPY_COMMON = 10, COPY_RESISTANCE = 10;
 
@@ -103,29 +103,23 @@ public final class Assassins {
     private static final ResourceLocation GAIN_AURA_ID =
             ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "assassin_gained_aura");
 
-    /**
-     * CURATED CASTABLE WHITELIST (the v2 open task — extend via in-game
-     * smoke testing). PRESS skills are fired by the cast driver; TOGGLE
-     * buffs are switched on once at theft time. Copied skills NOT listed
-     * here are held (flavor / future) but never cast.
-     */
-    private static final java.util.Set<ResourceLocation> CASTABLE_PRESS = java.util.Set.of(
-            io.github.manasmods.tensura.registry.skill.CommonSkills.WATER_BLADE.getId(),
-            io.github.manasmods.tensura.registry.skill.CommonSkills.VOICE_CANNON.getId(),
-            io.github.manasmods.tensura.registry.skill.CommonSkills.PARALYSIS.getId(),
-            io.github.manasmods.tensura.registry.skill.CommonSkills.POISON.getId(),
-            io.github.manasmods.tensura.registry.skill.ExtraSkills.BLACK_FLAME.getId(),
-            io.github.manasmods.tensura.registry.skill.ExtraSkills.BLACK_LIGHTNING.getId(),
-            io.github.manasmods.tensura.registry.skill.ExtraSkills.HEAT_WAVE.getId());
-    private static final java.util.Set<ResourceLocation> CASTABLE_TOGGLE = java.util.Set.of(
-            io.github.manasmods.tensura.registry.skill.CommonSkills.STRENGTH.getId(),
-            io.github.manasmods.tensura.registry.skill.CommonSkills.SELF_REGENERATION.getId(),
-            io.github.manasmods.tensura.registry.skill.ExtraSkills.MAGIC_AURA.getId());
-
-    /** Per-assassin cast pacing (mob UUID → next allowed cast tick) and
-     *  round-robin index. In-memory; resets on reload harmlessly. */
-    private static final Map<UUID, Long> nextCastTick = new HashMap<>();
-    private static final Map<UUID, Integer> castRotation = new HashMap<>();
+    /** Register the assassin autocaster with Nightmare's Tensura Utils
+     *  (public API only). The lib drives any ASSASSIN_TAG-marked mob to
+     *  cast its own learned skills (the copied/stolen ones included) at its
+     *  current target ({@code mob.getTarget()}, set by the boss driver's
+     *  target-lock), with weighted selection + passive/ambient filtering +
+     *  the cooldown below. Replaces the old curated whitelist + cast loop.
+     *  Called once at common setup. */
+    static void registerAutocaster() {
+        dev.shadowako.nightmareutils.api.NightmareUtilsApi.registerReflectiveManascoreAutocaster(
+                mob -> mob.hasData(Attachments.ASSASSIN_TAG.get()),  // assassin bosses
+                target -> true,                                       // target set by the driver
+                id -> true,                                           // any learned skill (lib filters passives)
+                new java.util.Random(),
+                1.0,
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "assassin_autocast"),
+                ASSASSIN_CAST_COOLDOWN_TICKS);
+    }
 
     private static final ResourceLocation BUFF_HEALTH_ID =
             ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "assassin_health");
@@ -470,19 +464,10 @@ public final class Assassins {
             if (current == null || !current.isAlive()) {
                 lockTarget(mob, target);
             }
-
-            // v2 CAST DRIVER — face the target and fire one whitelisted
-            // copied skill on a cooldown (costs draw from the assassin's
-            // stolen magicule pool; canInteractSkill gates each attempt).
-            if (mob.distanceToSqr(target) <= CAST_RANGE * CAST_RANGE
-                    && tag.hasStolen()) {
-                long now = mobLevel.getGameTime();
-                if (now >= nextCastTick.getOrDefault(mob.getUUID(), 0L)) {
-                    boolean cast = tryCastSkill(mob, target);
-                    nextCastTick.put(mob.getUUID(),
-                            now + (cast ? CAST_COOLDOWN_TICKS : 40L));
-                }
-            }
+            // Spell-casting is now driven by the Nightmare's Tensura Utils
+            // autocaster (registered in registerAutocaster), which reads
+            // this same mob.getTarget() the lock above keeps pointed at the
+            // victim — so we no longer drive casts by hand here.
         }
 
         // Boss bar — progress = HP fraction; players within 64 see it.
@@ -512,8 +497,6 @@ public final class Assassins {
         if (tag == null) return;
         ServerBossEvent bar = bossBars.remove(victim.getUUID());
         if (bar != null) bar.removeAllPlayers();
-        nextCastTick.remove(victim.getUUID());
-        castRotation.remove(victim.getUUID());
         AssassinSavedData data = AssassinSavedData.get(level);
         data.clearIdentity(tag.identityId());
         data.setColdShoulder(tag.colonyId(), false);
@@ -531,54 +514,6 @@ public final class Assassins {
         }
         LOGGER.info("[TM] assassin: '{}' slain — colony {} stands down",
                 victim.getName().getString(), tag.colonyId());
-    }
-
-    /**
-     * One cast attempt: rotate through the assassin's learned PRESS-
-     * whitelisted skills, fire the first that passes canInteractSkill.
-     * The (1, 0) activation args = keybind slot 1, mode 0 — the defaults
-     * a fresh skill instance uses; per-skill quirks are exactly what the
-     * whitelist smoke-testing curates.
-     */
-    private static boolean tryCastSkill(LivingEntity mob, ServerPlayer target) {
-        List<io.github.manasmods.manascore.skill.api.ManasSkillInstance> castable =
-                new ArrayList<>();
-        try {
-            for (var instance : io.github.manasmods.manascore.skill.api.SkillAPI
-                    .getSkillsFrom(mob).getLearnedSkills()) {
-                if (CASTABLE_PRESS.contains(instance.getSkillId())) {
-                    castable.add(instance);
-                }
-            }
-        } catch (Throwable t) {
-            return false;
-        }
-        if (castable.isEmpty()) return false;
-
-        int start = castRotation.getOrDefault(mob.getUUID(), 0);
-        for (int i = 0; i < castable.size(); i++) {
-            int idx = (start + i) % castable.size();
-            var instance = castable.get(idx);
-            try {
-                if (!instance.canInteractSkill(mob)) continue;
-                // Face the target, then fire — skills read the caster's
-                // look vector for aim (the barrier-pounding look pattern).
-                if (mob instanceof Mob m) {
-                    m.getLookControl().setLookAt(target, 30.0f, 30.0f);
-                }
-                mob.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES,
-                        target.getEyePosition());
-                instance.onPressed(mob, 1, 0);
-                castRotation.put(mob.getUUID(), idx + 1);
-                LOGGER.debug("[TM] assassin: cast {} at {}", instance.getSkillId(),
-                        target.getName().getString());
-                return true;
-            } catch (Throwable t) {
-                LOGGER.warn("[TM] assassin: cast of {} threw — consider removing it "
-                        + "from the whitelist", instance.getSkillId(), t);
-            }
-        }
-        return false;
     }
 
     // ------------------------------------------------------------------
@@ -733,10 +668,8 @@ public final class Assassins {
                             names.add(instance.getSkill().getName() != null
                                     ? instance.getSkill().getName().getString()
                                     : String.valueOf(instance.getSkillId()));
-                            // Whitelisted toggle buffs switch on NOW.
-                            if (CASTABLE_TOGGLE.contains(instance.getSkillId())) {
-                                copy.onToggleOn(assassin);
-                            }
+                            // Toggle buffs + active casting are now handled by
+                            // the nightmareutils autocaster off the learned set.
                         } catch (Throwable t) {
                             LOGGER.warn("[TM] assassin: failed to copy skill {}",
                                     instance.getSkillId(), t);
