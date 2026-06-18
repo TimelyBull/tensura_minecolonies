@@ -57,6 +57,17 @@ public class RaceIdentitySavedData extends SavedData {
         public Race race;                   // which worker race this identity is —
                                             // determines renderer + variant
                                             // capture.
+        public boolean defendingColony = false; // ColonyThreatResponse — true
+                                            // while this citizen has been
+                                            // place-swapped to its Tensura
+                                            // body to fight off a colony
+                                            // threat. The source-of-truth flag
+                                            // distinguishing a defense-swap
+                                            // from a player-menu summon, so a
+                                            // reload mid-defense reconciles
+                                            // correctly (swap back when the
+                                            // threat ends). Persisted; default
+                                            // false for legacy records.
         public net.minecraft.core.BlockPos jobSitePos; // Feature C — the
                                             // villager job-site block this
                                             // citizen merchant claimed its
@@ -105,6 +116,9 @@ public class RaceIdentitySavedData extends SavedData {
             if (jobSitePos != null) {
                 tag.putLong("jobSitePos", jobSitePos.asLong());
             }
+            if (defendingColony) {
+                tag.putBoolean("defendingColony", true);
+            }
             return tag;
         }
 
@@ -128,6 +142,7 @@ public class RaceIdentitySavedData extends SavedData {
             if (tag.contains("jobSitePos")) {
                 id.jobSitePos = net.minecraft.core.BlockPos.of(tag.getLong("jobSitePos"));
             }
+            id.defendingColony = tag.getBoolean("defendingColony"); // false if absent
             return id;
         }
     }
@@ -242,6 +257,13 @@ public class RaceIdentitySavedData extends SavedData {
 
     public void updateMode(RaceIdentity identity, Mode mode) {
         identity.mode = mode;
+        setDirty();
+    }
+
+    /** Flip the colony-defender flag (ColonyThreatResponse). Persisted so a
+     *  reload mid-defense reconciles correctly. */
+    public void setDefendingColony(RaceIdentity identity, boolean defending) {
+        identity.defendingColony = defending;
         setDirty();
     }
 

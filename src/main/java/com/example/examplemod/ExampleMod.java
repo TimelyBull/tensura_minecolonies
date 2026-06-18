@@ -599,6 +599,53 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // vanilla follow/wander/stay commands — no handling needed here.
     }
 
+    /**
+     * Envoys cannot be harmed — ALL types. Cancels any incoming damage to an
+     * entity carrying {@link Attachments#ENVOY_TAG} (race / colony-join
+     * envoys) or {@link Attachments#FACTION_ENVOY} (diplomacy faction
+     * envoys). This is the authoritative protection: it covers every damage
+     * source (including creative-player hits and anything that bypasses the
+     * vanilla {@code invulnerable} flag), every envoy already in the world,
+     * and survives reload (the tags are NBT-persisted). The spawn paths ALSO
+     * call {@code setInvulnerable(true)} as a complement (stops hostile AI
+     * bothering them + knockback), but this hook is what guarantees "cannot
+     * be harmed."
+     */
+    @SubscribeEvent
+    public void onEnvoyIncomingDamage(
+            net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent event) {
+        net.minecraft.world.entity.LivingEntity entity = event.getEntity();
+        if (entity.level().isClientSide()) return;
+        if (entity.hasData(Attachments.ENVOY_TAG.get())
+                || entity.hasData(Attachments.FACTION_ENVOY.get())) {
+            event.setCanceled(true);
+        }
+    }
+
+    /**
+     * Whether ANY envoy — race ({@link Attachments#ENVOY_TAG}) or faction
+     * ({@link Attachments#FACTION_ENVOY}) — is currently present within
+     * {@code radius} of {@code center}. Used by BOTH spawn paths so that only
+     * one envoy of any type is ever waiting at a colony at a time. Also
+     * catches reload-orphaned envoys (the tags persist on the entity).
+     */
+    static boolean hasAnyEnvoyNear(ServerLevel level, BlockPos center, double radius) {
+        net.minecraft.world.phys.AABB box =
+                new net.minecraft.world.phys.AABB(center).inflate(radius);
+        for (net.minecraft.world.entity.LivingEntity e :
+                level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class, box)) {
+            if (e.hasData(Attachments.ENVOY_TAG.get())
+                    || e.hasData(Attachments.FACTION_ENVOY.get())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Scan radius (blocks) around the town hall for the cross-type
+     *  one-envoy-at-a-time check. Matches the faction-envoy stacking scan. */
+    static final double ENVOY_PRESENCE_SCAN_RADIUS = 64.0;
+
     // ------------------------------------------------------------------
     // Stage 1b — pending pool drain on colony creation
     // ------------------------------------------------------------------
@@ -1091,10 +1138,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             if (snapshot < 0 || current > snapshot) return true;
         }
 
-        // 2. 20 in-game days since owner's last death. If no death has
-        //    been recorded, the colony's creation tick is the anchor so a
-        //    long-running colony with a never-dying owner qualifies on
-        //    the colony's 20th day.
+        // 2. 20 in-game days of continuous online presence since the owner's
+        //    last death. The anchor also re-bases on the owner's login/logout
+        //    (see resetDwarfPeaceTimer), so offline time never counts even if
+        //    the colony chunk stays loaded. If no anchor is recorded, the
+        //    colony's creation tick is used so a long-running colony with a
+        //    never-dying, always-on owner qualifies on its 20th day.
         long anchor = config.getLastOwnerDeathTick(colonyId,
                 config.getColonyCreationTick(colonyId, now));
         if ((now - anchor) / TICKS_PER_DAY >= DWARF_UNLOCK_DAYS_NO_DEATH) return true;
@@ -1142,6 +1191,38 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             config.setLastOwnerDeathTick(colony.getID(), now);
             LOGGER.info("[TM] envoy: owner of colony {} ('{}') died — 20-day timer anchor reset to {}",
                     colony.getID(), colony.getName(), now);
+        }
+    }
+
+    /**
+     * Re-base the dwarf "20 in-game days, no owner death" timer to {@code now}
+     * for every colony {@code playerUuid} owns. Called on BOTH logout and
+     * login so the peaceful streak only counts CONTINUOUS ONLINE presence:
+     * <ul>
+     *   <li>On logout — the streak resets the moment the player leaves (the
+     *       requested behaviour).</li>
+     *   <li>On login — wipes any time that elapsed while the player was
+     *       offline. Without this, a server whose tick loop kept running with
+     *       the colony chunk loaded would let the timer count down while the
+     *       player was away (the bug being fixed): the anchor would be stale
+     *       and {@code (now − anchor)} would include the offline days.</li>
+     * </ul>
+     * Same anchor field the owner-death hook uses, so it composes cleanly.
+     */
+    private static void resetDwarfPeaceTimer(MinecraftServer server, UUID playerUuid, String reason) {
+        ColonyRaceConfigSavedData config = ColonyRaceConfigSavedData.get(server.overworld());
+        long now = server.overworld().getGameTime();
+        // Colonies are dimension-scoped; iterate every level so an owned
+        // colony in any dimension is covered. Game time advances in lockstep
+        // across levels, so the overworld tick is a fine common anchor.
+        for (ServerLevel level : server.getAllLevels()) {
+            for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
+                UUID owner = colony.getPermissions().getOwner();
+                if (owner == null || !owner.equals(playerUuid)) continue;
+                config.setLastOwnerDeathTick(colony.getID(), now);
+                LOGGER.info("[TM] envoy: dwarf 20-day timer for colony {} ('{}') reset to {} ({})",
+                        colony.getID(), colony.getName(), now, reason);
+            }
         }
     }
 
@@ -1707,6 +1788,17 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             LOGGER.info("[TM] envoy scheduler: stale active envoy at colony {} ('{}') — cleared",
                     colonyId, colony.getName());
             return;
+        }
+
+        // Gate 1b: only ONE envoy of ANY type at a colony at a time. The
+        // activeEnvoyUuid check above covers our own race envoys; this also
+        // rejects when a diplomacy FACTION envoy is currently waiting at the
+        // town hall (the two systems are otherwise independent).
+        if (colony.getServerBuildingManager().hasTownHall()) {
+            BlockPos thPos = colony.getServerBuildingManager().getTownHall().getPosition();
+            if (hasAnyEnvoyNear(level, thPos, ENVOY_PRESENCE_SCAN_RADIUS)) {
+                return;
+            }
         }
 
         // Gate 2: 3-day cooldown since the last resolve.
@@ -2635,6 +2727,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // SPAWN_EGG alone covers most cases; PersistenceRequired covers the
         // edge case where a mob's finalizeSpawn overrides the flag.
         mob.setPersistenceRequired();
+
+        // Envoys cannot be harmed. Invulnerable persists via NBT and stops
+        // hostile AI / knockback; the authoritative damage block is
+        // onEnvoyIncomingDamage (covers creative players + reload too).
+        mob.setInvulnerable(true);
 
         // Colored nameplate signals "interact with me." Vanilla custom-name
         // path — distinct from Tensura's IExistence.name() naming system,
@@ -3602,6 +3699,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // resolved while the player was offline.
         DiplomacyManager.onPlayerLogin(sp);
 
+        // Dwarf 20-day "no owner death" timer — re-base to now so any time
+        // that elapsed while this player was offline (server tick loop kept
+        // running with their colony chunk loaded) does NOT count toward the
+        // 20 days. The streak only accrues while the owner is online.
+        resetDwarfPeaceTimer(sp.getServer(), sp.getUUID(), "login");
+
         // Sync festival skill bonuses so the citizen-window "+X" is present after relog.
         try { sendFestivalBonus(sp); } catch (Throwable t) { LOGGER.warn("[TM] festival bonus login sync failed", t); }
 
@@ -3628,6 +3731,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (!(event.getEntity() instanceof ServerPlayer sp)) return;
         if (!(sp.level() instanceof ServerLevel level)) return;
         RivalColonies.onAssaultingPlayerDown(level, sp.getUUID());
+
+        // Dwarf 20-day "no owner death" timer — reset the moment the owner
+        // logs off, so the peaceful streak doesn't keep counting down while
+        // they're away (e.g. their colony chunk staying loaded on a server).
+        resetDwarfPeaceTimer(sp.getServer(), sp.getUUID(), "logout");
     }
 
     /** Rival-colony Stage C — on respawn after dying mid-assault, complete
@@ -3835,8 +3943,14 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     // Send logic
     // ------------------------------------------------------------------
 
+    /**
+     * @param triggeringPlayer the acting player, or {@code null} for an
+     *        automatic swap-back (the colony threat-response when a threat
+     *        ends). Advisory chat is suppressed and send-overflow is dropped
+     *        at the town hall when null.
+     */
     private static void sendGoblinToColony(LivingEntity goblin,
-                                           Player triggeringPlayer,
+                                           @org.jetbrains.annotations.Nullable Player triggeringPlayer,
                                            RaceIdentitySavedData.RaceIdentity identity,
                                            ServerLevel serverLevel,
                                            RaceIdentitySavedData saved) {
@@ -4111,10 +4225,18 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // 7. Drop send-overflow at triggering player's position. Rare path —
         //    only fires if the citizen inventory was already nearly full.
         if (!sendOverflow.isEmpty()) {
-            dropOverflowAtPlayer(serverLevel, triggeringPlayer, sendOverflow);
-            sendOverflowNotice(triggeringPlayer, citizenData.getName());
-            LOGGER.info("[TM] send: {} overflow stacks dropped at player {}",
-                    sendOverflow.size(), triggeringPlayer.getName().getString());
+            if (triggeringPlayer != null) {
+                dropOverflowAtPlayer(serverLevel, triggeringPlayer, sendOverflow);
+                sendOverflowNotice(triggeringPlayer, citizenData.getName());
+                LOGGER.info("[TM] send: {} overflow stacks dropped at player {}",
+                        sendOverflow.size(), triggeringPlayer.getName().getString());
+            } else {
+                dropOverflowAt(serverLevel,
+                        new Vec3(townHallPos.getX() + 0.5, townHallPos.getY(), townHallPos.getZ() + 0.5),
+                        sendOverflow);
+                LOGGER.info("[TM] send: {} overflow stacks dropped at town hall (defense swap-back)",
+                        sendOverflow.size());
+            }
         }
 
         // 8. Discard the goblin entity — NOT die(), NOT remove(KILLED).
@@ -5115,13 +5237,24 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         return 1;
     }
 
-    private static void summonGoblin(ServerPlayer player,
+    /**
+     * @param player   the acting player, or {@code null} for an automatic
+     *                 (menu-less, cost-less) swap such as the colony
+     *                 threat-response. When null, position/facing/overflow
+     *                 fall back to the materialize position instead of the
+     *                 player.
+     * @param animate  true to play the underground rise (the dramatic-pause
+     *                 menu summon); false to place the body directly at
+     *                 {@code materializePos} (instant combat placement).
+     */
+    private static void summonGoblin(@org.jetbrains.annotations.Nullable ServerPlayer player,
                                      ServerLevel level,
                                      RaceIdentitySavedData saved,
                                      RaceIdentitySavedData.RaceIdentity identity,
                                      IColony colony,
                                      ICitizenData citizenData,
-                                     Vec3 materializePos) {
+                                     Vec3 materializePos,
+                                     boolean animate) {
         LOGGER.info("[TM] summon: starting for citizen {} ('{}')",
                 identity.citizenId, citizenData.getName());
 
@@ -5140,8 +5273,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         // 2. Re-suppress the respawn loop so updateEntityIfNecessary() doesn't
         //    immediately try to re-spawn the EntityCitizen during the summon window.
+        BlockPos suppressAnchor = player != null
+                ? player.blockPosition()
+                : BlockPos.containing(materializePos);
         colony.getTravellingManager().startTravellingTo(
-                citizenData, player.blockPosition(), Integer.MAX_VALUE);
+                citizenData, suppressAnchor, Integer.MAX_VALUE);
         LOGGER.info("[TM] summon: citizen {} re-marked travelling — respawn loop suppressed",
                 identity.citizenId);
 
@@ -5199,8 +5335,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         //    fallback). This way the goblin appears exactly where the
         //    materialize circle is, regardless of player movement during
         //    the delay.
+        float spawnYaw = player != null ? player.getYRot()
+                : (citizenBodyOpt.isPresent() ? citizenBodyOpt.get().getYRot() : 0f);
         goblin.moveTo(materializePos.x, materializePos.y, materializePos.z,
-                player.getYRot(), 0f);
+                spawnYaw, 0f);
         BlockPos spawnPos = goblin.blockPosition();
 
         // 6. Apply citizen's CURRENT inventory to the goblin BEFORE addFreshEntity
@@ -5245,9 +5383,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         //     Y so addFreshEntity puts it underground. The vertical-movement
         //     tick handler will lift it back to the surface over
         //     RISE_DURATION_TICKS, visually rising out of the materialize-end
-        //     circle. Capture surface Y first.
-        double goblinSurfaceY = goblin.getY();
-        markMaterializedBody(level, goblin, goblinSurfaceY);
+        //     circle. Capture surface Y first. Skipped for the automatic
+        //     defense swap (animate=false): no menu, no dramatic pause, the
+        //     body just appears in place ready to fight.
+        if (animate) {
+            double goblinSurfaceY = goblin.getY();
+            markMaterializedBody(level, goblin, goblinSurfaceY);
+        }
 
         // 7. Add to the world. Custom name, attributes, evolution state,
         //    and all ManasCore storages are already restored from NBT;
@@ -5285,11 +5427,19 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         clearCitizenInventory(citizenInv);
 
         // 9. Drop overflow at the summoning player's position and notify.
+        //    Player-less (defense) swap: drop at the materialize position,
+        //    no notice.
         if (!overflow.isEmpty()) {
-            dropOverflowAtPlayer(level, player, overflow);
-            sendOverflowNotice(player, citizenData.getName());
-            LOGGER.info("[TM] summon: {} overflow stacks dropped at player {}",
-                    overflow.size(), player.getName().getString());
+            if (player != null) {
+                dropOverflowAtPlayer(level, player, overflow);
+                sendOverflowNotice(player, citizenData.getName());
+                LOGGER.info("[TM] summon: {} overflow stacks dropped at player {}",
+                        overflow.size(), player.getName().getString());
+            } else {
+                dropOverflowAt(level, materializePos, overflow);
+                LOGGER.info("[TM] summon: {} overflow stacks dropped at materialize pos (defense swap)",
+                        overflow.size());
+            }
         }
 
         // 10. Update the reverse map with the NEW goblin's UUID — without this,
@@ -5857,6 +6007,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // Rival-colony — active-assault drive each second; garrison
             // tether, discovery, and village polling self-throttle.
             RivalColonies.tick(server);
+            // Colony threat-response — per-second: place-swap EP-gated
+            // Tensura citizens to fight during a raid, steer them onto
+            // raiders, and swap them back when the threat ends.
+            ColonyThreatResponse.tick(server);
         }
 
         // 5 s cadence — AMBIENT passes. Envoy scheduling + dwarven-village
@@ -6122,8 +6276,88 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 sendAdvisoryNotice(player, "That citizen's record is missing.");
                 return;
             }
-            summonGoblin(player, level, saved, identity, colony, cd, materializePos);
+            summonGoblin(player, level, saved, identity, colony, cd, materializePos, true);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Automatic (menu-less, cost-less) defense swaps — driven by
+    // ColonyThreatResponse, NOT the player menu. These reuse the exact
+    // same swap helpers as the menu path; they just skip the cost gate,
+    // the magic-circle visuals, and the dramatic delay, and materialize
+    // the body in place (true place-swap) instead of at a player.
+    // ------------------------------------------------------------------
+
+    /**
+     * Place-swap an IN_COLONY citizen to its Tensura subordinate body so it
+     * can fight. The Tensura body appears at the citizen's exact position;
+     * the citizen body is discarded (count unchanged, no death). On success
+     * the identity is flagged {@code defendingColony} and the live mob is
+     * tagged {@link Attachments#COLONY_DEFENDER} for the autocaster.
+     *
+     * @return true if the swap completed (identity is now SUBORDINATE).
+     */
+    static boolean defenseSwapToSubordinate(ServerLevel level,
+                                            RaceIdentitySavedData saved,
+                                            RaceIdentitySavedData.RaceIdentity identity) {
+        if (identity.mode != RaceIdentitySavedData.Mode.IN_COLONY) return false;
+        if (identity.entitySnapshot == null) return false; // never sent — no body to build
+        IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
+        if (colony == null || !colony.getServerBuildingManager().hasTownHall()) return false;
+        ICitizenData cd = colony.getCitizenManager().getCivilian(identity.citizenId);
+        if (cd == null) return false;
+        java.util.Optional<? extends com.minecolonies.api.entity.citizen.AbstractCivilianEntity> bodyOpt =
+                cd.getEntity();
+        if (bodyOpt.isEmpty()) return false; // chunk not loaded — try again next tick
+        Vec3 inPlace = bodyOpt.get().position();
+
+        summonGoblin(null, level, saved, identity, colony, cd, inPlace, false);
+
+        // summonGoblin sets mode to SUBORDINATE only on full success.
+        if (identity.mode != RaceIdentitySavedData.Mode.SUBORDINATE) {
+            return false;
+        }
+        saved.setDefendingColony(identity, true);
+        Entity mob = identity.mobEntityUUID != null ? level.getEntity(identity.mobEntityUUID) : null;
+        if (mob instanceof LivingEntity living) {
+            living.setData(Attachments.COLONY_DEFENDER.get(),
+                    new ColonyDefenderTag(identity.colonyId));
+        }
+        LOGGER.info("[TM] threat: citizen {} place-swapped to Tensura body to defend colony {}",
+                identity.citizenId, identity.colonyId);
+        return true;
+    }
+
+    /**
+     * Swap a defending subordinate back to its colonist form (threat over).
+     * Reuses the standard send path (materialize at the town hall). Clears
+     * the {@code defendingColony} flag on success; the COLONY_DEFENDER tag
+     * is discarded with the mob body.
+     *
+     * @return true if the swap-back completed (identity is now IN_COLONY).
+     */
+    static boolean defenseSwapToColony(ServerLevel level,
+                                       RaceIdentitySavedData saved,
+                                       RaceIdentitySavedData.RaceIdentity identity) {
+        if (identity.mode != RaceIdentitySavedData.Mode.SUBORDINATE) {
+            // Already a colonist (e.g. died+respawned path) — just clear the flag.
+            saved.setDefendingColony(identity, false);
+            return true;
+        }
+        if (identity.mobEntityUUID == null) return false;
+        LivingEntity goblin = findLivingEntityAcrossLevels(level.getServer(), identity.mobEntityUUID);
+        if (goblin == null || !goblin.isAlive()) return false; // unloaded — retry next tick
+        if (!(goblin.level() instanceof ServerLevel goblinLevel)) return false;
+
+        sendGoblinToColony(goblin, null, identity, goblinLevel, saved);
+
+        if (identity.mode != RaceIdentitySavedData.Mode.IN_COLONY) {
+            return false; // send aborted (e.g. town-hall chunk unloaded) — retry
+        }
+        saved.setDefendingColony(identity, false);
+        LOGGER.info("[TM] threat: defender {} swapped back to colonist form (threat over)",
+                identity.citizenId);
+        return true;
     }
 
     /** Resolve the live body for an identity. Returns null if not loaded. */
@@ -6832,7 +7066,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      */
     private static void dropOverflowAtPlayer(ServerLevel level, Player player,
                                              List<ItemStack> overflow) {
-        Vec3 pos = player.position();
+        dropOverflowAt(level, player.position(), overflow);
+    }
+
+    /** Drop overflow stacks at an arbitrary position. Used by the
+     *  player-less defense swap-back (no player to drop at). */
+    private static void dropOverflowAt(ServerLevel level, Vec3 pos,
+                                       List<ItemStack> overflow) {
         for (ItemStack stack : overflow) {
             ItemEntity ie = new ItemEntity(level, pos.x, pos.y, pos.z, stack);
             level.addFreshEntity(ie);
@@ -6850,6 +7090,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     /** Component overload — applies the same green-italic style to the
      *  passed Component (used for translatable advisories). */
     static void sendAdvisoryNotice(Player player, Component msg) {
+        if (player == null) return; // player-less callers (e.g. the automatic
+                                    // threat-response swap) have no one to notify
         Component styled = Component.empty()
                 .append(msg.copy().withStyle(ChatFormatting.GREEN, ChatFormatting.ITALIC));
         player.sendSystemMessage(styled);
@@ -6891,6 +7133,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // replacing the old hand-built cast-drivers.
             RivalColonies.registerBoneGolemAutocaster();
             Assassins.registerAutocaster();
+            // Colony threat-response — drives the Tensura bodies of
+            // place-swapped defending citizens.
+            ColonyThreatResponse.registerAutocaster();
 
             // Case B death cleanup. EntityCitizen.die() already called
             // removeCivilian before posting this event — count is correct,

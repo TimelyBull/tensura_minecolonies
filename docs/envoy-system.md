@@ -2,6 +2,25 @@
 
 **Status:** investigation only, no code written yet.
 
+**Amendment (2026-06-17) — envoy safety + one-at-a-time (ALL types):**
+- **Cannot be harmed.** Both envoy types — race / colony-join (`ENVOY_TAG`)
+  and diplomacy faction (`FACTION_ENVOY`) — are now damage-immune. The
+  authoritative block is `ExampleMod.onEnvoyIncomingDamage`, a
+  `LivingIncomingDamageEvent` handler that cancels ANY incoming damage to an
+  entity carrying either tag (covers every source incl. creative players,
+  every already-spawned envoy, and survives reload since the tags persist).
+  Both spawn paths (`spawnEnvoy`, `DiplomacyManager.spawnFactionEnvoy`) also
+  call `setInvulnerable(true)` as a complement (stops hostile AI + knockback,
+  persists via NBT).
+- **Only one envoy of ANY type at a colony at a time.** The race scheduler's
+  per-colony `activeEnvoyUuid` gate and the faction roll's per-player/day gate
+  were previously independent (a race envoy + a faction envoy could coexist).
+  Both spawn decisions now also call `ExampleMod.hasAnyEnvoyNear(level,
+  townHall, ENVOY_PRESENCE_SCAN_RADIUS=64)`, which scans for any
+  `ENVOY_TAG`/`FACTION_ENVOY` entity near the town hall — so a new envoy of
+  either kind won't spawn while one is already waiting (also catches
+  reload-orphaned envoys).
+
 **Scope:** the two pivotal technical unknowns flagged in the brief —
 identifying / marking an envoy and the dialogue/UI approach. Also covered
 the smaller questions (naming suppression, right-click intercept, spawn).

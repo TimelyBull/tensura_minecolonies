@@ -8,6 +8,30 @@ Copy the relevant version's section into the CurseForge release notes on each up
 
 ## [Unreleased]
 
+### Added
+- **Strong citizens defend the colony.** When your colony is under attack,
+  citizens react by their power. Ordinary citizens (and weaker Tensura-race
+  citizens) flee for safety as before, and your guards fight as always. But a
+  Tensura-race citizen who has grown strong enough (10,000 Existence Points
+  or more) will switch into its true monster form on the spot, fight the
+  raiders with its skills, and switch back to its colonist self once the
+  attack is over. If that monster body is slain in the fight, the citizen
+  dies — being a defender is a real risk. (The power threshold is tunable.)
+
+### Fixed
+- **The dwarf envoy's 20-day peace timer no longer counts while you're away.**
+  The "20 in-game days without the colony owner dying" condition that can
+  unlock dwarf envoys now only advances while you are actually online. It
+  resets when you log off (and again when you log back in), so time that
+  passes while you're off the server — even if your colony stays loaded —
+  never counts toward it.
+- **Envoys can no longer be harmed, and only one visits at a time.** Every
+  envoy — both the colony-join race envoys and the diplomacy faction envoys —
+  is now fully protected from all damage, so they can't be accidentally (or
+  deliberately) killed while you decide. And only a single envoy of any kind
+  will be waiting at your colony at once; a new one won't arrive until the
+  current visit is resolved.
+
 ### Changed
 - **Enemy spell-casting now runs on Nightmare's Tensura Utils.** Garrison
   bone golems and the colony assassin still cast their magic in combat, but

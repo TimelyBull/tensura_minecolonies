@@ -134,6 +134,20 @@ public final class Attachments {
                             .serialize(GarrisonTag.SERIALIZER)
                             .build());
 
+    /**
+     * Colony-defender marker — see {@link ColonyDefenderTag} and
+     * {@link ColonyThreatResponse}. Stamped on a Tensura subordinate body
+     * that was place-swapped in from its colonist form to fight off a
+     * threat; it is the autocaster predicate key and is removed (with the
+     * discarded body) on swap-back. Default null → {@code hasData(...)} is
+     * the authoritative presence check.
+     */
+    public static final Supplier<AttachmentType<ColonyDefenderTag>> COLONY_DEFENDER =
+            ATTACHMENTS.register("colony_defender",
+                    () -> AttachmentType.<ColonyDefenderTag>builder(() -> null)
+                            .serialize(ColonyDefenderTag.SERIALIZER)
+                            .build());
+
     private Attachments() {}
 
     public static void register(IEventBus modBus) {

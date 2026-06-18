@@ -592,14 +592,11 @@ public final class DiplomacyManager {
     private static boolean spawnFactionEnvoy(ServerLevel level, ServerPlayer player,
                                              IColony colony, BossFaction faction) {
         BlockPos th = colony.getServerBuildingManager().getTownHall().getPosition();
-        // No stacking: skip if a faction envoy for this player already
-        // waits near the town hall (covers reload-orphaned envoys too).
-        for (Villager existing : level.getEntitiesOfClass(Villager.class,
-                new AABB(th).inflate(64))) {
-            if (existing.hasData(Attachments.FACTION_ENVOY.get())) {
-                FactionEnvoyTag tag = existing.getData(Attachments.FACTION_ENVOY.get());
-                if (tag != null && player.getUUID().equals(tag.targetPlayer())) return false;
-            }
+        // Only ONE envoy of ANY type at a colony at a time — skip if a race
+        // (colony-join) envoy OR any faction envoy is already waiting near the
+        // town hall (also covers reload-orphaned envoys).
+        if (ExampleMod.hasAnyEnvoyNear(level, th, ExampleMod.ENVOY_PRESENCE_SCAN_RADIUS)) {
+            return false;
         }
         BlockPos spawnAt = EntityUtils.getSpawnPoint(level, th);
         if (spawnAt == null) spawnAt = th;
@@ -613,6 +610,9 @@ public final class DiplomacyManager {
         envoy.restrictTo(th, 15);
         envoy.setData(Attachments.FACTION_ENVOY.get(),
                 new FactionEnvoyTag(player.getUUID(), faction.id()));
+        // Envoys cannot be harmed (complements the onEnvoyIncomingDamage hook).
+        envoy.setInvulnerable(true);
+        envoy.setPersistenceRequired();
         if (!level.addFreshEntity(envoy)) return false;
         player.sendSystemMessage(Component.literal("An envoy of " + faction.displayName()
                 + " has arrived at " + colony.getName() + " seeking an audience.")

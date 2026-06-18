@@ -243,6 +243,26 @@ MDK-1.21.1-ModDevGradle-main/
                                        # "Assassin" nameplate (flag store +
                                        # RenderLivingEvent.Post).
 
+        # — Colony threat-response —
+        ColonyThreatResponse.java      # Per-second evaluator: during a raid
+                                       # (colony.getRaiderManager().isRaided()),
+                                       # place-swap EP-gated (≥FORM_SWAP_EP,
+                                       # 10k) non-guard Tensura citizens to
+                                       # their subordinate body to FIGHT via
+                                       # the nightmareutils autocaster
+                                       # (COLONY_DEFENDER tag), steer onto
+                                       # raiders, swap back when the threat
+                                       # ends. Guards + low-EP/regular citizens
+                                       # use MC's native non-combatant flee
+                                       # (untouched). Reuses ExampleMod's
+                                       # summon/send swap helpers (no menu, no
+                                       # cost, no visuals) via
+                                       # defenseSwapToSubordinate /
+                                       # defenseSwapToColony.
+        ColonyDefenderTag.java         # NBT-persisted marker on a defending
+                                       # subordinate body — the autocaster
+                                       # predicate key. (colonyId)
+
         # — Raid system (v1 + difficulty levels) —
         TensuraRaidEvent.java          # IColonyRaidEvent impl registered in
                                        # minecolonies:colonyeventtypes —
@@ -511,7 +531,7 @@ the design rationale and design-choice history.
 **Stage J — deferred-content envoy conditions (eligibility + kill-gate, no dialogue yet):**
 - ORC alternative: Orc Disaster defeated (per-player, permanent flag, immune to all resets).
 - LIZARDMAN alternative: Ifrit defeated (per-player, cleared on lizardman kill).
-- DWARF alternatives (any one qualifies, in addition to the existing 30-citizens+Miner placeholder): 20 in-game days no owner death (per-colony, −10 day penalty on dwarf kill), dwarven-village entered (per-player flag, cleared on dwarf kill), true demon lord (gated by per-player disable flag), true hero (same shape as demon lord).
+- DWARF alternatives (any one qualifies, in addition to the existing 30-citizens+Miner placeholder): 20 in-game days no owner death (per-colony, −10 day penalty on dwarf kill; the anchor also re-bases on owner login AND logout via `resetDwarfPeaceTimer`, so the streak counts only CONTINUOUS ONLINE presence — offline time never accrues even with the colony chunk loaded), dwarven-village entered (per-player flag, cleared on dwarf kill), true demon lord (gated by per-player disable flag), true hero (same shape as demon lord).
 - Detection: `LivingDeathEvent` on OrcDisasterEntity / IfritEntity / owning ServerPlayer; structure-bbox poll per scheduler tick; live `IExistence` read; `LivingEntityUseItemEvent.Finish` on `ResetScrollItem` with `RESET_ALL` for the demon-lord/hero disable clear; status-currently-false fallback in the scheduler.
 - Storage extended on `ColonyRaceConfigSavedData` — one per-colony Long map + five `Set<UUID>` per-player flag sets; NBT-persistent, backward-compatible.
 - Stage 2 (condition-dependent dialogue copy) deferred.
@@ -980,6 +1000,25 @@ profession (latest):**
   player-magicule channel + magic-crystal refuel, falls at 0.
 - Debug: `/tensuraraid`, `/tensuraraid end`. Records:
   `docs/raid-system.md`, decisions.md → "Raid system v1".
+
+**Colony threat-response (EP-gated defense swap — latest):**
+- During a raid (`getRaiderManager().isRaided()`, covers MC raids + our
+  `TensuraRaidEvent`), `ColonyThreatResponse.tick` (per-second) evaluates each
+  citizen: GUARDS untouched (MC behavior); regular + Tensura-below-`FORM_SWAP_EP`
+  (10k EP, ⚠ tunable) flee via MC's NATIVE non-combatant raid flee (no custom
+  steer); Tensura citizens ≥10k EP PLACE-SWAP to their subordinate body and
+  fight with skills via a new nightmareutils autocaster keyed on the
+  `COLONY_DEFENDER` tag, steered onto the nearest `RAID_TAG` raider (ally-
+  support dual-write idiom). Threat ends → swap back. The swap reuses the
+  existing summon/send helpers (made player-nullable + an `animate` flag) via
+  `defenseSwapToSubordinate`/`defenseSwapToColony` — NO menu, cost, or magic-
+  circle visuals; materializes in place. Persistent `defendingColony` flag on
+  RaceIdentity (source of truth, reload-safe) + NBT-serialized COLONY_DEFENDER
+  tag. Mass-swap throttled to `MAX_SWAPS_PER_TICK` (3). Edge cases: defender
+  death = real citizen death (existing death hook); threat-end / reload
+  reconcile via the per-tick evaluator. Skill-fighting only ever in Tensura
+  form (only skill-bearing body; colonists/MC citizens hold none). Records:
+  docs/threat-response.md.
 
 **Pending:**
 - Stage G6 — orc lord and orc disaster as separate shadow types in the

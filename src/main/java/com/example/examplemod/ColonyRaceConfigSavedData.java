@@ -171,13 +171,17 @@ public class ColonyRaceConfigSavedData extends SavedData {
     // Per-colony storage lives in this map; per-player storage lives in
     // the Set<UUID> fields below. All are NBT-persistent.
 
-    /** Game-tick at which the colony's owning player last died. Updated by
-     *  the {@code LivingDeathEvent} hook on owning {@code ServerPlayer}.
-     *  Eligibility query: {@code (now − tick) / 24000L ≥ 20}. The dwarf
-     *  kill-gate applies a penalty by advancing this tick forward by 10
-     *  days (capped to {@code now}) — "10 days of progress lost." Absent
-     *  key means "no death recorded for this owner" → eligibility uses
-     *  the colony creation tick as the anchor instead. */
+    /** Anchor tick for the dwarf "20 in-game days, no owner death" streak.
+     *  Eligibility query: {@code (now − tick) / 24000L ≥ 20}. Re-based to
+     *  {@code now} (streak restarts) by:
+     *    - the owner's {@code LivingDeathEvent} (they died), and
+     *    - the owner's login AND logout (so the streak counts only CONTINUOUS
+     *      ONLINE presence — offline time never accrues even if the colony
+     *      chunk stays loaded and the server keeps ticking).
+     *  The dwarf kill-gate applies a penalty by advancing this tick forward
+     *  by 10 days (capped to {@code now}) — "10 days of progress lost."
+     *  Absent key means "no anchor recorded yet" → eligibility uses the
+     *  colony creation tick as the anchor instead. */
     private final Map<Integer, Long> lastOwnerDeathTick = new HashMap<>();
 
     /** Per-player flag: this player has been physically inside the
