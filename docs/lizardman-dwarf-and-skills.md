@@ -589,6 +589,12 @@ late-game envoy with a thematic stoneworking-interest signal.
 Surfaced in `/envoystate` with a `[PLACEHOLDER condition]` marker.
 Kill-gate shape: current-value snapshot (same as orc / lizardman).
 
+> **Update (2026-06-18):** the "20 in-game days, no owner death"
+> alternative now counts ONLINE time only — its anchor re-bases on owner
+> login and logout (`resetDwarfPeaceTimer`), so offline server time never
+> accrues toward it even if the colony chunk stays loaded. See
+> `decisions.md` / `envoy-system.md` for the as-built detail.
+
 **Dialogue**: nameplate `GOLD` (craftsmanship / wealth / mountain-hold).
 (Superseded — the body / accept / decline copy was later rewritten to
 the Tensura canon voice: **gruff, hearty, blunt; craftsman's pride and

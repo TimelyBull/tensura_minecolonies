@@ -920,6 +920,17 @@ turn) wire in as follows:
   Kill-gate penalty (dwarf kill): anchor moves forward by 10 days,
   capped at `now` (partial reset — 10 days of progress lost, not a
   full re-anchor).
+  - **AMENDMENT (2026-06-18) — online-only timer.** The anchor compares
+    against `level.getGameTime()`, which keeps advancing on a running
+    server even while the owner is offline (their colony chunk may stay
+    loaded), so the streak was wrongly counting offline time. Fix:
+    `ExampleMod.resetDwarfPeaceTimer(level, owner, reason)` re-bases the
+    anchor to `now` on BOTH owner **logout** AND **login**
+    (`onPlayerLoggedOut` / `onPlayerLoggedIn`). Logout resets the streak
+    the moment the player leaves; login wipes any time that elapsed while
+    they were away. Net effect: the 20-day streak only accrues during
+    continuous online presence. Reuses the same anchor field as the
+    death hook, so it composes cleanly (whichever reset fires last wins).
 - **Dwarven village found** (per-player, dwarf alternative): per-tick
   poll inside `runPerPlayerEnvoyPasses` —
   `level.structureManager().getStructureAt(playerPos,

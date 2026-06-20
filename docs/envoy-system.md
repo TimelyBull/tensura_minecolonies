@@ -21,6 +21,20 @@
   either kind won't spawn while one is already waiting (also catches
   reload-orphaned envoys).
 
+**Amendment (2026-06-18) — dwarf 20-day timer counts ONLINE time only:**
+- The dwarf "20 in-game days, no owner death" unlock alternative anchors on
+  `lastOwnerDeathTick` and tests `(now − anchor) / 24000 ≥ 20` against
+  `level.getGameTime()`. Game time keeps advancing on a running server even
+  while the owner is offline (their colony chunk can stay loaded), so the
+  streak was wrongly counting offline time.
+- Fix: `ExampleMod.resetDwarfPeaceTimer(level, owner, reason)` re-bases the
+  anchor to `now` on BOTH owner **logout** AND **login** (in
+  `onPlayerLoggedOut` / `onPlayerLoggedIn`). Logout resets the streak the
+  moment the player leaves; login wipes any time that elapsed while they were
+  away. The 20-day streak therefore only accrues during continuous online
+  presence. Same anchor field the owner-death hook uses, so it composes (the
+  last reset to fire wins). See `decisions.md` for the rationale.
+
 **Scope:** the two pivotal technical unknowns flagged in the brief —
 identifying / marking an envoy and the dialogue/UI approach. Also covered
 the smaller questions (naming suppression, right-click intercept, spawn).
