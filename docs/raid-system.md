@@ -30,13 +30,18 @@ distinct wall COLOR):
 ```
 drain/second = attackDamage × (attackerEP × BARRIER_DRAIN_EP_MULTIPLIER)
 ```
-- `BARRIER_DRAIN_EP_MULTIPLIER` = 0.002 (lowered base, EP core KEPT:
-  higher EP → higher multiplier). A 3 000-EP raider with 6 attack now
-  drains 6 × (3000 × 0.002) = 36/s, versus the old flat 60/s — and a
-  hard hitter hurts the barrier more than a tanky pacifist of equal EP.
+- `BARRIER_DRAIN_EP_MULTIPLIER` = **0.001** (halved 2026-06-20, was 0.002;
+  EP core KEPT: higher EP → higher multiplier). A 3 000-EP attacker with 6
+  attack now drains 6 × (3000 × 0.001) = 18/s — and a hard hitter still hurts
+  the barrier more than a tanky pacifist of equal EP.
 - `FALLBACK_ATTACK_DAMAGE` = 3 when the attribute is missing;
   `FALLBACK_RAIDER_EP` unchanged. The legacy
   `BARRIER_DRAIN_COEFFICIENT_PER_SECOND` is kept only for reference.
+- **ALL hostiles drain now** (changed 2026-06-20): the drain is no longer
+  gated to RAID_TAG mobs. Every hostile the field already acts on — raid-tagged
+  mobs, wild `barrier_blocked`/`HOSTILE_MONSTER_TAG` mobs, and MineColonies
+  raiders — drains fuel while pressing the shell. This deliberately reverses
+  the earlier "a stray zombie shouldn't bleed a peacetime barrier" rule.
 
 **Magicule Storage recipes** (tier-climbing, item ids verified):
 silver ingot corners + a magisteel cross + a chest centre; the magisteel
@@ -332,6 +337,33 @@ Three fixes from the first in-game raid test:
    at textscale 0.85 (colony name narrowed to 106 px) — all six tier
    descriptors + value now fit.
 
+### Terrain-following wall bottom (render only, 2026-06-20)
+
+The visible wall's flat bottom (`WALL_BOTTOM = -4`, a fixed line at
+`coreY − 4`) now follows the ground per column. **Render-only — the
+gameplay field still ignores Y** (it's a tall vertical prism), so
+collision/drain/eject are untouched; only `BarrierFieldRenderer` changed.
+
+- **Approach (Option 1 from the feasibility report):** per-column bottom
+  Y from the `WORLD_SURFACE` heightmap, CACHED. Each wall side is split
+  into per-block vertical strips (`renderColumnsAlongX/Z`); each strip's
+  bottom = the cached surface Y at that column, top = `WALL_TOP`
+  (unchanged). It rides over tree-tops/roofs (surface heightmap) rather
+  than passing through to bedrock-level dirt — the simpler, performant
+  choice; the "through-buildings-to-dirt" variant was judged
+  over-engineering for the gain.
+- **Cache:** `BarrierBlockEntity.bottomContourCache` (client-only,
+  `Map<packed-xz, Integer>`), filled lazily by `bottomWorldYAt`, flushed
+  every `CONTOUR_REFRESH_TICKS` (160 ≈ 8 s) via `maybeRefreshContour` so
+  terrain edits are eventually picked up. NOT recomputed per frame.
+- **Unloaded chunks:** `bottomWorldYAt` guards on `hasChunkAt` — unloaded
+  columns return the flat fallback (`coreY − 4`) and are NOT cached, so
+  they fill in once their chunk loads.
+- **Texture:** U from world X/Z, V from world Y, so the lattice stays
+  world-aligned and tall strips don't stretch.
+- **Cull box:** `getRenderBoundingBox` extended `−128` downward so the
+  wall isn't culled when bottoms drop far below the block (cliffs).
+
 ### Tiered cores + Magicule Storage (2026-06-10)
 
 The single barrier block became the **Barrier Core** family (4 blocks)
@@ -382,9 +414,11 @@ plus the **Magicule Storage** family (4 blocks):
 
 **Layers (confirmed design):** up to 3 concentric square shells per
 core, expanding OUTWARD — layer 1 at the tier radius, +5 blocks per
-extra ring (`LAYER_SPACING`). All active rings render; the
+extra ring (`LAYER_SPACING`). The CONFIGURED layer count
+(`activeLayers`, 1–3) is the player's chosen maximum; how many actually
+STAND is derived from the fuel (see the per-layer-slice model). The
 pushback/drain field, raid steering, and spawn prevention act on the
-OUTERMOST active shell (`getEffectiveRadius`).
+OUTERMOST STANDING shell (`getEffectiveRadius` → `getStandingLayers`).
 
 - **Gate:** layer 1 for everyone; raising to 2–3 requires the requesting
   player to be a true Demon Lord or true Hero (the same `IExistence`
@@ -393,14 +427,39 @@ OUTERMOST active shell (`getEffectiveRadius`).
   is recorded; once per second, if the setter is ONLINE and has lost the
   status, layers collapse to 1 with an alert. Logging off does not
   collapse.
-- **Upkeep (confirmed):** layer 1 free — the base barrier keeps its
-  no-peacetime-bleed behavior; each EXTRA layer costs
-  `LAYER_UPKEEP_PER_SECOND` (50 mag/s) from the core's ONE shared pool
-  (storage-boosted), on top of the EP-scaled raider contact drain.
-- **Fall order (confirmed):** graceful outermost-first shedding — when
-  the pool can't pay the upkeep, the outermost ring falls (alert +
-  glass-break), repeating down to 1 layer; the last layer only falls
-  when the pool truly hits 0 (the existing depletion alarm).
+
+**Per-layer-slice magicule model (rework 2026-06-20 — REPLACES the old
+per-second upkeep + total-based shedding):**
+
+- The tank is still ONE pool (core + storage). It is PARTITIONED into
+  equal slices, one per CONFIGURED layer: `getSliceSize() = capacity /
+  activeLayers`. The OUTERMOST standing layer occupies the TOP slice and
+  is drained first (3 layers → outer owns 2/3→full, middle 1/3→2/3, inner
+  0→1/3).
+- `getStandingLayers() = ceil(poolStored / sliceSize)` clamped to
+  `[0, activeLayers]` (0 when empty). Attackers reduce the single pool;
+  when it crosses a slice boundary the standing count drops, the
+  effective radius shrinks inward, and the enemy must advance to reach the
+  next layer and drain ITS slice. No magicule is moved between slices —
+  the partition is purely a reinterpretation of the one total.
+- **Passive upkeep RETAINED.** `LAYER_UPKEEP_PER_SECOND` (50 mag/s per
+  EXTRA configured layer) is drained from the pool once per second; upkeep
+  + attack drain STACK. (The rework first dropped upkeep, then it was
+  re-added 2026-06-20.) The old total-based shedding `while` loop is NOT
+  restored — the new model derives standing layers from the pool level, so
+  upkeep simply nibbles the pool across slice boundaries and the per-tick
+  fall detector drops the outer shells. An idle multi-layer barrier slowly
+  loses fuel and eventually sheds rings down to the free layer 1.
+- **Fall feedback:** a per-tick detector compares `getStandingLayers()`
+  to last tick; a drop while the pool is still >0 plays a glass-break and
+  `sendBlockUpdated` (the shed shell vanishes at once). The final fall to
+  0 is the existing depletion alarm. Refilling raises the pool back across
+  the boundaries and the layers return.
+- **Gauge markers:** `BarrierCoreScreen` draws a bold line at each slice
+  boundary `i / activeLayers` (2 layers → 1/2; 3 layers → 1/3 and 2/3).
+- **Drain readout:** `getLastDrainPerSecond()` = live upkeep
+  ((activeLayers−1) × `LAYER_UPKEEP_PER_SECOND`) + the last second's
+  measured contact drain.
 
 **Barrier Core menu:** right-click (empty hand) now opens a menu
 (crystal refuel via item-click still works without it). Placeholder

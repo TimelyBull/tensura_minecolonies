@@ -9,6 +9,15 @@ Copy the relevant version's section into the CurseForge release notes on each up
 ## [Unreleased]
 
 ### Added
+- **The barrier wall follows the ground.** The visible barrier wall now drops
+  down to meet the land beneath each part of it instead of cutting off at a
+  flat line, so it no longer floats in the air on one side and sinks into the
+  hill on the other. It follows the surface whether your barrier sits on flat
+  ground, a slope, or the edge of a cliff.
+- **Barrier fuel gauge shows your layer divisions.** When a Barrier Core is
+  projecting more than one shell, its fuel gauge now shows a marker at each
+  layer's share of the tank — one line at the halfway point for two layers,
+  lines at a third and two-thirds for three layers.
 - **Strong citizens defend the colony.** When your colony is under attack,
   citizens react by their power. Ordinary citizens (and weaker Tensura-race
   citizens) flee for safety as before, and your guards fight as always. But a
@@ -33,6 +42,20 @@ Copy the relevant version's section into the CurseForge release notes on each up
   current visit is resolved.
 
 ### Changed
+- **Barrier layers each have their own fuel slice now.** A multi-layer
+  barrier's fuel is split evenly between its layers: attackers wear down the
+  outermost layer's share first, and when that share is used up the outer
+  layer drops and the attackers move on to the next layer inward — and so on.
+  Keeping extra layers raised still costs a steady trickle of fuel (50 per
+  second for each layer beyond the first), so an unattended multi-layer
+  barrier slowly drains and eventually sheds its outer shells; refueling
+  restores the layers as the tank fills back up.
+- **Any hostile drains the barrier, not just raid monsters.** Previously only
+  monsters that were part of an active raid wore down a barrier's fuel; ordinary
+  wild hostiles were blocked for free. Now any hostile pressing the wall —
+  wild monsters and raid monsters alike — costs the barrier fuel.
+- **Barrier fuel drain halved.** Hostiles now wear down a barrier's magicule at
+  half the previous rate, so a given amount of fuel lasts about twice as long.
 - **Enemy spell-casting now runs on Nightmare's Tensura Utils.** Garrison
   bone golems and the colony assassin still cast their magic in combat, but
   the casting is now handled by the Nightmare's Tensura Utils mod's

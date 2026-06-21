@@ -64,9 +64,9 @@ public class BarrierBlockEntity extends BlockEntity {
     //     base is LOWER, and a hard hitter now hurts the barrier more
     //     than a tanky pacifist of equal EP. All named + tunable. ---
     /** The fraction of the attacker's EP that forms the per-damage-point
-     *  drain multiplier. 0.002 → a 3 000-EP raider with 6 attack drains
-     *  6 × 6 = 36/s (the old flat formula charged 60/s). */
-    public static final double BARRIER_DRAIN_EP_MULTIPLIER = 0.002;
+     *  drain multiplier. 0.001 → a 3 000-EP attacker with 6 attack drains
+     *  6 × (3000 × 0.001) = 18/s. (Halved from the previous 0.002.) */
+    public static final double BARRIER_DRAIN_EP_MULTIPLIER = 0.001;
     /** Attack damage assumed when the attribute is missing. */
     public static final double FALLBACK_ATTACK_DAMAGE = 3.0;
 
@@ -93,9 +93,13 @@ public class BarrierBlockEntity extends BlockEntity {
     public static final int MAX_LAYERS = 3;
     /** Ring spacing — each extra layer sits this much further out. */
     public static final double LAYER_SPACING = 5.0;
-    /** Passive upkeep per EXTRA layer (magicule/sec). Layer 1 is free —
-     *  the base barrier keeps its no-peacetime-bleed behavior; layers 2
-     *  and 3 each burn this on top of raider contact drain. */
+    /** Passive upkeep per EXTRA layer (magicule/sec), drained once per second
+     *  from the single pool. Layer 1 is free; 2 layers cost 50/s, 3 layers
+     *  100/s. Re-added on top of the per-layer-slice model — upkeep STACKS
+     *  with attack drain, so an idle multi-layer barrier slowly loses fuel and
+     *  its outer shells eventually fall as the pool crosses slice boundaries.
+     *  Based on the CONFIGURED layer count (activeLayers), not the standing
+     *  count. */
     public static final double LAYER_UPKEEP_PER_SECOND = 50.0;
     /** Crystal refuel values (low / medium / high quality magic crystal). */
     public static final double CRYSTAL_LOW_MAGICULE    = 2_500.0;
@@ -145,6 +149,22 @@ public class BarrierBlockEntity extends BlockEntity {
     private double lastContactDrainPerSecond = 0.0;
     /** Accumulates this second's contact drain for the readout. */
     private double contactDrainAccumulator = 0.0;
+    /** Last tick's STANDING layer count (derived from the pool vs the slice
+     *  boundaries). Used server-side to detect a layer falling (pool crossed
+     *  a boundary) so we can play a break + resync the render. Transient. */
+    private int lastStandingLayers = -1;
+
+    // --- CLIENT-ONLY: terrain-following wall bottom cache (Option 1) ---
+    /** Cached per-column ground Y (WORLD_SURFACE heightmap) for the wall's
+     *  terrain-following bottom, keyed by packed (x,z). Filled lazily by the
+     *  renderer and cleared on a coarse timer so terrain edits are picked up.
+     *  Only ever touched on the client. */
+    private final java.util.Map<Long, Integer> bottomContourCache = new java.util.HashMap<>();
+    /** Game time of the last contour-cache clear (the coarse refresh timer). */
+    private long contourRefreshTick = Long.MIN_VALUE;
+    /** How often the contour cache is flushed so terrain changes show up
+     *  (~8 seconds — terrain rarely moves under a standing barrier). */
+    public static final long CONTOUR_REFRESH_TICKS = 160L;
 
     // ------------------------------------------------------------------
     // Tier plumbing — radius and capacity come from the core's tier
@@ -186,8 +206,8 @@ public class BarrierBlockEntity extends BlockEntity {
     }
 
     /** Menu drain readout, magicule/s: the CURRENT layer upkeep (live —
-     *  reflects a layer +/− immediately, not at the next tick) plus the
-     *  last second's measured raider-contact drain. */
+     *  reflects a layer +/− immediately) PLUS the last second's measured
+     *  contact drain. Upkeep and attack drain stack. */
     public double getLastDrainPerSecond() {
         return (activeLayers - 1) * LAYER_UPKEEP_PER_SECOND + lastContactDrainPerSecond;
     }
@@ -212,10 +232,64 @@ public class BarrierBlockEntity extends BlockEntity {
         return getRadius() + LAYER_SPACING * index;
     }
 
-    /** The OUTERMOST active shell's radius — what the pushback field,
-     *  the raid steering, and the spawn prevention act on. */
+    /** Per-layer magicule slice = total pool capacity ÷ CONFIGURED layer
+     *  count. The tank is partitioned into this many equal slices. */
+    public double getSliceSize() {
+        int layers = Math.max(1, activeLayers);
+        return getCapacity() / layers;
+    }
+
+    /** How many layers are currently STANDING, derived from the pool vs the
+     *  slice boundaries (outer = top slice). With 3 layers configured the
+     *  outer stands while the pool is above 2/3, the middle above 1/3, the
+     *  inner above 0. Returns 0 when the pool is empty (barrier fully down).
+     *  This is what makes attack-driven depletion "fall" a layer at a time:
+     *  attackers reduce the single pool, and when it crosses a boundary the
+     *  standing count drops and the field/render advance inward. */
+    public int getStandingLayers() {
+        double slice = getSliceSize();
+        if (slice <= 0 || poolStoredCache <= 0) return 0;
+        int front = (int) Math.ceil(poolStoredCache / slice);
+        return Math.max(0, Math.min(Math.max(1, activeLayers), front));
+    }
+
+    /** The OUTERMOST STANDING shell's radius — what the pushback field, the
+     *  raid steering, and the spawn prevention act on. As the pool drains
+     *  past a slice boundary the standing count drops and this radius shrinks
+     *  inward, so the enemy must advance to reach the next layer. */
     public double getEffectiveRadius() {
-        return getLayerRadius(activeLayers - 1);
+        int standing = getStandingLayers();
+        return getLayerRadius(Math.max(0, standing - 1));
+    }
+
+    // --- CLIENT: terrain-following wall bottom helpers (Option 1) ---
+
+    /** CLIENT: flush the cached ground contour on the coarse timer so terrain
+     *  edits under the wall are eventually picked up. Call once per render. */
+    public void maybeRefreshContour() {
+        if (level == null) return;
+        long now = level.getGameTime();
+        if (now - contourRefreshTick > CONTOUR_REFRESH_TICKS) {
+            bottomContourCache.clear();
+            contourRefreshTick = now;
+        }
+    }
+
+    /** CLIENT: the world-Y the wall should drop to at column (wx, wz) — the
+     *  WORLD_SURFACE heightmap, cached. Unloaded columns return {@code
+     *  fallbackWorldY} (the flat bottom) and are NOT cached, so they fill in
+     *  once their chunk loads. */
+    public int bottomWorldYAt(int wx, int wz, int fallbackWorldY) {
+        long key = net.minecraft.core.BlockPos.asLong(wx, 0, wz);
+        Integer cached = bottomContourCache.get(key);
+        if (cached != null) return cached;
+        if (level != null && level.hasChunkAt(new BlockPos(wx, 0, wz))) {
+            int y = level.getHeight(
+                    net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE, wx, wz);
+            bottomContourCache.put(key, y);
+            return y;
+        }
+        return fallbackWorldY;
     }
 
     /** True when the player bears the true-demon-lord or true-hero
@@ -514,27 +588,20 @@ public class BarrierBlockEntity extends BlockEntity {
                 }
             }
 
-            // Passive layer upkeep (layer 1 free; +LAYER_UPKEEP_PER_SECOND
-            // per extra layer). If the pool can't pay, shed the OUTERMOST
-            // layer (graceful degradation) instead of total collapse.
+            // Passive layer upkeep (on top of the per-layer-slice model):
+            // layer 1 is free; each EXTRA configured layer costs
+            // LAYER_UPKEEP_PER_SECOND from the single pool, once per second.
+            // Upkeep + attack drain STACK. We do NOT shed layers here — the
+            // new model derives standing layers from the pool level, so as
+            // upkeep nibbles the pool it crosses slice boundaries on its own
+            // and the per-tick fall detector (below) drops the outer shells.
             double upkeep = (be.activeLayers - 1) * LAYER_UPKEEP_PER_SECOND;
-            // Outer layers shed quietly (sound only) — the ONLY chat
-            // alert is the final "barrier has fallen" when the pool
-            // empties and the last layer drops.
-            while (upkeep > 0 && be.poolStoredCache < upkeep) {
-                be.activeLayers--;
-                be.setChanged();
-                serverLevel.sendBlockUpdated(pos, state, state, 3);
-                serverLevel.playSound(null, pos, SoundEvents.GLASS_BREAK,
-                        SoundSource.BLOCKS, 1.0f, 0.9f);
-                upkeep = (be.activeLayers - 1) * LAYER_UPKEEP_PER_SECOND;
-            }
             if (upkeep > 0) {
                 be.drainFromPool(upkeep);
             }
 
-            // Drain readout: latch the second's measured contact drain
-            // (the upkeep part is computed live in getLastDrainPerSecond).
+            // Drain readout: latch the second's measured contact drain (the
+            // live upkeep term is added in getLastDrainPerSecond).
             be.lastContactDrainPerSecond = be.contactDrainAccumulator;
             be.contactDrainAccumulator = 0.0;
 
@@ -589,8 +656,6 @@ public class BarrierBlockEntity extends BlockEntity {
                         // are blocked too.
                         || m instanceof com.minecolonies.api.entity.mobs.AbstractEntityMinecoloniesRaider))) {
 
-            boolean isRaider = mob.hasData(Attachments.RAID_TAG.get());
-
             double dx = mob.getX() - center.x;
             double dz = mob.getZ() - center.z;
             double cheb = Math.max(Math.abs(dx), Math.abs(dz));
@@ -632,11 +697,13 @@ public class BarrierBlockEntity extends BlockEntity {
                 }
             }
 
-            // EP-scaled contact drain — RAID mobs only. Wild hostiles are
-            // blocked for free, so the peacetime barrier doesn't bleed
-            // from a stray zombie leaning on it; raids stay the drain
-            // mechanic.
-            if (isRaider && cheb <= radius + CONTACT_BAND) {
+            // EP-scaled contact drain — ALL pressing hostiles drain now:
+            // raid-tagged mobs, wild HOSTILE_MONSTER_TAG mobs, and
+            // MineColonies raiders (the mob set this loop already collects).
+            // This INTENTIONALLY reverses the old "a stray zombie shouldn't
+            // bleed a peacetime barrier" rule — any hostile leaning on the
+            // wall now costs fuel.
+            if (cheb <= radius + CONTACT_BAND) {
                 ExistenceStorage exist = ExampleMod.readExistence(mob);
                 double ep = exist != null && exist.getEP() > 0 ? exist.getEP() : FALLBACK_RAIDER_EP;
                 // Damage-proportional drain: what the raider HITS for ×
@@ -673,6 +740,20 @@ public class BarrierBlockEntity extends BlockEntity {
         if (drainThisTick > 0) {
             be.drainFromPool(drainThisTick);
         }
+
+        // Per-layer-slice FALL detection: when the pool crosses a slice
+        // boundary the outermost standing layer falls. Play a break and
+        // resync the render so the shed shell vanishes at once and the field
+        // advances inward. (The final fall to zero is handled by the
+        // depletion alarm above, so only intermediate falls speak here.)
+        int standingNow = be.getStandingLayers();
+        if (be.lastStandingLayers >= 0 && standingNow < be.lastStandingLayers
+                && standingNow > 0) {
+            serverLevel.playSound(null, pos, SoundEvents.GLASS_BREAK,
+                    SoundSource.BLOCKS, 1.0f, 0.9f);
+            serverLevel.sendBlockUpdated(pos, state, state, 3);
+        }
+        be.lastStandingLayers = standingNow;
 
         // T2+ HEALING — everyone friendly INSIDE the field gets a gentle
         // regeneration, refreshed each second (hostiles excluded).

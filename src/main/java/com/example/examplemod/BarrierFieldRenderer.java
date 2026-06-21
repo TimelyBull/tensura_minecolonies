@@ -80,29 +80,120 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
 
         VertexConsumer vc = bufferSource.getBuffer(RenderType.entityTranslucent(WALL_TEXTURE));
         Matrix4f pose = poseStack.last().pose();
-        float y0 = WALL_BOTTOM, y1 = WALL_TOP;
-        float vLen = (y1 - y0) / TILE_SIZE;        // vertical repeats
 
-        // One square shell per ACTIVE layer — layer 0 at the tier radius,
-        // each further ring +LAYER_SPACING out (concentric).
-        for (int layer = 0; layer < be.getActiveLayers(); layer++) {
+        // The PoseStack origin is the barrier block's corner; we need world
+        // coords to sample the per-column ground heightmap and to keep the
+        // texture lattice aligned to the world (so strips of different height
+        // don't stretch).
+        int blockX = be.getBlockPos().getX();
+        int blockY = be.getBlockPos().getY();
+        int blockZ = be.getBlockPos().getZ();
+        int fallbackBottomWorldY = blockY + (int) WALL_BOTTOM;
+        be.maybeRefreshContour();
+
+        float topY = WALL_TOP;
+
+        // One square shell per STANDING layer (outer = top magicule slice).
+        // Each wall side is split into per-block vertical strips whose BOTTOM
+        // follows the world surface; the TOP stays flat at WALL_TOP.
+        int standing = be.getStandingLayers();
+        for (int layer = 0; layer < standing; layer++) {
             float r = (float) be.getLayerRadius(layer);
-            // PoseStack origin = the block's corner; walls centre on the block.
             float cx = 0.5f, cz = 0.5f;
             float x0 = cx - r, x1 = cx + r;
             float z0 = cz - r, z1 = cz + r;
-            float uLen = (2 * r) / TILE_SIZE;      // horizontal repeats per wall
 
-            // North wall (z = z0), South (z = z1), West (x = x0), East (x = x1).
-            wall(vc, pose, x0, y0, z0, x1, y1, z0, uLen, vLen, alpha, 0, 0, -1);
-            wall(vc, pose, x0, y0, z1, x1, y1, z1, uLen, vLen, alpha, 0, 0, 1);
-            wallX(vc, pose, x0, y0, z0, x0, y1, z1, uLen, vLen, alpha, -1, 0, 0);
-            wallX(vc, pose, x1, y0, z0, x1, y1, z1, uLen, vLen, alpha, 1, 0, 0);
+            // North (z = z0) + South (z = z1): iterate X columns.
+            renderColumnsAlongX(vc, pose, be, blockX, blockY, blockZ, x0, x1, z0,
+                    topY, alpha, fallbackBottomWorldY, 0, 0, -1);
+            renderColumnsAlongX(vc, pose, be, blockX, blockY, blockZ, x0, x1, z1,
+                    topY, alpha, fallbackBottomWorldY, 0, 0, 1);
+            // West (x = x0) + East (x = x1): iterate Z columns.
+            renderColumnsAlongZ(vc, pose, be, blockX, blockY, blockZ, z0, z1, x0,
+                    topY, alpha, fallbackBottomWorldY, -1, 0, 0);
+            renderColumnsAlongZ(vc, pose, be, blockX, blockY, blockZ, z0, z1, x1,
+                    topY, alpha, fallbackBottomWorldY, 1, 0, 0);
 
-            // Roof — same texture, capping the shell at the wall top
-            // (both windings, visible from below and above).
-            roof(vc, pose, x0, y1, z0, x1, z1, uLen, alpha);
+            // Roof — flat cap at the wall top (both windings).
+            float uLen = (2 * r) / TILE_SIZE;
+            roof(vc, pose, x0, topY, z0, x1, z1, uLen, alpha);
         }
+    }
+
+    /** Render one wall face running along X at a fixed local Z, split into
+     *  per-block vertical strips whose bottom follows the world surface. */
+    private void renderColumnsAlongX(VertexConsumer vc, Matrix4f pose, BarrierBlockEntity be,
+            int blockX, int blockY, int blockZ,
+            float x0, float x1, float localZ, float topY, float alpha,
+            int fallbackBottomWorldY, float nx, float ny, float nz) {
+        int wz = net.minecraft.util.Mth.floor(blockZ + localZ);
+        int wxStart = net.minecraft.util.Mth.floor(blockX + x0);
+        int wxEnd = net.minecraft.util.Mth.floor(blockX + x1 - 1.0e-4f);
+        for (int wx = wxStart; wx <= wxEnd; wx++) {
+            float la = Math.max(x0, wx - blockX);
+            float lb = Math.min(x1, (wx + 1) - blockX);
+            if (lb <= la) continue;
+            int bottomWorldY = be.bottomWorldYAt(wx, wz, fallbackBottomWorldY);
+            float bottomLocalY = bottomWorldY - blockY;
+            if (bottomLocalY >= topY) continue; // surface above the wall top
+            float u0 = (blockX + la) / TILE_SIZE;
+            float u1 = (blockX + lb) / TILE_SIZE;
+            float vBottom = bottomWorldY / TILE_SIZE;
+            float vTop = (blockY + topY) / TILE_SIZE;
+            verticalStrip(vc, pose, la, localZ, lb, localZ,
+                    bottomLocalY, topY, u0, u1, vBottom, vTop, alpha, nx, ny, nz);
+        }
+    }
+
+    /** Render one wall face running along Z at a fixed local X, split into
+     *  per-block vertical strips whose bottom follows the world surface. */
+    private void renderColumnsAlongZ(VertexConsumer vc, Matrix4f pose, BarrierBlockEntity be,
+            int blockX, int blockY, int blockZ,
+            float z0, float z1, float localX, float topY, float alpha,
+            int fallbackBottomWorldY, float nx, float ny, float nz) {
+        int wx = net.minecraft.util.Mth.floor(blockX + localX);
+        int wzStart = net.minecraft.util.Mth.floor(blockZ + z0);
+        int wzEnd = net.minecraft.util.Mth.floor(blockZ + z1 - 1.0e-4f);
+        for (int wz = wzStart; wz <= wzEnd; wz++) {
+            float la = Math.max(z0, wz - blockZ);
+            float lb = Math.min(z1, (wz + 1) - blockZ);
+            if (lb <= la) continue;
+            int bottomWorldY = be.bottomWorldYAt(wx, wz, fallbackBottomWorldY);
+            float bottomLocalY = bottomWorldY - blockY;
+            if (bottomLocalY >= topY) continue;
+            float u0 = (blockZ + la) / TILE_SIZE;
+            float u1 = (blockZ + lb) / TILE_SIZE;
+            float vBottom = bottomWorldY / TILE_SIZE;
+            float vTop = (blockY + topY) / TILE_SIZE;
+            verticalStrip(vc, pose, localX, la, localX, lb,
+                    bottomLocalY, topY, u0, u1, vBottom, vTop, alpha, nx, ny, nz);
+        }
+    }
+
+    /** A vertical strip quad from (ax,az)→(bx,bz) spanning bottomY→topY with
+     *  explicit world-derived UVs, emitted in both windings (visible from
+     *  either side). */
+    private void verticalStrip(VertexConsumer vc, Matrix4f pose,
+            float ax, float az, float bx, float bz,
+            float bottomY, float topY,
+            float u0, float u1, float vBottom, float vTop,
+            float alpha, float nx, float ny, float nz) {
+        emit(vc, pose, ax, bottomY, az, u0, vBottom, alpha, nx, ny, nz);
+        emit(vc, pose, bx, bottomY, bz, u1, vBottom, alpha, nx, ny, nz);
+        emit(vc, pose, bx, topY,    bz, u1, vTop,    alpha, nx, ny, nz);
+        emit(vc, pose, ax, topY,    az, u0, vTop,    alpha, nx, ny, nz);
+        emit(vc, pose, ax, topY,    az, u0, vTop,    alpha, -nx, -ny, -nz);
+        emit(vc, pose, bx, topY,    bz, u1, vTop,    alpha, -nx, -ny, -nz);
+        emit(vc, pose, bx, bottomY, bz, u1, vBottom, alpha, -nx, -ny, -nz);
+        emit(vc, pose, ax, bottomY, az, u0, vBottom, alpha, -nx, -ny, -nz);
+    }
+
+    private void emit(VertexConsumer vc, Matrix4f pose, float x, float y, float z,
+            float u, float v, float alpha, float nx, float ny, float nz) {
+        vc.addVertex(pose, x, y, z).setColor(tintR, tintG, tintB, alpha)
+                .setUv(u, v)
+                .setOverlay(net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY)
+                .setLight(FULL_BRIGHT).setNormal(nx, ny, nz);
     }
 
     /** Horizontal roof quad at height {@code y}, both windings. */
@@ -115,33 +206,6 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
         quad(vc, pose,
                 x0, y, z1,  x1, y, z1,  x1, y, z0,  x0, y, z0,
                 uvLen, uvLen, alpha, 0, -1, 0);
-    }
-
-    /** A wall quad spanning X at fixed Z, emitted in both windings so it
-     *  renders from either side. */
-    private static void wall(VertexConsumer vc, Matrix4f pose,
-                             float xa, float yb, float z, float xb, float yt, float z2,
-                             float uLen, float vLen, float alpha,
-                             float nx, float ny, float nz) {
-        quad(vc, pose,
-                xa, yb, z,  xb, yb, z,  xb, yt, z,  xa, yt, z,
-                uLen, vLen, alpha, nx, ny, nz);
-        quad(vc, pose,
-                xa, yt, z,  xb, yt, z,  xb, yb, z,  xa, yb, z,
-                uLen, vLen, alpha, -nx, -ny, -nz);
-    }
-
-    /** A wall quad spanning Z at fixed X, both windings. */
-    private static void wallX(VertexConsumer vc, Matrix4f pose,
-                              float x, float yb, float za, float x2, float yt, float zb,
-                              float uLen, float vLen, float alpha,
-                              float nx, float ny, float nz) {
-        quad(vc, pose,
-                x, yb, za,  x, yb, zb,  x, yt, zb,  x, yt, za,
-                uLen, vLen, alpha, nx, ny, nz);
-        quad(vc, pose,
-                x, yt, za,  x, yt, zb,  x, yb, zb,  x, yb, za,
-                uLen, vLen, alpha, -nx, -ny, -nz);
     }
 
     private static void quad(VertexConsumer vc, Matrix4f pose,
@@ -179,7 +243,12 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
 
     @Override
     public net.minecraft.world.phys.AABB getRenderBoundingBox(BarrierBlockEntity be) {
-        double r = be.getEffectiveRadius() + 1; // outermost active ring
-        return new net.minecraft.world.phys.AABB(be.getBlockPos()).inflate(r, 16, r);
+        double r = be.getEffectiveRadius() + 1; // outermost STANDING ring
+        // The wall bottom follows terrain and can drop far below the block
+        // (cliffs/valleys), so extend the cull box well downward — otherwise
+        // the wall is culled when the block scrolls off the top of view.
+        return new net.minecraft.world.phys.AABB(be.getBlockPos())
+                .inflate(r, 16, r)
+                .expandTowards(0, -128, 0);
     }
 }
