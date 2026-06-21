@@ -9,15 +9,25 @@ Copy the relevant version's section into the CurseForge release notes on each up
 ## [Unreleased]
 
 ### Added
-- **The barrier wall follows the ground.** The visible barrier wall now drops
-  down to meet the land beneath each part of it instead of cutting off at a
-  flat line, so it no longer floats in the air on one side and sinks into the
-  hill on the other. It follows the surface whether your barrier sits on flat
-  ground, a slope, or the edge of a cliff.
-- **Barrier fuel gauge shows your layer divisions.** When a Barrier Core is
-  projecting more than one shell, its fuel gauge now shows a marker at each
-  layer's share of the tank — one line at the halfway point for two layers,
-  lines at a third and two-thirds for three layers.
+- **Barriers are now spheres made of panels.** A barrier is a dome/sphere
+  around its core, built from 24 panels (each concentric layer is its own
+  sphere). Each panel takes damage on its own: hammer one spot and that panel
+  dims through three stages and then shatters into a hole — while the rest of
+  the barrier stays up. Enemies can slip through a hole until it heals, but the
+  intact panels still block and shove them back. The sphere sinks partway into
+  the ground, which is intended.
+- **Broken panels heal back.** A shattered panel starts mending 15 seconds
+  after it was last hit, growing back in three steps (one every 15 seconds).
+  Each step draws fuel from the barrier's pool, so with no fuel a hole stays
+  open until you refuel.
+- **Panel toughness scales with the core tier.** Each panel can soak
+  10,000 / 20,000 / 40,000 / 60,000 damage at tiers 1–4 before it breaks, so
+  higher-tier barriers hold their shape far longer under attack.
+- **Barriers now stop enemy arrows and spells.** Enemy projectiles — arrows,
+  fireballs, thrown magic and the like — are absorbed by an intact panel
+  instead of flying through, chipping that panel a little as they hit. They
+  still pass through a broken panel's hole, and your own (and your citizens')
+  shots can still fire outward.
 - **Strong citizens defend the colony.** When your colony is under attack,
   citizens react by their power. Ordinary citizens (and weaker Tensura-race
   citizens) flee for safety as before, and your guards fight as always. But a
@@ -42,14 +52,17 @@ Copy the relevant version's section into the CurseForge release notes on each up
   current visit is resolved.
 
 ### Changed
-- **Barrier layers each have their own fuel slice now.** A multi-layer
-  barrier's fuel is split evenly between its layers: attackers wear down the
-  outermost layer's share first, and when that share is used up the outer
-  layer drops and the attackers move on to the next layer inward — and so on.
-  Keeping extra layers raised still costs a steady trickle of fuel (50 per
-  second for each layer beyond the first), so an unattended multi-layer
-  barrier slowly drains and eventually sheds its outer shells; refueling
-  restores the layers as the tank fills back up.
+- **Barrier damage is now local to each panel.** Attacks still drain the
+  barrier's shared fuel pool, but they now also wear down the specific panel
+  being struck; that panel breaks into a hole when its own health runs out,
+  without dropping the rest of the barrier. The whole barrier still falls only
+  when the fuel pool reaches zero — and refueling from empty restores every
+  panel to full. Keeping extra layers raised still costs a steady trickle of
+  fuel (50 per second for each layer beyond the first).
+- **Tier 3 barriers no longer throw enemies out — they recharge you instead.**
+  The old tier-3 "teleport hostiles back outside" effect has been removed.
+  Now, while you stand inside a tier 3 or 4 barrier, your own magicule
+  regenerates 10% faster.
 - **Any hostile drains the barrier, not just raid monsters.** Previously only
   monsters that were part of an active raid wore down a barrier's fuel; ordinary
   wild hostiles were blocked for free. Now any hostile pressing the wall —

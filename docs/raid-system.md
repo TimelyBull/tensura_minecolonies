@@ -10,6 +10,85 @@ Class references confirmed by `javap` against the jars in `libs/`.
 
 ---
 
+## SPHERE REDESIGN (2026-06-20) — supersedes the slice/standing/terrain/eject notes below
+
+The barrier is now a faceted **SPHERE per concentric layer**, divided into
+**24 quad-sphere sections** (a cube subdivided 6×(2×2), projected to the
+radius). This **supersedes** three earlier features documented further down,
+which were REMOVED: the per-layer magicule-*slice* model, the *standing-layers*
+shedding concept, and the *terrain-following* wall bottom. The Tier-3 **EJECT
+was also removed** (see Tier effects below). The drain formula
+(`BARRIER_DRAIN_EP_MULTIPLIER` = 0.001) and all-hostiles-drain rule are kept.
+
+**One tessellation, three uses.** `BarrierBlockEntity.sectionIndex(dx,dy,dz)`
+maps a direction to a section 0..23 in O(1) (dominant axis → cube face; signs of
+the two tangent components → the 2×2 cell; no trig). Collision, render, and
+state all use it (via `cubePoint`/`cellSection`) so a visible hole IS a
+collision gap.
+
+**Per-section state.** `double[] sectionHealth` + `long[] sectionRegenTick`,
+sized `MAX_LAYERS × 24`, indexed `layer*24 + section`. Section max health by core
+tier: 10k/20k/40k/60k (`SECTION_HEALTH_BY_TIER`). Opacity stage derived from
+`health/maxHealth` (quartiles → full/fade1/fade2/fade3; ≤0 = broken). Persisted
+in NBT (`sectionHealth` ListTag + `sectionRegenTick` long-array); pre-redesign
+saves init all sections to full.
+
+**Collision (spherical, per-section holes).** Per nearby hostile, walk layers
+OUTER→INNER: real 3D distance from center; the first INTACT section it presses
+(within `[R−WALL_BAND, R+CONTACT_BAND]`) blocks + drains it, then `break`; a
+BROKEN section is a gap → `continue` inward; well-inside an intact shell →
+`continue` so inner shells can still block (no eject of deep-inside mobs). The
+push is **radial high up, horizontalized below `center.y + 3`** (Y preserved) so
+mobs aren't shoved into terrain. Mobs don't *seek* holes — opportunistic passage
+only (accepted; pathfinding integration is infeasible cheaply).
+
+**Damage = two counters.** A drain `D` reduces BOTH the pressed section's health
+AND the shared pool by `D`. Section health gates the localized hole; the pool
+gates the whole-barrier fall.
+
+**Projectiles (2026-06-20).** Enemy projectiles are absorbed at intact sections
+and pass through holes, mirroring the mob collision. `serverTick` sweeps
+`Projectile` entities whose owner is null or `isBlockableHostile` (friendly /
+player / citizen shots are NOT blocked — defenders can fire out). Crossing is
+detected against the projectile's PREVIOUS position (`xo/yo/zo`) so fast shots
+can't tunnel the thin shell: per layer outer→inner, `distOld ≥ R && distNew < R`
+= crossed inward → intact section absorbs (`discard()` + spark + `GLASS_HIT`,
+chipping `PROJECTILE_SECTION_DAMAGE` 200 off the section and pool), broken
+section → pass to the inner layer. `isBlockableHostile` is the shared
+mob/projectile-owner predicate.
+
+**Regen.** Per-second sweep over the ≤72 sections: a section below full that has
+waited `REGEN_DELAY_TICKS` (15 s since its last hit) climbs one step
+(`maxHealth/3`) and pays `REGEN_COST_FRACTION × tier` (5k/10k/20k/30k) from the
+pool; no pool → stall and retry. 3 steps back to full.
+
+**Whole-barrier fall + refuel.** Pool 0 → `fieldUp` false → glass-break + alert
+(as before); the up→down edge is the whole-barrier fall. The down→up edge
+(refuel after a full collapse) `resetAllSectionsFull()`.
+
+**Tier effects.** T2 = heal-inside (kept). **T3 EJECT REMOVED**; the new T3+
+effect (`BARRIER_REGEN_BUFF_TIER` 3) is a **+10% personal Tensura magicule
+regen** for players inside. Implemented as a **delta-mirror**: Tensura's
+magicule regen is area/chunk-based (`areaMagiculeRegen`, no per-entity rate to
+multiply), so each tick we read the player's magicule, and if it rose naturally
+since last tick we add 10% of that gain via `EnergyHelper.gainMagicule`-style
+`setMagicule` (capped at max). A static shared baseline map self-dedupes across
+overlapping T3 barriers.
+
+**Render.** `BarrierFieldRenderer` draws each layer sphere's 24 sections, each as
+a 3×3 sub-grid of sphere-projected quads (both windings), at an alpha set by the
+section's stage; broken sections are skipped (the hole). Sphere clips into
+terrain (buried lower hemisphere intended). Cull box = outer sphere radius.
+
+**Sync throttling.** `maybeSyncStages` diffs each section's stage against a
+server-only `lastSyncedStage[]` and only `sendBlockUpdated`s when a stage
+changed.
+
+**Spawn-prevention stays 2D.** `isWithinFootprint` (square) and
+`TensuraRaids.isInsideFueledBarrier` are unchanged — NOT spherical.
+
+---
+
 ## BARRIER BATCH UPDATE (2026-06-12)
 
 **Cumulative tier FUNCTIONS** (effects stack up the core tiers, each a
@@ -20,9 +99,11 @@ distinct wall COLOR):
   this tier). Wall color: blue.
 - **Tier 2 — wall + HEAL:** adds Regeneration I (refreshed each second,
   `BARRIER_HEAL_TIER` 2) to every non-hostile inside. Wall color: green.
-- **Tier 3/4 — wall + heal + EJECT:** the original teleport-hostiles-out
-  behavior (`BARRIER_EJECT_TIER` 3), now top-tier only. Wall colors:
-  magenta (T3), gold (T4).
+- **Tier 3/4 — wall + heal + EJECT:** ~~the original teleport-hostiles-out
+  behavior (`BARRIER_EJECT_TIER` 3), now top-tier only.~~ **SUPERSEDED
+  2026-06-20: EJECT REMOVED; T3+ now grants +10% player magicule regen inside
+  — see the SPHERE REDESIGN section above.** Wall colors: magenta (T3),
+  gold (T4).
 - Tints live in `BarrierFieldRenderer.TIER_TINTS`; behaviors gate on
   `getTier()` in `BarrierBlockEntity`.
 
@@ -337,7 +418,7 @@ Three fixes from the first in-game raid test:
    at textscale 0.85 (colony name narrowed to 106 px) — all six tier
    descriptors + value now fit.
 
-### Terrain-following wall bottom (render only, 2026-06-20)
+### Terrain-following wall bottom (render only, 2026-06-20) — SUPERSEDED same day by the SPHERE REDESIGN (terrain-following dropped; the sphere clips into terrain)
 
 The visible wall's flat bottom (`WALL_BOTTOM = -4`, a fixed line at
 `coreY − 4`) now follows the ground per column. **Render-only — the
@@ -428,8 +509,9 @@ OUTERMOST STANDING shell (`getEffectiveRadius` → `getStandingLayers`).
   status, layers collapse to 1 with an alert. Logging off does not
   collapse.
 
-**Per-layer-slice magicule model (rework 2026-06-20 — REPLACES the old
-per-second upkeep + total-based shedding):**
+**Per-layer-slice magicule model** *(SUPERSEDED 2026-06-20 by the SPHERE
+REDESIGN — the slice/standing model was removed; layers are now full spheres
+with per-section damage. Upkeep was kept. Retained below for history.)*
 
 - The tank is still ONE pool (core + storage). It is PARTITIONED into
   equal slices, one per CONFIGURED layer: `getSliceSize() = capacity /

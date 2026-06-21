@@ -239,16 +239,6 @@ public class BarrierCoreScreen extends Screen {
             int len = (i == 5) ? 9 : 5;
             g.fill(gaugeX, ty, gaugeX + len, ty + 1, 0x802E2616);
         }
-        // Per-LAYER slice boundaries — one bold marker per slice division:
-        // 2 layers → a single line at 1/2; 3 layers → lines at 1/3 and 2/3.
-        // Each marks where the outer standing layer falls and the next inner
-        // layer takes over. Drawn full-width (and a touch beyond) so they
-        // stand out from the 10% graduations.
-        int layers = data.layers();
-        for (int i = 1; i < layers; i++) {
-            int my = gaugeY + GAUGE_H - Math.round(GAUGE_H * i / (float) layers);
-            g.fill(gaugeX - 2, my, gaugeX + GAUGE_W + 2, my + 1, 0xFF2E2616);
-        }
         drawCenteredNoShadow(g, Math.round(fill * 100) + "%",
                 mx, gaugeY + GAUGE_H / 2 - 4, TXT_DARK);
         drawCenteredNoShadow(g, compact(data.stored()) + " / " + compact(data.capacity()),
