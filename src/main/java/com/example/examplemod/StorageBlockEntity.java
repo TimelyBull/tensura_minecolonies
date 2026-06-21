@@ -60,15 +60,19 @@ public class StorageBlockEntity extends BlockEntity {
         return taken;
     }
 
-    /** FILL sprite stage from THIS block's own contents — base sprite
-     *  under 33%, then the three fill versions (66%, full). */
+    /** FILL sprite stage from THIS block's own contents. Clean quartiles
+     *  matching {@link BarrierBlockEntity#currentChargeStage()}: 0–25% → 0,
+     *  25–50% → 1, 50–75% → 2, 75–100% → 3. Boundaries land on the UPPER
+     *  stage (floor(fill×4)): exactly 25% → 1, 50% → 2, 75% → 3. Empty
+     *  (0%) → 0; full (≥ capacity) → 3 via the clamp. */
     void syncFillSprite() {
         if (level == null || level.isClientSide()) return;
         BlockState state = getBlockState();
         if (!state.hasProperty(MagiculeStorageBlock.FILL)) return;
+        double capacity = getCapacity();
         int stage;
-        if (stored >= getCapacity()) stage = 3;
-        else stage = Math.max(0, (int) Math.min(2, Math.floor(stored / getCapacity() * 3.0)));
+        if (capacity <= 0) stage = 0;
+        else stage = Math.max(0, Math.min(3, (int) Math.floor(stored / capacity * 4.0)));
         if (state.getValue(MagiculeStorageBlock.FILL) != stage) {
             level.setBlock(worldPosition, state.setValue(MagiculeStorageBlock.FILL, stage), 3);
         }

@@ -331,10 +331,17 @@ public class BarrierBlockEntity extends BlockEntity {
         poolStoredCache = pool;
     }
 
-    /** The 0..3 fill stage of the POOL — drives the core's charge sprite. */
+    /** The 0..3 fill stage of the POOL — drives the core's charge sprite.
+     *  Clean quartiles: 0–25% → 0, 25–50% → 1, 50–75% → 2, 75–100% → 3.
+     *  Boundaries land on the UPPER stage (floor(fill×4)): exactly 25% →
+     *  stage 1, 50% → stage 2, 75% → stage 3. Empty (0%) → 0; full
+     *  (≥ capacity) → 3 via the clamp. NOTE: StorageBlockEntity's FILL
+     *  sprite still uses the old ⅓/⅔ math — left unchanged for now. */
     private int currentChargeStage() {
-        if (poolStoredCache >= getCapacity()) return 3;
-        return Math.max(0, (int) Math.min(2, Math.floor(poolStoredCache / getCapacity() * 3.0)));
+        double capacity = getCapacity();
+        if (capacity <= 0) return 0;
+        double fillRatio = poolStoredCache / capacity;
+        return Math.max(0, Math.min(3, (int) Math.floor(fillRatio * 4.0)));
     }
 
     // ------------------------------------------------------------------
