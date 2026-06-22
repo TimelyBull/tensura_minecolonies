@@ -106,6 +106,10 @@ public record FactionProfile(
                 Set.of(), Set.of(), 0.5, 15, false, false));
         put(map, new FactionProfile("otherworlders", 50, 50,
                 Set.of(), Set.of(), 0.5, 15, false, false));
+        // Shizu — DEPRECATED (soft-retired, step 3). The profile is KEPT so
+        // byId("shizu") still resolves for any inert standing read on an old
+        // save, but BossFaction.isActive("shizu") == false gates her out of
+        // every active system. No web edges (aloof) → validateWeb unaffected.
         put(map, new FactionProfile("shizu", 50, 50,
                 Set.of(), Set.of(), 1.0, 15, false, false));
         return Map.copyOf(map);

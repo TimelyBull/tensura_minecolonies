@@ -72,7 +72,7 @@ for now; it feeds escalating-threat features planned for later.)
 Factions come in two kinds:
 
 - **Physical** factions have a real presence you can find and attack — they
-  generate [rival settlements](rival-colonies.md) (Luminous, Falmuth, Shizu,
+  generate [rival settlements](rival-colonies.md) (Luminous, Falmuth,
   Leon, Otherworlders, the Jura-Tempest Federation, and Dwargon).
 - **Abstract** factions (Eurazania, Milim, the Moderate Harlequin Alliance) have no settlement
   to assault; you interact with them only through standing, events, and

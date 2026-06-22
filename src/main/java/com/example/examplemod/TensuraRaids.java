@@ -583,6 +583,7 @@ public final class TensuraRaids {
         int total = 0;
         for (BossFaction faction : BossFaction.values()) {
             if (total >= ALLY_SUPPORT_TOTAL_CAP) break;
+            if (!faction.isActive()) continue; // soft-retired factions send no allies
             // PACT and COVENANT factions both aid; lower tiers don't.
             RelationsState relState = DiplomacyManager.getState(level, owner, faction);
             if (relState != RelationsState.PACT && relState != RelationsState.COVENANT) continue;

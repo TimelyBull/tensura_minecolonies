@@ -99,9 +99,9 @@ public final class RivalColonies {
         // Falmuth — militaristic human kingdom.
         ANCHORS.put("falmuth", HumanEntityTypes.FOLGEN);
         PACKS.put("falmuth", "Fortress");
-        // Shizu — Japanese-aesthetic (her origin).
-        ANCHORS.put("shizu", HumanEntityTypes.SHIZU);
-        PACKS.put("shizu", "Pagoda");
+        // Shizu — DEPRECATED (soft-retired, step 3). No anchor, no pack:
+        // the Pagoda settlement is retired and she generates nothing. The
+        // enum value + standing data remain valid but inert (see BossFaction).
         // Leon — a demon lord's grand keep.
         ANCHORS.put("leon", MonsterEntityTypes.IFRIT);
         PACKS.put("leon", "Caledonia");
@@ -171,15 +171,15 @@ public final class RivalColonies {
                     HumanEntityTypes.FALMUTH_KNIGHT.get(), HumanEntityTypes.KIRARA_MIZUTANI.get(),
                     HumanEntityTypes.KYOYA_TACHIBANA.get(), HumanEntityTypes.SHOGO_TAGUCHI.get(),
                     HumanEntityTypes.MARK_LAUREN.get(), HumanEntityTypes.SHINJI_TANIMURA.get() };
-            // Shizu — Ifrit's fire (her possessed origin): fire beasts.
-            case "shizu" -> new EntityType[] {
-                    MonsterEntityTypes.IFRIT_CLONE.get(), MonsterEntityTypes.SALAMANDER.get(),
-                    MonsterEntityTypes.HELL_CATERPILLAR.get(), MonsterEntityTypes.HELL_MOTH.get() };
-            // Leon — a demon lord's keep: daemons + fire.
+            // Shizu — DEPRECATED (soft-retired): no garrison roster.
+            // Leon — a demon lord's keep. The anchor boss is a (scaled-up,
+            // high-EP) Ifrit; the rank-and-file are a BONE_GOLEM and a
+            // SALAMANDER. BONE_GOLEM is an explicit PLACEHOLDER — swap it for
+            // a more Leon-appropriate elite when one exists (it is NOT a
+            // flame statement; the fire theme is the Ifrit + Salamander).
+            // Leon's fire-resistance/heat skills are granted in spawnDefender.
             case "leon" -> new EntityType[] {
-                    MonsterEntityTypes.IFRIT_CLONE.get(), MonsterEntityTypes.SALAMANDER.get(),
-                    MonsterEntityTypes.ARCH_DAEMON.get(), MonsterEntityTypes.GREATER_DAEMON.get(),
-                    MonsterEntityTypes.LESSER_DAEMON.get() };
+                    HumanEntityTypes.BONE_GOLEM.get(), MonsterEntityTypes.SALAMANDER.get() };
             // Otherworlders — the four summoned heroes moved to Falmuth; the
             // anchor Mai Furuki remains but there is no rank-and-file roster
             // yet (falls to default null → spawnGarrison no-ops gracefully).
@@ -817,6 +817,14 @@ public final class RivalColonies {
         // FactionMarkTag for the Layer-1 fan-out; the two coexist).
         if (boss != null) {
             boss.setData(Attachments.GARRISON_TAG.get(), new GarrisonTag(s.id, true));
+            assignFactionDefenderSkills(boss, s.factionId);
+            // Leon's anchor Ifrit is "scaled up" with extra sustain on top of
+            // its native fire kit (Self-Regeneration; the EP-driven garrison
+            // scaler already makes it among the strongest bosses).
+            if ("leon".equals(s.factionId)) {
+                grantDefenderSkill(boss,
+                        io.github.manasmods.tensura.registry.skill.CommonSkills.SELF_REGENERATION);
+            }
         }
 
         s.garrisonUuids.clear();
@@ -857,6 +865,7 @@ public final class RivalColonies {
         if (type == HumanEntityTypes.BONE_GOLEM.get()) {
             assignBoneGolemElement(mob, s.factionId);
         }
+        assignFactionDefenderSkills(mob, s.factionId);
         if (!level.addFreshEntity(mob)) return null;
         return mob;
     }
@@ -937,7 +946,7 @@ public final class RivalColonies {
         return switch (factionId) {
             case "milim" -> 1.0;                                          // apex power
             case "leon", "eurazania", "luminous", "clayman" -> 0.8;       // demon lords / great powers
-            case "dwargon", "shizu", "otherworlders" -> 0.6;              // strong realms
+            case "dwargon", "otherworlders" -> 0.6;                       // strong realms
             default -> 0.4;                                               // falmuth, tempest…
         };
     }
@@ -1182,6 +1191,10 @@ public final class RivalColonies {
         long rangeSq = (long) DISCOVERY_RANGE * DISCOVERY_RANGE;
         for (Settlement s : data.all()) {
             if (!s.dimension.equals(level.dimension())) continue;
+            // Defensive: a pre-existing settlement of a soft-retired faction
+            // (e.g. an old-save Shizu Pagoda) is never (re)discovered, so it
+            // can't be warred on — it just sits inert. No save migration.
+            if (!BossFaction.isActiveId(s.factionId)) continue;
             for (ServerPlayer player : level.players()) {
                 if (s.discoveredBy.contains(player.getUUID())) continue;
                 if (player.blockPosition().distSqr(s.center) <= rangeSq) {
@@ -1394,6 +1407,24 @@ public final class RivalColonies {
     private static void removeModifier(Mob mob, Holder<Attribute> attr, ResourceLocation id) {
         AttributeInstance inst = mob.getAttribute(attr);
         if (inst != null) inst.removeModifier(id);
+    }
+
+    /** Canon-appropriate PASSIVE/RESISTANCE skills granted to a faction's
+     *  garrison defenders at spawn (passives work with no cast driver — the
+     *  betrayal/Covenant skill path). A seam: add cases as factions earn
+     *  signature kits.
+     *
+     *  <p>LEON (the Platinum Saber's domain of flame): his minions resist
+     *  fire — Flame Attack Resistance + Heat Resistance. The boss-anchor Ifrit
+     *  brings its own native fire offence; these make the garrison fire-proof
+     *  and on-theme. */
+    private static void assignFactionDefenderSkills(Mob mob, String factionId) {
+        if ("leon".equals(factionId)) {
+            grantDefenderSkill(mob,
+                    io.github.manasmods.tensura.registry.skill.ResistanceSkills.FLAME_ATTACK_RESISTANCE);
+            grantDefenderSkill(mob,
+                    io.github.manasmods.tensura.registry.skill.ResistanceSkills.HEAT_RESISTANCE);
+        }
     }
 
     /** Teach a mob a skill (idempotent — the Covenant learnSkill path,

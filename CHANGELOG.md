@@ -52,6 +52,14 @@ Copy the relevant version's section into the CurseForge release notes on each up
   current visit is resolved.
 
 ### Changed
+- **Shizu is retired as a faction; Leon takes over her territory.** Shizu no
+  longer appears as a faction you can deal with — her Pagoda town no longer
+  generates, she sends no events, and she's gone from the diplomacy list. (If
+  an old world already had a Shizu town, it simply sits inert; your past
+  standing with her is kept but unused.) In her place, **Leon** now fields a
+  proper fortress garrison: a scaled-up Ifrit boss leading fire-resistant
+  defenders (a salamander and a heavy construct), fitting his strength as a
+  Demon Lord.
 - **The Carrion faction is now "Eurazania" (the Beast Kingdom).** Calion's
   beastfolk nation now shows the name "Eurazania" everywhere a faction label
   appears. It stays exactly as it was otherwise — diplomacy and reputation

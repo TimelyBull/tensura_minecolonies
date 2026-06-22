@@ -37,6 +37,12 @@ public enum BossFaction {
     FALMUTH("falmuth", "Falmuth", ChatFormatting.RED),
     CLAYMAN("clayman", "Moderate Harlequin Alliance", ChatFormatting.DARK_PURPLE),
     LEON("leon", "Leon", ChatFormatting.YELLOW),
+    // DEPRECATED — Shizu was soft-retired from play (consolidation step 3).
+    // The enum value is KEPT so existing saves referencing "shizu" still load
+    // (standing/relations remain valid but INERT). She is gated OUT of every
+    // active system via isActive() (no settlement/garrison/event/diplomacy/
+    // UI). Scheduled for HARD REMOVAL in a future version once old saves age
+    // out. See DEPRECATED_IDS below + docs/faction-model.md.
     SHIZU("shizu", "Shizu", ChatFormatting.DARK_AQUA),
     OTHERWORLDERS("otherworlders", "Otherworlders", ChatFormatting.LIGHT_PURPLE),
     // Eurazania — the Beast Kingdom (Carrion/Calion's nation). Renamed from
@@ -55,12 +61,32 @@ public enum BossFaction {
         this.color = color;
     }
 
+    /** Faction ids SOFT-RETIRED from active play but kept in the enum so old
+     *  saves still load (their standing/relations stay valid but inert).
+     *  Every active gameplay system — settlement gen, garrison, lore events,
+     *  diplomacy offers/envoys, UI listings, raid ally-support — must skip
+     *  these via {@link #isActive()} / {@link #isActiveId(String)}. Slated
+     *  for hard removal once old saves age out. */
+    private static final java.util.Set<String> DEPRECATED_IDS = java.util.Set.of("shizu");
+
     /** Stable storage/command key. NEVER the ordinal. */
     public String id() { return id; }
 
     public String displayName() { return displayName; }
 
     public ChatFormatting color() { return color; }
+
+    /** True for factions in ACTIVE play. False for soft-retired (deprecated)
+     *  factions — active systems must skip these. */
+    public boolean isActive() { return !DEPRECATED_IDS.contains(id); }
+
+    /** True for soft-retired factions kept only for save compatibility. */
+    public boolean isDeprecated() { return DEPRECATED_IDS.contains(id); }
+
+    /** String-keyed twin of {@link #isActive()} for the systems that work
+     *  with raw faction-id strings (settlements, switch cases). Unknown ids
+     *  count as active (an addon faction is not ours to retire). */
+    public static boolean isActiveId(String id) { return !DEPRECATED_IDS.contains(id); }
 
     /** Lookup by storage/command id; null for unknown (e.g. a future
      *  addon faction's id found in a save — preserved, not ours). */

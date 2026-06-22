@@ -571,6 +571,7 @@ public final class DiplomacyManager {
             if (!colonyDevelopedEnough(colony)) continue;
             boolean majin = WorldReputationManager.isMajinSide(player);
             for (BossFaction faction : BossFaction.values()) {
+                if (!faction.isActive()) continue; // skip soft-retired factions
                 FactionProfile profile = FactionProfile.byId(faction.id());
                 if (profile == null || !profile.sendsEnvoysTo(majin)) continue; // the race gate
                 if (getState(level, uuid, faction) != RelationsState.NONE) continue;
@@ -1404,6 +1405,7 @@ public final class DiplomacyManager {
         for (ServerPlayer player : level.players()) {
             UUID uuid = player.getUUID();
             for (BossFaction faction : BossFaction.values()) {
+                if (!faction.isActive()) continue; // skip soft-retired factions
                 if (!WorldReputationManager.isDiplomacyClosed(level, uuid, faction)) continue;
                 DealSpec mend = DealSpec.MENDING_DEALS.get(faction.id());
                 if (mend == null) continue;
@@ -1540,6 +1542,7 @@ public final class DiplomacyManager {
     private static void tickAllianceBuffs(ServerLevel level) {
         for (ServerPlayer player : level.players()) {
             for (BossFaction faction : BossFaction.values()) {
+                if (!faction.isActive()) continue; // skip soft-retired factions
                 if (getState(level, player.getUUID(), faction) != RelationsState.PACT) continue;
                 var effect = ALLIANCE_BUFFS.get(faction.id());
                 if (effect == null) continue;
@@ -1579,6 +1582,7 @@ public final class DiplomacyManager {
         UUID uuid = player.getUUID();
         boolean anyPact = false;
         for (BossFaction faction : BossFaction.values()) {
+            if (!faction.isActive()) continue; // skip soft-retired factions
             if (getState(level, uuid, faction) == RelationsState.PACT) { anyPact = true; break; }
         }
         if (!anyPact) return "the caravan network carries only ALLIES";
@@ -1661,6 +1665,7 @@ public final class DiplomacyManager {
             data.setLastSide(uuid, side);
             if (last == -1 || side == 0) continue; // first observation / became human
             for (BossFaction faction : BossFaction.values()) {
+                if (!faction.isActive()) continue; // skip soft-retired factions
                 FactionProfile profile = FactionProfile.byId(faction.id());
                 boolean majinSensitive = profile != null
                         && profile.sendsEnvoysToHuman() && !profile.sendsEnvoysToMajin();
@@ -2023,6 +2028,7 @@ public final class DiplomacyManager {
         long now = level.getGameTime();
         boolean anyPact = false;
         for (BossFaction faction : BossFaction.values()) {
+            if (!faction.isActive()) continue; // skip soft-retired factions
             if (getState(level, uuid, faction) == RelationsState.PACT) { anyPact = true; break; }
         }
         root.putBoolean("canTravel", anyPact
@@ -2033,6 +2039,7 @@ public final class DiplomacyManager {
 
         ListTag factions = new ListTag();
         for (BossFaction faction : BossFaction.values()) {
+            if (!faction.isActive()) continue; // soft-retired factions are hidden from the UI
             CompoundTag f = new CompoundTag();
             f.putString("id", faction.id());
             f.putString("name", faction.displayName());

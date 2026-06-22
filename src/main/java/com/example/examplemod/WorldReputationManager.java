@@ -193,6 +193,9 @@ public final class WorldReputationManager {
                     new BossProfile(BossFaction.LUMINOUS, BossProfile.Importance.KEYSTONE));
             map.put(HumanEntityTypes.GAZEL_DWARGO.get(),
                     new BossProfile(BossFaction.DWARGON, BossProfile.Importance.KEYSTONE));
+            // Shizu — DEPRECATED faction (soft-retired). Kept but INERT: she
+            // generates no settlement, so this entity is never marked, so this
+            // mapping never fires. Harmless to keep for save-compat.
             map.put(HumanEntityTypes.SHIZU.get(),
                     new BossProfile(BossFaction.SHIZU, BossProfile.Importance.KEYSTONE));
             // MAJOR — faction schemes/calamities.
@@ -557,11 +560,14 @@ public final class WorldReputationManager {
         // (the world fears what you ARE). Average (not sum) keeps the
         // scale stable as the cast grows.
         double hostilitySum = 0;
+        int activeFactions = 0;
         for (BossFaction faction : BossFaction.values()) {
+            if (!faction.isActive()) continue; // soft-retired factions don't count
+            activeFactions++;
             double standing = getStanding(level, player.getUUID(), faction);
             hostilitySum += Math.max(0, DEFAULT_STANDING - standing) * 2.0; // 0..100 per faction
         }
-        double hostility = hostilitySum / BossFaction.values().length;
+        double hostility = activeFactions == 0 ? 0 : hostilitySum / activeFactions;
 
         // Raw power — the world fears what you are.
         double power = 0;

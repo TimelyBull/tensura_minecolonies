@@ -11,8 +11,8 @@ behind the same [config](../reference/config.md) switch (`factionSystemEnabled`)
 Physical factions generate settlements in the world. There are two kinds,
 which play the same way:
 
-- **Faction towns** — generated clusters of buildings for the six town
-  factions (Luminous, Falmuth, Shizu, Leon, Otherworlders, the Jura-Tempest Federation), each themed to its faction.
+- **Faction towns** — generated clusters of buildings for the five town
+  factions (Luminous, Falmuth, Leon, Otherworlders, the Jura-Tempest Federation), each themed to its faction.
 - **Dwargon villages** — Dwargon uses existing Tensura dwarven villages
   rather than a generated town; some of them become Dwargon settlements,
   anchored by Gazel.

@@ -1,5 +1,36 @@
 # Investigation: the expanded faction model (Layer 1 — the spine)
 
+> **CONSOLIDATION STEP 3 (2026-06-21) — Shizu DEPRECATED (soft-retire); content → Leon.**
+> Shizu was soft-retired, NOT hard-deleted. The `SHIZU` enum value + `shizu`
+> id are KEPT so existing saves load (her standing/relations stay valid but
+> **inert**); hard removal is deferred to a future version once old saves age
+> out.
+>
+> - **The "is active?" gate:** `BossFaction.DEPRECATED_IDS = {"shizu"}` +
+>   `isActive()` / `isActiveId(String)`. Every active system skips deprecated
+>   factions: diplomacy offers/envoys/mending/alliance-buffs/caravan + the UI
+>   faction list (`DiplomacyManager` `values()` loops), raid ally-support
+>   (`TensuraRaids`), and notoriety (`WorldReputationManager`, excluded from
+>   the average). Settlement gen + garrison + `/rivalcolony spawn` are gated
+>   for free by REMOVING shizu from `ANCHORS`/`PACKS` (the picker reads
+>   `PACKS.keySet()`; `isPhysical`/`isTownFaction` become false). `tickDiscovery`
+>   also skips inactive-faction settlements so an old-save Pagoda can't be
+>   warred on.
+> - **Pagoda retired:** `ANCHORS`/`PACKS`/garrison `case "shizu"` removed. The
+>   `BOSS_PROFILES` SHIZU-entity mapping + her `FactionProfile` + deal/envoy/
+>   conquest entries are KEPT but never reached (inert; valid `byId`). No web
+>   edges (aloof) → `validateWeb()` unaffected.
+> - **No save migration:** shizu keys remain valid; nothing reads them
+>   actively. Standing sits inert until eventual hard removal.
+> - **Leon** (keeps his Caledonia settlement, anchor `IFRIT`): rank-and-file
+>   roster is now `[BONE_GOLEM (PLACEHOLDER), SALAMANDER]` (replacing the old
+>   Arch/Greater/Lesser Daemon roster — golem is a flagged seam, NOT a flame
+>   statement). The boss is the high-EP Ifrit (the EP-driven garrison scaler
+>   makes Leon among the strongest — there is no separate per-faction power
+>   multiplier; ⚠ balance seam). Canon skills granted at spawn
+>   (`assignFactionDefenderSkills`): defenders get Flame-Attack + Heat
+>   Resistance; the Ifrit boss also gets Self-Regeneration.
+
 > **CONSOLIDATION STEP 2 (2026-06-21) — Carrion → Eurazania + heroes → Falmuth.**
 > (A) The `carrion` faction was renamed to **Eurazania** (the Beast Kingdom):
 > id/storage key `carrion` → `eurazania`, display "Carrion" → "Eurazania",

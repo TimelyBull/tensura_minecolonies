@@ -12,8 +12,7 @@ standing, events, and [diplomacy](../features/diplomacy.md)).
 | **Dwargon** | Physical (dwarven villages) | The dwarven kingdom — diplomacy-friendly, sensitive to violence | Yes |
 | **Luminous** | Physical (town) | The Holy Empire — hates monsters | Yes |
 | **Falmuth** | Physical (town) | Militaristic kingdom; Holy-bloc muscle | Yes |
-| **Shizu** | Physical (town) | Kind to all | Yes (small set) |
-| **Leon** | Physical (town) | A demon lord's domain; aloof | Yes (small set) |
+| **Leon** | Physical (town) | A demon lord's domain (a fortress with a fire garrison); aloof | Yes (small set) |
 | **Otherworlders** | Physical (town) | Summoned-from-elsewhere; aloof | Yes (small set) |
 | **Jura-Tempest Federation** | Physical (town) | The forest monster nation — community-minded | Yes |
 | **Eurazania** | Abstract | The Beast Kingdom (Calion's beastfolk); swingable toward alliance | Yes |
@@ -40,7 +39,7 @@ Killing a faction's marked bosses angers its allies and pleases its enemies:
   oppose the Moderate Harlequin Alliance.
 - **The Moderate Harlequin Alliance** opposes nearly everyone — the Holy
   bloc, the forest bloc, Milim, and Eurazania.
-- **Leon, Otherworlders, and Shizu** are aloof — they keep out of the web,
+- **Leon and Otherworlders** are aloof — they keep out of the web,
   and their standing moves less.
 
 Milim and Eurazania are "swingable" — their standing moves more than average,
