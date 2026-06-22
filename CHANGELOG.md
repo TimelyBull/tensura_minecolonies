@@ -52,6 +52,15 @@ Copy the relevant version's section into the CurseForge release notes on each up
   current visit is resolved.
 
 ### Changed
+- **The Otherworlders are now the Eastern Empire.** The Otherworlders faction
+  has been re-themed into the **Eastern Empire** — a major eastern military
+  power. Its town still stands and Mai Furuki still leads it (a stand-in for
+  proper Empire commanders later), but it now fields a heavy **magitech golem
+  army** and ranks among the strongest factions — comparable to the Holy
+  bloc. It's a secular power that keeps no alliances (notably, it is **not**
+  allied with the Holy bloc). Existing worlds carry over automatically: any
+  standing or relations you had with the Otherworlders become your standing
+  with the Eastern Empire, with no lost progress.
 - **Shizu is retired as a faction; Leon takes over her territory.** Shizu no
   longer appears as a faction you can deal with — her Pagoda town no longer
   generates, she sends no events, and she's gone from the diplomacy list. (If

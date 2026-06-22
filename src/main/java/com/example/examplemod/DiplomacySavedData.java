@@ -560,6 +560,8 @@ class DiplomacySavedData extends SavedData {
      *       the Jura-Tempest Federation).</li>
      *   <li>{@code carrion} → {@code eurazania} (the step-2 Beast Kingdom
      *       rename).</li>
+     *   <li>{@code otherworlders} → {@code eastern_empire} (the step-4
+     *       re-theme to the Eastern Empire).</li>
      * </ul>
      * Every per-faction record keyed under the old id folds into the new id.
      *
@@ -579,6 +581,7 @@ class DiplomacySavedData extends SavedData {
     private void migrateRenamedFactionKeys() {
         foldRename("jura_alliance", "tempest");
         foldRename("carrion", "eurazania");
+        foldRename("otherworlders", "eastern_empire");
     }
 
     private void foldRename(String OLD, String NEW) {

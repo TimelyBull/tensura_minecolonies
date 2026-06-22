@@ -58,7 +58,7 @@ grants a **signature Tensura skill** (the same skill you'd get by
   each, leading up to a Covenant. The Jura-Tempest Federation's catalogue is the
   largest — it carries the combined deals of the former Tempest and Jura
   Alliance factions.
-- **Two aloof factions** (Leon, Otherworlders) offer small sets —
+- **Two factions** (Leon, the Eastern Empire) offer small sets —
   enough to reach Alliance, but no Covenant.
 
 Each faction's deals reflect its character — Dwargon asks for ore and forge

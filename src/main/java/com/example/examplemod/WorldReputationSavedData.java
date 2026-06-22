@@ -254,6 +254,8 @@ class WorldReputationSavedData extends SavedData {
      *       the Jura-Tempest Federation).</li>
      *   <li>{@code carrion} → {@code eurazania} (the step-2 Beast Kingdom
      *       rename).</li>
+     *   <li>{@code otherworlders} → {@code eastern_empire} (the step-4
+     *       re-theme to the Eastern Empire).</li>
      * </ul>
      * For each, the old key's standing/offense/diplomacy-closed entry moves
      * to the new key. Combine rules when BOTH keys exist for the same player
@@ -268,6 +270,7 @@ class WorldReputationSavedData extends SavedData {
     private static void migrateRenamedFactionKeys(WorldReputationSavedData data) {
         foldFactionKey(data, "jura_alliance", "tempest");
         foldFactionKey(data, "carrion", "eurazania");
+        foldFactionKey(data, "otherworlders", "eastern_empire");
     }
 
     private static void foldFactionKey(WorldReputationSavedData data, String OLD, String NEW) {

@@ -1,5 +1,36 @@
 # Investigation: the expanded faction model (Layer 1 — the spine)
 
+> **CONSOLIDATION STEP 4 (2026-06-21) — Otherworlders → Eastern Empire (re-theme IN PLACE).**
+> The `otherworlders` slot was RE-THEMED, not deleted/recreated: the enum
+> constant `OTHERWORLDERS → EASTERN_EMPIRE`, id `otherworlders →
+> eastern_empire`, display "Eastern Empire" (Nasca Namrium Ulmeria), colour
+> BLUE. **Mai Furuki is retained as the anchor** — a DELIBERATE PLACEHOLDER
+> (no real Empire-leadership entity exists; swap later, same discipline as
+> Leon's golems). Her `BOSS_PROFILES` importance was raised NOTABLE →
+> **KEYSTONE** (a major power's head). So the importance table below is out of
+> date: Mai is now KEYSTONE→EASTERN_EMPIRE, not NOTABLE→OTHERWORLDERS.
+> - **Combatants = golems (placeholders):** garrison roster `[BONE_GOLEM,
+>   ELEMENTAL_COLOSSUS]` — magitech soldiers + a war-construct heavy, standing
+>   in for the Empire's real magitech/cyborg forces. Skills: Physical Attack
+>   Resistance (armoured); Mai also gets Self-Regeneration + Body Armor.
+> - **HIGH power tier:** new `RivalColonies.factionPowerMultiplier` (1.6 for
+>   the Empire) scales the EP-driven garrison up (count + stat factor)
+>   independent of Mai's modest EP; plus `EMPIRE_BOSS_BUFF` (×3.5) on Mai and
+>   the colossus's native strength. Among the strongest factions. ⚠ All
+>   balance guesses.
+> - **Settlement kept:** the "Space Wars" pack (its futuristic look reads as
+>   Empire magitech).
+> - **Disposition/web:** 50/50 (secular — judges by power, not race; distinct
+>   from the anti-monster Holy bloc), swing **0.5 → 1.0** (a real engaged
+>   power, no longer aloof), threshold **15 → 8**, outbound-only. **No web
+>   edges — independent, explicitly NOT allied with Luminous/Falmuth.** Envoy
+>   EP threshold 8000 → 11000. Deal catalog (`ow_*`) + skill reward carried
+>   over (keys kept, map key renamed); conquest levy re-themed to imperial
+>   soldiers.
+> - **Save migration:** `otherworlders → eastern_empire` added to the load
+>   folds (`WorldReputationSavedData` + `DiplomacySavedData`) — same rules as
+>   Carrion→Eurazania. Clean move (new key never pre-exists).
+
 > **CONSOLIDATION STEP 3 (2026-06-21) — Shizu DEPRECATED (soft-retire); content → Leon.**
 > Shizu was soft-retired, NOT hard-deleted. The `SHIZU` enum value + `shizu`
 > id are KEPT so existing saves load (her standing/relations stay valid but

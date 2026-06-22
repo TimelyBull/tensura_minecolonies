@@ -22,7 +22,7 @@ import java.util.Set;
  *       addon factions can merge one edge at a time).</li>
  *   <li><b>Swing multiplier</b> — scales every mover hitting this
  *       faction ("swingable" Milim/Eurazania 1.5×, "aloof"
- *       Leon/Otherworlders 0.5×).</li>
+ *       Leon 0.5×).</li>
  *   <li><b>Provocation threshold</b> — offense points before the
  *       faction counts as PROVOKED (derived, never stored:
  *       {@code offense >= threshold}). Only violence writes offense,
@@ -104,8 +104,14 @@ public record FactionProfile(
         // The aloof — movers dampened to 0.5×; never send (outbound only).
         put(map, new FactionProfile("leon", 50, 50,
                 Set.of(), Set.of(), 0.5, 15, false, false));
-        put(map, new FactionProfile("otherworlders", 50, 50,
-                Set.of(), Set.of(), 0.5, 15, false, false));
+        // Eastern Empire (re-themed from otherworlders) — a major SECULAR
+        // military power. Judges by power/threat, not race (50/50, distinct
+        // from the anti-monster Holy bloc). A real engaged power, so movers
+        // land at 1.0× (no longer "aloof"); responds to real slights
+        // (threshold 8). Proud / outbound-only (you approach it). NO web
+        // edges — independent, explicitly NOT allied with Luminous/Falmuth.
+        put(map, new FactionProfile("eastern_empire", 50, 50,
+                Set.of(), Set.of(), 1.0, 8, false, false));
         // Shizu — DEPRECATED (soft-retired, step 3). The profile is KEPT so
         // byId("shizu") still resolves for any inert standing read on an old
         // save, but BossFaction.isActive("shizu") == false gates her out of

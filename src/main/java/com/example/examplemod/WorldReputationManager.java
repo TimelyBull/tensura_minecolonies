@@ -223,10 +223,11 @@ public final class WorldReputationManager {
             // (after Shinji + Mark moved to Falmuth).
             map.put(HumanEntityTypes.SHIN_RYUSEI.get(),
                     new BossProfile(BossFaction.TEMPEST, BossProfile.Importance.NOTABLE));
-            // Otherworlders — Mai Furuki only (placeholder boss; the slot
-            // becomes the Eastern Empire in a later step).
+            // Eastern Empire — Mai Furuki is the (PLACEHOLDER) anchor figure,
+            // KEYSTONE for a major military power until real Empire brass
+            // exists as an entity. Re-themed from the old Otherworlders slot.
             map.put(HumanEntityTypes.MAI_FURUKI.get(),
-                    new BossProfile(BossFaction.OTHERWORLDERS, BossProfile.Importance.NOTABLE));
+                    new BossProfile(BossFaction.EASTERN_EMPIRE, BossProfile.Importance.KEYSTONE));
             // MINOR — fodder; kept small (killing mobs is core Minecraft).
             map.put(HumanEntityTypes.FALMUTH_KNIGHT.get(),
                     new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.MINOR));

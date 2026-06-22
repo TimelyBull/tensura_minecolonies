@@ -44,7 +44,12 @@ public enum BossFaction {
     // UI). Scheduled for HARD REMOVAL in a future version once old saves age
     // out. See DEPRECATED_IDS below + docs/faction-model.md.
     SHIZU("shizu", "Shizu", ChatFormatting.DARK_AQUA),
-    OTHERWORLDERS("otherworlders", "Otherworlders", ChatFormatting.LIGHT_PURPLE),
+    // Eastern Empire (Nasca Namrium Ulmeria) — the major eastern military
+    // power. Re-themed IN PLACE from the old "otherworlders" slot (step 4):
+    // the enum constant + id were renamed and the content re-pointed at the
+    // Empire; Mai Furuki stays the (placeholder) anchor boss. Old-save
+    // `otherworlders` standing/relations migrate to `eastern_empire` on load.
+    EASTERN_EMPIRE("eastern_empire", "Eastern Empire", ChatFormatting.BLUE),
     // Eurazania — the Beast Kingdom (Carrion/Calion's nation). Renamed from
     // the old "carrion" id; stays BODILESS (diplomacy/rep only). Old-save
     // `carrion` standing/relations migrate to `eurazania` on load.

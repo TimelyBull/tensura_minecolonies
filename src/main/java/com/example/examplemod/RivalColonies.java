@@ -105,9 +105,12 @@ public final class RivalColonies {
         // Leon — a demon lord's grand keep.
         ANCHORS.put("leon", MonsterEntityTypes.IFRIT);
         PACKS.put("leon", "Caledonia");
-        // Otherworlders — summoned-from-elsewhere, sci-fi.
-        ANCHORS.put("otherworlders", HumanEntityTypes.MAI_FURUKI);
-        PACKS.put("otherworlders", "Space Wars");
+        // Eastern Empire (re-themed from otherworlders) — the major eastern
+        // military power. Anchor MAI_FURUKI is a DELIBERATE PLACEHOLDER (no
+        // real Empire-leadership entity exists yet — swap when one does). The
+        // "Space Wars" pack's futuristic look reads as Empire magitech.
+        ANCHORS.put("eastern_empire", HumanEntityTypes.MAI_FURUKI);
+        PACKS.put("eastern_empire", "Space Wars");
         // Jura-Tempest Federation — the forest nation (merged tempest +
         // jura_alliance; the body is the old Jura settlement).
         ANCHORS.put("tempest", HumanEntityTypes.SHIN_RYUSEI);
@@ -180,10 +183,13 @@ public final class RivalColonies {
             // Leon's fire-resistance/heat skills are granted in spawnDefender.
             case "leon" -> new EntityType[] {
                     HumanEntityTypes.BONE_GOLEM.get(), MonsterEntityTypes.SALAMANDER.get() };
-            // Otherworlders — the four summoned heroes moved to Falmuth; the
-            // anchor Mai Furuki remains but there is no rank-and-file roster
-            // yet (falls to default null → spawnGarrison no-ops gracefully).
-            // The slot becomes the Eastern Empire in a later step.
+            // Eastern Empire — a magitech military power: golem soldiers
+            // (BONE_GOLEM) led by a war-construct heavy (ELEMENTAL_COLOSSUS).
+            // BOTH are explicit PLACEHOLDERS for the Empire's real magitech /
+            // cyborg forces — swap when those entities exist. HIGH power tier:
+            // see factionPowerMultiplier + the Mai boss-buff in spawnGarrison.
+            case "eastern_empire" -> new EntityType[] {
+                    HumanEntityTypes.BONE_GOLEM.get(), MonsterEntityTypes.ELEMENTAL_COLOSSUS.get() };
             // Jura-Tempest Federation — the forest nation: serpents, slimes, kin.
             case "tempest" -> new EntityType[] {
                     MonsterEntityTypes.TEMPEST_SERPENT.get(), MonsterEntityTypes.GOBLIN.get(),
@@ -788,6 +794,24 @@ public final class RivalColonies {
         return Math.min(GARRISON_STAT_FACTOR_MAX, 1.0 + (scale - 1.0) * GARRISON_STAT_PER_SCALE);
     }
 
+    /** Explicit stat-buff factor for a PLACEHOLDER boss whose native EP is
+     *  too modest for its faction's intended power tier (e.g. Mai anchoring
+     *  the Eastern Empire). ⚠ BALANCE GUESS. */
+    static final double EMPIRE_BOSS_BUFF = 3.5;
+
+    /** Per-faction POWER TIER multiplier applied to the EP-driven garrison
+     *  scale (boosts both count and stat factor). Lets a major power field a
+     *  strong garrison independent of its (possibly placeholder) boss's EP.
+     *  ⚠ ALL BALANCE GUESSES — no combat playtest. */
+    private static double factionPowerMultiplier(String factionId) {
+        return switch (factionId) {
+            // Eastern Empire — a major military power, comparable to or
+            // stronger than the Holy bloc: one of the strongest factions.
+            case "eastern_empire" -> 1.6;
+            default -> 1.0;
+        };
+    }
+
     /** Read a boss mob's EP, with a scale-1 fallback. */
     private static double readBossEP(Mob boss) {
         ExistenceStorage exist = ExampleMod.readExistence(boss);
@@ -808,7 +832,11 @@ public final class RivalColonies {
 
         Mob boss = resolveBoss(level, s);
         double bossEP = boss != null ? readBossEP(boss) : GARRISON_FALLBACK_BOSS_EP;
-        double scale = scaleForBoss(bossEP);
+        // Per-faction POWER TIER multiplier on top of the EP-driven scale —
+        // lets a faction be strong regardless of its (possibly placeholder)
+        // boss's native EP. ⚠ BALANCE GUESS.
+        double scale = Math.min(GARRISON_SCALE_MAX,
+                scaleForBoss(bossEP) * factionPowerMultiplier(s.factionId));
         int count = countForScale(scale);
         double statFactor = statFactorForScale(scale);
 
@@ -824,6 +852,16 @@ public final class RivalColonies {
             if ("leon".equals(s.factionId)) {
                 grantDefenderSkill(boss,
                         io.github.manasmods.tensura.registry.skill.CommonSkills.SELF_REGENERATION);
+            }
+            // Eastern Empire — Mai is a PLACEHOLDER boss, so she is explicitly
+            // scaled up to a credible major-power commander (her native EP is
+            // modest). Stat-buff + magitech-armour / sustain skills.
+            if ("eastern_empire".equals(s.factionId)) {
+                buffDefender(boss, EMPIRE_BOSS_BUFF);
+                grantDefenderSkill(boss,
+                        io.github.manasmods.tensura.registry.skill.CommonSkills.SELF_REGENERATION);
+                grantDefenderSkill(boss,
+                        io.github.manasmods.tensura.registry.skill.IntrinsicSkills.BODY_ARMOR);
             }
         }
 
@@ -945,8 +983,9 @@ public final class RivalColonies {
     private static double boneGolemMasteryFraction(String factionId) {
         return switch (factionId) {
             case "milim" -> 1.0;                                          // apex power
-            case "leon", "eurazania", "luminous", "clayman" -> 0.8;       // demon lords / great powers
-            case "dwargon", "otherworlders" -> 0.6;                       // strong realms
+            case "leon", "eurazania", "luminous", "clayman",
+                 "eastern_empire" -> 0.8;                                 // demon lords / great powers
+            case "dwargon" -> 0.6;                                        // strong realms
             default -> 0.4;                                               // falmuth, tempest…
         };
     }
@@ -1424,6 +1463,10 @@ public final class RivalColonies {
                     io.github.manasmods.tensura.registry.skill.ResistanceSkills.FLAME_ATTACK_RESISTANCE);
             grantDefenderSkill(mob,
                     io.github.manasmods.tensura.registry.skill.ResistanceSkills.HEAT_RESISTANCE);
+        } else if ("eastern_empire".equals(factionId)) {
+            // Magitech war-constructs: armored, hard to dent.
+            grantDefenderSkill(mob,
+                    io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
         }
     }
 

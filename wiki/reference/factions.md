@@ -13,7 +13,7 @@ standing, events, and [diplomacy](../features/diplomacy.md)).
 | **Luminous** | Physical (town) | The Holy Empire — hates monsters | Yes |
 | **Falmuth** | Physical (town) | Militaristic kingdom; Holy-bloc muscle | Yes |
 | **Leon** | Physical (town) | A demon lord's domain (a fortress with a fire garrison); aloof | Yes (small set) |
-| **Otherworlders** | Physical (town) | Summoned-from-elsewhere; aloof | Yes (small set) |
+| **Eastern Empire** | Physical (town) | A major secular military power; magitech army | Yes (small set) |
 | **Jura-Tempest Federation** | Physical (town) | The forest monster nation — community-minded | Yes |
 | **Eurazania** | Abstract | The Beast Kingdom (Calion's beastfolk); swingable toward alliance | Yes |
 | **Milim** | Abstract | A destroyer demon lord; swingable | Yes |
@@ -39,8 +39,10 @@ Killing a faction's marked bosses angers its allies and pleases its enemies:
   oppose the Moderate Harlequin Alliance.
 - **The Moderate Harlequin Alliance** opposes nearly everyone — the Holy
   bloc, the forest bloc, Milim, and Eurazania.
-- **Leon and Otherworlders** are aloof — they keep out of the web,
-  and their standing moves less.
+- **Leon** is aloof — he keeps out of the web, and his standing moves less.
+- The **Eastern Empire** is an independent major power: it keeps no
+  alliances (not allied with the Holy bloc), but as an active power its
+  standing moves at the normal rate.
 
 Milim and Eurazania are "swingable" — their standing moves more than average,
 so they're quicker to turn into firm allies or enemies.

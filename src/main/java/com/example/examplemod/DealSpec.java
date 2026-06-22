@@ -167,8 +167,8 @@ public record DealSpec(
     // ------------------------------------------------------------------
     // Stage-2 FACTION-FLAVORED deal tables — each faction offers what it
     // values; gating via minTier (better deals as standing rises).
-    // Clayman / Leon / Otherworlders / Shizu offer NOTHING (hostility-
-    // oriented or aloof — relations can open, but no deals). All
+    // Clayman / Leon / Eastern Empire offer small/no sets (hostility-
+    // oriented or aloof — relations can open, but limited deals). All
     // schematic names verified against ModBuildings constants; all
     // numbers are tuning values (lend skill bars kept LOW so fresh
     // colonies can actually staff them). Days = 24 000 ticks.
@@ -804,8 +804,9 @@ public record DealSpec(
                         List.of(new ItemStack(Items.BOOKSHELF, 8), new ItemStack(Items.LAPIS_LAZULI, 8)),
                         6.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false)));
 
-        // 🌐 OTHERWORLDERS — otherworld goods (aloof; small set).
-        map.put("otherworlders", List.of(
+        // 🌐 EASTERN EMPIRE (re-themed from otherworlders) — exotic magitech
+        // goods (small set; deal ids keep the ow_ prefix).
+        map.put("eastern_empire", List.of(
                 new DealSpec("ow_curios", "Curios from Your World",
                         new SupplyItems(Items.GLASS, 32),
                         List.of(new ItemStack(Items.COPPER_INGOT, 16), new ItemStack(Items.AMETHYST_SHARD, 8)),

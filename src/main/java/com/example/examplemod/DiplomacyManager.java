@@ -122,7 +122,7 @@ public final class DiplomacyManager {
             Map.entry("shizu", 6000.0),          // kind to all
             // Neutral, moderately risky.
             Map.entry("eurazania", 8000.0),      // beastmen, swingable
-            Map.entry("otherworlders", 8000.0),  // aloof, unknown
+            Map.entry("eastern_empire", 11000.0), // major military power — a dangerous court
             // Dangerous — demon lords / schemers.
             Map.entry("leon", 11000.0),          // a demon lord's domain
             Map.entry("milim", 11000.0),         // a destroyer demon lord
