@@ -1,5 +1,34 @@
 # Investigation: the expanded faction model (Layer 1 — the spine)
 
+> **CONSOLIDATION STEP 5 / BATCH 1 (2026-06-21) — roster edits + native-casting
+> verification + Pass-0 resistances + the Slime boss.**
+> - **Native-casting verified from the jar** (`ManasSkill`/`SkillAPI` density +
+>   `getFightTasks`). NATIVE-CASTS: Ifrit, Salamander, **Slime**, Lizardman,
+>   Gazel, Hinata, Mai, Shin Ryusei, Orc Lord, Orc Disaster. NO-NATIVE: Goblin,
+>   Dwarf, Falmuth Knight, Bone Golem (the last already has its own autocaster).
+>   Folgen UNCONFIRMED (very low signal). **Rule:** never grant+autocaster a
+>   skill a mob already casts natively.
+> - **Roster edits:** Dwargon garrison → `[DWARF]` (War Gnome + Beast Gnome
+>   removed). Eastern Empire garrison → `[BONE_GOLEM, SHIN_RYUSEI]` (Elemental
+>   Colossus removed; Shin Ryusei moved here from Jura-Tempest, and re-pointed
+>   NOTABLE→EASTERN_EMPIRE in `BOSS_PROFILES`). Jura-Tempest: Tempest Serpent
+>   removed; anchor changed Shin Ryusei → **SLIME** (`BOSS_PROFILES` SLIME →
+>   TEMPEST KEYSTONE; only the MARKED anchor slime triggers the fan-out);
+>   rank-and-file `[GOBLIN, LIZARDMAN]`.
+> - **Slime boss kit:** heavy `SLIME_BOSS_BUFF ×8` (slime base stats are low)
+>   + a canon kit (Predator / Water Blade / Corrosion / Self-Regeneration).
+>   **NO autocaster** — the Slime casts natively, so the kit feeds its own AI
+>   (per the rule). ⚠ buff is a balance guess.
+> - **Pass-0 resistances** (PASSIVE — work on learn, safe on native casters):
+>   per-faction in `assignFactionDefenderSkills` — Leon fire/heat (already),
+>   Empire physical (already), Jura-Tempest water/wind, Dwargon physical/heat,
+>   Luminous physical/darkness, Falmuth physical. An `isSkillUntouched` guard
+>   skips Hinata + the five Falmuth-summoned heroes (Kirara/Kyoya/Shogo/Mark/
+>   Shinji) entirely.
+> - **Garrison autocaster NOT built this batch:** no NO-NATIVE mob we want
+>   casting lacks a driver (golems already have one; the fodder are melee).
+>   Deferred until a later batch needs it.
+
 > **CONSOLIDATION STEP 4 (2026-06-21) — Otherworlders → Eastern Empire (re-theme IN PLACE).**
 > The `otherworlders` slot was RE-THEMED, not deleted/recreated: the enum
 > constant `OTHERWORLDERS → EASTERN_EMPIRE`, id `otherworlders →

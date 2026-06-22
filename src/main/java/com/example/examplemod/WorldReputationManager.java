@@ -219,15 +219,19 @@ public final class WorldReputationManager {
                     new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.NOTABLE));
             map.put(HumanEntityTypes.MARK_LAUREN.get(),
                     new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.NOTABLE));
-            // Jura-Tempest Federation — Shin Ryusei is its sole NOTABLE anchor
-            // (after Shinji + Mark moved to Falmuth).
-            map.put(HumanEntityTypes.SHIN_RYUSEI.get(),
-                    new BossProfile(BossFaction.TEMPEST, BossProfile.Importance.NOTABLE));
+            // Jura-Tempest Federation — its anchor is now a buffed boss-tier
+            // SLIME (KEYSTONE). Only the MARKED anchor slime triggers the
+            // fan-out; wild/unmarked slimes carry no faction consequence.
+            map.put(MonsterEntityTypes.SLIME.get(),
+                    new BossProfile(BossFaction.TEMPEST, BossProfile.Importance.KEYSTONE));
             // Eastern Empire — Mai Furuki is the (PLACEHOLDER) anchor figure,
             // KEYSTONE for a major military power until real Empire brass
-            // exists as an entity. Re-themed from the old Otherworlders slot.
+            // exists as an entity. Shin Ryusei (moved here from Jura-Tempest)
+            // is a NOTABLE imperial lieutenant.
             map.put(HumanEntityTypes.MAI_FURUKI.get(),
                     new BossProfile(BossFaction.EASTERN_EMPIRE, BossProfile.Importance.KEYSTONE));
+            map.put(HumanEntityTypes.SHIN_RYUSEI.get(),
+                    new BossProfile(BossFaction.EASTERN_EMPIRE, BossProfile.Importance.NOTABLE));
             // MINOR — fodder; kept small (killing mobs is core Minecraft).
             map.put(HumanEntityTypes.FALMUTH_KNIGHT.get(),
                     new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.MINOR));

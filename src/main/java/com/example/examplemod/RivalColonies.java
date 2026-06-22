@@ -112,8 +112,11 @@ public final class RivalColonies {
         ANCHORS.put("eastern_empire", HumanEntityTypes.MAI_FURUKI);
         PACKS.put("eastern_empire", "Space Wars");
         // Jura-Tempest Federation — the forest nation (merged tempest +
-        // jura_alliance; the body is the old Jura settlement).
-        ANCHORS.put("tempest", HumanEntityTypes.SHIN_RYUSEI);
+        // jura_alliance; the body is the old Jura settlement). The anchor
+        // boss is a buffed BOSS-TIER SLIME (Rimuru's kin) — it casts natively
+        // (verified), so it gets a strong kit + heavy buff, NOT an autocaster.
+        // (Shin Ryusei moved to the Eastern Empire roster.)
+        ANCHORS.put("tempest", MonsterEntityTypes.SLIME);
         PACKS.put("tempest", "Jungle Treehouse");
         // Dwargon — DWARVEN_VILLAGE type: anchor exists (Gazel) but NO
         // town pack; SOME existing dwarf villages become its settlements.
@@ -183,21 +186,19 @@ public final class RivalColonies {
             // Leon's fire-resistance/heat skills are granted in spawnDefender.
             case "leon" -> new EntityType[] {
                     HumanEntityTypes.BONE_GOLEM.get(), MonsterEntityTypes.SALAMANDER.get() };
-            // Eastern Empire — a magitech military power: golem soldiers
-            // (BONE_GOLEM) led by a war-construct heavy (ELEMENTAL_COLOSSUS).
-            // BOTH are explicit PLACEHOLDERS for the Empire's real magitech /
-            // cyborg forces — swap when those entities exist. HIGH power tier:
-            // see factionPowerMultiplier + the Mai boss-buff in spawnGarrison.
+            // Eastern Empire — magitech military power: BONE_GOLEM soldiers
+            // (placeholder) led by Shin Ryusei (moved here from Jura-Tempest;
+            // he casts natively). HIGH power tier via factionPowerMultiplier +
+            // the Mai boss-buff in spawnGarrison.
             case "eastern_empire" -> new EntityType[] {
-                    HumanEntityTypes.BONE_GOLEM.get(), MonsterEntityTypes.ELEMENTAL_COLOSSUS.get() };
-            // Jura-Tempest Federation — the forest nation: serpents, slimes, kin.
+                    HumanEntityTypes.BONE_GOLEM.get(), HumanEntityTypes.SHIN_RYUSEI.get() };
+            // Jura-Tempest Federation — the forest nation's kin (the boss is
+            // the buffed anchor SLIME; rank-and-file are goblins + lizardmen).
             case "tempest" -> new EntityType[] {
-                    MonsterEntityTypes.TEMPEST_SERPENT.get(), MonsterEntityTypes.GOBLIN.get(),
-                    MonsterEntityTypes.LIZARDMAN.get(), MonsterEntityTypes.SLIME.get() };
-            // Dwargon — the dwarven kingdom: dwarves + gnomes.
+                    MonsterEntityTypes.GOBLIN.get(), MonsterEntityTypes.LIZARDMAN.get() };
+            // Dwargon — the dwarven kingdom: dwarf rank-and-file under Gazel.
             case "dwargon" -> new EntityType[] {
-                    HumanEntityTypes.DWARF.get(), MonsterEntityTypes.WAR_GNOME.get(),
-                    MonsterEntityTypes.BEAST_GNOME.get() };
+                    HumanEntityTypes.DWARF.get() };
             default -> null;
         };
     }
@@ -799,6 +800,12 @@ public final class RivalColonies {
      *  the Eastern Empire). ⚠ BALANCE GUESS. */
     static final double EMPIRE_BOSS_BUFF = 3.5;
 
+    /** Heavy stat-buff for the Jura-Tempest anchor SLIME — a base-weak mob
+     *  promoted to a faction boss, so it needs a large multiplier to reach
+     *  boss tier. ⚠ BALANCE GUESS (slime base stats are low; tune after a
+     *  siege test). */
+    static final double SLIME_BOSS_BUFF = 8.0;
+
     /** Per-faction POWER TIER multiplier applied to the EP-driven garrison
      *  scale (boosts both count and stat factor). Lets a major power field a
      *  strong garrison independent of its (possibly placeholder) boss's EP.
@@ -862,6 +869,22 @@ public final class RivalColonies {
                         io.github.manasmods.tensura.registry.skill.CommonSkills.SELF_REGENERATION);
                 grantDefenderSkill(boss,
                         io.github.manasmods.tensura.registry.skill.IntrinsicSkills.BODY_ARMOR);
+            }
+            // Jura-Tempest — the anchor SLIME is a base-weak mob promoted to a
+            // boss-tier combatant: a HEAVY stat buff + a canon slime kit
+            // (Predator / Water Blade / Corrosion + self-regen). It casts
+            // NATIVELY (verified), so we grant the kit for its own AI to use
+            // and do NOT attach an autocaster.
+            if ("tempest".equals(s.factionId)) {
+                buffDefender(boss, SLIME_BOSS_BUFF);
+                grantDefenderSkill(boss,
+                        io.github.manasmods.tensura.registry.skill.UniqueSkills.PREDATOR);
+                grantDefenderSkill(boss,
+                        io.github.manasmods.tensura.registry.skill.CommonSkills.WATER_BLADE);
+                grantDefenderSkill(boss,
+                        io.github.manasmods.tensura.registry.skill.CommonSkills.CORROSION);
+                grantDefenderSkill(boss,
+                        io.github.manasmods.tensura.registry.skill.CommonSkills.SELF_REGENERATION);
             }
         }
 
@@ -1457,16 +1480,56 @@ public final class RivalColonies {
      *  fire — Flame Attack Resistance + Heat Resistance. The boss-anchor Ifrit
      *  brings its own native fire offence; these make the garrison fire-proof
      *  and on-theme. */
+    /** Entity types we DELIBERATELY do not touch with granted skills:
+     *  Hinata (sufficient as-is) + the five canon-uncertain Falmuth-summoned
+     *  Otherworlder heroes (handled in a later, reviewed batch). */
+    private static boolean isSkillUntouched(EntityType<?> type) {
+        return type == HumanEntityTypes.HINATA_SAKAGUCHI.get()
+                || type == HumanEntityTypes.KIRARA_MIZUTANI.get()
+                || type == HumanEntityTypes.KYOYA_TACHIBANA.get()
+                || type == HumanEntityTypes.SHOGO_TAGUCHI.get()
+                || type == HumanEntityTypes.MARK_LAUREN.get()
+                || type == HumanEntityTypes.SHINJI_TANIMURA.get();
+    }
+
+    /** Per-faction PASSIVE/RESISTANCE skills (Pass 0). Passives work the
+     *  moment they're learned — no autocaster needed and no conflict with a
+     *  mob's native casting. Thematic on-element resists per faction. The
+     *  untouched set above is skipped entirely. */
     private static void assignFactionDefenderSkills(Mob mob, String factionId) {
-        if ("leon".equals(factionId)) {
-            grantDefenderSkill(mob,
-                    io.github.manasmods.tensura.registry.skill.ResistanceSkills.FLAME_ATTACK_RESISTANCE);
-            grantDefenderSkill(mob,
-                    io.github.manasmods.tensura.registry.skill.ResistanceSkills.HEAT_RESISTANCE);
-        } else if ("eastern_empire".equals(factionId)) {
-            // Magitech war-constructs: armored, hard to dent.
-            grantDefenderSkill(mob,
-                    io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
+        if (isSkillUntouched(mob.getType())) return;
+        switch (factionId) {
+            case "leon" -> { // fire domain
+                grantDefenderSkill(mob,
+                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.FLAME_ATTACK_RESISTANCE);
+                grantDefenderSkill(mob,
+                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.HEAT_RESISTANCE);
+            }
+            case "eastern_empire" -> // magitech war-constructs: armored
+                grantDefenderSkill(mob,
+                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
+            case "tempest" -> { // forest / water / storm kin
+                grantDefenderSkill(mob,
+                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.WATER_ATTACK_RESISTANCE);
+                grantDefenderSkill(mob,
+                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.WIND_ATTACK_RESISTANCE);
+            }
+            case "dwargon" -> { // tough forge-dwarves
+                grantDefenderSkill(mob,
+                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
+                grantDefenderSkill(mob,
+                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.HEAT_RESISTANCE);
+            }
+            case "luminous" -> { // holy crusaders — armoured, resist darkness
+                grantDefenderSkill(mob,
+                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
+                grantDefenderSkill(mob,
+                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.DARKNESS_ATTACK_RESISTANCE);
+            }
+            case "falmuth" -> // armoured human soldiery
+                grantDefenderSkill(mob,
+                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
+            default -> { /* abstract / no roster — nothing */ }
         }
     }
 

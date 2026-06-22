@@ -52,6 +52,14 @@ Copy the relevant version's section into the CurseForge release notes on each up
   current visit is resolved.
 
 ### Changed
+- **Faction garrisons reshuffled, and a new Slime boss leads the Jura-Tempest
+  Federation.** Dwargon's gnome auxiliaries and the Empire's giant construct
+  were dropped; Shin Ryusei now fights for the Eastern Empire. The Jura-Tempest
+  Federation is now led by a powerful **boss-tier Slime** (heavily buffed, with
+  its own combat skills) in place of the storm serpent. Every faction's
+  defenders also gained fitting **damage resistances** (fire for Leon, water
+  and wind for Jura-Tempest, toughness for the dwarves and human kingdoms, and
+  so on), making garrisons more durable and on-theme.
 - **The Otherworlders are now the Eastern Empire.** The Otherworlders faction
   has been re-themed into the **Eastern Empire** — a major eastern military
   power. Its town still stands and Mai Furuki still leads it (a stand-in for
