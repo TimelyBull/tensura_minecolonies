@@ -52,6 +52,10 @@ Copy the relevant version's section into the CurseForge release notes on each up
   current visit is resolved.
 
 ### Changed
+- **Mark Lauren, Shinji Tanimura, and Shin Ryusei now fight for the Eastern
+  Empire.** These three otherworlder fighters are gathered under the Eastern
+  Empire's banner (Mark and Shinji moved over from Falmuth). It's a
+  membership change only — their abilities are unchanged.
 - **Faction garrisons reshuffled, and a new Slime boss leads the Jura-Tempest
   Federation.** Dwargon's gnome auxiliaries and the Empire's giant construct
   were dropped; Shin Ryusei now fights for the Eastern Empire. The Jura-Tempest

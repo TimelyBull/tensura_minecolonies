@@ -1,5 +1,22 @@
 # Investigation: the expanded faction model (Layer 1 — the spine)
 
+> **ROSTER EDIT (2026-06-21) — Mark Lauren + Shinji Tanimura + Shin Ryusei → Eastern Empire.**
+> All three now belong to the **Eastern Empire** (BOSS_PROFILES NOTABLE +
+> the Empire's garrison roster). Mark + Shinji were moved out of **Falmuth**;
+> Shin Ryusei was already there. Membership-only — **no skills granted** to any
+> of the three (their canon skills are uncertain; all three are in
+> `isSkillUntouched`, and all are native casters anyway).
+>
+> **⚠ FUTURE CANON UPDATE (do not lose this):** these three are placed in the
+> Eastern Empire to reflect their EARLIER canon allegiance (the Empire's
+> summoned/affiliated otherworlders). **LATER in Tensura canon, Mark Lauren,
+> Shinji Tanimura and Shin Ryusei move to / join the Jura-Tempest Federation.**
+> A future update may therefore RELOCATE all three from the Eastern Empire to
+> the Jura-Tempest Federation (`tempest`) to reflect their later-canon arc —
+> updating both their `BOSS_PROFILES` faction and their garrison-roster
+> placement. (This same trio were the old Jura anchors before step 2, so the
+> later-canon move is effectively a return.)
+
 > **CONSOLIDATION STEP 5 / BATCH 1 (2026-06-21) — roster edits + native-casting
 > verification + Pass-0 resistances + the Slime boss.**
 > - **Native-casting verified from the jar** (`ManasSkill`/`SkillAPI` density +

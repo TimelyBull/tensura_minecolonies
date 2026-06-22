@@ -206,18 +206,14 @@ public final class WorldReputationManager {
             map.put(MonsterEntityTypes.IFRIT.get(),
                     new BossProfile(BossFaction.LEON, BossProfile.Importance.MAJOR));
             // NOTABLE — named lieutenants.
-            // Falmuth's summoned Otherworlder heroes (Kirara, Kyoya, Shogo,
-            // Shinji, Mark) all fight under Falmuth's banner. Shinji + Mark
-            // were the Jura-Tempest's former Jura anchors before this move.
+            // Falmuth's summoned Otherworlder heroes Kirara / Kyoya / Shogo
+            // fight under Falmuth's banner. (Mark Lauren + Shinji Tanimura were
+            // moved to the Eastern Empire — see below.)
             map.put(HumanEntityTypes.KIRARA_MIZUTANI.get(),
                     new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.NOTABLE));
             map.put(HumanEntityTypes.KYOYA_TACHIBANA.get(),
                     new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.NOTABLE));
             map.put(HumanEntityTypes.SHOGO_TAGUCHI.get(),
-                    new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.NOTABLE));
-            map.put(HumanEntityTypes.SHINJI_TANIMURA.get(),
-                    new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.NOTABLE));
-            map.put(HumanEntityTypes.MARK_LAUREN.get(),
                     new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.NOTABLE));
             // Jura-Tempest Federation — its anchor is now a buffed boss-tier
             // SLIME (KEYSTONE). Only the MARKED anchor slime triggers the
@@ -225,12 +221,18 @@ public final class WorldReputationManager {
             map.put(MonsterEntityTypes.SLIME.get(),
                     new BossProfile(BossFaction.TEMPEST, BossProfile.Importance.KEYSTONE));
             // Eastern Empire — Mai Furuki is the (PLACEHOLDER) anchor figure,
-            // KEYSTONE for a major military power until real Empire brass
-            // exists as an entity. Shin Ryusei (moved here from Jura-Tempest)
-            // is a NOTABLE imperial lieutenant.
+            // KEYSTONE for a major military power. Shin Ryusei, Mark Lauren and
+            // Shinji Tanimura are its NOTABLE imperial lieutenants.
+            // ⚠ FUTURE CANON UPDATE: in later Tensura canon these three defect
+            // to the Jura-Tempest Federation — a future update may relocate
+            // them there (see docs/faction-model.md).
             map.put(HumanEntityTypes.MAI_FURUKI.get(),
                     new BossProfile(BossFaction.EASTERN_EMPIRE, BossProfile.Importance.KEYSTONE));
             map.put(HumanEntityTypes.SHIN_RYUSEI.get(),
+                    new BossProfile(BossFaction.EASTERN_EMPIRE, BossProfile.Importance.NOTABLE));
+            map.put(HumanEntityTypes.MARK_LAUREN.get(),
+                    new BossProfile(BossFaction.EASTERN_EMPIRE, BossProfile.Importance.NOTABLE));
+            map.put(HumanEntityTypes.SHINJI_TANIMURA.get(),
                     new BossProfile(BossFaction.EASTERN_EMPIRE, BossProfile.Importance.NOTABLE));
             // MINOR — fodder; kept small (killing mobs is core Minecraft).
             map.put(HumanEntityTypes.FALMUTH_KNIGHT.get(),

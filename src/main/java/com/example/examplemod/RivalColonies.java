@@ -170,13 +170,12 @@ public final class RivalColonies {
             case "luminous" -> new EntityType[] {
                     HumanEntityTypes.FALMUTH_KNIGHT.get(), HumanEntityTypes.KYOYA_TACHIBANA.get(),
                     HumanEntityTypes.BONE_GOLEM.get() };
-            // Falmuth — militaristic kingdom: Folgen's knights + the five
-            // summoned Otherworlder heroes (Kirara/Kyoya/Shogo/Shinji/Mark
-            // all fight under Falmuth's banner).
+            // Falmuth — militaristic kingdom: Folgen's knights + the summoned
+            // Otherworlder heroes Kirara / Kyoya / Shogo. (Mark Lauren +
+            // Shinji Tanimura moved to the Eastern Empire roster.)
             case "falmuth" -> new EntityType[] {
                     HumanEntityTypes.FALMUTH_KNIGHT.get(), HumanEntityTypes.KIRARA_MIZUTANI.get(),
-                    HumanEntityTypes.KYOYA_TACHIBANA.get(), HumanEntityTypes.SHOGO_TAGUCHI.get(),
-                    HumanEntityTypes.MARK_LAUREN.get(), HumanEntityTypes.SHINJI_TANIMURA.get() };
+                    HumanEntityTypes.KYOYA_TACHIBANA.get(), HumanEntityTypes.SHOGO_TAGUCHI.get() };
             // Shizu — DEPRECATED (soft-retired): no garrison roster.
             // Leon — a demon lord's keep. The anchor boss is a (scaled-up,
             // high-EP) Ifrit; the rank-and-file are a BONE_GOLEM and a
@@ -187,11 +186,14 @@ public final class RivalColonies {
             case "leon" -> new EntityType[] {
                     HumanEntityTypes.BONE_GOLEM.get(), MonsterEntityTypes.SALAMANDER.get() };
             // Eastern Empire — magitech military power: BONE_GOLEM soldiers
-            // (placeholder) led by Shin Ryusei (moved here from Jura-Tempest;
-            // he casts natively). HIGH power tier via factionPowerMultiplier +
-            // the Mai boss-buff in spawnGarrison.
+            // (placeholder) led by the imperial lieutenants Shin Ryusei, Mark
+            // Lauren and Shinji Tanimura (all native casters; NO granted skills
+            // — see isSkillUntouched). HIGH power tier via factionPowerMultiplier
+            // + the Mai boss-buff in spawnGarrison. ⚠ FUTURE CANON: these three
+            // later defect to the Jura-Tempest Federation (see faction-model.md).
             case "eastern_empire" -> new EntityType[] {
-                    HumanEntityTypes.BONE_GOLEM.get(), HumanEntityTypes.SHIN_RYUSEI.get() };
+                    HumanEntityTypes.BONE_GOLEM.get(), HumanEntityTypes.SHIN_RYUSEI.get(),
+                    HumanEntityTypes.MARK_LAUREN.get(), HumanEntityTypes.SHINJI_TANIMURA.get() };
             // Jura-Tempest Federation — the forest nation's kin (the boss is
             // the buffed anchor SLIME; rank-and-file are goblins + lizardmen).
             case "tempest" -> new EntityType[] {
@@ -1481,15 +1483,19 @@ public final class RivalColonies {
      *  brings its own native fire offence; these make the garrison fire-proof
      *  and on-theme. */
     /** Entity types we DELIBERATELY do not touch with granted skills:
-     *  Hinata (sufficient as-is) + the five canon-uncertain Falmuth-summoned
-     *  Otherworlder heroes (handled in a later, reviewed batch). */
+     *  Hinata (sufficient as-is) + the canon-uncertain summoned Otherworlder
+     *  heroes — Kirara/Kyoya/Shogo (Falmuth) and Shin Ryusei/Mark Lauren/
+     *  Shinji Tanimura (Eastern Empire). Their specific canon skills are
+     *  uncertain, so they're left as-is (membership-only); handled in a later
+     *  reviewed batch. All are native casters. */
     private static boolean isSkillUntouched(EntityType<?> type) {
         return type == HumanEntityTypes.HINATA_SAKAGUCHI.get()
                 || type == HumanEntityTypes.KIRARA_MIZUTANI.get()
                 || type == HumanEntityTypes.KYOYA_TACHIBANA.get()
                 || type == HumanEntityTypes.SHOGO_TAGUCHI.get()
                 || type == HumanEntityTypes.MARK_LAUREN.get()
-                || type == HumanEntityTypes.SHINJI_TANIMURA.get();
+                || type == HumanEntityTypes.SHINJI_TANIMURA.get()
+                || type == HumanEntityTypes.SHIN_RYUSEI.get();
     }
 
     /** Per-faction PASSIVE/RESISTANCE skills (Pass 0). Passives work the
