@@ -90,7 +90,7 @@ public record FactionProfile(
         // Diplomacy-open: they send to anyone.
         put(map, new FactionProfile("dwargon", 50, 50,
                 Set.of("tempest"), Set.of(), 1.0, 10, true, true));
-        // Tempest Jura Alliance — the merged forest power (former tempest
+        // Jura-Tempest Federation — the merged forest power (former tempest
         // + jura_alliance). Monster nation with a slight majin warmth.
         put(map, new FactionProfile("tempest", 50, 55,
                 Set.of("dwargon"), Set.of("clayman"), 1.0, 10, true, true));

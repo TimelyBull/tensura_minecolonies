@@ -28,7 +28,7 @@ computed live from whether you're currently on the **human side** or the
 - Most factions start Neutral toward both.
 - The **Holy bloc** (Luminous and Falmuth) starts Wary toward humans and
   **Hostile** toward majin — they hate monsters.
-- The monster nation (the Tempest Jura Alliance) is slightly warmer to majin.
+- The monster nation (the Jura-Tempest Federation) is slightly warmer to majin.
 
 Because the base is live, **changing your race changes the world's posture
 immediately** — walk the demon-lord path and the Holy bloc turns colder
@@ -73,7 +73,7 @@ Factions come in two kinds:
 
 - **Physical** factions have a real presence you can find and attack — they
   generate [rival settlements](rival-colonies.md) (Luminous, Falmuth, Shizu,
-  Leon, Otherworlders, the Tempest Jura Alliance, and Dwargon).
+  Leon, Otherworlders, the Jura-Tempest Federation, and Dwargon).
 - **Abstract** factions (Carrion, Milim, the Moderate Harlequin Alliance) have no settlement
   to assault; you interact with them only through standing, events, and
   [diplomacy](diplomacy.md).

@@ -1,12 +1,11 @@
 # Investigation: the rival-colony arc — the two pivotal unknowns
 
 > **FACTION MERGE (2026-06-21):** `tempest` and `jura_alliance` are now ONE
-> faction, **"Tempest Jura Alliance"** (id `tempest`). Where the stage
+> faction, **"Jura-Tempest Federation"** (id `tempest`). Where the stage
 > tables below list **Jura Alliance** as the physical forest faction (anchor
 > Shin Ryusei, "Jungle Treehouse" pack, Tempest Serpent / Goblin / Lizardman
 > / Slime garrison, 18 "sages" conquest levy) and **Tempest** as an abstract
-> non-settling faction, that body now belongs to the merged **Tempest Jura
-> Alliance** under the id `tempest`. The abstract list is now just Carrion,
+> non-settling faction, that body now belongs to the merged **Jura-Tempest Federation** under the id `tempest`. The abstract list is now just Carrion,
 > Milim, Clayman. Old-save Jura settlements migrate to `tempest` on load. See
 > `docs/faction-model.md` for the full merge record.
 

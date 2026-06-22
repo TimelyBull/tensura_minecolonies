@@ -1,7 +1,7 @@
 # Investigation: World reputation — per-boss standings + derived notoriety
 
 > **FACTION MERGE (2026-06-21):** `tempest` and `jura_alliance` are now ONE
-> faction, **"Tempest Jura Alliance"** (id `tempest`). The cast is now **TEN
+> faction, **"Jura-Tempest Federation"** (id `tempest`). The cast is now **TEN
 > factions** (was eleven). The Shin Ryusei / Shinji / Mark Lauren anchors
 > below now point at TEMPEST, so TEMPEST is **anchored** (no longer
 > unanchored); only CARRION and MILIM remain unanchored. Old-save

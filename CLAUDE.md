@@ -682,10 +682,9 @@ profession (latest):**
   (`StructurePacks.getBlueprintFuture` → `CreativeBuildingStructureHandler
   .loadAndPlaceStructureWithRotation`). Physical factions + packs:
   6 TOWN factions + packs: Luminous=Ancient Athens, Falmuth=Fortress,
-  Shizu=Pagoda, Leon=Caledonia, Otherworlders=Space Wars, Tempest Jura
-  Alliance (id `tempest`)=Jungle Treehouse. Abstract (no settlement):
+  Shizu=Pagoda, Leon=Caledonia, Otherworlders=Space Wars, Jura-Tempest Federation (id `tempest`)=Jungle Treehouse. Abstract (no settlement):
   Carrion, Milim, Clayman. (2026-06-21 MERGE: the former `jura_alliance`
-  was folded into `tempest` → "Tempest Jura Alliance"; tempest is now the
+  was folded into `tempest` → "Jura-Tempest Federation"; tempest is now the
   physical forest faction. See docs/faction-model.md.) (2026-06-21 RENAME:
   the `clayman` faction's DISPLAY NAME is "Moderate Harlequin Alliance";
   the id `clayman`, enum `CLAYMAN`, and the Demon Lord character "Clayman"
@@ -734,7 +733,7 @@ profession (latest):**
   garrison): Luminous=Falmuth Knight/Clone/Bone Golem, Falmuth=knights
   (Kirara/Kyoya/Shogo), Shizu=Ifrit Clone/Salamander/Hell Caterpillar/
   Hell Moth, Leon=+Arch/Greater/Lesser Daemon, Otherworlders=Clone/Mark
-  Lauren/Shinji/Kirara, Tempest Jura Alliance=Tempest Serpent/Goblin/
+  Lauren/Shinji/Kirara, Jura-Tempest Federation=Tempest Serpent/Goblin/
   Lizardman/Slime, Dwargon=Dwarf/War Gnome/Beast Gnome.
 - Scale to the BOSS not the player: `readExistence(boss).getEP()` →
   scale = clamp((EP/BASELINE)^0.5, 1..6); count = clamp(round(6×scale),
@@ -810,7 +809,7 @@ profession (latest):**
   Per-faction CitizenProfile (count 10–20 + themed skill pair): Dwargon=15
   Strength/Stamina, Falmuth=16 Stamina/Strength, Luminous=12 Mana/
   Knowledge, Shizu=10 Mana/Focus, Leon=12 Strength/Mana, Otherworlders=13
-  Adaptability/Creativity, Tempest Jura Alliance=18 Knowledge/Intelligence
+  Adaptability/Creativity, Jura-Tempest Federation=18 Knowledge/Intelligence
   (id `tempest`). TRACKED RISK
   (housing overflow) handled: adds min(count, maxCitizens−current),
   reports unhoused remainder, never crashes/drops. No-colony edge: skip
@@ -872,7 +871,7 @@ profession (latest):**
   method isn't stored; naming is the only intake today).
 - COVENANT tier (NONE→OPEN→PACT→COVENANT): damped post-PACT gain,
   threshold 95, per-faction milestone deal forges it. Rewards: Dwargon/
-  Carrion grinders, Tempest Jura Alliance training (Warrior/physical only
+  Carrion grinders, Jura-Tempest Federation training (Warrior/physical only
   post-merge; the old Jura Sage/mental training deal was dropped), Milim Drago Nova
   (Sage warning + non-DL/hero death), Falmuth 2× ally support, Luminous
   3 spirits (if none), Clayman intel + summon. Reroll button (4 high
@@ -922,7 +921,7 @@ profession (latest):**
   (citizens never lost); reload-safe by construction; collapse
   mid-lend returns them untrained first.
 - Faction-flavored deal tables (`DealSpec.FACTION_DEALS`): Dwargon
-  craft/industry, Tempest Jura Alliance community/learning, Holy bloc HARD
+  craft/industry, Jura-Tempest Federation community/learning, Holy bloc HARD
   (library L5 / 32 diamonds / barracks), Milim/Carrion offerings;
   Clayman + aloof factions offer nothing. Offers draw from the
   faction's table (tier-gated; lends only offered when staffable).

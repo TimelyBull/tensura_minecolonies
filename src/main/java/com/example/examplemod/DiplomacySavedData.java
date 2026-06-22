@@ -555,7 +555,7 @@ class DiplomacySavedData extends SavedData {
     /**
      * Faction merge migration: fold every per-faction record keyed under
      * the old {@code jura_alliance} id into the surviving {@code tempest}
-     * id (the Tempest Jura Alliance). Keeps old saves from orphaning
+     * id (the Jura-Tempest Federation). Keeps old saves from orphaning
      * diplomacy state.
      *
      * <p>Combine rules when both keys exist for a player:

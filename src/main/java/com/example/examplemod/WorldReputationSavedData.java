@@ -249,7 +249,7 @@ class WorldReputationSavedData extends SavedData {
 
     /**
      * Faction merge migration: the old {@code jura_alliance} faction was
-     * folded into {@code tempest} (the Tempest Jura Alliance). Move any
+     * folded into {@code tempest} (the Jura-Tempest Federation). Move any
      * stored standing/offense/diplomacy-closed entry from the old key into
      * the surviving one so old saves don't orphan data.
      *

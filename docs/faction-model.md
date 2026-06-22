@@ -13,13 +13,12 @@
 > Alliance (canon: Clayman is a member of the Moderate Clown Troupe /
 > Harlequin Alliance, into which "the Clowns" were folded for v1).
 
-**FACTION MERGE (2026-06-21) — Tempest + Jura Alliance → "Tempest Jura
-Alliance".** The first of the faction-consolidation passes (see the
+**FACTION MERGE (2026-06-21) — Tempest + Jura Alliance → "Jura-Tempest Federation".** The first of the faction-consolidation passes (see the
 audit in this session). The two were the same canon power — the Jura
 Forest Grand Alliance became the Jura Tempest Federation — so they are
 now ONE faction. As-built:
 - **Surviving id:** `tempest` (storage/command key unchanged). **Display
-  name:** "Tempest Jura Alliance". The `JURA_ALLIANCE` enum constant and
+  name:** "Jura-Tempest Federation". The `JURA_ALLIANCE` enum constant and
   the `jura_alliance` id are GONE.
 - **Body (from Jura):** `tempest` flips abstract → PHYSICAL — it takes
   Jura's anchor (Shin Ryusei), pack ("Jungle Treehouse") and garrison

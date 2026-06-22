@@ -59,7 +59,7 @@ Copy the relevant version's section into the CurseForge release notes on each up
   This is only a label change: your standing, relations, and the Orc Disaster
   event with the faction are untouched, so existing worlds carry over with no
   loss of progress.
-- **Tempest and the Jura Alliance are now one faction: "Tempest Jura Alliance."**
+- **Tempest and the Jura Alliance are now one faction: "Jura-Tempest Federation."**
   They were always the same power (the forest alliance that grew into the
   Tempest Federation), so they've been combined into a single faction. It keeps
   Tempest's full set of deals and its Covenant, plus the Jura Alliance's town

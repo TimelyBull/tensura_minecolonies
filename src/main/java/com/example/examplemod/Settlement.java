@@ -170,7 +170,7 @@ public class Settlement {
         }
         s.factionId = tag.getString("faction");
         // Faction merge migration: the old "jura_alliance" faction was
-        // folded into "tempest" (Tempest Jura Alliance). Any settlement
+        // folded into "tempest" (Jura-Tempest Federation). Any settlement
         // saved under the old id resolves through the moved anchor/pack/
         // garrison once renamed.
         if ("jura_alliance".equals(s.factionId)) {

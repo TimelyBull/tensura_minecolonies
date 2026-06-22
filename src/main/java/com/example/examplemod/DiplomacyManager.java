@@ -116,7 +116,7 @@ public final class DiplomacyManager {
      *  exact numbers depend on Tensura's EP economy. */
     private static final Map<String, Double> ENVOY_EP_THRESHOLD = Map.ofEntries(
             // Friendly / high-base-standing — the 5,000 floor (early-game).
-            Map.entry("tempest", 5000.0),        // friendly monster nation (Tempest Jura Alliance)
+            Map.entry("tempest", 5000.0),        // friendly monster nation (Jura-Tempest Federation)
             // Neutral, safe to approach.
             Map.entry("dwargon", 6000.0),        // diplomacy-open, violence-sensitive
             Map.entry("shizu", 6000.0),          // kind to all

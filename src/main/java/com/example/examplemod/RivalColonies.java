@@ -108,7 +108,7 @@ public final class RivalColonies {
         // Otherworlders — summoned-from-elsewhere, sci-fi.
         ANCHORS.put("otherworlders", HumanEntityTypes.MAI_FURUKI);
         PACKS.put("otherworlders", "Space Wars");
-        // Tempest Jura Alliance — the forest nation (merged tempest +
+        // Jura-Tempest Federation — the forest nation (merged tempest +
         // jura_alliance; the body is the old Jura settlement).
         ANCHORS.put("tempest", HumanEntityTypes.SHIN_RYUSEI);
         PACKS.put("tempest", "Jungle Treehouse");
@@ -182,7 +182,7 @@ public final class RivalColonies {
             case "otherworlders" -> new EntityType[] {
                     HumanEntityTypes.SHOGO_TAGUCHI.get(), HumanEntityTypes.MARK_LAUREN.get(),
                     HumanEntityTypes.SHINJI_TANIMURA.get(), HumanEntityTypes.KIRARA_MIZUTANI.get() };
-            // Tempest Jura Alliance — the forest nation: serpents, slimes, kin.
+            // Jura-Tempest Federation — the forest nation: serpents, slimes, kin.
             case "tempest" -> new EntityType[] {
                     MonsterEntityTypes.TEMPEST_SERPENT.get(), MonsterEntityTypes.GOBLIN.get(),
                     MonsterEntityTypes.LIZARDMAN.get(), MonsterEntityTypes.SLIME.get() };

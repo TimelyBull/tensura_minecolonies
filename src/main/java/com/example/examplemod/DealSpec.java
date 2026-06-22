@@ -198,7 +198,7 @@ public record DealSpec(
      *  is the separate content pass). */
     public static final Map<String, DealSpec> COVENANT_DEALS = buildCovenantDeals();
 
-    /** faction id → Covenant-only TRAINING deal. Tempest Jura Alliance
+    /** faction id → Covenant-only TRAINING deal. Jura-Tempest Federation
      *  fields the physical "Warrior Training"; the old Jura "Sage
      *  Training" was dropped in the merge (one training deal per faction). */
     public static final Map<String, DealSpec> COVENANT_TRAINING_DEALS = buildTrainingDeals();
@@ -221,7 +221,7 @@ public record DealSpec(
                 List.of(new ItemStack(Items.EMERALD, 48)),
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         // (Jura's old cov_jura "The Grand Academy" dropped — the merged
-        // Tempest Jura Alliance keeps Tempest's cov_tempest as its one
+        // Jura-Tempest Federation keeps Tempest's cov_tempest as its one
         // Covenant deal.)
         map.put("milim", new DealSpec("cov_milim", "Apito's Jelly",
                 new SupplyItems(ExampleMod.APITOS_JELLY.get(), 1),
@@ -252,7 +252,7 @@ public record DealSpec(
 
     private static Map<String, DealSpec> buildTrainingDeals() {
         Map<String, DealSpec> map = new LinkedHashMap<>();
-        // Tempest Jura Alliance — PHYSICAL/community: Strength + Stamina +
+        // Jura-Tempest Federation — PHYSICAL/community: Strength + Stamina +
         // Adaptability. (Jura's old cov_train_jura "Sage Training" dropped —
         // one training deal per faction; Tempest's Warrior Training is kept
         // per the merge spec.)

@@ -122,10 +122,9 @@ either.
 
 Only factions whose standing can actually DROP can trigger raids:
 the entity-anchored ones (Clayman, Leon, Luminous, Dwargon, Falmuth,
-Otherworlders, Shizu, and the Tempest Jura Alliance — standing moves via
+Otherworlders, Shizu, and the Jura-Tempest Federation — standing moves via
 the boss-attack/kill movers; since the 2026-06-21 merge, the former Jura
-anchors Shin Ryusei / Shinji / Mark Lauren point at the Tempest Jura
-Alliance, so it too is anchored). The unanchored two (Carrion, Milim)
+anchors Shin Ryusei / Shinji / Mark Lauren point at the Jura-Tempest Federation, so it too is anchored). The unanchored two (Carrion, Milim)
 sit at 50 forever in v1 → `isBelow(..., NEUTRAL)` is never
 true → structurally cannot raid until the rival-colony arc gives them
 movers. **The slot-in path for later is exactly two steps:** their

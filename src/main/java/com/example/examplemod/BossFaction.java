@@ -20,7 +20,7 @@ import net.minecraft.ChatFormatting;
  * boss — their standings move only via the two-sided RIPPLE legs (e.g. a
  * marked Clayman boss kill raises them).
  *
- * <p><b>Tempest Jura Alliance:</b> the former {@code tempest} and
+ * <p><b>Jura-Tempest Federation:</b> the former {@code tempest} and
  * {@code jura_alliance} factions were MERGED (they are the same canon
  * power — the Jura Forest Grand Alliance became the Jura Tempest
  * Federation). The surviving id is {@code tempest}; it carries the
@@ -31,7 +31,7 @@ import net.minecraft.ChatFormatting;
  */
 public enum BossFaction {
 
-    TEMPEST("tempest", "Tempest Jura Alliance", ChatFormatting.AQUA),
+    TEMPEST("tempest", "Jura-Tempest Federation", ChatFormatting.AQUA),
     DWARGON("dwargon", "Dwargon", ChatFormatting.GOLD),
     LUMINOUS("luminous", "Luminous", ChatFormatting.WHITE),
     FALMUTH("falmuth", "Falmuth", ChatFormatting.RED),

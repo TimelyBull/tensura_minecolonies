@@ -209,7 +209,7 @@ public final class WorldReputationManager {
                     new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.NOTABLE));
             map.put(HumanEntityTypes.SHOGO_TAGUCHI.get(),
                     new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.NOTABLE));
-            // Merged Tempest Jura Alliance — the former Jura anchors.
+            // Merged Jura-Tempest Federation — the former Jura anchors.
             map.put(HumanEntityTypes.SHIN_RYUSEI.get(),
                     new BossProfile(BossFaction.TEMPEST, BossProfile.Importance.NOTABLE));
             map.put(HumanEntityTypes.SHINJI_TANIMURA.get(),
