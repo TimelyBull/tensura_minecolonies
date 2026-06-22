@@ -56,8 +56,8 @@ When you kill a marked boss, the effect fans out by the boss's importance:
 - that faction's **enemies rise** a little.
 
 So killing a Holy-bloc champion angers Luminous and Falmuth but pleases
-Clayman, and vice versa. Attacking (not killing) a marked boss applies a
-small drop to its own faction only.
+the Moderate Harlequin Alliance, and vice versa. Attacking (not killing) a
+marked boss applies a small drop to its own faction only.
 
 ## Notoriety
 
@@ -74,7 +74,7 @@ Factions come in two kinds:
 - **Physical** factions have a real presence you can find and attack — they
   generate [rival settlements](rival-colonies.md) (Luminous, Falmuth, Shizu,
   Leon, Otherworlders, the Tempest Jura Alliance, and Dwargon).
-- **Abstract** factions (Carrion, Milim, Clayman) have no settlement
+- **Abstract** factions (Carrion, Milim, the Moderate Harlequin Alliance) have no settlement
   to assault; you interact with them only through standing, events, and
   [diplomacy](diplomacy.md).
 

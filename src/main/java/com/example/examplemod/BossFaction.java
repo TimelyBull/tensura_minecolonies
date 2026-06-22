@@ -35,7 +35,7 @@ public enum BossFaction {
     DWARGON("dwargon", "Dwargon", ChatFormatting.GOLD),
     LUMINOUS("luminous", "Luminous", ChatFormatting.WHITE),
     FALMUTH("falmuth", "Falmuth", ChatFormatting.RED),
-    CLAYMAN("clayman", "Clayman", ChatFormatting.DARK_PURPLE),
+    CLAYMAN("clayman", "Moderate Harlequin Alliance", ChatFormatting.DARK_PURPLE),
     LEON("leon", "Leon", ChatFormatting.YELLOW),
     SHIZU("shizu", "Shizu", ChatFormatting.DARK_AQUA),
     OTHERWORLDERS("otherworlders", "Otherworlders", ChatFormatting.LIGHT_PURPLE),

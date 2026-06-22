@@ -38,9 +38,10 @@ strength, in three levels:
 
 Beyond ordinary raids, an angered [faction](world-reputation.md) can send a
 scripted **lore event**. The one currently in the game is the **Orc
-Disaster**: if you provoke **Clayman** (by killing his marked bosses) and
-your standing with him is low, he can march a horde led by **Geld, the Orc
-Disaster** on a colony. Killing the lead boss breaks the horde. (More lore
+Disaster**: if you provoke the **Moderate Harlequin Alliance** (by killing its
+marked bosses) and your standing with it is low, Clayman can march a horde led
+by **Geld, the Orc Disaster** on a colony. Killing the lead boss breaks the
+horde. (More lore
 events are planned — see the [Roadmap](../roadmap.md).)
 
 ## The barrier

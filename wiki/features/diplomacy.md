@@ -118,8 +118,8 @@ Relations progress through three tiers, each unlocking more.
       real-world hour).
     - **Luminous** — starter elemental spirits (only if you have none).
     - **Falmuth** — stronger faction reinforcements during raids.
-    - **Clayman** — advance notice of incoming raids, and a tame Orc Disaster
-      to kill without penalty.
+    - **Moderate Harlequin Alliance** — advance notice of incoming raids, and
+      a tame Orc Disaster to kill without penalty.
 
     Covenant also reduces supply-deal costs and increases raid reinforcements.
 

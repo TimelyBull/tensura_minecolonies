@@ -52,6 +52,13 @@ Copy the relevant version's section into the CurseForge release notes on each up
   current visit is resolved.
 
 ### Changed
+- **The schemer faction is now called the "Moderate Harlequin Alliance."**
+  Clayman's faction — the schemers behind the Orc Disaster — now shows that
+  name everywhere a faction label appears (diplomacy, reputation, messages).
+  Clayman himself, the Demon Lord who marches the Orc Disaster, keeps his name.
+  This is only a label change: your standing, relations, and the Orc Disaster
+  event with the faction are untouched, so existing worlds carry over with no
+  loss of progress.
 - **Tempest and the Jura Alliance are now one faction: "Tempest Jura Alliance."**
   They were always the same power (the forest alliance that grew into the
   Tempest Federation), so they've been combined into a single faction. It keeps

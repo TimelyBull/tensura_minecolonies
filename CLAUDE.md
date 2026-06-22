@@ -686,7 +686,11 @@ profession (latest):**
   Alliance (id `tempest`)=Jungle Treehouse. Abstract (no settlement):
   Carrion, Milim, Clayman. (2026-06-21 MERGE: the former `jura_alliance`
   was folded into `tempest` → "Tempest Jura Alliance"; tempest is now the
-  physical forest faction. See docs/faction-model.md.)
+  physical forest faction. See docs/faction-model.md.) (2026-06-21 RENAME:
+  the `clayman` faction's DISPLAY NAME is "Moderate Harlequin Alliance";
+  the id `clayman`, enum `CLAYMAN`, and the Demon Lord character "Clayman"
+  are unchanged — "Clayman" in these notes is internal shorthand / the
+  character, not the faction's display label.)
   Wild/colony split via `SettlementMode` config (ALL/SOME/NONE, default
   SOME) — colony = settlement + FactionMarkTag boss; wild = unmarked
   boss alone. Our-own scheduler generation pass (not vanilla world-gen),

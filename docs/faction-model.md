@@ -1,5 +1,18 @@
 # Investigation: the expanded faction model (Layer 1 — the spine)
 
+> **DISPLAY-NAME RENAME (2026-06-21) — `clayman` faction → "Moderate
+> Harlequin Alliance".** Only the faction's human-readable DISPLAY NAME
+> changed (the enum's display-name field in `BossFaction`). The id /
+> storage key `clayman`, the enum constant `CLAYMAN`, the relationship-web
+> edges, the offense ledger, diplomacy state, and the wired Orc Disaster
+> lore event are ALL UNCHANGED — zero save migration. Wherever the tables
+> below use the **code symbol** `CLAYMAN` or the **id** `clayman`, they
+> remain accurate (those did not change). The Demon Lord **character**
+> "Clayman" (who personally schemes and marches the Orc Disaster) keeps his
+> name — only the faction/organization is now the Moderate Harlequin
+> Alliance (canon: Clayman is a member of the Moderate Clown Troupe /
+> Harlequin Alliance, into which "the Clowns" were folded for v1).
+
 **FACTION MERGE (2026-06-21) — Tempest + Jura Alliance → "Tempest Jura
 Alliance".** The first of the faction-consolidation passes (see the
 audit in this session). The two were the same canon power — the Jura

@@ -18,7 +18,7 @@ standing, events, and [diplomacy](../features/diplomacy.md)).
 | **Tempest Jura Alliance** | Physical (town) | The forest monster nation — community-minded | Yes |
 | **Carrion** | Abstract | Beastmen; swingable toward alliance | Yes |
 | **Milim** | Abstract | A destroyer demon lord; swingable | Yes |
-| **Clayman** | Abstract | A schemer who opposes the rising forest powers | Yes (via outbound envoy) |
+| **Moderate Harlequin Alliance** | Abstract | Clayman's schemers — they oppose the rising forest powers | Yes (via outbound envoy) |
 
 ## Dispositions
 
@@ -34,11 +34,12 @@ Most factions start Neutral toward both. The exceptions:
 
 Killing a faction's marked bosses angers its allies and pleases its enemies:
 
-- **Holy bloc:** Luminous ↔ Falmuth are allied; both oppose Clayman.
+- **Holy bloc:** Luminous ↔ Falmuth are allied; both oppose the Moderate
+  Harlequin Alliance.
 - **Forest bloc:** the Tempest Jura Alliance and Dwargon are allied; both
-  oppose Clayman.
-- **Clayman** opposes nearly everyone — the Holy bloc, the forest bloc,
-  Milim, and Carrion.
+  oppose the Moderate Harlequin Alliance.
+- **The Moderate Harlequin Alliance** opposes nearly everyone — the Holy
+  bloc, the forest bloc, Milim, and Carrion.
 - **Leon, Otherworlders, and Shizu** are aloof — they keep out of the web,
   and their standing moves less.
 
