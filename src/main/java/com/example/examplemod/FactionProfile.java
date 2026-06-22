@@ -84,16 +84,16 @@ public record FactionProfile(
         // schemes, he doesn't court) — outbound only.
         put(map, new FactionProfile("clayman", 45, 45,
                 Set.of(),
-                Set.of("luminous", "falmuth", "tempest", "jura_alliance", "milim", "carrion"),
+                Set.of("luminous", "falmuth", "tempest", "milim", "carrion"),
                 1.0, 3, false, false));
         // The diplomats — patient; only sustained violence provokes.
         // Diplomacy-open: they send to anyone.
         put(map, new FactionProfile("dwargon", 50, 50,
-                Set.of("tempest", "jura_alliance"), Set.of(), 1.0, 10, true, true));
+                Set.of("tempest"), Set.of(), 1.0, 10, true, true));
+        // Tempest Jura Alliance — the merged forest power (former tempest
+        // + jura_alliance). Monster nation with a slight majin warmth.
         put(map, new FactionProfile("tempest", 50, 55,
-                Set.of("jura_alliance", "dwargon"), Set.of("clayman"), 1.0, 10, true, true));
-        put(map, new FactionProfile("jura_alliance", 50, 55,
-                Set.of("tempest", "dwargon"), Set.of("clayman"), 1.0, 10, true, true));
+                Set.of("dwargon"), Set.of("clayman"), 1.0, 10, true, true));
         // The swingables — neutral but every mover lands 1.5×.
         put(map, new FactionProfile("milim", 50, 50,
                 Set.of(), Set.of("clayman"), 1.5, 8, true, true));

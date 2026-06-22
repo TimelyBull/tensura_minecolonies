@@ -52,6 +52,16 @@ Copy the relevant version's section into the CurseForge release notes on each up
   current visit is resolved.
 
 ### Changed
+- **Tempest and the Jura Alliance are now one faction: "Tempest Jura Alliance."**
+  They were always the same power (the forest alliance that grew into the
+  Tempest Federation), so they've been combined into a single faction. It keeps
+  Tempest's full set of deals and its Covenant, plus the Jura Alliance's town
+  (the Jungle Treehouse settlement and its serpent/goblin/lizardman/slime
+  defenders) and its sage citizen reward when you conquer it. One overlapping
+  "happy citizens" deal was removed, and the faction stays separate from your
+  own colony as before. Existing worlds carry over automatically: any standing,
+  relations, deals, or settlement you had with the Jura Alliance are merged into
+  the combined faction with no lost progress.
 - **Barrier damage is now local to each panel.** Attacks still drain the
   barrier's shared fuel pool, but they now also wear down the specific panel
   being struck; that panel breaks into a hole when its own health runs out,

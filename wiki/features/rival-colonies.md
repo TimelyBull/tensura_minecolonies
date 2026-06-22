@@ -12,7 +12,7 @@ Physical factions generate settlements in the world. There are two kinds,
 which play the same way:
 
 - **Faction towns** — generated clusters of buildings for the six town
-  factions (Luminous, Falmuth, Shizu, Leon, Otherworlders, the Jura
+  factions (Luminous, Falmuth, Shizu, Leon, Otherworlders, the Tempest Jura
   Alliance), each themed to its faction.
 - **Dwargon villages** — Dwargon uses existing Tensura dwarven villages
   rather than a generated town; some of them become Dwargon settlements,
@@ -65,8 +65,8 @@ When you win, the settlement is sacked and you receive:
 
 - **Citizens** — 10–20 faction-themed colonists added to your existing
   colony, arriving trained in skills that fit the faction (Dwargon sends
-  Strength-heavy miners, the Jura Alliance sends Knowledge-heavy sages, and
-  so on). If your colony is at its housing cap, as many as fit are added and
+  Strength-heavy miners, the Tempest Jura Alliance sends Knowledge-heavy sages,
+  and so on). If your colony is at its housing cap, as many as fit are added and
   the rest are noted.
 - **The faction's skill** — you're granted that faction's signature Tensura
   skill, the same one its hardest [diplomacy](diplomacy.md) deal would give.

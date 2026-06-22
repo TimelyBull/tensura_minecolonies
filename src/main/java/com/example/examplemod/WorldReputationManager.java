@@ -209,12 +209,13 @@ public final class WorldReputationManager {
                     new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.NOTABLE));
             map.put(HumanEntityTypes.SHOGO_TAGUCHI.get(),
                     new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.NOTABLE));
+            // Merged Tempest Jura Alliance — the former Jura anchors.
             map.put(HumanEntityTypes.SHIN_RYUSEI.get(),
-                    new BossProfile(BossFaction.JURA_ALLIANCE, BossProfile.Importance.NOTABLE));
+                    new BossProfile(BossFaction.TEMPEST, BossProfile.Importance.NOTABLE));
             map.put(HumanEntityTypes.SHINJI_TANIMURA.get(),
-                    new BossProfile(BossFaction.JURA_ALLIANCE, BossProfile.Importance.NOTABLE));
+                    new BossProfile(BossFaction.TEMPEST, BossProfile.Importance.NOTABLE));
             map.put(HumanEntityTypes.MARK_LAUREN.get(),
-                    new BossProfile(BossFaction.JURA_ALLIANCE, BossProfile.Importance.NOTABLE));
+                    new BossProfile(BossFaction.TEMPEST, BossProfile.Importance.NOTABLE));
             map.put(HumanEntityTypes.MAI_FURUKI.get(),
                     new BossProfile(BossFaction.OTHERWORLDERS, BossProfile.Importance.NOTABLE));
             // MINOR — fodder; kept small (killing mobs is core Minecraft).

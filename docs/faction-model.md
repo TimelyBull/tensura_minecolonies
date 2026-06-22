@@ -1,5 +1,48 @@
 # Investigation: the expanded faction model (Layer 1 — the spine)
 
+**FACTION MERGE (2026-06-21) — Tempest + Jura Alliance → "Tempest Jura
+Alliance".** The first of the faction-consolidation passes (see the
+audit in this session). The two were the same canon power — the Jura
+Forest Grand Alliance became the Jura Tempest Federation — so they are
+now ONE faction. As-built:
+- **Surviving id:** `tempest` (storage/command key unchanged). **Display
+  name:** "Tempest Jura Alliance". The `JURA_ALLIANCE` enum constant and
+  the `jura_alliance` id are GONE.
+- **Body (from Jura):** `tempest` flips abstract → PHYSICAL — it takes
+  Jura's anchor (Shin Ryusei), pack ("Jungle Treehouse") and garrison
+  (Tempest Serpent / Goblin / Lizardman / Slime) in `RivalColonies`, and
+  its three NOTABLE boss anchors (Shin Ryusei / Shinji / Mark Lauren) now
+  point at `TEMPEST` in `BOSS_PROFILES`. So the disposition table and #2
+  importance table below are out of date for the abstract/anchor columns:
+  TEMPEST is now physical with three NOTABLE anchors; JURA_ALLIANCE no
+  longer exists.
+- **Diplomacy (both catalogs):** the merged `tempest` deal table is the
+  union of the `tp_*` and `ja_*` deals, MINUS `ja_enlightened` (Happiness
+  7.0 — a duplicate of `tp_content`). One Covenant + one training deal per
+  faction, so `cov_jura` ("The Grand Academy") and `cov_train_jura`
+  ("Sage Training") were dropped; Tempest's `cov_tempest` + Warrior
+  Training survive. Both capstone skill rewards (`tp_joyful`,
+  `ja_sages`) survive (keyed by deal id). Conquest levy = Jura's sages
+  profile. Caravan good + alliance buff = Tempest's.
+- **Relationship web (deduped):** tempest allies {dwargon}, enemies
+  {clayman}; the `jura_alliance` edges were removed from dwargon's allies
+  and clayman's enemies (tempest already on both). `validateWeb()` stays
+  symmetric. Disposition unchanged (both were 50/55 → 50/55).
+- **Save migration:** `WorldReputationSavedData.load` folds
+  `jura_alliance` standing (keep larger magnitude) / offense (max) /
+  diplomacy-closed (union) into `tempest`. `DiplomacySavedData.load`
+  folds relations state (higher tier) / active deal (keep tempest's) /
+  offers + seen (union) / timers (max) / envoy-away value into `tempest`.
+  `Settlement.load` renames the faction id. Edge case: an
+  already-loaded entity carrying a `FactionMarkTag(jura_alliance)` won't
+  crash (consumers null-guard) but won't ripple as tempest — rare, not
+  migratable from SavedData.
+
+The original v1 record follows (tempest/jura split as designed; read it
+with the merge above in mind).
+
+---
+
 **Status: v1 BUILT (2026-06-11)** — all 7 scope items below landed, all
 [CONFIRM] items user-approved as specced. As-built notes:
 - Code: `FactionProfile` (dispositions/web/swing/thresholds + the

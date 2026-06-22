@@ -53,13 +53,15 @@ grants a **signature Tensura skill** (the same skill you'd get by
 
 ## Who offers what
 
-- **Eight factions** (Dwargon, Tempest, the Jura Alliance, Luminous,
+- **Seven factions** (Dwargon, the Tempest Jura Alliance, Luminous,
   Falmuth, Milim, Carrion, Clayman) have full catalogues of around ten deals
-  each, leading up to a Covenant.
+  each, leading up to a Covenant. The Tempest Jura Alliance's catalogue is the
+  largest — it carries the combined deals of the former Tempest and Jura
+  Alliance factions.
 - **Three aloof factions** (Leon, Shizu, Otherworlders) offer small sets —
   enough to reach Alliance, but no Covenant.
 
 Each faction's deals reflect its character — Dwargon asks for ore and forge
-work, the Holy bloc sets hard demands, the Jura Alliance values learning and
-community, and so on. The [Factions reference](factions.md) summarises each
-one's theme.
+work, the Holy bloc sets hard demands, the Tempest Jura Alliance values
+community and learning, and so on. The [Factions reference](factions.md)
+summarises each one's theme.

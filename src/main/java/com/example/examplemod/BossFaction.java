@@ -16,20 +16,28 @@ import net.minecraft.ChatFormatting;
  * <p>Boss anchoring lives in {@code WorldReputationManager.bossProfileOf}
  * (faction + lore importance); per-faction dispositions, the
  * relationship web, swing multipliers and provocation thresholds live
- * in {@link FactionProfile#PROFILES}. TEMPEST, CARRION and MILIM have
- * no anchored boss — their standings move only via the two-sided
- * RIPPLE legs (e.g. a marked Clayman boss kill raises them).
+ * in {@link FactionProfile#PROFILES}. CARRION and MILIM have no anchored
+ * boss — their standings move only via the two-sided RIPPLE legs (e.g. a
+ * marked Clayman boss kill raises them).
+ *
+ * <p><b>Tempest Jura Alliance:</b> the former {@code tempest} and
+ * {@code jura_alliance} factions were MERGED (they are the same canon
+ * power — the Jura Forest Grand Alliance became the Jura Tempest
+ * Federation). The surviving id is {@code tempest}; it carries the
+ * combined diplomacy catalog plus the old Jura settlement/garrison body.
+ * Old-save {@code jura_alliance} standing/relations migrate into
+ * {@code tempest} on load (see the SavedData load methods). The faction
+ * stays EXTERNAL to the player's colony.
  */
 public enum BossFaction {
 
-    TEMPEST("tempest", "Tempest", ChatFormatting.AQUA),
+    TEMPEST("tempest", "Tempest Jura Alliance", ChatFormatting.AQUA),
     DWARGON("dwargon", "Dwargon", ChatFormatting.GOLD),
     LUMINOUS("luminous", "Luminous", ChatFormatting.WHITE),
     FALMUTH("falmuth", "Falmuth", ChatFormatting.RED),
     CLAYMAN("clayman", "Clayman", ChatFormatting.DARK_PURPLE),
     LEON("leon", "Leon", ChatFormatting.YELLOW),
     SHIZU("shizu", "Shizu", ChatFormatting.DARK_AQUA),
-    JURA_ALLIANCE("jura_alliance", "Jura Alliance", ChatFormatting.GREEN),
     OTHERWORLDERS("otherworlders", "Otherworlders", ChatFormatting.LIGHT_PURPLE),
     CARRION("carrion", "Carrion", ChatFormatting.DARK_GREEN),
     MILIM("milim", "Milim", ChatFormatting.LIGHT_PURPLE);

@@ -116,8 +116,7 @@ public final class DiplomacyManager {
      *  exact numbers depend on Tensura's EP economy. */
     private static final Map<String, Double> ENVOY_EP_THRESHOLD = Map.ofEntries(
             // Friendly / high-base-standing — the 5,000 floor (early-game).
-            Map.entry("tempest", 5000.0),        // friendly monster nation
-            Map.entry("jura_alliance", 5000.0),  // same bloc — friendly
+            Map.entry("tempest", 5000.0),        // friendly monster nation (Tempest Jura Alliance)
             // Neutral, safe to approach.
             Map.entry("dwargon", 6000.0),        // diplomacy-open, violence-sensitive
             Map.entry("shizu", 6000.0),          // kind to all
@@ -226,7 +225,6 @@ public final class DiplomacyManager {
             ALLIANCE_BUFFS = Map.of(
                     "dwargon", net.minecraft.world.effect.MobEffects.DIG_SPEED,
                     "tempest", net.minecraft.world.effect.MobEffects.REGENERATION,
-                    "jura_alliance", net.minecraft.world.effect.MobEffects.LUCK,
                     "luminous", net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE,
                     "falmuth", net.minecraft.world.effect.MobEffects.DAMAGE_BOOST,
                     "milim", net.minecraft.world.effect.MobEffects.DAMAGE_BOOST,
@@ -237,7 +235,6 @@ public final class DiplomacyManager {
     private static final Map<String, List<ItemStack>> FACTION_GOODS = Map.of(
             "dwargon", List.of(new ItemStack(Items.IRON_INGOT, 12), new ItemStack(Items.GOLD_INGOT, 4)),
             "tempest", List.of(new ItemStack(Items.BREAD, 16), new ItemStack(Items.EMERALD, 4)),
-            "jura_alliance", List.of(new ItemStack(Items.WHEAT, 16), new ItemStack(Items.EMERALD, 4)),
             "luminous", List.of(new ItemStack(Items.GOLD_INGOT, 6), new ItemStack(Items.DIAMOND, 2)),
             "falmuth", List.of(new ItemStack(Items.IRON_INGOT, 16), new ItemStack(Items.EMERALD, 4)),
             "milim", List.of(new ItemStack(Items.COOKED_PORKCHOP, 16), new ItemStack(Items.EMERALD, 4)),

@@ -169,6 +169,13 @@ public class Settlement {
             s.structureType = StructureType.MINECOLONIES_CLUSTER; // legacy default
         }
         s.factionId = tag.getString("faction");
+        // Faction merge migration: the old "jura_alliance" faction was
+        // folded into "tempest" (Tempest Jura Alliance). Any settlement
+        // saved under the old id resolves through the moved anchor/pack/
+        // garrison once renamed.
+        if ("jura_alliance".equals(s.factionId)) {
+            s.factionId = "tempest";
+        }
         s.dimension = ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION,
                 ResourceLocation.parse(tag.getString("dimension")));
         s.center = BlockPos.of(tag.getLong("center"));

@@ -1,5 +1,17 @@
 # Investigation: the Diplomacy system — Stage 1 (the spine)
 
+> **FACTION MERGE (2026-06-21):** the former `tempest` and `jura_alliance`
+> factions are now ONE faction, **"Tempest Jura Alliance"** (id `tempest`).
+> Wherever this doc lists them separately or counts "8 diplomable factions,"
+> read it as the merged faction and **7 full-catalogue factions**. The merged
+> `tempest` deal table is the union of the old `tp_*` and `ja_*` deals minus
+> the duplicate `ja_enlightened`; it keeps Tempest's `cov_tempest` Covenant
+> and Warrior Training, while Jura's `cov_jura` and `cov_train_jura` ("Sage
+> Training") were DROPPED (one Covenant + one training deal per faction). The
+> Jura alliance buff (Luck) and caravan good were dropped; Tempest's
+> (Regeneration; bread+emerald) survive. See `docs/faction-model.md` for the
+> full as-built merge record.
+
 **Status: STAGE 1 BUILT (2026-06-11).** As-built record (the
 investigation below remains the design of record; everything landed as
 specced unless noted):
@@ -274,8 +286,10 @@ content pass is done — the per-faction deal tables expanded from the
 Stage-2 starter sets to a full catalog on the existing framework (no
 new requirement mechanics):
 
-- **8 diplomable factions × 10 quests each** (Dwargon, Tempest, Jura,
-  Luminous, Falmuth, Milim, Carrion, Clayman), tier-gated into a
+- **7 full-catalogue factions** (Dwargon, the Tempest Jura Alliance,
+  Luminous, Falmuth, Milim, Carrion, Clayman) — ~10+ quests each (the
+  Tempest Jura Alliance carries the largest table, the union of the old
+  Tempest + Jura deals), tier-gated into a
   NEUTRAL → FRIENDLY → ALLIED progression, varied across the five base
   Requirement types (supply / build / population / happiness / lend),
   faction-flavored requirements AND rewards. Existing Stage-2 deal ids

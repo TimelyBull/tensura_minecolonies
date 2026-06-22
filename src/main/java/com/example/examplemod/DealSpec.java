@@ -198,8 +198,9 @@ public record DealSpec(
      *  is the separate content pass). */
     public static final Map<String, DealSpec> COVENANT_DEALS = buildCovenantDeals();
 
-    /** faction id → Covenant-only TRAINING deal (Tempest physical /
-     *  Jura mental — the approved skill split). */
+    /** faction id → Covenant-only TRAINING deal. Tempest Jura Alliance
+     *  fields the physical "Warrior Training"; the old Jura "Sage
+     *  Training" was dropped in the merge (one training deal per faction). */
     public static final Map<String, DealSpec> COVENANT_TRAINING_DEALS = buildTrainingDeals();
 
     private static Map<String, DealSpec> buildCovenantDeals() {
@@ -219,10 +220,9 @@ public record DealSpec(
                 new Population(25),
                 List.of(new ItemStack(Items.EMERALD, 48)),
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
-        map.put("jura_alliance", new DealSpec("cov_jura", "The Grand Academy",
-                new BuildingLevel("university", 5),
-                List.of(new ItemStack(Items.EMERALD, 48)),
-                10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
+        // (Jura's old cov_jura "The Grand Academy" dropped — the merged
+        // Tempest Jura Alliance keeps Tempest's cov_tempest as its one
+        // Covenant deal.)
         map.put("milim", new DealSpec("cov_milim", "Apito's Jelly",
                 new SupplyItems(ExampleMod.APITOS_JELLY.get(), 1),
                 List.of(new ItemStack(Items.EMERALD, 48)),
@@ -252,16 +252,13 @@ public record DealSpec(
 
     private static Map<String, DealSpec> buildTrainingDeals() {
         Map<String, DealSpec> map = new LinkedHashMap<>();
-        // Tempest — PHYSICAL/community: Strength + Stamina + Adaptability.
+        // Tempest Jura Alliance — PHYSICAL/community: Strength + Stamina +
+        // Adaptability. (Jura's old cov_train_jura "Sage Training" dropped —
+        // one training deal per faction; Tempest's Warrior Training is kept
+        // per the merge spec.)
         map.put("tempest", new DealSpec("cov_train_tempest", "Warrior Training",
                 new LendCitizens(Skill.Strength, 5, 2, 2 * DAY, 4,
                         List.of(Skill.Stamina, Skill.Adaptability)),
-                List.of(new ItemStack(Items.EMERALD, 16)),
-                4.0, 0.0, 2 * DAY, 0, FactionTier.ALLIED, false));
-        // Jura — MENTAL: Knowledge + Focus + Intelligence.
-        map.put("jura_alliance", new DealSpec("cov_train_jura", "Sage Training",
-                new LendCitizens(Skill.Knowledge, 5, 2, 2 * DAY, 4,
-                        List.of(Skill.Focus, Skill.Intelligence)),
                 List.of(new ItemStack(Items.EMERALD, 16)),
                 4.0, 0.0, 2 * DAY, 0, FactionTier.ALLIED, false));
         return Map.copyOf(map);
@@ -475,10 +472,10 @@ public record DealSpec(
                 new DealSpec("tp_skilled_hands", "Skilled Hands Abroad",
                         new LendCitizens(Skill.Dexterity, 6, 2, 2 * DAY, 2),
                         List.of(new ItemStack(Items.IRON_INGOT, 16)),
-                        6.0, 5.0, 2 * DAY, 0, FactionTier.FRIENDLY, false)));
-
-        // 📚 JURA ALLIANCE — books, lapis, xp, ancient tomes, mental tome.
-        map.put("jura_alliance", List.of(
+                        6.0, 5.0, 2 * DAY, 0, FactionTier.FRIENDLY, false),
+                // 📚 — the former JURA ALLIANCE catalog, merged in: books,
+                // lapis, xp, ancient tomes, mental tome. (ja_enlightened —
+                // Happiness 7.0 — dropped as a duplicate of tp_content.)
                 new DealSpec("ja_harvest", "A Share of the Harvest",
                         new SupplyItems(Items.WHEAT, 64),
                         List.of(new ItemStack(Items.BOOK, 16), new ItemStack(Items.PAPER, 8)),
@@ -506,12 +503,6 @@ public record DealSpec(
                                 new ItemStack(Items.BOOKSHELF, 8), new ItemStack(Items.DIAMOND, 4),
                                 new ItemStack(mc("ancienttome"), 1)),
                         8.0, 5.0, 20 * DAY, 0, FactionTier.FRIENDLY, false),
-                new DealSpec("ja_enlightened", "An Enlightened Populace",
-                        new Happiness(7.0),
-                        List.of(new ItemStack(Items.BOOKSHELF, 8),
-                                new ItemStack(Items.EXPERIENCE_BOTTLE, 8),
-                                new ItemStack(ten("magic_tome_mental"), 1)),
-                        6.0, 5.0, 16 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("ja_scholars", "Scholars Abroad",
                         new LendCitizens(Skill.Knowledge, 8, 2, 3 * DAY, 3),
                         List.of(new ItemStack(Items.LAPIS_LAZULI, 16),

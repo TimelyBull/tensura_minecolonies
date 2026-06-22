@@ -15,8 +15,7 @@ standing, events, and [diplomacy](../features/diplomacy.md)).
 | **Shizu** | Physical (town) | Kind to all | Yes (small set) |
 | **Leon** | Physical (town) | A demon lord's domain; aloof | Yes (small set) |
 | **Otherworlders** | Physical (town) | Summoned-from-elsewhere; aloof | Yes (small set) |
-| **Jura Alliance** | Physical (town) | The forest nation | Yes |
-| **Tempest** | Abstract | Monster nation; community-minded | Yes |
+| **Tempest Jura Alliance** | Physical (town) | The forest monster nation — community-minded | Yes |
 | **Carrion** | Abstract | Beastmen; swingable toward alliance | Yes |
 | **Milim** | Abstract | A destroyer demon lord; swingable | Yes |
 | **Clayman** | Abstract | A schemer who opposes the rising forest powers | Yes (via outbound envoy) |
@@ -29,14 +28,14 @@ Most factions start Neutral toward both. The exceptions:
 
 - **Luminous** and **Falmuth** (the Holy bloc) start **Wary** toward humans
   and **Hostile** toward majin.
-- **Tempest** and the **Jura Alliance** are slightly warmer toward majin.
+- The **Tempest Jura Alliance** is slightly warmer toward majin.
 
 ## Relationships
 
 Killing a faction's marked bosses angers its allies and pleases its enemies:
 
 - **Holy bloc:** Luminous ↔ Falmuth are allied; both oppose Clayman.
-- **Forest bloc:** Tempest, the Jura Alliance, and Dwargon are allied; all
+- **Forest bloc:** the Tempest Jura Alliance and Dwargon are allied; both
   oppose Clayman.
 - **Clayman** opposes nearly everyone — the Holy bloc, the forest bloc,
   Milim, and Carrion.

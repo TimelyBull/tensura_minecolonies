@@ -84,8 +84,9 @@ public final class ConquestPayoff {
         PROFILES.put("leon", new CitizenProfile(12, Skill.Strength, 22, Skill.Mana, 14, "retainers"));
         // Otherworlders — versatile summoned specialists.
         PROFILES.put("otherworlders", new CitizenProfile(13, Skill.Adaptability, 20, Skill.Creativity, 12, "specialists"));
-        // Jura Alliance — the forest nation's sages.
-        PROFILES.put("jura_alliance", new CitizenProfile(18, Skill.Knowledge, 22, Skill.Intelligence, 14, "sages"));
+        // Tempest Jura Alliance — the forest nation's sages (merged
+        // tempest + jura_alliance; keeps the old Jura levy profile).
+        PROFILES.put("tempest", new CitizenProfile(18, Skill.Knowledge, 22, Skill.Intelligence, 14, "sages"));
     }
 
     private static final CitizenProfile DEFAULT_PROFILE =

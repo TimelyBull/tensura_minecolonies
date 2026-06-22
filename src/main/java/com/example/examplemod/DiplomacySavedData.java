@@ -548,6 +548,65 @@ class DiplomacySavedData extends SavedData {
             for (int j = 0; j < pendingSkills.size(); j++) skillDeals.add(pendingSkills.getString(j));
             if (!skillDeals.isEmpty()) data.pendingSkillDeals.put(uuid, skillDeals);
         }
+        data.migrateJuraIntoTempest();
         return data;
+    }
+
+    /**
+     * Faction merge migration: fold every per-faction record keyed under
+     * the old {@code jura_alliance} id into the surviving {@code tempest}
+     * id (the Tempest Jura Alliance). Keeps old saves from orphaning
+     * diplomacy state.
+     *
+     * <p>Combine rules when both keys exist for a player:
+     * <ul>
+     *   <li><b>relations state</b> — keep the HIGHER tier (a stronger
+     *       relationship survives the merge).</li>
+     *   <li><b>active deal</b> — keep the existing tempest deal; else move
+     *       the Jura one (its deal ids stay valid in the merged catalog;
+     *       any dropped id self-heals via the {@code byId==null} cleanup).</li>
+     *   <li><b>offers / seen-offers</b> — UNION.</li>
+     *   <li><b>timer ticks</b> (replies/send/activity/caravan) — keep the
+     *       MAX (most recent) so throttles stay conservative.</li>
+     * </ul>
+     * The envoy-away faction value is also renamed if a subordinate is out
+     * serving the old faction.
+     */
+    private void migrateJuraIntoTempest() {
+        final String OLD = "jura_alliance";
+        final String NEW = "tempest";
+        foldFaction(states, OLD, NEW, (cur, old) -> (byte) Math.max(cur, old));
+        foldFaction(deals, OLD, NEW, (cur, old) -> cur);                 // keep tempest's
+        foldFaction(offers, OLD, NEW, (cur, old) -> {
+            List<Offer> merged = new ArrayList<>(cur);
+            merged.addAll(old);
+            return merged;
+        });
+        foldFaction(pendingReplies, OLD, NEW, Math::max);
+        foldFaction(lastSend, OLD, NEW, Math::max);
+        foldFaction(lastActivity, OLD, NEW, Math::max);
+        foldFaction(lastCaravan, OLD, NEW, Math::max);
+        foldFaction(seenOffers, OLD, NEW, (cur, old) -> {
+            Set<String> merged = new HashSet<>(cur);
+            merged.addAll(old);
+            return merged;
+        });
+        // Envoy-away records the faction id as the VALUE, not the key.
+        for (Map.Entry<UUID, String> e : envoyAway.entrySet()) {
+            if (OLD.equals(e.getValue())) e.setValue(NEW);
+        }
+    }
+
+    /** Move the {@code oldKey} entry of every player's inner map into
+     *  {@code newKey}, combining with any existing entry. */
+    private static <V> void foldFaction(Map<UUID, Map<String, V>> outer,
+                                        String oldKey, String newKey,
+                                        java.util.function.BinaryOperator<V> combine) {
+        for (Map<String, V> inner : outer.values()) {
+            V old = inner.remove(oldKey);
+            if (old == null) continue;
+            V cur = inner.get(newKey);
+            inner.put(newKey, cur == null ? old : combine.apply(cur, old));
+        }
     }
 }

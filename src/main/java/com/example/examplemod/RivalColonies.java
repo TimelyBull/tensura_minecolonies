@@ -108,14 +108,15 @@ public final class RivalColonies {
         // Otherworlders — summoned-from-elsewhere, sci-fi.
         ANCHORS.put("otherworlders", HumanEntityTypes.MAI_FURUKI);
         PACKS.put("otherworlders", "Space Wars");
-        // Jura Alliance — the forest nation.
-        ANCHORS.put("jura_alliance", HumanEntityTypes.SHIN_RYUSEI);
-        PACKS.put("jura_alliance", "Jungle Treehouse");
+        // Tempest Jura Alliance — the forest nation (merged tempest +
+        // jura_alliance; the body is the old Jura settlement).
+        ANCHORS.put("tempest", HumanEntityTypes.SHIN_RYUSEI);
+        PACKS.put("tempest", "Jungle Treehouse");
         // Dwargon — DWARVEN_VILLAGE type: anchor exists (Gazel) but NO
         // town pack; SOME existing dwarf villages become its settlements.
         ANCHORS.put(DWARGON, HumanEntityTypes.GAZEL_DWARGO);
-        // ABSTRACT (no anchor mob, never settle): tempest, carrion,
-        // milim, clayman (his orcs roam as calamities, not a settled town).
+        // ABSTRACT (no anchor mob, never settle): carrion, milim,
+        // clayman (his orcs roam as calamities, not a settled town).
     }
 
     /** Cached structure key for Tensura's dwarf village. */
@@ -147,8 +148,8 @@ public final class RivalColonies {
     // Each physical faction fields a themed defender roster drawn from
     // mobs already in the mod (the TensuraRaids.rosters() shape). The
     // anchor BOSS (spawned + marked in Stage A) is part of the garrison;
-    // these are the rank-and-file around it. Abstract factions (Tempest,
-    // Carrion, Milim, Clayman) have no settlement, so no roster.
+    // these are the rank-and-file around it. Abstract factions (Carrion,
+    // Milim, Clayman) have no settlement, so no roster.
     // ------------------------------------------------------------------
 
     @SuppressWarnings("unchecked")
@@ -181,8 +182,8 @@ public final class RivalColonies {
             case "otherworlders" -> new EntityType[] {
                     HumanEntityTypes.SHOGO_TAGUCHI.get(), HumanEntityTypes.MARK_LAUREN.get(),
                     HumanEntityTypes.SHINJI_TANIMURA.get(), HumanEntityTypes.KIRARA_MIZUTANI.get() };
-            // Jura Alliance — the forest nation: serpents, slimes, kin.
-            case "jura_alliance" -> new EntityType[] {
+            // Tempest Jura Alliance — the forest nation: serpents, slimes, kin.
+            case "tempest" -> new EntityType[] {
                     MonsterEntityTypes.TEMPEST_SERPENT.get(), MonsterEntityTypes.GOBLIN.get(),
                     MonsterEntityTypes.LIZARDMAN.get(), MonsterEntityTypes.SLIME.get() };
             // Dwargon — the dwarven kingdom: dwarves + gnomes.
@@ -935,7 +936,7 @@ public final class RivalColonies {
             case "milim" -> 1.0;                                          // apex power
             case "leon", "carrion", "luminous", "clayman" -> 0.8;         // demon lords / great powers
             case "dwargon", "shizu", "otherworlders" -> 0.6;              // strong realms
-            default -> 0.4;                                               // falmuth, jura_alliance, tempest…
+            default -> 0.4;                                               // falmuth, tempest…
         };
     }
 

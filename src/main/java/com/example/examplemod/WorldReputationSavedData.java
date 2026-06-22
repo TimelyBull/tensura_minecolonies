@@ -243,7 +243,45 @@ class WorldReputationSavedData extends SavedData {
                 }
             }
         }
+        migrateJuraIntoTempest(data);
         return data;
+    }
+
+    /**
+     * Faction merge migration: the old {@code jura_alliance} faction was
+     * folded into {@code tempest} (the Tempest Jura Alliance). Move any
+     * stored standing/offense/diplomacy-closed entry from the old key into
+     * the surviving one so old saves don't orphan data.
+     *
+     * <p>Combine rules when BOTH keys exist for the same player:
+     * <ul>
+     *   <li><b>standing</b> (earned delta) — keep the larger MAGNITUDE
+     *       (the more extreme earned history), preserving the strongest
+     *       signal without double-counting or clamp surprises.</li>
+     *   <li><b>offense</b> — keep the MAX (the stronger provocation).</li>
+     *   <li><b>diplomacy-closed</b> — set UNION (closed with either side
+     *       means closed with the merged faction).</li>
+     * </ul>
+     */
+    private static void migrateJuraIntoTempest(WorldReputationSavedData data) {
+        final String OLD = "jura_alliance";
+        final String NEW = "tempest";
+        for (Map<String, Double> byFaction : data.standings.values()) {
+            Double old = byFaction.remove(OLD);
+            if (old == null) continue;
+            Double cur = byFaction.get(NEW);
+            byFaction.put(NEW, cur == null ? old
+                    : (Math.abs(old) > Math.abs(cur) ? old : cur));
+        }
+        for (Map<String, Double> byFaction : data.offenses.values()) {
+            Double old = byFaction.remove(OLD);
+            if (old == null) continue;
+            Double cur = byFaction.get(NEW);
+            byFaction.put(NEW, cur == null ? old : Math.max(old, cur));
+        }
+        for (Set<String> closed : data.diplomacyClosed.values()) {
+            if (closed.remove(OLD)) closed.add(NEW);
+        }
     }
 
     private static Set<String> readStringSet(CompoundTag player, String key) {
