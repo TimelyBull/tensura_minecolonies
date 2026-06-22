@@ -276,7 +276,7 @@ public final class LoreEvents {
         }
 
         // The slayer's consequences: the Layer-1 fan-out (−18 Clayman,
-        // +Milim/Carrion/forest, ...) ALREADY fired from the marked-kill
+        // +Milim/Eurazania/forest, ...) ALREADY fired from the marked-kill
         // hook. Here: clamp to HOSTILE + close diplomacy (recoverable).
         ServerPlayer killer = null;
         if (deathEvent.getSource().getEntity() instanceof ServerPlayer sp) killer = sp;

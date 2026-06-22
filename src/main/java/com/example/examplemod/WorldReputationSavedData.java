@@ -243,29 +243,34 @@ class WorldReputationSavedData extends SavedData {
                 }
             }
         }
-        migrateJuraIntoTempest(data);
+        migrateRenamedFactionKeys(data);
         return data;
     }
 
     /**
-     * Faction merge migration: the old {@code jura_alliance} faction was
-     * folded into {@code tempest} (the Jura-Tempest Federation). Move any
-     * stored standing/offense/diplomacy-closed entry from the old key into
-     * the surviving one so old saves don't orphan data.
-     *
-     * <p>Combine rules when BOTH keys exist for the same player:
+     * Faction-key renames applied on load so old saves don't orphan data:
      * <ul>
-     *   <li><b>standing</b> (earned delta) — keep the larger MAGNITUDE
-     *       (the more extreme earned history), preserving the strongest
-     *       signal without double-counting or clamp surprises.</li>
+     *   <li>{@code jura_alliance} → {@code tempest} (the step-1 merge into
+     *       the Jura-Tempest Federation).</li>
+     *   <li>{@code carrion} → {@code eurazania} (the step-2 Beast Kingdom
+     *       rename).</li>
+     * </ul>
+     * For each, the old key's standing/offense/diplomacy-closed entry moves
+     * to the new key. Combine rules when BOTH keys exist for the same player
+     * (only possible for the merge, never the pure rename — the new key
+     * cannot pre-exist in an old save):
+     * <ul>
+     *   <li><b>standing</b> (earned delta) — keep the larger MAGNITUDE.</li>
      *   <li><b>offense</b> — keep the MAX (the stronger provocation).</li>
-     *   <li><b>diplomacy-closed</b> — set UNION (closed with either side
-     *       means closed with the merged faction).</li>
+     *   <li><b>diplomacy-closed</b> — set UNION.</li>
      * </ul>
      */
-    private static void migrateJuraIntoTempest(WorldReputationSavedData data) {
-        final String OLD = "jura_alliance";
-        final String NEW = "tempest";
+    private static void migrateRenamedFactionKeys(WorldReputationSavedData data) {
+        foldFactionKey(data, "jura_alliance", "tempest");
+        foldFactionKey(data, "carrion", "eurazania");
+    }
+
+    private static void foldFactionKey(WorldReputationSavedData data, String OLD, String NEW) {
         for (Map<String, Double> byFaction : data.standings.values()) {
             Double old = byFaction.remove(OLD);
             if (old == null) continue;

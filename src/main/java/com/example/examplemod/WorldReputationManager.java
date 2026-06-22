@@ -203,19 +203,25 @@ public final class WorldReputationManager {
             map.put(MonsterEntityTypes.IFRIT.get(),
                     new BossProfile(BossFaction.LEON, BossProfile.Importance.MAJOR));
             // NOTABLE — named lieutenants.
+            // Falmuth's summoned Otherworlder heroes (Kirara, Kyoya, Shogo,
+            // Shinji, Mark) all fight under Falmuth's banner. Shinji + Mark
+            // were the Jura-Tempest's former Jura anchors before this move.
             map.put(HumanEntityTypes.KIRARA_MIZUTANI.get(),
                     new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.NOTABLE));
             map.put(HumanEntityTypes.KYOYA_TACHIBANA.get(),
                     new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.NOTABLE));
             map.put(HumanEntityTypes.SHOGO_TAGUCHI.get(),
                     new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.NOTABLE));
-            // Merged Jura-Tempest Federation — the former Jura anchors.
+            map.put(HumanEntityTypes.SHINJI_TANIMURA.get(),
+                    new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.NOTABLE));
+            map.put(HumanEntityTypes.MARK_LAUREN.get(),
+                    new BossProfile(BossFaction.FALMUTH, BossProfile.Importance.NOTABLE));
+            // Jura-Tempest Federation — Shin Ryusei is its sole NOTABLE anchor
+            // (after Shinji + Mark moved to Falmuth).
             map.put(HumanEntityTypes.SHIN_RYUSEI.get(),
                     new BossProfile(BossFaction.TEMPEST, BossProfile.Importance.NOTABLE));
-            map.put(HumanEntityTypes.SHINJI_TANIMURA.get(),
-                    new BossProfile(BossFaction.TEMPEST, BossProfile.Importance.NOTABLE));
-            map.put(HumanEntityTypes.MARK_LAUREN.get(),
-                    new BossProfile(BossFaction.TEMPEST, BossProfile.Importance.NOTABLE));
+            // Otherworlders — Mai Furuki only (placeholder boss; the slot
+            // becomes the Eastern Empire in a later step).
             map.put(HumanEntityTypes.MAI_FURUKI.get(),
                     new BossProfile(BossFaction.OTHERWORLDERS, BossProfile.Importance.NOTABLE));
             // MINOR — fodder; kept small (killing mobs is core Minecraft).

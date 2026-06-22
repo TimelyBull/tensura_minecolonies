@@ -231,7 +231,7 @@ public record DealSpec(
                 new SlayEntities(java.util.Set.of("minecraft:wither"), 1, "the Wither"),
                 List.of(new ItemStack(Items.EMERALD, 48)),
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
-        map.put("carrion", new DealSpec("cov_carrion", "The Great Hunt",
+        map.put("eurazania", new DealSpec("cov_carrion", "The Great Hunt",
                 new SlayEntities(java.util.Set.of("minecraft:wither", "minecraft:warden",
                         "minecraft:elder_guardian", "tensura:charybdis", "tensura:ifrit"),
                         3, "great beasts (Wither / Warden / Elder Guardian / Charybdis / Ifrit)"),
@@ -663,8 +663,9 @@ public record DealSpec(
                                 new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 1)),
                         7.0, 5.0, 2 * DAY, 0, FactionTier.ALLIED, false)));
 
-        // 🦁 CARRION — beast mats, compost, battlewill manual.
-        map.put("carrion", List.of(
+        // 🦁 EURAZANIA (the Beast Kingdom; renamed from carrion) — beast
+        // mats, compost, battlewill manual. (Deal ids keep the ca_ prefix.)
+        map.put("eurazania", List.of(
                 new DealSpec("ca_hides", "Hides for the Beastfolk",
                         new SupplyItems(Items.LEATHER, 48),
                         List.of(new ItemStack(Items.LEATHER, 16), new ItemStack(Items.COOKED_BEEF, 8)),

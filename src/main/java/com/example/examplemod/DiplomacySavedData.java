@@ -548,33 +548,40 @@ class DiplomacySavedData extends SavedData {
             for (int j = 0; j < pendingSkills.size(); j++) skillDeals.add(pendingSkills.getString(j));
             if (!skillDeals.isEmpty()) data.pendingSkillDeals.put(uuid, skillDeals);
         }
-        data.migrateJuraIntoTempest();
+        data.migrateRenamedFactionKeys();
         return data;
     }
 
     /**
-     * Faction merge migration: fold every per-faction record keyed under
-     * the old {@code jura_alliance} id into the surviving {@code tempest}
-     * id (the Jura-Tempest Federation). Keeps old saves from orphaning
-     * diplomacy state.
-     *
-     * <p>Combine rules when both keys exist for a player:
+     * Faction-key renames applied on load so old saves don't orphan
+     * diplomacy state:
      * <ul>
-     *   <li><b>relations state</b> — keep the HIGHER tier (a stronger
-     *       relationship survives the merge).</li>
-     *   <li><b>active deal</b> — keep the existing tempest deal; else move
-     *       the Jura one (its deal ids stay valid in the merged catalog;
-     *       any dropped id self-heals via the {@code byId==null} cleanup).</li>
+     *   <li>{@code jura_alliance} → {@code tempest} (the step-1 merge into
+     *       the Jura-Tempest Federation).</li>
+     *   <li>{@code carrion} → {@code eurazania} (the step-2 Beast Kingdom
+     *       rename).</li>
+     * </ul>
+     * Every per-faction record keyed under the old id folds into the new id.
+     *
+     * <p>Combine rules when both keys exist for a player (only possible for
+     * the merge, never the pure rename — the new key cannot pre-exist):
+     * <ul>
+     *   <li><b>relations state</b> — keep the HIGHER tier.</li>
+     *   <li><b>active deal</b> — keep the existing new-key deal; else move
+     *       the old one (its deal ids stay valid; any dropped id self-heals
+     *       via the {@code byId==null} cleanup).</li>
      *   <li><b>offers / seen-offers</b> — UNION.</li>
-     *   <li><b>timer ticks</b> (replies/send/activity/caravan) — keep the
-     *       MAX (most recent) so throttles stay conservative.</li>
+     *   <li><b>timer ticks</b> (replies/send/activity/caravan) — keep MAX.</li>
      * </ul>
      * The envoy-away faction value is also renamed if a subordinate is out
      * serving the old faction.
      */
-    private void migrateJuraIntoTempest() {
-        final String OLD = "jura_alliance";
-        final String NEW = "tempest";
+    private void migrateRenamedFactionKeys() {
+        foldRename("jura_alliance", "tempest");
+        foldRename("carrion", "eurazania");
+    }
+
+    private void foldRename(String OLD, String NEW) {
         foldFaction(states, OLD, NEW, (cur, old) -> (byte) Math.max(cur, old));
         foldFaction(deals, OLD, NEW, (cur, old) -> cur);                 // keep tempest's
         foldFaction(offers, OLD, NEW, (cur, old) -> {

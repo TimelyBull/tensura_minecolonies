@@ -1411,7 +1411,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
 
         // Diplomacy Covenant hunt deals — every player kill bumps any
-        // matching active SlayEntities deal (Falmuth/Carrion/Clayman
+        // matching active SlayEntities deal (Falmuth/Eurazania/Clayman
         // Covenant milestones). Gated inside.
         DiplomacyManager.onPlayerKill(level, killer.getUUID(), victim);
 

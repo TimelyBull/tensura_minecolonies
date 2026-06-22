@@ -54,7 +54,7 @@ grants a **signature Tensura skill** (the same skill you'd get by
 ## Who offers what
 
 - **Seven factions** (Dwargon, the Jura-Tempest Federation, Luminous,
-  Falmuth, Milim, Carrion, the Moderate Harlequin Alliance) have full catalogues of around ten deals
+  Falmuth, Milim, Eurazania, the Moderate Harlequin Alliance) have full catalogues of around ten deals
   each, leading up to a Covenant. The Jura-Tempest Federation's catalogue is the
   largest — it carries the combined deals of the former Tempest and Jura
   Alliance factions.

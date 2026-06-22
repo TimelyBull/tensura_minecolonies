@@ -145,7 +145,7 @@ public final class TensuraRaids {
     private static EntityType<?> allyTypeFor(String factionId) {
         String path = switch (factionId) {
             case "dwargon" -> "dwarf";
-            case "milim", "carrion" -> "lizardman";
+            case "milim", "eurazania" -> "lizardman";
             default -> "goblin";
         };
         return net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.get(

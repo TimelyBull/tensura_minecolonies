@@ -1,5 +1,24 @@
 # Investigation: the expanded faction model (Layer 1 — the spine)
 
+> **CONSOLIDATION STEP 2 (2026-06-21) — Carrion → Eurazania + heroes → Falmuth.**
+> (A) The `carrion` faction was renamed to **Eurazania** (the Beast Kingdom):
+> id/storage key `carrion` → `eurazania`, display "Carrion" → "Eurazania",
+> enum constant `CARRION` → `EURAZANIA`. It stays BODILESS (diplomacy/rep only;
+> no boss/settlement/garrison) — pure rename, same swing 1.5× / threshold 8 /
+> enemy {clayman}. Old-save `carrion` standing/offense/relations migrate to
+> `eurazania` on load (`WorldReputationSavedData` + `DiplomacySavedData`,
+> `foldRename`). Deal ids keep their `ca_*` / `cov_carrion` prefix (opaque,
+> not faction ids). Wherever the tables below say `CARRION`, read `EURAZANIA`.
+>
+> (B) The four Falmuth-summoned Otherworlder heroes — **Shogo, Mark, Shinji,
+> Kirara** — now belong to **FALMUTH** (BOSS_PROFILES + garrison roster). Note
+> the importance table below lists Shinji + Mark under JURA_ALLIANCE/Tempest;
+> they have MOVED to Falmuth, so the **Jura-Tempest Federation now has only
+> Shin Ryusei** as its NOTABLE anchor. Kyoya was already Falmuth. The
+> **Otherworlders faction is NOT deleted and Mai Furuki is NOT moved** — Mai
+> stays as its placeholder boss (its rank-and-file roster is now empty;
+> `spawnGarrison` no-ops gracefully) pending the Eastern Empire step.
+
 > **DISPLAY-NAME RENAME (2026-06-21) — `clayman` faction → "Moderate
 > Harlequin Alliance".** Only the faction's human-readable DISPLAY NAME
 > changed (the enum's display-name field in `BossFaction`). The id /

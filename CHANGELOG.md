@@ -52,6 +52,17 @@ Copy the relevant version's section into the CurseForge release notes on each up
   current visit is resolved.
 
 ### Changed
+- **The Carrion faction is now "Eurazania" (the Beast Kingdom).** Calion's
+  beastfolk nation now shows the name "Eurazania" everywhere a faction label
+  appears. It stays exactly as it was otherwise — diplomacy and reputation
+  only, no settlement to attack. Existing worlds carry over automatically: any
+  standing or relations you had with Carrion become your standing with
+  Eurazania, with no lost progress.
+- **Falmuth's summoned heroes now fight under Falmuth.** The Otherworlder
+  champions Shogo Taguchi, Mark Lauren, Shinji Tanimura, and Kirara Mizutani —
+  the heroes the Kingdom of Falmuth summoned — now belong to Falmuth, both for
+  reputation purposes and as Falmuth settlement defenders. The Otherworlders
+  faction still exists (Mai Furuki remains) and is unchanged otherwise.
 - **The schemer faction is now called the "Moderate Harlequin Alliance."**
   Clayman's faction — the schemers behind the Orc Disaster — now shows that
   name everywhere a faction label appears (diplomacy, reputation, messages).

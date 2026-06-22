@@ -16,7 +16,7 @@ import net.minecraft.ChatFormatting;
  * <p>Boss anchoring lives in {@code WorldReputationManager.bossProfileOf}
  * (faction + lore importance); per-faction dispositions, the
  * relationship web, swing multipliers and provocation thresholds live
- * in {@link FactionProfile#PROFILES}. CARRION and MILIM have no anchored
+ * in {@link FactionProfile#PROFILES}. EURAZANIA and MILIM have no anchored
  * boss — their standings move only via the two-sided RIPPLE legs (e.g. a
  * marked Clayman boss kill raises them).
  *
@@ -39,7 +39,10 @@ public enum BossFaction {
     LEON("leon", "Leon", ChatFormatting.YELLOW),
     SHIZU("shizu", "Shizu", ChatFormatting.DARK_AQUA),
     OTHERWORLDERS("otherworlders", "Otherworlders", ChatFormatting.LIGHT_PURPLE),
-    CARRION("carrion", "Carrion", ChatFormatting.DARK_GREEN),
+    // Eurazania — the Beast Kingdom (Carrion/Calion's nation). Renamed from
+    // the old "carrion" id; stays BODILESS (diplomacy/rep only). Old-save
+    // `carrion` standing/relations migrate to `eurazania` on load.
+    EURAZANIA("eurazania", "Eurazania", ChatFormatting.DARK_GREEN),
     MILIM("milim", "Milim", ChatFormatting.LIGHT_PURPLE);
 
     private final String id;

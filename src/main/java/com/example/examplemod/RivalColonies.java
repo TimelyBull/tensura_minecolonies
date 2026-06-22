@@ -115,7 +115,7 @@ public final class RivalColonies {
         // Dwargon — DWARVEN_VILLAGE type: anchor exists (Gazel) but NO
         // town pack; SOME existing dwarf villages become its settlements.
         ANCHORS.put(DWARGON, HumanEntityTypes.GAZEL_DWARGO);
-        // ABSTRACT (no anchor mob, never settle): carrion, milim,
+        // ABSTRACT (no anchor mob, never settle): eurazania, milim,
         // clayman (his orcs roam as calamities, not a settled town).
     }
 
@@ -148,7 +148,7 @@ public final class RivalColonies {
     // Each physical faction fields a themed defender roster drawn from
     // mobs already in the mod (the TensuraRaids.rosters() shape). The
     // anchor BOSS (spawned + marked in Stage A) is part of the garrison;
-    // these are the rank-and-file around it. Abstract factions (Carrion,
+    // these are the rank-and-file around it. Abstract factions (Eurazania,
     // Milim, Clayman) have no settlement, so no roster.
     // ------------------------------------------------------------------
 
@@ -164,10 +164,13 @@ public final class RivalColonies {
             case "luminous" -> new EntityType[] {
                     HumanEntityTypes.FALMUTH_KNIGHT.get(), HumanEntityTypes.KYOYA_TACHIBANA.get(),
                     HumanEntityTypes.BONE_GOLEM.get() };
-            // Falmuth — militaristic kingdom: Folgen's named knights.
+            // Falmuth — militaristic kingdom: Folgen's knights + the five
+            // summoned Otherworlder heroes (Kirara/Kyoya/Shogo/Shinji/Mark
+            // all fight under Falmuth's banner).
             case "falmuth" -> new EntityType[] {
                     HumanEntityTypes.FALMUTH_KNIGHT.get(), HumanEntityTypes.KIRARA_MIZUTANI.get(),
-                    HumanEntityTypes.KYOYA_TACHIBANA.get(), HumanEntityTypes.SHOGO_TAGUCHI.get() };
+                    HumanEntityTypes.KYOYA_TACHIBANA.get(), HumanEntityTypes.SHOGO_TAGUCHI.get(),
+                    HumanEntityTypes.MARK_LAUREN.get(), HumanEntityTypes.SHINJI_TANIMURA.get() };
             // Shizu — Ifrit's fire (her possessed origin): fire beasts.
             case "shizu" -> new EntityType[] {
                     MonsterEntityTypes.IFRIT_CLONE.get(), MonsterEntityTypes.SALAMANDER.get(),
@@ -177,11 +180,10 @@ public final class RivalColonies {
                     MonsterEntityTypes.IFRIT_CLONE.get(), MonsterEntityTypes.SALAMANDER.get(),
                     MonsterEntityTypes.ARCH_DAEMON.get(), MonsterEntityTypes.GREATER_DAEMON.get(),
                     MonsterEntityTypes.LESSER_DAEMON.get() };
-            // Otherworlders — summoned-from-elsewhere: a cohort of humans.
-            // (CloneEntity excluded — missing-texture when sourceless.)
-            case "otherworlders" -> new EntityType[] {
-                    HumanEntityTypes.SHOGO_TAGUCHI.get(), HumanEntityTypes.MARK_LAUREN.get(),
-                    HumanEntityTypes.SHINJI_TANIMURA.get(), HumanEntityTypes.KIRARA_MIZUTANI.get() };
+            // Otherworlders — the four summoned heroes moved to Falmuth; the
+            // anchor Mai Furuki remains but there is no rank-and-file roster
+            // yet (falls to default null → spawnGarrison no-ops gracefully).
+            // The slot becomes the Eastern Empire in a later step.
             // Jura-Tempest Federation — the forest nation: serpents, slimes, kin.
             case "tempest" -> new EntityType[] {
                     MonsterEntityTypes.TEMPEST_SERPENT.get(), MonsterEntityTypes.GOBLIN.get(),
@@ -934,7 +936,7 @@ public final class RivalColonies {
     private static double boneGolemMasteryFraction(String factionId) {
         return switch (factionId) {
             case "milim" -> 1.0;                                          // apex power
-            case "leon", "carrion", "luminous", "clayman" -> 0.8;         // demon lords / great powers
+            case "leon", "eurazania", "luminous", "clayman" -> 0.8;       // demon lords / great powers
             case "dwargon", "shizu", "otherworlders" -> 0.6;              // strong realms
             default -> 0.4;                                               // falmuth, tempest…
         };

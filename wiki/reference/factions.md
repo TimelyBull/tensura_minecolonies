@@ -16,7 +16,7 @@ standing, events, and [diplomacy](../features/diplomacy.md)).
 | **Leon** | Physical (town) | A demon lord's domain; aloof | Yes (small set) |
 | **Otherworlders** | Physical (town) | Summoned-from-elsewhere; aloof | Yes (small set) |
 | **Jura-Tempest Federation** | Physical (town) | The forest monster nation — community-minded | Yes |
-| **Carrion** | Abstract | Beastmen; swingable toward alliance | Yes |
+| **Eurazania** | Abstract | The Beast Kingdom (Calion's beastfolk); swingable toward alliance | Yes |
 | **Milim** | Abstract | A destroyer demon lord; swingable | Yes |
 | **Moderate Harlequin Alliance** | Abstract | Clayman's schemers — they oppose the rising forest powers | Yes (via outbound envoy) |
 
@@ -39,9 +39,9 @@ Killing a faction's marked bosses angers its allies and pleases its enemies:
 - **Forest bloc:** the Jura-Tempest Federation and Dwargon are allied; both
   oppose the Moderate Harlequin Alliance.
 - **The Moderate Harlequin Alliance** opposes nearly everyone — the Holy
-  bloc, the forest bloc, Milim, and Carrion.
+  bloc, the forest bloc, Milim, and Eurazania.
 - **Leon, Otherworlders, and Shizu** are aloof — they keep out of the web,
   and their standing moves less.
 
-Milim and Carrion are "swingable" — their standing moves more than average,
+Milim and Eurazania are "swingable" — their standing moves more than average,
 so they're quicker to turn into firm allies or enemies.

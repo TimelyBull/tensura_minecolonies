@@ -121,7 +121,7 @@ public final class DiplomacyManager {
             Map.entry("dwargon", 6000.0),        // diplomacy-open, violence-sensitive
             Map.entry("shizu", 6000.0),          // kind to all
             // Neutral, moderately risky.
-            Map.entry("carrion", 8000.0),        // beastmen, swingable
+            Map.entry("eurazania", 8000.0),      // beastmen, swingable
             Map.entry("otherworlders", 8000.0),  // aloof, unknown
             // Dangerous — demon lords / schemers.
             Map.entry("leon", 11000.0),          // a demon lord's domain
@@ -187,11 +187,11 @@ public final class DiplomacyManager {
     /** Covenant perk: SupplyItems deal targets are reduced by this. */
     static final double COVENANT_SUPPLY_DISCOUNT = 0.25;
     /** Covenant grinders (auto-delivery on the daily pass): dwargon =
-     *  industry, carrion = beast/hunt — different material sets. */
+     *  industry, eurazania = beast/hunt — different material sets. */
     private static final Map<String, List<ItemStack>> GRINDER_GOODS = Map.of(
             "dwargon", List.of(new ItemStack(Items.IRON_INGOT, 16),
                     new ItemStack(Items.COAL, 32), new ItemStack(Items.GOLD_INGOT, 6)),
-            "carrion", List.of(new ItemStack(Items.LEATHER, 16),
+            "eurazania", List.of(new ItemStack(Items.LEATHER, 16),
                     new ItemStack(Items.BONE, 16), new ItemStack(Items.STRING, 16)));
     /** Clayman covenant: summoned spare Disasters regroup this long. */
     static final long SUMMON_DISASTER_COOLDOWN_TICKS = 4 * DAY;
@@ -228,7 +228,7 @@ public final class DiplomacyManager {
                     "luminous", net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE,
                     "falmuth", net.minecraft.world.effect.MobEffects.DAMAGE_BOOST,
                     "milim", net.minecraft.world.effect.MobEffects.DAMAGE_BOOST,
-                    "carrion", net.minecraft.world.effect.MobEffects.MOVEMENT_SPEED);
+                    "eurazania", net.minecraft.world.effect.MobEffects.MOVEMENT_SPEED);
 
     /** Daily caravan goods per PACT faction (trade access — faction
      *  wares without a shop UI; the authoring seam for more). */
@@ -238,7 +238,7 @@ public final class DiplomacyManager {
             "luminous", List.of(new ItemStack(Items.GOLD_INGOT, 6), new ItemStack(Items.DIAMOND, 2)),
             "falmuth", List.of(new ItemStack(Items.IRON_INGOT, 16), new ItemStack(Items.EMERALD, 4)),
             "milim", List.of(new ItemStack(Items.COOKED_PORKCHOP, 16), new ItemStack(Items.EMERALD, 4)),
-            "carrion", List.of(new ItemStack(Items.LEATHER, 12), new ItemStack(Items.EMERALD, 4)));
+            "eurazania", List.of(new ItemStack(Items.LEATHER, 12), new ItemStack(Items.EMERALD, 4)));
 
     // --- the alliance prompt (replaces the pact milestone deal) ---
     /** Re-send an unanswered alliance prompt after this long (covers a
@@ -1747,7 +1747,7 @@ public final class DiplomacyManager {
     // COVENANT per-faction rewards
     // ------------------------------------------------------------------
 
-    /** Daily passive GRINDERS — Dwargon (industry) + Carrion (beast/hunt)
+    /** Daily passive GRINDERS — Dwargon (industry) + Eurazania (beast/hunt)
      *  Covenants deliver materials straight to the player's inventory
      *  (or drop at their feet) once per day. Different material sets. */
     private static void tickCovenantGrinders(ServerLevel level) {
