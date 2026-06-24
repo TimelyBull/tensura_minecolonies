@@ -1,5 +1,23 @@
 # Investigation: the expanded faction model (Layer 1 — the spine)
 
+> **STEP 5 / BATCH 2 (2026-06-21) — Leon faction skills.**
+> Per the native-casting table, **Ifrit (boss) and Salamander both NATIVE-CAST
+> their fire** — so NO active fire skills were granted (granting+driving them
+> would duplicate native casting; rule violation). Only safe passives were
+> applied:
+> - **Ifrit (boss):** upgraded to boss-tier fire IMMUNITY —
+>   `FLAME_ATTACK_NULLIFICATION` + `HEAT_NULLIFICATION` (supersede the
+>   rank-and-file resistance) + `SELF_REGENERATION` (already). Its offensive
+>   fire kit + mastery are NATIVE (not ours to scale without duplicating).
+> - **Salamander (r&f):** keeps `FLAME_ATTACK_RESISTANCE` + `HEAT_RESISTANCE`
+>   (lesser-spirit tier); native fire offence left alone.
+> - **Bone Golem (placeholder):** unchanged — already driven by the proven
+>   bone-golem autocaster at Leon mastery 0.8 (demon-lord tier). Seam stays.
+> - **Garrison autocaster NOT needed/used:** Leon has no non-native fire-caster
+>   (Ifrit + Salamander are native; the golem has its own autocaster). Only the
+>   golem is grant+driven; everything else is native or passive. No skill is
+>   double-implemented.
+
 > **ROSTER EDIT (2026-06-21) — Mark Lauren + Shinji Tanimura + Shin Ryusei → Eastern Empire.**
 > All three now belong to the **Eastern Empire** (BOSS_PROFILES NOTABLE +
 > the Empire's garrison roster). Mark + Shinji were moved out of **Falmuth**;

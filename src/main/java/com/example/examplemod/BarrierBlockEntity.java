@@ -848,27 +848,22 @@ public class BarrierBlockEntity extends BlockEntity {
         }
     }
 
-    /** Push a mob back to just outside an intact section's surface. RADIAL
-     *  push high up; near/below the core's height the push is HORIZONTALIZED
-     *  (Y preserved) so mobs aren't shoved into terrain. */
+    /** Push a mob back to just outside an intact section's surface — ALWAYS
+     *  HORIZONTAL (Y preserved). Mobs are shoved straight back from the
+     *  barrier, never launched up the dome (the old radial push pointed partly
+     *  upward) nor driven down into terrain. Upward velocity is cancelled so an
+     *  airborne mob just falls; {@code dy}/{@code dist} are unused now. */
     private static void pushFromShell(Mob mob, Vec3 center, double R,
                                       double dx, double dy, double dz, double dist) {
-        if (dist < 1e-3) return;
         double target = R + 0.25;
-        boolean nearGround = mob.getY() <= center.y + 3.0;
-        if (nearGround) {
-            // Horizontal-only push: keep Y, set horizontal distance to target.
-            double hd = Math.sqrt(dx * dx + dz * dz);
-            if (hd < 1e-3) hd = 1e-3;
-            double tx = center.x + (dx / hd) * target;
-            double tz = center.z + (dz / hd) * target;
-            mob.setPos(tx, mob.getY(), tz);
+        double hd = Math.sqrt(dx * dx + dz * dz);
+        if (hd < 1e-3) {
+            // Mob ~directly above/below the core — nudge out along +X so it
+            // isn't left stuck inside; still no vertical movement.
+            mob.setPos(center.x + target, mob.getY(), mob.getZ());
         } else {
-            // True radial push.
-            double tx = center.x + (dx / dist) * target;
-            double ty = center.y + (dy / dist) * target;
-            double tz = center.z + (dz / dist) * target;
-            mob.setPos(tx, ty, tz);
+            mob.setPos(center.x + (dx / hd) * target, mob.getY(),
+                    center.z + (dz / hd) * target);
         }
         Vec3 vel = mob.getDeltaMovement();
         mob.setDeltaMovement(0, Math.min(0, vel.y), 0);

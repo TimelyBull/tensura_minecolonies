@@ -52,6 +52,11 @@ Copy the relevant version's section into the CurseForge release notes on each up
   current visit is resolved.
 
 ### Changed
+- **Leon's fire spirits are now properly fireproof.** Ifrit, the flame-spirit
+  boss of Leon's keep, is now fully immune to fire and heat (on top of its
+  existing self-healing and its own native fire attacks), and its salamanders
+  keep their fire resistance — a fitting fire-domain garrison. (No new attacks
+  were added: Ifrit and the salamanders already cast their own fire magic.)
 - **Mark Lauren, Shinji Tanimura, and Shin Ryusei now fight for the Eastern
   Empire.** These three otherworlder fighters are gathered under the Eastern
   Empire's banner (Mark and Shinji moved over from Falmuth). It's a

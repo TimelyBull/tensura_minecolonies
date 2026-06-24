@@ -855,10 +855,17 @@ public final class RivalColonies {
         if (boss != null) {
             boss.setData(Attachments.GARRISON_TAG.get(), new GarrisonTag(s.id, true));
             assignFactionDefenderSkills(boss, s.factionId);
-            // Leon's anchor Ifrit is "scaled up" with extra sustain on top of
-            // its native fire kit (Self-Regeneration; the EP-driven garrison
-            // scaler already makes it among the strongest bosses).
+            // Leon's anchor Ifrit NATIVE-CASTS its fire kit (verified) — so we
+            // grant NO active fire skills (that would duplicate/conflict).
+            // Instead it gets boss-tier PASSIVE fire IMMUNITY (nullification
+            // supersedes the rank-and-file resistance) + Self-Regeneration
+            // sustain. Its offensive mastery is native; the EP-driven scaler
+            // already makes it among the strongest bosses.
             if ("leon".equals(s.factionId)) {
+                grantDefenderSkill(boss,
+                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.FLAME_ATTACK_NULLIFICATION);
+                grantDefenderSkill(boss,
+                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.HEAT_NULLIFICATION);
                 grantDefenderSkill(boss,
                         io.github.manasmods.tensura.registry.skill.CommonSkills.SELF_REGENERATION);
             }
