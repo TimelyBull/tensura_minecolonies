@@ -38,6 +38,25 @@ Copy the relevant version's section into the CurseForge release notes on each up
   dies — being a defender is a real risk. (The power threshold is tunable.)
 
 ### Fixed
+- **Named Tensura colonists no longer turn back into plain villagers after a
+  reload.** A goblin, dwarf, lizardman or orc citizen could sometimes lose its
+  monster appearance and look like an ordinary colonist after the area around
+  it reloaded. The colony now remembers what each named citizen really is and
+  restores its proper form automatically whenever its body reappears.
+- **Bringing a citizen out to your side can no longer "lose" them.** Very
+  rarely, if something went wrong partway through summoning a citizen to your
+  side, the citizen could get stuck with no body in the colony and no way to
+  call them back — effectively lost. That step is now all-or-nothing: if it
+  can't finish, the citizen simply stays a normal colonist in the colony (their
+  body comes right back) and any magicule you spent is refunded.
+- **New `/recoverorphans` command to rescue lost subordinates.** If a named
+  subordinate vanished while at your side — for example, scooped up by another
+  mod's mob-catching item — it used to be impossible to ever add it back to your
+  colony. Run `/recoverorphans` to see a report of which of your subordinates
+  are stranded (it changes nothing on its own), then `/recoverorphans confirm`
+  to bring the recoverable ones back as colonists. Subordinates that were named
+  but never sent to a colony are listed separately and left alone, and nothing
+  is ever deleted.
 - **The dwarf envoy's 20-day peace timer no longer counts while you're away.**
   The "20 in-game days without the colony owner dying" condition that can
   unlock dwarf envoys now only advances while you are actually online. It

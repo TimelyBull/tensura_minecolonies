@@ -68,6 +68,22 @@ public class RaceIdentitySavedData extends SavedData {
                                             // correctly (swap back when the
                                             // threat ends). Persisted; default
                                             // false for legacy records.
+        public CompoundTag raceTagSnapshot; // FIX 2 (Bug 1a — the revert) —
+                                            // the last-known RaceTag, serialized
+                                            // via RaceTag.SERIALIZER. The race
+                                            // appearance lives on the live
+                                            // citizen ENTITY as an attachment,
+                                            // which is lost whenever MineColonies
+                                            // rebuilds the body from its own
+                                            // CitizenData (respawn loop) instead
+                                            // of from chunk NBT — the citizen
+                                            // then renders as a plain colonist.
+                                            // This durable copy lets the
+                                            // EntityJoinLevelEvent handler
+                                            // re-stamp the attachment so the
+                                            // Tensura form self-heals. Null for
+                                            // identities never sent (no tag built
+                                            // yet) and legacy records.
         public net.minecraft.core.BlockPos jobSitePos; // Feature C — the
                                             // villager job-site block this
                                             // citizen merchant claimed its
@@ -116,6 +132,9 @@ public class RaceIdentitySavedData extends SavedData {
             if (jobSitePos != null) {
                 tag.putLong("jobSitePos", jobSitePos.asLong());
             }
+            if (raceTagSnapshot != null) {
+                tag.put("raceTagSnapshot", raceTagSnapshot.copy());
+            }
             if (defendingColony) {
                 tag.putBoolean("defendingColony", true);
             }
@@ -141,6 +160,9 @@ public class RaceIdentitySavedData extends SavedData {
                                     ownerPlayerUUID, race);
             if (tag.contains("jobSitePos")) {
                 id.jobSitePos = net.minecraft.core.BlockPos.of(tag.getLong("jobSitePos"));
+            }
+            if (tag.contains("raceTagSnapshot", Tag.TAG_COMPOUND)) {
+                id.raceTagSnapshot = tag.getCompound("raceTagSnapshot");
             }
             id.defendingColony = tag.getBoolean("defendingColony"); // false if absent
             return id;
@@ -281,6 +303,13 @@ public class RaceIdentitySavedData extends SavedData {
         setDirty();
     }
 
+    /** FIX 2 — store the last-known serialized RaceTag so a body MineColonies
+     *  rebuilds from CitizenData (losing the attachment) can be re-stamped. */
+    public void setRaceTagSnapshot(RaceIdentity identity, CompoundTag raceTagNbt) {
+        identity.raceTagSnapshot = raceTagNbt;
+        setDirty();
+    }
+
     // -----------------------------------------------------------------
     // Pending pool — add / remove / list
     // -----------------------------------------------------------------
@@ -326,6 +355,18 @@ public class RaceIdentitySavedData extends SavedData {
     public RaceIdentity getByCitizenId(int citizenId) {
         for (RaceIdentity identity : byIdentityId.values()) {
             if (identity.citizenId == citizenId) return identity;
+        }
+        return null;
+    }
+
+    /** Precise lookup by (colony, citizen) — citizen IDs are only unique WITHIN
+     *  a colony, so the {@link #getByCitizenId} single-key variant can mismatch
+     *  across colonies. Used by the FIX 2 entity-join re-stamp handler. */
+    public RaceIdentity getByColonyAndCitizen(int colonyId, int citizenId) {
+        for (RaceIdentity identity : byIdentityId.values()) {
+            if (identity.colonyId == colonyId && identity.citizenId == citizenId) {
+                return identity;
+            }
         }
         return null;
     }

@@ -86,6 +86,7 @@ import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
@@ -2342,9 +2343,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         RaceTag tag = citizen.getData(Attachments.RACE_TAG.get());
         if (tag != null) {
             RaceTag updated = tag.withProfession(profId);
-            citizen.setData(Attachments.RACE_TAG.get(), updated);
-            PacketDistributor.sendToPlayersTrackingEntity(citizen,
-                    Networking.SyncRaceTagPayload.of(citizen.getUUID(), updated));
+            // FIX 2: keep the durable snapshot in sync with the cosmetic change.
+            applyRaceTagToCitizen(citizen, updated, saved, identity);
         }
         LOGGER.info("[TM] citizen {} (identity {}) cosmetic profession -> {}",
                 identity.citizenId, identity.identityId,
@@ -4125,9 +4125,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // renders the matching profession clothes (Feature B; dwarf-only
             // render, but harmless to carry for any merchant race).
             tag = tag.withProfession(merchantProfessionId(goblin));
-            citizenBody.setData(Attachments.RACE_TAG.get(), tag);
-            PacketDistributor.sendToPlayersTrackingEntity(citizenBody,
-                    Networking.SyncRaceTagPayload.of(citizenBody.getUUID(), tag));
+            // FIX 2: set + broadcast + persist a durable snapshot in one call so
+            // the entity-join handler can re-stamp this appearance if the body
+            // is ever rebuilt from CitizenData (losing the attachment).
+            applyRaceTagToCitizen(citizenBody, tag, saved, identity);
             // Race-discriminated log: pattern-match the sealed variant so
             // each race logs its own fingerprint instead of forcing
             // goblin-shaped fields onto the wire.
@@ -4264,6 +4265,20 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         .requires(src -> src.hasPermission(0))
                         .then(Commands.argument("name", StringArgumentType.greedyString())
                                 .executes(this::handleSummonCommand))
+        );
+        // FIX 3 — orphan-recovery tool. Reconciles your named subordinates
+        // whose live mob has vanished outside our hooks (e.g. captured by a
+        // third-party mob-storage item), which otherwise can never re-join the
+        // colony. DRY-RUN by default — it only reports; it mutates nothing
+        // until you add "confirm".
+        //   /recoverorphans          — report what would be restored
+        //   /recoverorphans confirm  — restore recoverable orphans as colonists
+        event.getDispatcher().register(
+                Commands.literal("recoverorphans")
+                        .requires(src -> src.hasPermission(2))
+                        .executes(ctx -> handleRecoverOrphans(ctx, false))
+                        .then(Commands.literal("confirm")
+                                .executes(ctx -> handleRecoverOrphans(ctx, true)))
         );
         // Harvest Festival debug/testing + the prestige-reset entry point.
         //   /festival run    — run the once-per-colony festival on your colonies
@@ -5138,9 +5153,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             return 0;
         }
         RaceTag flipped = current.withRace(current.race().other());
-        body.setData(Attachments.RACE_TAG.get(), flipped);
-        PacketDistributor.sendToPlayersTrackingEntity(body,
-                Networking.SyncRaceTagPayload.of(body.getUUID(), flipped));
+        // FIX 2: set + broadcast + persist the durable snapshot so the flipped
+        // appearance survives a respawn/reload.
+        applyRaceTagToCitizen(body, flipped, saved, match);
 
         final Race newRace = flipped.race();
         final String displayName = name;
@@ -5191,6 +5206,143 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         final int n = reset;
         src.sendSuccess(() -> Component.literal("Festival prestige reset on " + n + " colony(ies)."), false);
         return 1;
+    }
+
+    // ------------------------------------------------------------------
+    // FIX 3 (Bug 2 + Bug 1b victims) — dry-run-by-default orphan recovery
+    // ------------------------------------------------------------------
+    //
+    // When a subordinate is removed OUTSIDE our swap helpers (a third-party
+    // mob-storage item, or a summon that rolled back before FIX 1), the
+    // identity record is left stuck in SUBORDINATE pointing at a mob UUID that
+    // resolves to nothing — so the subordinate can never re-join the colony.
+    // This tool finds those records and (on explicit confirm) restores them as
+    // colonists, reusing the CitizenData that always existed.
+    //
+    // SAFETY:
+    //   • Scope = the RUNNING player's own identities only. The owner is online
+    //     and present, so a still-valid subordinate would be in a loaded chunk;
+    //     an unresolvable mob is therefore a strong signal it was genuinely
+    //     removed, not merely in an unloaded chunk.
+    //   • DRY RUN by default — it reports and mutates nothing. Only "confirm"
+    //     changes state.
+    //   • Records are NEVER deleted. On any uncertainty (missing colony /
+    //     citizen / exception) the record is left intact and reported as skipped.
+    //   • Snapshot-less ("named but never sent") records are reported separately
+    //     as identity-only and left untouched — their stats/appearance can't be
+    //     reconstructed, so we don't fabricate them.
+    private int handleRecoverOrphans(CommandContext<CommandSourceStack> ctx, boolean confirm) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/recoverorphans must be run by a player"));
+            return 0;
+        }
+
+        ServerLevel level = player.serverLevel();
+        MinecraftServer server = level.getServer();
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
+        IColonyManager cm = IColonyManager.getInstance();
+
+        List<RaceIdentitySavedData.RaceIdentity> recoverable = new ArrayList<>();
+        List<RaceIdentitySavedData.RaceIdentity> identityOnly = new ArrayList<>();
+        for (RaceIdentitySavedData.RaceIdentity id : saved.all()) {
+            if (id.mode != RaceIdentitySavedData.Mode.SUBORDINATE) continue;
+            if (!player.getUUID().equals(id.ownerPlayerUUID)) continue;
+            LivingEntity mob = id.mobEntityUUID != null
+                    ? findLivingEntityAcrossLevels(server, id.mobEntityUUID) : null;
+            if (mob != null) continue; // live subordinate — not orphaned
+            if (id.entitySnapshot != null) recoverable.add(id);
+            else identityOnly.add(id);
+        }
+
+        if (recoverable.isEmpty() && identityOnly.isEmpty()) {
+            src.sendSuccess(() -> Component.literal(
+                    "No orphaned subordinates found — all your named subordinates are accounted for.")
+                    .withStyle(ChatFormatting.GREEN), false);
+            return 1;
+        }
+
+        if (!confirm) {
+            final int rec = recoverable.size();
+            final int idOnly = identityOnly.size();
+            src.sendSuccess(() -> Component.literal(
+                    "Orphan-recovery DRY RUN — nothing has been changed:")
+                    .withStyle(ChatFormatting.AQUA), false);
+            src.sendSuccess(() -> Component.literal(
+                    "  " + rec + " recoverable — can be restored as colonists from their snapshot.")
+                    .withStyle(ChatFormatting.GREEN), false);
+            src.sendSuccess(() -> Component.literal(
+                    "  " + idOnly + " identity-only (never sent to a colony / no snapshot) — "
+                    + "cannot restore stats or appearance; will be left untouched.")
+                    .withStyle(ChatFormatting.YELLOW), false);
+            for (RaceIdentitySavedData.RaceIdentity id : recoverable) {
+                final String nm = resolveOrphanName(cm, level, id);
+                final Race race = id.race;
+                src.sendSuccess(() -> Component.literal("    restore: " + nm + " (" + race + ")")
+                        .withStyle(ChatFormatting.GRAY), false);
+            }
+            for (RaceIdentitySavedData.RaceIdentity id : identityOnly) {
+                final String nm = resolveOrphanName(cm, level, id);
+                final Race race = id.race;
+                src.sendSuccess(() -> Component.literal("    skip:    " + nm + " (" + race + ", no snapshot)")
+                        .withStyle(ChatFormatting.DARK_GRAY), false);
+            }
+            src.sendSuccess(() -> Component.literal(
+                    "Run \"/recoverorphans confirm\" to restore the " + rec + " recoverable subordinate(s).")
+                    .withStyle(ChatFormatting.AQUA), false);
+            return 1;
+        }
+
+        // CONFIRM — perform the recovery. Restore only the snapshot-backed
+        // records; never delete anything.
+        int restored = 0, skipped = 0;
+        for (RaceIdentitySavedData.RaceIdentity id : recoverable) {
+            try {
+                IColony colony = cm.getColonyByWorld(id.colonyId, level);
+                if (colony == null) { skipped++; continue; }      // fail safe — keep record
+                ICitizenData cd = colony.getCitizenManager().getCivilian(id.citizenId);
+                if (cd == null) { skipped++; continue; }          // fail safe — keep record
+
+                // The wild mob is gone. Drop the dangling reverse-map link
+                // (updateMobUUID(null) also clears the stale entry), flip the
+                // record back to IN_COLONY, and CLEAR the respawn suppression so
+                // MineColonies rebuilds the colonist body from the CitizenData
+                // that has been counting the whole time (no double-count — we
+                // reuse it, we don't create a new one). FIX 2's join handler
+                // re-stamps the race appearance from raceTagSnapshot.
+                saved.updateMobUUID(id, null);
+                saved.updateMode(id, RaceIdentitySavedData.Mode.IN_COLONY);
+                saved.setDefendingColony(id, false); // clear any stale defense flag
+                colony.getTravellingManager().finishTravellingFor(cd);
+                restored++;
+                LOGGER.info("[TM] FIX3: recovered orphan identity {} (citizen {} race {}) as colonist in colony {}",
+                        id.identityId, id.citizenId, id.race, id.colonyId);
+            } catch (Throwable t) {
+                LOGGER.error("[TM] FIX3: recovery threw for identity {} — leaving record intact",
+                        id.identityId, t);
+                skipped++;
+            }
+        }
+
+        final int fRestored = restored, fSkipped = skipped, fIdentityOnly = identityOnly.size();
+        src.sendSuccess(() -> Component.literal(
+                "Orphan recovery complete: " + fRestored + " restored as colonists; "
+                + fSkipped + " skipped (colony/citizen missing — records kept); "
+                + fIdentityOnly + " identity-only left untouched.")
+                .withStyle(ChatFormatting.GREEN), false);
+        return 1;
+    }
+
+    /** Best-effort display name for an orphaned identity's citizen. */
+    private static String resolveOrphanName(IColonyManager cm, ServerLevel level,
+                                            RaceIdentitySavedData.RaceIdentity id) {
+        IColony c = cm.getColonyByWorld(id.colonyId, level);
+        if (c == null) return "citizen#" + id.citizenId;
+        ICitizenData cd = c.getCitizenManager().getCivilian(id.citizenId);
+        return cd != null ? cd.getName() : "citizen#" + id.citizenId;
     }
 
     private int handleSummonCommand(CommandContext<CommandSourceStack> ctx) {
@@ -5247,7 +5399,24 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      *                 menu summon); false to place the body directly at
      *                 {@code materializePos} (instant combat placement).
      */
-    private static void summonGoblin(@org.jetbrains.annotations.Nullable ServerPlayer player,
+    // FIX 1 (Bug 1b — the strand): this method is now TRANSACTIONAL and returns
+    // a success flag. The body of the swap is wrapped in try/catch with a
+    // rollback that mirrors {@link #sendGoblinToColony}. The historically
+    // fragile part is that the colonist body's respawn loop is suppressed up
+    // front (via startTravellingTo(MAX_VALUE)) but the mode is only flipped to
+    // SUBORDINATE on full success — so a throw partway used to leave the citizen
+    // with respawn suppressed AND mode still IN_COLONY, i.e. no body would ever
+    // spawn again and the citizen could never be re-summoned (permanent strand).
+    //
+    // The MUST-NOT-MISS invariant enforced below: on EVERY failure/early-return
+    // path, the travelling suppression is CLEARED (finishTravellingFor) so
+    // MineColonies keeps/respawns the colonist body, the identity is left
+    // IN_COLONY with a real body, and any half-built wild mob is discarded.
+    // The caller refunds magicule when this returns false.
+    //
+    // @return true on success (identity is now SUBORDINATE with a live mob);
+    //         false on any failure (identity left IN_COLONY, body restored).
+    private static boolean summonGoblin(@org.jetbrains.annotations.Nullable ServerPlayer player,
                                      ServerLevel level,
                                      RaceIdentitySavedData saved,
                                      RaceIdentitySavedData.RaceIdentity identity,
@@ -5290,13 +5459,23 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (identity.entitySnapshot == null) {
             LOGGER.warn("[TM] summon: no entity snapshot for citizen {} (was it ever sent?) — aborting",
                     identity.citizenId);
-            return;
+            // FIX 1: clear suppression so the colonist body is not left stranded.
+            colony.getTravellingManager().finishTravellingFor(citizenData);
+            return false;
         }
         Optional<Entity> created = EntityType.create(identity.entitySnapshot, level);
         if (created.isEmpty() || !(created.get() instanceof LivingEntity goblin)) {
             LOGGER.warn("[TM] summon: EntityType.create() returned empty or non-LivingEntity — aborting");
-            return;
+            // FIX 1: clear suppression so the colonist body is not left stranded.
+            colony.getTravellingManager().finishTravellingFor(citizenData);
+            return false;
         }
+
+        // FIX 1: everything from here to the mode flip is the transactional
+        // body. Any throw rolls back in the catch below: the half-built wild
+        // mob is discarded, the travelling suppression is cleared so the
+        // colonist body comes back, and the identity stays IN_COLONY.
+        try {
 
         // 3b. Skin / variant sync — apply the citizen's RaceTag variant
         //     onto the freshly-reconstructed wild mob so its appearance
@@ -5452,6 +5631,29 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         LOGGER.info("[TM] summon: complete — '{}' is now SUBORDINATE (goblin uuid={})",
                 citizenData.getName(), goblin.getUUID());
+        return true;
+
+        } catch (Throwable t) {
+            // FIX 1 ROLLBACK — mirror sendGoblinToColony's recovery shape.
+            // A throw here (stat copy, copyHealthAbsolute, applyVariantToMob,
+            // EnergyHelper, NBT read, etc.) must NOT leave the citizen stranded.
+            LOGGER.error("[TM] summon: failed mid-execute for citizen {} — rolling back to IN_COLONY",
+                    identity.citizenId, t);
+            // Discard the half-built wild mob (whether or not it was added to
+            // the world — discard() is safe in both states).
+            try {
+                goblin.discard();
+            } catch (Throwable ignored) {
+                // Best-effort; never let cleanup mask the original failure.
+            }
+            // CRITICAL: clear the respawn suppression so MineColonies keeps or
+            // re-spawns the colonist body. The identity is left IN_COLONY
+            // (mode was never flipped). If the citizen body had already been
+            // discarded before the throw, MC rebuilds it from CitizenData and
+            // FIX 2's join handler re-stamps its race appearance.
+            colony.getTravellingManager().finishTravellingFor(citizenData);
+            return false;
+        }
     }
 
     // ------------------------------------------------------------------
@@ -6140,8 +6342,14 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             return;
         }
 
-        // All validations pass — run the actual swap.
-        executeAction(player, identity, target, pending.materializePos());
+        // All validations pass — run the actual swap. FIX 1: if the swap fails
+        // mid-execute (e.g. summonGoblin rolled back), refund the magicule that
+        // was charged up front so a failed swap never costs the player.
+        boolean ok = executeAction(player, identity, target, pending.materializePos());
+        if (!ok) {
+            sendAdvisoryNotice(player, "Swap couldn't complete — magicule refunded.");
+            refundMagicule(player, pending.magiculePaid());
+        }
     }
 
     /**
@@ -6252,7 +6460,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      *  {@code materializePos} was locked at queue time and is used by summon
      *  to spawn the goblin at the originally-targeted position regardless of
      *  any player movement during the delay. */
-    private static void executeAction(ServerPlayer player,
+    // FIX 1: returns whether the swap succeeded so the caller can refund
+    // magicule on failure. A send is judged successful when the identity ends
+    // up IN_COLONY (mirrors defenseSwapToColony's own check); a summon reports
+    // its transactional result directly.
+    private static boolean executeAction(ServerPlayer player,
                                       RaceIdentitySavedData.RaceIdentity identity,
                                       LivingEntity target,
                                       Vec3 materializePos) {
@@ -6262,21 +6474,22 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (identity.mode == RaceIdentitySavedData.Mode.SUBORDINATE) {
             if (!(target.level() instanceof ServerLevel goblinLevel)) {
                 LOGGER.warn("[TM] action: goblin not on ServerLevel — aborting");
-                return;
+                return false;
             }
             sendGoblinToColony(target, player, identity, goblinLevel, saved);
+            return identity.mode == RaceIdentitySavedData.Mode.IN_COLONY;
         } else {
             IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
             if (colony == null) {
                 sendAdvisoryNotice(player, "That citizen's colony no longer exists.");
-                return;
+                return false;
             }
             ICitizenData cd = colony.getCitizenManager().getCivilian(identity.citizenId);
             if (cd == null) {
                 sendAdvisoryNotice(player, "That citizen's record is missing.");
-                return;
+                return false;
             }
-            summonGoblin(player, level, saved, identity, colony, cd, materializePos, true);
+            return summonGoblin(player, level, saved, identity, colony, cd, materializePos, true);
         }
     }
 
@@ -7198,6 +7411,110 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     // no enqueueWork bounce, to avoid the one-frame default-colonist
     // flicker called out in the investigation report.
     // ------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // FIX 2 (Bug 1a — the revert) — re-stamp the race appearance on body join
+    // ------------------------------------------------------------------
+    //
+    // The race appearance is a NeoForge attachment (RACE_TAG) on the live
+    // EntityCitizen. It survives a normal chunk save/load (it rides the
+    // entity's NBT). BUT MineColonies frequently rebuilds a citizen body from
+    // its OWN durable record (CitizenData) instead of from chunk NBT — e.g. its
+    // respawn loop after the body was lost. A body rebuilt that way has NO
+    // attachment, so a Tensura colonist "reverts" to a plain colonist and
+    // nothing ever put the tag back.
+    //
+    // This handler closes that gap: whenever a citizen body joins a level, if
+    // our durable identity store knows it should be a race-citizen and the body
+    // is MISSING the attachment, we rebuild the tag from the durable snapshot
+    // and re-attach it. Self-healing, idempotent, and additive — it never
+    // touches the swap state machine.
+
+    /** FIX 2 — set the RaceTag on a citizen body, broadcast it to trackers, and
+     *  persist a durable snapshot on the identity record (so the join handler
+     *  below can rebuild it after a respawn drops the attachment). The single
+     *  chokepoint every citizen-side tag write now goes through. */
+    static void applyRaceTagToCitizen(net.minecraft.world.entity.LivingEntity citizenBody,
+                                      RaceTag tag,
+                                      RaceIdentitySavedData saved,
+                                      RaceIdentitySavedData.RaceIdentity identity) {
+        citizenBody.setData(Attachments.RACE_TAG.get(), tag);
+        PacketDistributor.sendToPlayersTrackingEntity(citizenBody,
+                Networking.SyncRaceTagPayload.of(citizenBody.getUUID(), tag));
+        try {
+            saved.setRaceTagSnapshot(identity,
+                    RaceTag.SERIALIZER.write(tag, citizenBody.level().registryAccess()));
+        } catch (Throwable t) {
+            // Never let snapshot persistence break the live tag set.
+            LOGGER.warn("[TM] FIX2: could not persist race-tag snapshot for identity {}",
+                    identity.identityId, t);
+        }
+    }
+
+    @SubscribeEvent
+    public void onEntityJoinLevel(EntityJoinLevelEvent event) {
+        if (event.getLevel().isClientSide()) return;
+        if (!(event.getEntity() instanceof AbstractEntityCitizen citizen)) return;
+        if (!(event.getLevel() instanceof ServerLevel serverLevel)) return;
+
+        // The body must already be linked to its CitizenData to know which
+        // identity it is. On a fresh MineColonies spawn this is set before the
+        // entity is added; if it isn't yet, we simply skip — onStartTracking
+        // and the next join will cover it.
+        ICitizenData citizenData = citizen.getCitizenData();
+        if (citizenData == null) return;
+        int citizenId = citizenData.getId();
+        int colonyId = citizenData.getColony() != null ? citizenData.getColony().getID() : -1;
+        if (colonyId < 0) return;
+
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(serverLevel);
+        RaceIdentitySavedData.RaceIdentity identity =
+                saved.getByColonyAndCitizen(colonyId, citizenId);
+        if (identity == null) return;                  // a plain (non-Tensura) citizen
+
+        // The body should only carry a tag while IN_COLONY. If it's SUBORDINATE
+        // the colonist body shouldn't exist at all — don't fight that state.
+        if (identity.mode != RaceIdentitySavedData.Mode.IN_COLONY) return;
+
+        // IDEMPOTENT: if the body already has its tag (normal chunk reload, or
+        // the send path just set it, or /raceflip), leave it untouched — never
+        // clobber a current appearance or race a concurrent write.
+        if (citizen.hasData(Attachments.RACE_TAG.get())) return;
+
+        // Rebuild the tag from the durable snapshot. If we have no snapshot
+        // (identity never sent, or a legacy record), fall back to the race's
+        // default appearance so the citizen at least renders as the right race
+        // rather than a plain colonist.
+        RaceTag rebuilt;
+        if (identity.raceTagSnapshot != null) {
+            try {
+                rebuilt = RaceTag.SERIALIZER.read(citizen, identity.raceTagSnapshot,
+                        serverLevel.registryAccess());
+            } catch (Throwable t) {
+                LOGGER.warn("[TM] FIX2: race-tag snapshot decode failed for identity {} — using default appearance",
+                        identity.identityId, t);
+                rebuilt = defaultRaceTag(identity);
+            }
+        } else {
+            rebuilt = defaultRaceTag(identity);
+        }
+
+        applyRaceTagToCitizen(citizen, rebuilt, saved, identity);
+        LOGGER.info("[TM] FIX2: re-stamped race tag on citizen {} (identity {} race={}) after body join",
+                citizenId, identity.identityId, identity.race);
+    }
+
+    /** Default-appearance RaceTag for an identity whose durable snapshot is
+     *  absent. Renders the correct race, just not the captured variant. */
+    private static RaceTag defaultRaceTag(RaceIdentitySavedData.RaceIdentity identity) {
+        RaceVariantData fresh = switch (identity.race) {
+            case GOBLIN    -> GoblinVariantData.DEFAULT;
+            case ORC       -> OrcVariantData.DEFAULT;
+            case LIZARDMAN -> LizardmanVariantData.DEFAULT;
+            case DWARF     -> DwarfVariantData.DEFAULT;
+        };
+        return RaceTag.of(identity.identityId, identity.race, fresh);
+    }
+
     @SubscribeEvent
     public void onStartTracking(PlayerEvent.StartTracking event) {
         if (!(event.getEntity() instanceof ServerPlayer sp)) return;

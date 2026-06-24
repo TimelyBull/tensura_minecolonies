@@ -2033,3 +2033,64 @@ own 1.5x swing multiplier; the confirmed TABLE wins over the example.
 now reads EFFECTIVE standings, so a majin player carries some base
 notoriety from the Holy bloc's disposition (lore-correct; no consumer
 yet).
+
+## Identity-swap robustness — three additive recovery layers (2026-06-23)
+
+Three bugs in the "two bodies, one identity" core were fixed as PURELY
+ADDITIVE recovery layers — no re-architecture of the fragile swap state
+machine. Investigation: the identity link is split across the RaceTag
+attachment on the live `EntityCitizen` (drives the renderer), the durable
+`RaceIdentity` record (mode / mobEntityUUID / snapshots), and MineColonies'
+own `CitizenData` (which knows nothing of race). They desync whenever a
+transition our code doesn't own happens (MC body respawn; external removal).
+
+**FIX 1 — `summonGoblin` is now transactional (the "strand").**
+The colonist body's respawn loop is suppressed up front
+(`startTravellingTo(MAX_VALUE)`) but `mode` only flips to SUBORDINATE on full
+success. A throw partway (stat copy / `copyHealthAbsolute` / `applyVariantToMob`
+/ EnergyHelper) used to leave the citizen with respawn suppressed AND mode
+still IN_COLONY → no body ever spawns → permanent strand, un-resummonable.
+`summonGoblin` now returns `boolean` and wraps its body in try/catch mirroring
+`sendGoblinToColony`'s existing rollback. **Invariant: on EVERY failure /
+early-return path the travelling suppression is CLEARED
+(`finishTravellingFor`)**, the half-built mob is discarded, the identity is
+left IN_COLONY with a real body. `executeAction` propagates the flag;
+`executePendingSwap` refunds magicule when it's false. Item-safe because
+`transferCitizenItemsToGoblin` copies (the citizen inventory isn't drained
+until after the commit point).
+
+**FIX 2 — re-stamp RaceTag on `EntityJoinLevelEvent` (the "revert").**
+The RaceTag attachment survives a chunk save/load (it rides the entity NBT)
+but is LOST whenever MC rebuilds a body from `CitizenData` (its respawn loop)
+instead of from chunk NBT — the citizen then renders as a plain colonist and
+nothing put the tag back. New durable field `RaceIdentity.raceTagSnapshot`
+(the serialized RaceTag, written via every citizen-side tag set through the new
+`applyRaceTagToCitizen` chokepoint). A new `onEntityJoinLevel` handler: for a
+citizen body that's IN_COLONY, has a matching identity, and LACKS the
+attachment, it rebuilds the tag from the snapshot (or the race's DEFAULT
+appearance if absent) and re-attaches + broadcasts. **Idempotent** — guards on
+`hasData`, never clobbers a current tag or races the send / `/raceflip` writes.
+Precise `getByColonyAndCitizen` lookup (citizen IDs are only unique per-colony).
+
+**FIX 3 — `/recoverorphans` (Bug 2 + FIX-1 victims), dry-run by default.**
+When a subordinate is removed OUTSIDE our hooks (third-party mob-capture item;
+or a pre-FIX-1 strand), the record is stuck SUBORDINATE pointing at a vanished
+mob UUID and can never re-join. The command walks the RUNNING player's own
+SUBORDINATE identities whose `mobEntityUUID` resolves to no live entity and
+buckets them: recoverable (has `entitySnapshot`) vs identity-only (no snapshot).
+**Scope = runner's own identities** (owner is online and present, so a still-
+valid subordinate would be in a loaded chunk — an unresolvable mob is a strong
+"genuinely gone" signal, not merely unloaded). **DRY RUN by default** — reports
+counts + names, mutates nothing; only `/recoverorphans confirm` acts. Restore =
+`updateMobUUID(null)` + flip to IN_COLONY + `finishTravellingFor` so MC rebuilds
+the body from the already-counted CitizenData (no double-count; FIX 2 re-stamps
+appearance). **Fail-safe: records are NEVER deleted**; missing colony/citizen or
+any exception → skip and keep the record. Snapshot-less records are reported
+separately and left untouched (no fabricated stats/appearance; their real
+variant returns on the next summon→send cycle).
+
+**DEFERRED (not built this round):** Bug-2 auto-detection via
+`EntityLeaveLevelEvent` capture-catching. That event also fires on ordinary
+chunk unloads, so a too-eager handler could mistake an unload for a capture and
+destroy valid identities — needs separate careful work. `/recoverorphans` is the
+manual, fail-safe stand-in.
