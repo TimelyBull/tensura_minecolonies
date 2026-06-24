@@ -52,8 +52,17 @@
 >   rank-and-file `[GOBLIN, LIZARDMAN]`.
 > - **Slime boss kit:** heavy `SLIME_BOSS_BUFF ×8` (slime base stats are low)
 >   + a canon kit (Predator / Water Blade / Corrosion / Self-Regeneration).
->   **NO autocaster** — the Slime casts natively, so the kit feeds its own AI
->   (per the rule). ⚠ buff is a balance guess.
+>   ⚠ buff is a balance guess.
+>   - **CORRECTION (2026-06-23): the Slime does NOT native-cast — it melee-only'd
+>     in-game.** Jar re-inspection of its brain confirmed `getFightTasks` =
+>     target-invalidate → walk → leap → `AnimatableMeleeAttack`, with NO
+>     skill-cast behaviour anywhere (and Tensura has no generic learned-skill
+>     cast behaviour). The original "native-casts" call was a bytecode-density
+>     false positive. Now driven by `registerTempestSlimeAutocaster`
+>     (nightmareutils, bone-golem path), scoped to the SLIME **boss** only (type +
+>     boss `GarrisonTag`; never wild slimes), firing **Water Blade + Corrosion**
+>     (the two `onPressed` actives). Predator (analytic) + Self-Regeneration
+>     (passive) stay learn-only. No double-cast — nothing native casts these.
 > - **Pass-0 resistances** (PASSIVE — work on learn, safe on native casters):
 >   per-faction in `assignFactionDefenderSkills` — Leon fire/heat (already),
 >   Empire physical (already), Jura-Tempest water/wind, Dwargon physical/heat,

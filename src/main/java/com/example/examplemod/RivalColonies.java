@@ -881,9 +881,15 @@ public final class RivalColonies {
             }
             // Jura-Tempest — the anchor SLIME is a base-weak mob promoted to a
             // boss-tier combatant: a HEAVY stat buff + a canon slime kit
-            // (Predator / Water Blade / Corrosion + self-regen). It casts
-            // NATIVELY (verified), so we grant the kit for its own AI to use
-            // and do NOT attach an autocaster.
+            // (Predator / Water Blade / Corrosion + self-regen).
+            //
+            // CORRECTION (2026-06-23): the Slime does NOT native-cast. Its brain
+            // (getFightTasks) is melee/leap only — no skill-cast behaviour at all
+            // (jar-verified) — so granting the kit alone left it meleeing. The
+            // active offensive part (Water Blade / Corrosion) is now driven by
+            // the autocaster (registerTempestSlimeAutocaster); Predator (analytic
+            // utility) and Self-Regeneration (passive) stay learn-only. No
+            // double-cast: nothing native casts these.
             if ("tempest".equals(s.factionId)) {
                 buffDefender(boss, SLIME_BOSS_BUFF);
                 grantDefenderSkill(boss,
@@ -893,6 +899,14 @@ public final class RivalColonies {
                 grantDefenderSkill(boss,
                         io.github.manasmods.tensura.registry.skill.CommonSkills.CORROSION);
                 grantDefenderSkill(boss,
+                        io.github.manasmods.tensura.registry.skill.CommonSkills.SELF_REGENERATION);
+                // Verification — read the kit back out of the boss's SkillStorage
+                // so the grant's success is confirmable in the log (the
+                // autocaster can only fire LEARNED skills).
+                logLearnedKit(boss, "tempest slime boss",
+                        io.github.manasmods.tensura.registry.skill.CommonSkills.WATER_BLADE,
+                        io.github.manasmods.tensura.registry.skill.CommonSkills.CORROSION,
+                        io.github.manasmods.tensura.registry.skill.UniqueSkills.PREDATOR,
                         io.github.manasmods.tensura.registry.skill.CommonSkills.SELF_REGENERATION);
             }
         }
@@ -1010,6 +1024,21 @@ public final class RivalColonies {
             io.github.manasmods.tensura.registry.skill.ExtraSkills.HEAT_WAVE.getId(),
             io.github.manasmods.tensura.registry.skill.CommonSkills.WATER_BLADE.getId());
 
+    /** The Jura-Tempest anchor SLIME's ACTIVE offensive skills the autocaster
+     *  drives. The Slime's native brain ({@code getFightTasks}) is melee/leap
+     *  ONLY — it has no skill-cast behaviour — so granting the kit alone left
+     *  it meleeing; this set is what the autocaster fires. Restricted to the
+     *  two {@code onPressed} offensive casts in its kit: Water Blade + Corrosion.
+     *  EXCLUDED on purpose: Self-Regeneration (passive {@code onTick}/toggle —
+     *  not a cast) and Predator (a Unique analytical/devour utility, not a
+     *  combat ranged attack). No double-cast: nothing else casts these. */
+    private static final java.util.Set<ResourceLocation> TEMPEST_SLIME_CASTABLE = java.util.Set.of(
+            io.github.manasmods.tensura.registry.skill.CommonSkills.WATER_BLADE.getId(),
+            io.github.manasmods.tensura.registry.skill.CommonSkills.CORROSION.getId());
+
+    /** Slime-boss autocast cooldown — matches the bone-golem cadence. */
+    private static final int TEMPEST_SLIME_CAST_COOLDOWN_TICKS = 80; // 4 s
+
     /** Faction lore-power → cast skill mastery as a fraction of max.
      *  ⚠ BALANCE GUESS / proposed ranking (pending approval). */
     private static double boneGolemMasteryFraction(String factionId) {
@@ -1058,6 +1087,36 @@ public final class RivalColonies {
                 ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "bone_golem_autocast"),
                 BONE_GOLEM_CAST_COOLDOWN_TICKS);
         LOGGER.info("[TM] rival: bone-golem autocaster registered with nightmareutils");
+    }
+
+    /** Register the Jura-Tempest anchor SLIME boss's autocaster with Nightmare's
+     *  Tensura Utils (public API only — no mixin). The deferred-fallback driver:
+     *  the Slime's native brain only melees (verified — {@code getFightTasks} has
+     *  no skill-cast behaviour), so the granted kit never fired on its own. The
+     *  lib drives the boss to cast its learned ACTIVE offensive skills (Water
+     *  Blade / Corrosion) at its current target ({@code mob.getTarget()}, set by
+     *  native retaliation in combat and by {@link #steerGarrisonToInvaders}
+     *  during an assault), with the bone-golem cadence.
+     *
+     *  <p>Scoped to the BOSS only — {@code SLIME} type AND a boss
+     *  {@link GarrisonTag}. Wild slimes (no garrison tag) and rank-and-file
+     *  (goblins/lizardmen, never slimes) are never matched. Even if a future
+     *  faction fielded a slime, the skill filter only fires the two ids that are
+     *  ONLY learned on the Tempest boss, so it stays inert elsewhere. No
+     *  double-cast: nothing native casts these. Called once at common setup. */
+    static void registerTempestSlimeAutocaster() {
+        EntityType<?> slime = MonsterEntityTypes.SLIME.get();
+        dev.shadowako.nightmareutils.api.NightmareUtilsApi.registerReflectiveManascoreAutocaster(
+                mob -> mob.getType() == slime                       // the anchor slime…
+                        && mob.hasData(Attachments.GARRISON_TAG.get())
+                        && mob.getData(Attachments.GARRISON_TAG.get()).isBoss(), // …only as a boss
+                target -> true,                                     // target set by combat / steer
+                TEMPEST_SLIME_CASTABLE::contains,                   // only Water Blade + Corrosion
+                new java.util.Random(),
+                1.0,                                                // attempt whenever off cooldown
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "tempest_slime_autocast"),
+                TEMPEST_SLIME_CAST_COOLDOWN_TICKS);
+        LOGGER.info("[TM] rival: Tempest slime-boss autocaster registered with nightmareutils");
     }
 
     /**
@@ -1557,6 +1616,29 @@ public final class RivalColonies {
                 storage.learnSkill(skill.createDefaultInstance(), Component.literal(""));
             }
         } catch (Throwable ignored) { }
+    }
+
+    /** Read the given skills back out of a mob's SkillStorage and log which
+     *  LANDED vs MISSING — a runtime confirmation that {@link #grantDefenderSkill}
+     *  (which swallows failures) actually stuck. The autocaster can only fire
+     *  LEARNED skills, so this is the verification handle for "is the kit on the
+     *  boss". */
+    @SafeVarargs
+    private static void logLearnedKit(Mob mob, String label,
+            java.util.function.Supplier<? extends io.github.manasmods.manascore.skill.api.ManasSkill>... skills) {
+        try {
+            var storage = io.github.manasmods.manascore.skill.api.SkillAPI.getSkillsFrom(mob);
+            StringBuilder sb = new StringBuilder();
+            for (var sup : skills) {
+                var sk = sup.get();
+                boolean present = storage.getSkill(sk.getRegistryName()).isPresent();
+                sb.append(sk.getRegistryName().getPath())
+                  .append('=').append(present ? "LEARNED" : "MISSING").append(' ');
+            }
+            LOGGER.info("[TM] rival: {} kit verification — {}", label, sb.toString().trim());
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] rival: {} kit verification could not read SkillStorage", label, t);
+        }
     }
 
     private static BlockPos partyArrivalPos(ServerLevel level, BlockPos around, int index) {

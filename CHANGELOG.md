@@ -38,6 +38,12 @@ Copy the relevant version's section into the CurseForge release notes on each up
   dies — being a defender is a real risk. (The power threshold is tunable.)
 
 ### Fixed
+- **The Jura-Tempest Slime boss now uses its skills in a fight.** The Slime
+  that leads the Jura-Tempest Federation was only attacking with melee body-slams
+  and never used the water and corrosion attacks it was meant to have. It now
+  casts Water Blade and Corrosion at whoever it's fighting, on a short cooldown.
+  (Only the faction's boss Slime does this — ordinary wild slimes are
+  unaffected.)
 - **Named Tensura colonists no longer turn back into plain villagers after a
   reload.** A goblin, dwarf, lizardman or orc citizen could sometimes lose its
   monster appearance and look like an ordinary colonist after the area around

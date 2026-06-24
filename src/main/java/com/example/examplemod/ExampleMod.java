@@ -7406,6 +7406,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // (public API only) that drive bone-golem + assassin spell use,
             // replacing the old hand-built cast-drivers.
             RivalColonies.registerBoneGolemAutocaster();
+            // The Jura-Tempest anchor Slime boss melees natively (no skill-cast
+            // brain behaviour), so its granted Water Blade / Corrosion kit needs
+            // the autocaster to fire — the deferred fallback flagged at build.
+            RivalColonies.registerTempestSlimeAutocaster();
             Assassins.registerAutocaster();
             // Colony threat-response — drives the Tensura bodies of
             // place-swapped defending citizens.

@@ -86,10 +86,20 @@ Done as a sequence of investigate-then-build steps with save-migrations. **None 
   = Mai Furuki (PLACEHOLDER), combatants = golems (PLACEHOLDER), high power tier.
 - Step 5 (skills): native-casting verified per mob (most monsters native-cast → NOT autocaster-
   driven, per the no-double-implementation rule). Pass-0 resistances applied. New buffed
-  **Slime boss** for Jura-Tempest (×8 buff — balance guess; native caster, no autocaster — needs
-  in-game confirm it actually casts). Leon = Ifrit/Salamander (native fire) + Bone Golem
-  (autocaster) + passives. Remaining per-faction active-skill batches are mostly passives +
-  native casters (light).
+  **Slime boss** for Jura-Tempest (×8 buff — balance guess). Leon = Ifrit/Salamander (native fire)
+  + Bone Golem (autocaster) + passives. Remaining per-faction active-skill batches are mostly
+  passives + native casters (light).
+  - **RESOLVED (2026-06-23) — the Slime boss did NOT native-cast.** In-game it only meleed. Jar
+    re-inspection: the Slime's brain (`getCoreTasks`/`getIdleTasks`/`getFightTasks`) has NO
+    skill-cast behaviour — fight tasks are target-invalidate → walk → leap → `AnimatableMeleeAttack`
+    only. Tensura has no generic "cast a learned skill" AI behaviour at all; the "native-casts"
+    verdict came from a flawed `ManasSkill`/`SkillAPI` bytecode-DENSITY heuristic (it counted
+    inherited skill-storage plumbing, not actual cast behaviours). FIX: registered
+    `registerTempestSlimeAutocaster` (nightmareutils, same path as bone-golem) scoped to the
+    SLIME boss only (`SLIME` type + boss `GarrisonTag`; never wild slimes), firing its learned
+    ACTIVE casts **Water Blade + Corrosion** (`onPressed`). Predator (analytic utility) +
+    Self-Regeneration (passive) stay learn-only. No double-cast (native AI casts none of these).
+    A `logLearnedKit` read-back confirms the grant lands in SkillStorage.
 
 **Roster edits also done:** Dwargon lost War/Beast Gnome; Empire lost Elemental Colossus;
 Shin Ryusei + Mark Lauren + Shinji Tanimura → Eastern Empire (Falmuth keeps Kirara/Kyoya/Shogo)
