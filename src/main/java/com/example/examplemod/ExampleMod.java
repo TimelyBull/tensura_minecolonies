@@ -2294,6 +2294,60 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
     }
 
+    // ------------------------------------------------------------------
+    // FIX 2 (Option B) — per-second race-tag reconcile pass
+    // ------------------------------------------------------------------
+    //
+    // The race appearance lives as a NeoForge RACE_TAG attachment on the live
+    // EntityCitizen. MineColonies rebuilds citizen bodies from its own
+    // CitizenData (its respawn loop; chunk-NBT relog), and a rebuilt body has
+    // no attachment → the citizen renders as a plain colonist. The
+    // EntityJoinLevelEvent handler can't fix the relog case because the body
+    // joins BEFORE MineColonies links its CitizenData (the link happens later,
+    // in the AI initialize() tick), so getCitizenData() is null at join.
+    //
+    // This pass closes that gap. It resolves the body the REGISTRATION-GATED
+    // way — colony.getCitizenManager().getCivilian(id).getEntity(), which is
+    // only non-empty once the colony has linked the entity — exactly the idiom
+    // tickCitizenProfessions uses. If the resolved body lacks the tag, it is
+    // re-stamped from the durable snapshot (or the race's default appearance).
+    // Idempotent: the hasData guard skips bodies that already have the right
+    // tag, and the IN_COLONY guard avoids racing the send path / /raceflip
+    // (which own the tag while a body is mid-swap or being flipped).
+    private static void tickReconcileRaceTags(MinecraftServer server) {
+        for (ServerLevel level : server.getAllLevels()) {
+            RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
+            for (RaceIdentitySavedData.RaceIdentity identity : saved.all()) {
+                try {
+                    // Only IN_COLONY identities have a colonist body to stamp.
+                    // SUBORDINATE bodies are wild mobs (a different render path)
+                    // and mid-swap states are owned by the send/summon helpers.
+                    if (identity.mode != RaceIdentitySavedData.Mode.IN_COLONY) continue;
+
+                    IColony colony = IColonyManager.getInstance()
+                            .getColonyByWorld(identity.colonyId, level);
+                    if (colony == null) continue;
+                    ICitizenData data = colony.getCitizenManager().getCivilian(identity.citizenId);
+                    if (data == null) continue;
+                    var entOpt = data.getEntity();
+                    if (entOpt.isEmpty()) continue;   // not loaded / not yet colony-linked → skip
+                    com.minecolonies.api.entity.citizen.AbstractEntityCitizen citizen = entOpt.get();
+
+                    // IDEMPOTENT — already has its tag (normal case once stamped):
+                    // do nothing, never clobber.
+                    if (citizen.hasData(Attachments.RACE_TAG.get())) continue;
+
+                    applyRaceTagToCitizen(citizen, rebuildRaceTag(identity, citizen), saved, identity);
+                    LOGGER.info("[TM] FIX2B: reconcile re-stamped race tag on citizen {} (identity {} race={})",
+                            identity.citizenId, identity.identityId, identity.race);
+                } catch (Throwable t) {
+                    LOGGER.warn("[TM] FIX2B: reconcile pass error for identity {}",
+                            identity.identityId, t);
+                }
+            }
+        }
+    }
+
     /** The villager profession whose held job-site predicate accepts this POI
      *  type, or null if the POI isn't a profession job site. */
     private static net.minecraft.world.entity.npc.VillagerProfession professionForPoi(
@@ -6213,6 +6267,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // Tensura citizens to fight during a raid, steer them onto
             // raiders, and swap them back when the threat ends.
             ColonyThreatResponse.tick(server);
+            // FIX 2 (Option B) — re-stamp the race appearance onto any IN_COLONY
+            // citizen body that came back without its RACE_TAG (MineColonies
+            // rebuilt it from CitizenData, or a chunk-NBT relog dropped it). The
+            // EntityJoinLevelEvent fast-path can't cover relog because the body
+            // joins before MC links its CitizenData; this pass resolves the body
+            // the registration-gated way and self-heals it within ~1 s.
+            tickReconcileRaceTags(server);
         }
 
         // 5 s cadence — AMBIENT passes. Envoy scheduling + dwarven-village
@@ -7457,10 +7518,24 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (!(event.getLevel() instanceof ServerLevel serverLevel)) return;
 
         // The body must already be linked to its CitizenData to know which
-        // identity it is. On a fresh MineColonies spawn this is set before the
-        // entity is added; if it isn't yet, we simply skip — onStartTracking
-        // and the next join will cover it.
+        // identity it is. On a colony-driven respawn (spawnOrCreateCivilian)
+        // this is set before the entity is added, so this handler works. BUT on
+        // a chunk-NBT relog the entity joins FIRST and MineColonies only links
+        // the CitizenData later, during the AI initialize() tick — so here
+        // getCitizenData() is null and we skip. That reload case is covered by
+        // the per-second reconcile pass (tickReconcileRaceTags), which resolves
+        // the body the registration-gated way. This handler is kept as a
+        // zero-latency fast path for the spawn case where it CAN run.
         ICitizenData citizenData = citizen.getCitizenData();
+        // [TM][DIAG] TEMPORARY — confirms the lifecycle-timing diagnosis: on
+        // relog this should log citizenData=NULL (handler can't help; the
+        // reconcile pass does). Remove in Phase 3 after confirming in the logs.
+        LOGGER.info("[TM][DIAG] citizen join uuid={} citizenData={} hasTag={}",
+                citizen.getUUID(),
+                citizenData == null ? "NULL"
+                        : ("present(colony=" + (citizenData.getColony() == null
+                                ? "null" : citizenData.getColony().getID()) + ")"),
+                citizen.hasData(Attachments.RACE_TAG.get()));
         if (citizenData == null) return;
         int citizenId = citizenData.getId();
         int colonyId = citizenData.getColony() != null ? citizenData.getColony().getID() : -1;
@@ -7480,27 +7555,29 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // clobber a current appearance or race a concurrent write.
         if (citizen.hasData(Attachments.RACE_TAG.get())) return;
 
-        // Rebuild the tag from the durable snapshot. If we have no snapshot
-        // (identity never sent, or a legacy record), fall back to the race's
-        // default appearance so the citizen at least renders as the right race
-        // rather than a plain colonist.
-        RaceTag rebuilt;
+        applyRaceTagToCitizen(citizen, rebuildRaceTag(identity, citizen), saved, identity);
+        LOGGER.info("[TM] FIX2: re-stamped race tag on citizen {} (identity {} race={}) after body join",
+                citizenId, identity.identityId, identity.race);
+    }
+
+    /** Rebuild the RaceTag to re-stamp onto a citizen body that lost its
+     *  attachment. Prefers the durable {@code raceTagSnapshot}; if that's
+     *  absent (identity never sent, or a pre-FIX-2 legacy record) or fails to
+     *  decode, falls back to the race's DEFAULT appearance — correct race,
+     *  generic look — which the next summon→send cycle replaces with the real
+     *  captured variant. Shared by the join fast-path and the reconcile pass. */
+    private static RaceTag rebuildRaceTag(RaceIdentitySavedData.RaceIdentity identity,
+                                          net.minecraft.world.entity.LivingEntity body) {
         if (identity.raceTagSnapshot != null) {
             try {
-                rebuilt = RaceTag.SERIALIZER.read(citizen, identity.raceTagSnapshot,
-                        serverLevel.registryAccess());
+                return RaceTag.SERIALIZER.read(body, identity.raceTagSnapshot,
+                        body.level().registryAccess());
             } catch (Throwable t) {
                 LOGGER.warn("[TM] FIX2: race-tag snapshot decode failed for identity {} — using default appearance",
                         identity.identityId, t);
-                rebuilt = defaultRaceTag(identity);
             }
-        } else {
-            rebuilt = defaultRaceTag(identity);
         }
-
-        applyRaceTagToCitizen(citizen, rebuilt, saved, identity);
-        LOGGER.info("[TM] FIX2: re-stamped race tag on citizen {} (identity {} race={}) after body join",
-                citizenId, identity.identityId, identity.race);
+        return defaultRaceTag(identity);
     }
 
     /** Default-appearance RaceTag for an identity whose durable snapshot is
@@ -7527,6 +7604,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         if (!(event.getTarget() instanceof AbstractEntityCitizen citizen)) return;
 
+        // [TM][DIAG] TEMPORARY — shows whether the server-side tag is present at
+        // tracking time. On the failing relog this should be hasTag=false
+        // (server never stamped it). Remove in Phase 3.
+        LOGGER.info("[TM][DIAG] start-tracking citizen {} hasTag={} citizenData={}",
+                citizen.getUUID(), citizen.hasData(Attachments.RACE_TAG.get()),
+                citizen.getCitizenData() == null ? "NULL" : "present");
+
         // Race-tag re-sync (worker races).
         if (citizen.hasData(Attachments.RACE_TAG.get())) {
             RaceTag tag = citizen.getData(Attachments.RACE_TAG.get());
@@ -7534,6 +7618,24 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     Networking.SyncRaceTagPayload.of(citizen.getUUID(), tag));
             LOGGER.info("[TM] tracking: re-synced race tag to {} for citizen entity {} (identity {})",
                     sp.getName().getString(), citizen.getUUID(), tag.identityId());
+            return;
         }
+
+        // Option D (zero-flicker) — the body lacks the tag. If a player starts
+        // tracking it and it's a known IN_COLONY race-citizen whose body has
+        // ticked enough to be colony-linked, re-stamp right now instead of
+        // waiting up to a second for the reconcile pass. Same null-guard: if the
+        // CitizenData isn't linked yet, skip and let the reconcile pass handle
+        // it. Idempotent + mode-guarded, same as the reconcile pass.
+        if (sp.serverLevel() == null) return;
+        ICitizenData cd = citizen.getCitizenData();
+        if (cd == null || cd.getColony() == null) return;
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(sp.serverLevel());
+        RaceIdentitySavedData.RaceIdentity identity =
+                saved.getByColonyAndCitizen(cd.getColony().getID(), cd.getId());
+        if (identity == null || identity.mode != RaceIdentitySavedData.Mode.IN_COLONY) return;
+        applyRaceTagToCitizen(citizen, rebuildRaceTag(identity, citizen), saved, identity);
+        LOGGER.info("[TM] FIX2D: re-stamped race tag on start-tracking for citizen {} (identity {} race={})",
+                cd.getId(), identity.identityId, identity.race);
     }
 }

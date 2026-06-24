@@ -2059,18 +2059,37 @@ left IN_COLONY with a real body. `executeAction` propagates the flag;
 `transferCitizenItemsToGoblin` copies (the citizen inventory isn't drained
 until after the commit point).
 
-**FIX 2 — re-stamp RaceTag on `EntityJoinLevelEvent` (the "revert").**
-The RaceTag attachment survives a chunk save/load (it rides the entity NBT)
-but is LOST whenever MC rebuilds a body from `CitizenData` (its respawn loop)
-instead of from chunk NBT — the citizen then renders as a plain colonist and
-nothing put the tag back. New durable field `RaceIdentity.raceTagSnapshot`
-(the serialized RaceTag, written via every citizen-side tag set through the new
-`applyRaceTagToCitizen` chokepoint). A new `onEntityJoinLevel` handler: for a
-citizen body that's IN_COLONY, has a matching identity, and LACKS the
-attachment, it rebuilds the tag from the snapshot (or the race's DEFAULT
-appearance if absent) and re-attaches + broadcasts. **Idempotent** — guards on
-`hasData`, never clobbers a current tag or races the send / `/raceflip` writes.
-Precise `getByColonyAndCitizen` lookup (citizen IDs are only unique per-colony).
+**FIX 2 — re-stamp RaceTag (the "revert").**
+The RaceTag attachment is LOST whenever MC rebuilds a body from `CitizenData`
+(its respawn loop; chunk-NBT relog) — the citizen then renders as a plain
+colonist and nothing put the tag back. New durable field
+`RaceIdentity.raceTagSnapshot` (the serialized RaceTag, written via every
+citizen-side tag set through the new `applyRaceTagToCitizen` chokepoint). The
+re-stamp rebuilds the tag from that snapshot (or the race's DEFAULT appearance
+if absent — pre-FIX-2 records have no snapshot, so they re-stamp to default
+until the next summon→send recaptures the real variant). Precise
+`getByColonyAndCitizen` lookup (citizen IDs are only unique per-colony).
+
+> **CORRECTION (2026-06-23, after in-game test) — the re-stamp is driven by a
+> per-second RECONCILE PASS, not `EntityJoinLevelEvent`.** The first cut hooked
+> `EntityJoinLevelEvent` and read `entity.getCitizenData()`. That FAILED on
+> relog: a chunk-loaded citizen joins the level BEFORE MineColonies links its
+> `CitizenData` (the link happens later, in `EntityCitizen.initialize()` during
+> the AI tick — confirmed by decompile: `registerWithColony` → `setCivilianData`
+> is called there, not at join). So `getCitizenData()` was null at join and the
+> handler always bailed; the tag was never re-stamped. **Fix = Option B:**
+> `tickReconcileRaceTags` runs in the existing `onServerTickPost` 1 s block and
+> resolves the body the REGISTRATION-GATED way —
+> `colony.getCitizenManager().getCivilian(id).getEntity()` (only non-empty once
+> the colony has linked the entity), the same idiom `tickCitizenProfessions`
+> uses. If the body lacks `RACE_TAG` it re-stamps + broadcasts; self-heals
+> within ~1 s of load. **Idempotent** (skips bodies that already have the tag;
+> skips `mode != IN_COLONY` so it never races the send/summon helpers or
+> `/raceflip`). The `onEntityJoinLevel` handler is KEPT as a zero-latency fast
+> path for the colony-driven respawn case where `getCitizenData()` IS populated
+> at join, and `onStartTracking` re-stamps on first track (Option D) for
+> zero-flicker on observed citizens — both no-op safely when the link isn't
+> ready yet and defer to the reconcile pass.
 
 **FIX 3 — `/recoverorphans` (Bug 2 + FIX-1 victims), dry-run by default.**
 When a subordinate is removed OUTSIDE our hooks (third-party mob-capture item;

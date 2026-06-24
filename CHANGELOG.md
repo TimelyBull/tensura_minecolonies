@@ -41,8 +41,11 @@ Copy the relevant version's section into the CurseForge release notes on each up
 - **Named Tensura colonists no longer turn back into plain villagers after a
   reload.** A goblin, dwarf, lizardman or orc citizen could sometimes lose its
   monster appearance and look like an ordinary colonist after the area around
-  it reloaded. The colony now remembers what each named citizen really is and
-  restores its proper form automatically whenever its body reappears.
+  it reloaded or you relogged. The colony now remembers what each named citizen
+  really is and restores its proper form automatically within about a second of
+  its body reappearing. (Citizens that were named before this update may briefly
+  come back with their race's default look the first time; the exact saved
+  appearance is restored the next time you send them out and bring them back.)
 - **Bringing a citizen out to your side can no longer "lose" them.** Very
   rarely, if something went wrong partway through summoning a citizen to your
   side, the citizen could get stuck with no body in the colony and no way to
