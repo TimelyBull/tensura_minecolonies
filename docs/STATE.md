@@ -5,7 +5,11 @@ first in any new session to catch up. Update it at the END of each work session.
 Pair with: `decisions.md` (why things are the way they are), `CHANGELOG.md` (what changed),
 `roadmap.md` / TODO (what's next), and the per-system docs in `docs/`.
 
-_Last updated: [DATE] — update this every session._
+_Last updated: 2026-06-23 — update this every session._
+
+_Reconciled against repo this session: branch `patrol-colony-outskirts`, working tree CLEAN
+(all committed), 12 commits unpushed. HEAD = `47c2c73` (slime-boss autocaster). Two corrections
+made vs the prior STATE.md — see the ⚠ FLAGs in the Fix 2 and Slime sections below._
 
 ---
 
@@ -52,8 +56,14 @@ additive, no re-architecture of the fragile identity core):
   `getCitizenData()` on relog. Re-fixed via **Option B: a periodic reconcile pass** in the
   1s `onServerTickPost` block, resolving the body via `colony...getCivilian(id).getEntity()`
   (only populated after registration), plus Option D (re-stamp on `onStartTracking` for zero
-  flicker). STATUS: **CONFIRMED WORKING in-game.** ✅ (Strip the temporary `[TM][DIAG]` logging
-  and commit the clean version if not already done.)
+  flicker). STATUS: **BUILT + COMMITTED** (`bca87f6`), in-game confirmation **PENDING**.
+  ⚠ **FLAG — corrected this session:** the prior STATE.md marked this "CONFIRMED WORKING ✅,"
+  but the repo contradicts that — the temporary `[TM][DIAG]` logging is **STILL IN the code**
+  (4 lines in `ExampleMod.java`, committed in `bca87f6` as "pending the user's confirmation
+  relog"), and the "strip + commit confirmed Fix 2" TODO is unchecked. The diagnostics were
+  deliberately left in so the user could relog and verify `citizenData=NULL` + the reconcile
+  re-stamp; that confirmation has not been recorded. Treat Fix 2 as **awaiting verification**,
+  not confirmed. Once the user confirms, strip the `[TM][DIAG]` lines and commit clean.
 - **Fix 3 — `/recoverorphans` recovery tool (dry-run by default).** Walks SUBORDINATE
   identities whose mob UUID resolves to nothing; restores from `entitySnapshot` as colonists;
   reconciles ghost CitizenData/travelling state; never deletes records; snapshot-less records
@@ -77,7 +87,9 @@ recaptures the exact variant. Two-step recovery, not a flaw.
 ## Faction consolidation (11 → ~8) — status
 
 Done as a sequence of investigate-then-build steps with save-migrations. **None update-tested.**
-- Step 1: Tempest + Jura → merged "Tempest Jura Alliance" (external to player colony).
+- Step 1: Tempest + Jura → merged (external to player colony). ⚠ display name later renamed
+  "Tempest Jura Alliance" → **"Jura-Tempest Federation"** (`bf521fa`); id stays `tempest`. (The
+  `clayman` id likewise shows as **"Moderate Harlequin Alliance"**, `54fd77a`.)
 - Step 2: Carrion → renamed **Eurazania** (still bodiless); Otherworlder summoned-heroes moved.
 - Step 3: **Shizu DEPRECATED (not deleted)** — kept in enum (so old saves don't break), gated
   out of active play, content/physical role retired (Pagoda retired). Standing left INERT.
@@ -89,25 +101,33 @@ Done as a sequence of investigate-then-build steps with save-migrations. **None 
   **Slime boss** for Jura-Tempest (×8 buff — balance guess). Leon = Ifrit/Salamander (native fire)
   + Bone Golem (autocaster) + passives. Remaining per-faction active-skill batches are mostly
   passives + native casters (light).
-  - **RESOLVED (2026-06-23) — the Slime boss did NOT native-cast.** In-game it only meleed. Jar
-    re-inspection: the Slime's brain (`getCoreTasks`/`getIdleTasks`/`getFightTasks`) has NO
-    skill-cast behaviour — fight tasks are target-invalidate → walk → leap → `AnimatableMeleeAttack`
-    only. Tensura has no generic "cast a learned skill" AI behaviour at all; the "native-casts"
-    verdict came from a flawed `ManasSkill`/`SkillAPI` bytecode-DENSITY heuristic (it counted
-    inherited skill-storage plumbing, not actual cast behaviours). FIX: registered
-    `registerTempestSlimeAutocaster` (nightmareutils, same path as bone-golem) scoped to the
-    SLIME boss only (`SLIME` type + boss `GarrisonTag`; never wild slimes), firing its learned
-    ACTIVE casts **Water Blade + Corrosion** (`onPressed`). Predator (analytic utility) +
-    Self-Regeneration (passive) stay learn-only. No double-cast (native AI casts none of these).
-    A `logLearnedKit` read-back confirms the grant lands in SkillStorage.
+  - **Slime boss bug — DIAGNOSED + FIX BUILT/COMMITTED (`47c2c73`); in-game verify PENDING.**
+    The earlier "needs confirm it casts" item resolved **NEGATIVE**: in-game the Slime boss only
+    melees — it does NOT cast its granted kit. Root cause (jar re-inspection): the Slime's brain
+    (`getCoreTasks`/`getIdleTasks`/`getFightTasks`) has NO skill-cast behaviour — fight tasks are
+    target-invalidate → walk → leap → `AnimatableMeleeAttack` only. Tensura has no generic
+    "cast a learned skill" AI behaviour at all; the original "native-casts" verdict was a flawed
+    `ManasSkill`/`SkillAPI` bytecode-DENSITY heuristic (it counted inherited skill-storage
+    plumbing, not actual cast behaviours). The granted kit IS learned on the boss (same
+    `SkillAPI.learnSkill` path as bone golems; a new `logLearnedKit` read-back confirms it) — it
+    just had no driver. FIX (the deferred-fallback autocaster, flagged at build): registered
+    `registerTempestSlimeAutocaster` (nightmareutils, mirrors the bone-golem path) scoped to the
+    SLIME boss only (`SLIME` type + boss `GarrisonTag`; never wild slimes / rank-and-file), firing
+    its learned ACTIVE casts **Water Blade + Corrosion** (`onPressed`). Predator (analytic utility)
+    + Self-Regeneration (passive) stay learn-only. No double-cast risk — the native AI casts none
+    of these. ⚠ **FLAG vs the request that asked for this update:** it framed the Slime as still
+    "under investigation / likely fix = add the autocaster." That is now **already built and
+    committed** this session — so the accurate state is "fix landed, awaiting in-game confirmation
+    that it now casts," not "under investigation."
 
 **Roster edits also done:** Dwargon lost War/Beast Gnome; Empire lost Elemental Colossus;
 Shin Ryusei + Mark Lauren + Shinji Tanimura → Eastern Empire (Falmuth keeps Kirara/Kyoya/Shogo)
 with a logged "FUTURE CANON UPDATE: these three later join Jura-Tempest" note. Hinata + the five
 summoned heroes are in a skill-untouched guard (get nothing).
 
-**Final roster:** Dwargon, Luminous, Falmuth, Clayman, Leon, Eurazania (bodiless), Milim
-(bodiless), Tempest Jura Alliance, Eastern Empire. (Shizu = deprecated/inert.)
+**Final roster:** Dwargon, Luminous, Falmuth, Clayman (display "Moderate Harlequin Alliance"),
+Leon, Eurazania (bodiless), Milim (bodiless), Jura-Tempest Federation (id `tempest`), Eastern
+Empire. (Shizu = deprecated/inert.)
 
 **Decided NOT to merge** Luminous into the Eastern Empire — Western religious bloc vs. Eastern
 military empire are distinct, not allied.
@@ -124,7 +144,9 @@ military empire are distinct, not allied.
   (eject REMOVED). Drain mult 0.001; all hostiles drain. **Never playtested — needs runClient.**
 - **Threat-response body-swap:** on a raid, regular citizens flee, guards fight, Tensura citizens
   ≥10k EP place-swap to their mob form and fight, swap back after. Riskiest OLD feature. Unplayed.
-- **Autocaster (NightmareUtils):** drives bone-golem + assassin + colony-defender casting.
+- **Autocaster (NightmareUtils):** drives bone-golem + assassin + colony-defender + (new)
+  Jura-Tempest Slime-boss casting. The Slime one is the deferred-fallback added after the
+  "Slime only melees" bug; in-game verify pending.
 - **Lore events:** Orc Disaster is the only working one (the template). Feasible next ones (entities
   exist): Falmuth Invasion (best — human army, canon-heavy), Ifrit/Leon, Hinata's Crusade,
   Demon Incursion. Charybdis = high-value but needs a custom FLYING (non-wave) encounter.
@@ -152,11 +174,16 @@ ITSELF the colonist (one entity) — vs. our two-bodies swap (separate entities 
 
 ## Known bugs
 
-1. **Chunk-unload colonist revert** — Fix 2 (CONFIRMED FIXED). ✅
+1. **Chunk-unload / relog colonist revert** — Fix 2 (Option B reconcile pass) BUILT+COMMITTED
+   (`bca87f6`); **in-game confirmation PENDING** (DIAG logging still in — see Fix 2 above). NOT
+   yet "confirmed fixed."
 2. **Summon→send strand** — Fix 1 (needs in-range verification).
 3. **Third-party capture orphans subordinates** — Fix 3 recovery tool (needs verification);
    auto-prevention deferred. User lost ~250 (recoverable as colonists from snapshot, correct race,
    default appearance until re-summoned; snapshot-less ones = identity-only).
+4. **Jura-Tempest Slime boss melee-only (does NOT cast)** — DIAGNOSED; autocaster FIX
+   BUILT+COMMITTED (`47c2c73`); **in-game verify PENDING** (does it now cast Water Blade +
+   Corrosion?). See the Slime block under faction consolidation.
 
 ---
 
@@ -174,11 +201,13 @@ ITSELF the colonist (one entity) — vs. our two-bodies swap (separate entities 
 Bundling faction consolidation + identity fixes in ONE update (user's choice; flagged that
 bundling makes a regression harder to diagnose).
 - **MUST do before shipping:** the update-path test (pre-change save on post-change build —
-  migrations carry over, no crash) + verify Fix 1 (in-range cycling) and Fix 3 (mechanism +
-  dry-run safety).
+  migrations carry over, no crash) + verify Fix 1 (in-range cycling), Fix 2 (relog re-stamp —
+  still UNCONFIRMED), and Fix 3 (mechanism + dry-run safety). If shipping the faction stack,
+  also eyeball the Slime-boss autocaster in a quick siege.
 - **If identity fixes aren't solidly verified in the window:** ship the faction stack, SLIP the
-  unverified fixes to a follow-up. Fix 2 is confirmed; honest "fix may take longer" message
-  already given to the user covers this. Don't ship unverified fixes to the fragile identity core.
+  unverified fixes to a follow-up. ⚠ **Correction:** the prior note said "Fix 2 is confirmed" —
+  it is NOT (see Fix 2 above; DIAG logging still in, confirmation pending). Treat all three
+  identity fixes as unverified. Don't ship unverified fixes to the fragile identity core.
 
 ---
 
@@ -192,13 +221,17 @@ bundling makes a regression harder to diagnose).
 
 ## Immediate next steps (the TODO)
 
-- [ ] Strip `[TM][DIAG]` logging, commit confirmed Fix 2.
+- [ ] **Verify Fix 2 in-game** (relog a Tensura colonist; watch for `[TM][DIAG] citizen join …
+      citizenData=NULL` + `[TM] FIX2B: reconcile re-stamped …`; colonist returns to Tensura form
+      within ~1s). THEN strip the `[TM][DIAG]` logging and commit the clean version.
 - [ ] Verify Fix 1 (in-range summon→send cycling, 15+ times).
 - [ ] Verify Fix 3 (real capture mod OR dev-only forced-orphan command; confirm dry-run mutates
       nothing).
 - [ ] **Update-path test** (pre-change save → new build; migrations + no crash). ← top risk.
 - [ ] Playtest the sphere barrier (runClient; raid it; watch sections/regen/holes).
-- [ ] Confirm the Slime boss actually casts (resolves the autocaster question).
-- [ ] Push to own repo for backup.
+- [ ] **Verify the Slime-boss autocaster** — siege Jura-Tempest; confirm the boss casts Water
+      Blade + Corrosion (not just melee), and check the `[TM] rival: tempest slime boss kit
+      verification — …=LEARNED` log line at spawn.
+- [ ] Push to own repo for backup (branch `patrol-colony-outskirts`, 12 commits unpushed).
 - [ ] Tell Jinjer the barrier landed on shared master; consider a `.gitignore` for the shared repo.
 - [ ] Decide: bundle vs. slip identity fixes for the 2-3 day release.
