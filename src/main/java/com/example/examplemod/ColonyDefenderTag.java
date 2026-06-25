@@ -11,14 +11,14 @@ import net.neoforged.neoforge.attachment.IAttachmentSerializer;
  * fight off a threat (see {@link ColonyThreatResponse}). Sibling of
  * {@link RaidTag} / {@link AllyTag}.
  *
- * <p>It is the autocaster predicate key: the Nightmare's Tensura Utils
- * autocaster registered in {@link ColonyThreatResponse#registerAutocaster()}
- * drives spell use on any mob carrying this tag. {@link #colonyId} lets the
- * per-second steering pass find the right colony's raiders to target.
+ * <p>It marks a body as a colony defender for the steering pass. Spell use
+ * itself is driven by the Nightmare's Tensura Utils "Sentient" skill, granted
+ * to the body in {@code ExampleMod.defenseSwapToSubordinate} and removed on
+ * swap-back. {@link #colonyId} lets the per-second steering pass find the
+ * right colony's raiders to target.
  *
  * <p>NBT-persisted, so a save/reload mid-defense keeps the body recognised
- * as a defender (the autocaster keeps firing without waiting for the
- * evaluator to re-tag it). The authoritative "is this citizen defending"
+ * as a defender. The authoritative "is this citizen defending"
  * record is still the persistent {@code defendingColony} flag on its
  * {@link RaceIdentitySavedData.RaceIdentity}; this tag is the per-tick O(1)
  * presence check on the live body.

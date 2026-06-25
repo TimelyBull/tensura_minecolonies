@@ -86,9 +86,6 @@ public final class Assassins {
 
     /** Fraction of the player's base max EP stolen on a successful kill. */
     static final double EP_STEAL_FRACTION = 0.5;
-    /** Cooldown handed to the Nightmare's Tensura Utils autocaster that
-     *  drives the assassin's spell use (replaces the old cast driver). */
-    static final int ASSASSIN_CAST_COOLDOWN_TICKS = 100; // 5 s
     /** Skill copy limits by Tensura SkillType (highest mastery first). */
     static final int COPY_UNIQUE = 1, COPY_EXTRA = 5, COPY_COMMON = 10, COPY_RESISTANCE = 10;
 
@@ -103,23 +100,9 @@ public final class Assassins {
     private static final ResourceLocation GAIN_AURA_ID =
             ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "assassin_gained_aura");
 
-    /** Register the assassin autocaster with Nightmare's Tensura Utils
-     *  (public API only). The lib drives any ASSASSIN_TAG-marked mob to
-     *  cast its own learned skills (the copied/stolen ones included) at its
-     *  current target ({@code mob.getTarget()}, set by the boss driver's
-     *  target-lock), with weighted selection + passive/ambient filtering +
-     *  the cooldown below. Replaces the old curated whitelist + cast loop.
-     *  Called once at common setup. */
-    static void registerAutocaster() {
-        dev.shadowako.nightmareutils.api.NightmareUtilsApi.registerReflectiveManascoreAutocaster(
-                mob -> mob.hasData(Attachments.ASSASSIN_TAG.get()),  // assassin bosses
-                target -> true,                                       // target set by the driver
-                id -> true,                                           // any learned skill (lib filters passives)
-                new java.util.Random(),
-                1.0,
-                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "assassin_autocast"),
-                ASSASSIN_CAST_COOLDOWN_TICKS);
-    }
+    // Assassin spell use is now driven by the Sentient skill, granted to the
+    // boss body at manifestation (see the manifest path + ExampleMod.grantSentient).
+    // The old registerReflectiveManascoreAutocaster registration was removed.
 
     private static final ResourceLocation BUFF_HEALTH_ID =
             ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "assassin_health");
@@ -356,6 +339,11 @@ public final class Assassins {
         // hostile lock, bar, cold shoulder.
         mob.setData(Attachments.ASSASSIN_TAG.get(),
                 new AssassinTag(identity.identityId, identity.colonyId, owner.getUUID()));
+        // Sentient driver (replaces the assassin autocaster) — drives the
+        // assassin's learned active skills, including the ones it COPIES from
+        // the player on a successful kill. Granted once here; it auto-drives
+        // whatever the assassin has learned now or learns later.
+        ExampleMod.grantSentient(mob);
         multiplyAttribute(mob, Attributes.MAX_HEALTH, BUFF_HEALTH_ID, BUFF_HEALTH);
         try {
             multiplyAttribute(mob,
@@ -464,10 +452,10 @@ public final class Assassins {
             if (current == null || !current.isAlive()) {
                 lockTarget(mob, target);
             }
-            // Spell-casting is now driven by the Nightmare's Tensura Utils
-            // autocaster (registered in registerAutocaster), which reads
-            // this same mob.getTarget() the lock above keeps pointed at the
-            // victim — so we no longer drive casts by hand here.
+            // Spell-casting is driven by the Nightmare's Tensura Utils
+            // "Sentient" skill (granted at manifestation), which reads this
+            // same mob.getTarget() the lock above keeps pointed at the victim —
+            // so we no longer drive casts by hand here.
         }
 
         // Boss bar — progress = HP fraction; players within 64 see it.

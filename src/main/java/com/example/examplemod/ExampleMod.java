@@ -6596,6 +6596,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (mob instanceof LivingEntity living) {
             living.setData(Attachments.COLONY_DEFENDER.get(),
                     new ColonyDefenderTag(identity.colonyId));
+            // Sentient driver (replaces the colony-defender autocaster) — the
+            // defending body fights with its own learned active skills. Removed
+            // on swap-back (defenseSwapToColony) BEFORE the snapshot is captured,
+            // so a normally-summoned subordinate never inherits autonomous
+            // casting.
+            grantSentient(living);
         }
         LOGGER.info("[TM] threat: citizen {} place-swapped to Tensura body to defend colony {}",
                 identity.citizenId, identity.colonyId);
@@ -6622,6 +6628,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         LivingEntity goblin = findLivingEntityAcrossLevels(level.getServer(), identity.mobEntityUUID);
         if (goblin == null || !goblin.isAlive()) return false; // unloaded — retry next tick
         if (!(goblin.level() instanceof ServerLevel goblinLevel)) return false;
+
+        // Strip Sentient BEFORE sendGoblinToColony captures the entity snapshot,
+        // so the defending body's autonomous-casting driver does not persist
+        // into the identity (it was a defense-only grant, mirroring the old
+        // tag-scoped COLONY_DEFENDER autocaster).
+        removeSentient(goblin);
 
         sendGoblinToColony(goblin, null, identity, goblinLevel, saved);
 
@@ -7021,6 +7033,69 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         return null;
     }
 
+    // ------------------------------------------------------------------
+    // Sentient skill (Nightmare's Tensura Utils) — the enemy-casting driver
+    // ------------------------------------------------------------------
+    //
+    // REPLACES all of our hand-built `registerReflectiveManascoreAutocaster`
+    // drivers. Nightmare's Utils ships a "Sentient" skill: once a MOB has it
+    // learned, the mod's own SentientSkillService autonomously drives that mob
+    // to use its LEARNED ACTIVE skills/magics in combat — no per-mob predicate,
+    // cooldown, or cast loop on our side. We just grant the skill to every mob
+    // that should self-cast; the mob's already-granted active skills become the
+    // things Sentient fires. Sentient only drives LEARNED ACTIVE skills (it
+    // toggles them) — it does NOT touch a mob's native-AI attacks, so granting
+    // it to a passive-only / native-caster mob is a safe no-op (nothing to
+    // double-cast). The skill itself is NPC-only (purged from players by the
+    // lib), so it never affects a player.
+
+    /** Registry id of Nightmare's Utils' Sentient skill. */
+    static final net.minecraft.resources.ResourceLocation SENTIENT_SKILL_ID =
+            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("nightmareutils", "sentient");
+
+    /** Grant the Sentient skill to a mob so it autonomously casts its learned
+     *  active skills. Idempotent; swallows failures (never breaks a spawn).
+     *  Takes {@link LivingEntity} so the assassin manifest (typed as
+     *  LivingEntity) and the garrison {@link net.minecraft.world.entity.Mob}
+     *  spawns share one path; Sentient is NPC-only and inert on players. */
+    static void grantSentient(LivingEntity mob) {
+        if (mob == null) return;
+        try {
+            io.github.manasmods.manascore.skill.api.ManasSkill sentient =
+                    io.github.manasmods.manascore.skill.api.SkillAPI.getSkillRegistry().get(SENTIENT_SKILL_ID);
+            if (sentient == null) {
+                LOGGER.warn("[TM] sentient: nightmareutils:sentient not in the skill registry — cannot grant");
+                return;
+            }
+            var storage = io.github.manasmods.manascore.skill.api.SkillAPI.getSkillsFrom(mob);
+            if (storage.getSkill(sentient.getRegistryName()).isPresent()) return; // already has it
+            storage.learnSkill(sentient.createDefaultInstance(),
+                    net.minecraft.network.chat.Component.literal(""));
+            LOGGER.info("[TM][DIAG] sentient: granted to {} ({})",
+                    mob.getName().getString(),
+                    net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()));
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] sentient: grant failed for {}", mob.getName().getString(), t);
+        }
+    }
+
+    /** Remove the Sentient skill from a mob — used when a temporary defender
+     *  body swaps back, so Sentient is NOT captured into the persistent
+     *  identity snapshot (which would make the player's normally-summoned
+     *  subordinate autonomously cast). Idempotent; swallows failures. */
+    static void removeSentient(net.minecraft.world.entity.LivingEntity mob) {
+        if (mob == null) return;
+        try {
+            var storage = io.github.manasmods.manascore.skill.api.SkillAPI.getSkillsFrom(mob);
+            if (storage.getSkill(SENTIENT_SKILL_ID).isEmpty()) return;
+            storage.forgetSkill(SENTIENT_SKILL_ID, net.minecraft.network.chat.Component.literal(""));
+            LOGGER.info("[TM][DIAG] sentient: removed from {} (defender swap-back)",
+                    mob.getName().getString());
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] sentient: remove failed for {}", mob.getName().getString(), t);
+        }
+    }
+
     /**
      * Roster-row EP read. Reuses the same body-resolution + IExistence read
      * the cost gate uses, so the EP shown in the roster matches what the cost
@@ -7402,18 +7477,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     net.minecraft.world.level.GameRules.IntegerValue.create(4));
             LOGGER.info("[TM] gamerule 'tensuraMaxNonColonistEnvoys' registered (default 4)");
 
-            // Nightmare's Tensura Utils — register the mob-skill autocasters
-            // (public API only) that drive bone-golem + assassin spell use,
-            // replacing the old hand-built cast-drivers.
-            RivalColonies.registerBoneGolemAutocaster();
-            // The Jura-Tempest anchor Slime boss melees natively (no skill-cast
-            // brain behaviour), so its granted Water Blade / Corrosion kit needs
-            // the autocaster to fire — the deferred fallback flagged at build.
-            RivalColonies.registerTempestSlimeAutocaster();
-            Assassins.registerAutocaster();
-            // Colony threat-response — drives the Tensura bodies of
-            // place-swapped defending citizens.
-            ColonyThreatResponse.registerAutocaster();
+            // Enemy/mob skill casting is now driven by Nightmare's Tensura
+            // Utils' "Sentient" skill, granted per-mob at spawn/manifest/swap
+            // (see ExampleMod.grantSentient). The old hand-built autocaster
+            // registrations (bone-golem / slime-boss / assassin / colony-
+            // defender) were REMOVED — Sentient replaces all four drivers.
 
             // Case B death cleanup. EntityCitizen.die() already called
             // removeCivilian before posting this event — count is correct,

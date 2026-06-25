@@ -3,10 +3,8 @@ package com.example.examplemod;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
-import dev.shadowako.nightmareutils.api.NightmareUtilsApi;
 import io.github.manasmods.tensura.storage.ep.ExistenceStorage;
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -35,9 +33,9 @@ import java.util.List;
  *   <li><b>Tensura citizens with EP ≥ {@link #FORM_SWAP_EP}</b> — place-swap
  *       to their Tensura subordinate body (via
  *       {@link ExampleMod#defenseSwapToSubordinate}) and FIGHT with skills.
- *       Skill use is driven by the Nightmare's Tensura Utils autocaster
- *       registered in {@link #registerAutocaster()}; targeting is the same
- *       nearest-raider steer the ally-support system uses.</li>
+ *       Skill use is driven by the Nightmare's Tensura Utils "Sentient" skill
+ *       granted to the swapped-in body; targeting is the same nearest-raider
+ *       steer the ally-support system uses.</li>
  * </ul>
  *
  * <p>When the threat ends ({@code isRaided()} false) every defender swaps
@@ -64,29 +62,12 @@ public final class ColonyThreatResponse {
     /** Radius (blocks) around the town hall to scan for raiders to target. */
     static final double RAIDER_SCAN_RADIUS = 80.0;
 
-    /** Cast cooldown handed to the defender autocaster. */
-    static final int DEFENDER_CAST_COOLDOWN_TICKS = 100; // 5 s
-
     private ColonyThreatResponse() {}
 
-    /**
-     * Register the colony-defender autocaster with Nightmare's Tensura Utils
-     * (public API only). Drives spell use on any mob carrying
-     * {@link Attachments#COLONY_DEFENDER}, against its current target — which
-     * {@link #steerDefender} keeps pointed at the nearest raider. Called once
-     * at common setup, beside the bone-golem and assassin autocasters.
-     */
-    static void registerAutocaster() {
-        NightmareUtilsApi.registerReflectiveManascoreAutocaster(
-                mob -> mob.hasData(Attachments.COLONY_DEFENDER.get()),
-                target -> true,        // target set by the steer pass
-                id -> true,            // any learned skill (lib filters passives)
-                new java.util.Random(),
-                1.0,
-                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "colony_defender_autocast"),
-                DEFENDER_CAST_COOLDOWN_TICKS);
-        LOGGER.info("[TM] threat: colony-defender autocaster registered with nightmareutils");
-    }
+    // Defender spell use is now driven by the Sentient skill, granted to the
+    // place-swapped subordinate body in ExampleMod.defenseSwapToSubordinate and
+    // removed on swap-back. The old registerReflectiveManascoreAutocaster
+    // registration was removed (Sentient replaces it).
 
     /** Per-second evaluator. Called from the realtime scheduler pass. */
     static void tick(MinecraftServer server) {
