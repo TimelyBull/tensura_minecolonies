@@ -5,11 +5,12 @@ first in any new session to catch up. Update it at the END of each work session.
 Pair with: `decisions.md` (why things are the way they are), `CHANGELOG.md` (what changed),
 `roadmap.md` / TODO (what's next), and the per-system docs in `docs/`.
 
-_Last updated: 2026-06-23 — update this every session._
+_Last updated: 2026-06-24 — update this every session._
 
-_Reconciled against repo this session: branch `patrol-colony-outskirts`, working tree CLEAN
-(all committed), 12 commits unpushed. HEAD = `47c2c73` (slime-boss autocaster). Two corrections
-made vs the prior STATE.md — see the ⚠ FLAGs in the Fix 2 and Slime sections below._
+_Repo state: branch `patrol-colony-outskirts`. HEAD = `19431ec` (Sentient-refactor checkpoint).
+UNCOMMITTED working-tree changes on top: the **Rimuru boss buff** (RivalColonies) + docs. The
+Sentient refactor itself is committed in `19431ec`; the Rimuru buff is not yet committed. Multiple
+`[TM][DIAG]` logging lines (FIX 2 + Sentient + Rimuru) remain in, pending the in-game verify._
 
 ---
 
@@ -96,29 +97,28 @@ Done as a sequence of investigate-then-build steps with save-migrations. **None 
   Hard-removal deferred to a future version once old saves age out.
 - Step 4: Otherworlders slot → re-themed **Eastern Empire** (rename-in-place + migration). Boss
   = Mai Furuki (PLACEHOLDER), combatants = golems (PLACEHOLDER), high power tier.
-- Step 5 (skills): native-casting verified per mob (most monsters native-cast → NOT autocaster-
-  driven, per the no-double-implementation rule). Pass-0 resistances applied. New buffed
-  **Slime boss** for Jura-Tempest (×8 buff — balance guess). Leon = Ifrit/Salamander (native fire)
-  + Bone Golem (autocaster) + passives. Remaining per-faction active-skill batches are mostly
-  passives + native casters (light).
-  - **Slime boss bug — DIAGNOSED + FIX BUILT/COMMITTED (`47c2c73`); in-game verify PENDING.**
-    The earlier "needs confirm it casts" item resolved **NEGATIVE**: in-game the Slime boss only
-    melees — it does NOT cast its granted kit. Root cause (jar re-inspection): the Slime's brain
-    (`getCoreTasks`/`getIdleTasks`/`getFightTasks`) has NO skill-cast behaviour — fight tasks are
-    target-invalidate → walk → leap → `AnimatableMeleeAttack` only. Tensura has no generic
-    "cast a learned skill" AI behaviour at all; the original "native-casts" verdict was a flawed
-    `ManasSkill`/`SkillAPI` bytecode-DENSITY heuristic (it counted inherited skill-storage
-    plumbing, not actual cast behaviours). The granted kit IS learned on the boss (same
-    `SkillAPI.learnSkill` path as bone golems; a new `logLearnedKit` read-back confirms it) — it
-    just had no driver. FIX (the deferred-fallback autocaster, flagged at build): registered
-    `registerTempestSlimeAutocaster` (nightmareutils, mirrors the bone-golem path) scoped to the
-    SLIME boss only (`SLIME` type + boss `GarrisonTag`; never wild slimes / rank-and-file), firing
-    its learned ACTIVE casts **Water Blade + Corrosion** (`onPressed`). Predator (analytic utility)
-    + Self-Regeneration (passive) stay learn-only. No double-cast risk — the native AI casts none
-    of these. ⚠ **FLAG vs the request that asked for this update:** it framed the Slime as still
-    "under investigation / likely fix = add the autocaster." That is now **already built and
-    committed** this session — so the accurate state is "fix landed, awaiting in-game confirmation
-    that it now casts," not "under investigation."
+- Step 5 (skills): Pass-0 resistances applied. Leon = Ifrit/Salamander + passives; Bone Golem
+  casts its element. Remaining per-faction active-skill batches are mostly passives.
+  - **Enemy casting is now driven by the "Sentient" skill (UNCOMMITTED — `19431ec` checkpoint +
+    working-tree changes; in-game verify PENDING).** We REMOVED all four of our
+    `registerReflectiveManascoreAutocaster` registrations (bone-golem / slime / assassin /
+    colony-defender) and instead grant Nightmare's Utils' **`nightmareutils:sentient`** skill per
+    mob (`ExampleMod.grantSentient`). The mod's own `SentientSkillService` auto-drives any mob with
+    the skill to cast its learned ACTIVE skills — same machinery as the autocaster, one mechanism,
+    no per-mob registration. Colony defenders get it removed on swap-back so it doesn't leak into a
+    normal summon. See decisions.md "Sentient skill replaces our hand-built autocasters."
+    - The earlier dedicated `registerTempestSlimeAutocaster` was built then REMOVED in this same
+      refactor (superseded by Sentient). The "Slime only melees" root cause stands (its brain has
+      no skill-cast behaviour — jar-verified), but the driver is now Sentient.
+  - **Rimuru boss (UNCOMMITTED working-tree; verify PENDING).** The Jura-Tempest anchor Slime is
+    named **Rimuru** and buffed to demon-lord tier in `buffRimuruBoss` (called from
+    `spawnAnchorBoss`): HP ×100 (→500), ATTACK ×40 (→20), spiritual ×10; magicule cap SET to
+    100,000 and aura cap to 10,000 with the CURRENT pools filled to match. The filled 100k magicule
+    is also what finally lets it pay its cast cost (the "won't cast" bug was an empty pool, not just
+    a missing driver). **Garrison side effect (intended):** filling the pools sets EP ≈ 110k →
+    garrison scales to its **20-defender cap at ~×2.85**. Predator stays learn-only; Water
+    Blade/Corrosion driven by Sentient. ⚠ all BALANCE GUESSES. See decisions.md "Rimuru" +
+    faction-model.md.
 
 **Roster edits also done:** Dwargon lost War/Beast Gnome; Empire lost Elemental Colossus;
 Shin Ryusei + Mark Lauren + Shinji Tanimura → Eastern Empire (Falmuth keeps Kirara/Kyoya/Shogo)
@@ -144,9 +144,10 @@ military empire are distinct, not allied.
   (eject REMOVED). Drain mult 0.001; all hostiles drain. **Never playtested — needs runClient.**
 - **Threat-response body-swap:** on a raid, regular citizens flee, guards fight, Tensura citizens
   ≥10k EP place-swap to their mob form and fight, swap back after. Riskiest OLD feature. Unplayed.
-- **Autocaster (NightmareUtils):** drives bone-golem + assassin + colony-defender + (new)
-  Jura-Tempest Slime-boss casting. The Slime one is the deferred-fallback added after the
-  "Slime only melees" bug; in-game verify pending.
+- **Mob skill casting (NightmareUtils "Sentient" skill):** REPLACED our four hand-built
+  autocasters (bone-golem / slime / assassin / colony-defender) — we now grant
+  `nightmareutils:sentient` per mob and the mod auto-drives their learned active skills.
+  UNCOMMITTED; in-game verify pending (regression check: bone golems still cast; Rimuru casts).
 - **Lore events:** Orc Disaster is the only working one (the template). Feasible next ones (entities
   exist): Falmuth Invasion (best — human army, canon-heavy), Ifrit/Leon, Hinata's Crusade,
   Demon Incursion. Charybdis = high-value but needs a custom FLYING (non-wave) encounter.
@@ -181,9 +182,10 @@ ITSELF the colonist (one entity) — vs. our two-bodies swap (separate entities 
 3. **Third-party capture orphans subordinates** — Fix 3 recovery tool (needs verification);
    auto-prevention deferred. User lost ~250 (recoverable as colonists from snapshot, correct race,
    default appearance until re-summoned; snapshot-less ones = identity-only).
-4. **Jura-Tempest Slime boss melee-only (does NOT cast)** — DIAGNOSED; autocaster FIX
-   BUILT+COMMITTED (`47c2c73`); **in-game verify PENDING** (does it now cast Water Blade +
-   Corrosion?). See the Slime block under faction consolidation.
+4. **Jura-Tempest Slime boss melee-only (does NOT cast)** — DIAGNOSED + FIX BUILT (UNCOMMITTED).
+   Two root causes: (a) no driver — now the **Sentient** skill; (b) empty magicule pool — now
+   filled to 100k by the **Rimuru** buff. **In-game verify PENDING** (does it cast Water Blade +
+   Corrosion now?). See the Sentient + Rimuru blocks under faction consolidation.
 
 ---
 
@@ -229,9 +231,12 @@ bundling makes a regression harder to diagnose).
       nothing).
 - [ ] **Update-path test** (pre-change save → new build; migrations + no crash). ← top risk.
 - [ ] Playtest the sphere barrier (runClient; raid it; watch sections/regen/holes).
-- [ ] **Verify the Slime-boss autocaster** — siege Jura-Tempest; confirm the boss casts Water
-      Blade + Corrosion (not just melee), and check the `[TM] rival: tempest slime boss kit
-      verification — …=LEARNED` log line at spawn.
+- [ ] **Verify the Sentient refactor + Rimuru** — `/rivalcolony spawn tempest`: boss is named
+      **Rimuru** (~500 HP), casts Water Blade + Corrosion (not just melee), garrison comes up at
+      ~20 defenders. Regression check: bone golems / assassins / colony defenders still cast.
+      Watch `[TM][DIAG] sentient: granted …`, `[TM][DIAG] rimuru: buffed boss …`, and the
+      `tempest slime boss kit verification — …=LEARNED` lines. THEN strip the `[TM][DIAG]`
+      logging and commit.
 - [ ] Push to own repo for backup (branch `patrol-colony-outskirts`, 12 commits unpushed).
 - [ ] Tell Jinjer the barrier landed on shared master; consider a `.gitignore` for the shared repo.
 - [ ] Decide: bundle vs. slip identity fixes for the 2-3 day release.

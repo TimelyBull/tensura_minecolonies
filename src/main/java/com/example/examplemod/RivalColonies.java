@@ -258,6 +258,19 @@ public final class RivalColonies {
     private static final ResourceLocation GARRISON_AURA_ID =
             ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "garrison_aura");
 
+    /** Stable modifier ids for the Rimuru (Tempest anchor) boss buff. Distinct
+     *  from the GARRISON_* ids so the two never collide. */
+    private static final ResourceLocation RIMURU_HP_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "rimuru_hp");
+    private static final ResourceLocation RIMURU_DMG_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "rimuru_dmg");
+    private static final ResourceLocation RIMURU_SPIRIT_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "rimuru_spirit");
+    private static final ResourceLocation RIMURU_MAG_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "rimuru_mag");
+    private static final ResourceLocation RIMURU_AURA_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "rimuru_aura");
+
     // ------------------------------------------------------------------
     // STAGE E — BETRAYAL SCALING. Declaring war on a faction you have
     // DIPLOMATIC relations with (OPEN/PACT/COVENANT) scales the garrison
@@ -452,7 +465,80 @@ public final class RivalColonies {
             // unmarked = the Stage-3 spare-boss free-kill behavior.
             WorldReputationManager.markBoss(boss, factionId, "rival_colony", true);
         }
+        // Tempest's anchor Slime becomes "Rimuru" — a demon-lord-tier boss.
+        // Applied HERE (not in spawnGarrison's boss block) on purpose: it runs
+        // BEFORE spawnGarrison reads the boss EP, so the boss's raised EP scales
+        // the garrison on the FIRST encounter; and it covers every boss-creation
+        // path (initial colony, resetGarrison revive, wild). It also overrides
+        // markBoss's "Slime" nameplate set just above.
+        if ("tempest".equals(factionId)) {
+            buffRimuruBoss(boss);
+        }
         return boss;
+    }
+
+    /**
+     * Promote the Tempest anchor Slime into "Rimuru" — a credible
+     * demon-lord-tier boss. Replaces the old {@code SLIME_BOSS_BUFF ×8}.
+     * HP ×100 (5→500), attack ×40 (0.5→20), spiritual HP ×10; magicule/aura
+     * CAPS set to absolute 100,000 / 10,000 and the CURRENT pools filled to
+     * those caps (so it can actually cast, and so EP = magicule + aura ≈ 110,000
+     * drives the garrison scale). All ⚠ BALANCE GUESSES.
+     *
+     * <p>NOTE: setting the current pools raises EP to ~110k, which makes the
+     * garrison scale to its 20-defender cap at ~×2.85 stats (intended — strong
+     * subordinates). EP-derived Tensura side effects (large death drops, aura
+     * intimidation) are expected for a boss of this tier.
+     */
+    private static void buffRimuruBoss(Mob boss) {
+        // Name it Rimuru (overrides markBoss's type-name nameplate; keep visible).
+        boss.setCustomName(net.minecraft.network.chat.Component.literal("Rimuru")
+                .withStyle(net.minecraft.ChatFormatting.AQUA));
+        boss.setCustomNameVisible(true);
+
+        // Combat stats — multipliers off the weak slime base (5 HP / 0.5 atk /
+        // 100 spiritual). multiplyAttribute is remove-first, non-compounding.
+        multiplyAttribute(boss, Attributes.MAX_HEALTH, RIMURU_HP_ID, 100.0);    // 5   -> 500
+        multiplyAttribute(boss, Attributes.ATTACK_DAMAGE, RIMURU_DMG_ID, 40.0); // 0.5 -> 20
+        try {
+            multiplyAttribute(boss, TensuraAttributes.MAX_SPIRITUAL_HEALTH, RIMURU_SPIRIT_ID, 10.0);
+        } catch (Throwable ignored) { }
+        boss.setHealth(boss.getMaxHealth());
+
+        // Energy CAPS → absolute values. Raise the cap BEFORE filling current,
+        // or setMagicule/setAura would clamp to the slime's old ~980 / 10 cap.
+        setAttributeAbsolute(boss, TensuraAttributes.MAX_MAGICULE, RIMURU_MAG_ID, 100_000.0);
+        setAttributeAbsolute(boss, TensuraAttributes.MAX_AURA, RIMURU_AURA_ID, 10_000.0);
+
+        // Fill the CURRENT pools to the new caps.
+        ExistenceStorage exist = ExampleMod.readExistence(boss);
+        if (exist != null) {
+            exist.setMagicule(100_000.0);
+            exist.setAura(10_000.0);
+            try {
+                exist.setSpiritualHealth(boss.getAttributeValue(TensuraAttributes.MAX_SPIRITUAL_HEALTH));
+            } catch (Throwable ignored) { }
+            exist.markDirty();
+        }
+        LOGGER.info("[TM][DIAG] rimuru: buffed boss — HP {} atk {} maxMag {} maxAura {} EP {}",
+                String.format("%.0f", boss.getMaxHealth()),
+                String.format("%.0f", boss.getAttributeValue(Attributes.ATTACK_DAMAGE)),
+                String.format("%.0f", EnergyHelper.getMaxMagicule(boss)),
+                String.format("%.0f", EnergyHelper.getMaxAura(boss)),
+                exist != null ? String.format("%.0f", exist.getEP()) : "n/a");
+    }
+
+    /** Set an attribute's EFFECTIVE value to an absolute target via a stable-id
+     *  ADD modifier (remove-first, never compounds — the multiplyAttribute idiom,
+     *  but absolute instead of ×factor). Used for the Rimuru magicule/aura caps. */
+    private static void setAttributeAbsolute(LivingEntity mob, Holder<Attribute> attr,
+                                             ResourceLocation id, double target) {
+        AttributeInstance instance = mob.getAttribute(attr);
+        if (instance == null) return;
+        instance.removeModifier(id);
+        double delta = target - instance.getValue();
+        instance.addPermanentModifier(new AttributeModifier(id, delta,
+                AttributeModifier.Operation.ADD_VALUE));
     }
 
     /**
@@ -802,11 +888,9 @@ public final class RivalColonies {
      *  the Eastern Empire). ⚠ BALANCE GUESS. */
     static final double EMPIRE_BOSS_BUFF = 3.5;
 
-    /** Heavy stat-buff for the Jura-Tempest anchor SLIME — a base-weak mob
-     *  promoted to a faction boss, so it needs a large multiplier to reach
-     *  boss tier. ⚠ BALANCE GUESS (slime base stats are low; tune after a
-     *  siege test). */
-    static final double SLIME_BOSS_BUFF = 8.0;
+    // The Jura-Tempest anchor Slime ("Rimuru") is buffed with absolute,
+    // demon-lord-tier values in buffRimuruBoss (not a flat multiplier) — see
+    // spawnAnchorBoss. The old SLIME_BOSS_BUFF ×8 was removed.
 
     /** Per-faction POWER TIER multiplier applied to the EP-driven garrison
      *  scale (boosts both count and stat factor). Lets a major power field a
@@ -888,9 +972,11 @@ public final class RivalColonies {
                 grantDefenderSkill(boss,
                         io.github.manasmods.tensura.registry.skill.IntrinsicSkills.BODY_ARMOR);
             }
-            // Jura-Tempest — the anchor SLIME is a base-weak mob promoted to a
-            // boss-tier combatant: a HEAVY stat buff + a canon slime kit
-            // (Predator / Water Blade / Corrosion + self-regen).
+            // Jura-Tempest — the anchor SLIME ("Rimuru") gets a canon slime kit
+            // (Predator / Water Blade / Corrosion + self-regen). Its STATS are
+            // set earlier, in buffRimuruBoss (called from spawnAnchorBoss, before
+            // the garrison is scaled) — NOT here — which is why the old
+            // buffDefender(SLIME_BOSS_BUFF) call is gone.
             //
             // The Slime does NOT native-cast (its brain is melee/leap only —
             // jar-verified), so the active part of the kit (Water Blade /
@@ -898,7 +984,6 @@ public final class RivalColonies {
             // boss above. Predator (analytic utility) and Self-Regeneration
             // (passive) are learn-only and Sentient leaves them be.
             if ("tempest".equals(s.factionId)) {
-                buffDefender(boss, SLIME_BOSS_BUFF);
                 grantDefenderSkill(boss,
                         io.github.manasmods.tensura.registry.skill.UniqueSkills.PREDATOR);
                 grantDefenderSkill(boss,

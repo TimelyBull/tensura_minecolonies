@@ -2113,3 +2113,64 @@ variant returns on the next summon→send cycle).
 chunk unloads, so a too-eager handler could mistake an unload for a capture and
 destroy valid identities — needs separate careful work. `/recoverorphans` is the
 manual, fail-safe stand-in.
+
+## Enemy/mob skill casting — Sentient skill replaces our hand-built autocasters (2026-06-23)
+
+**Decision:** removed ALL four of our `NightmareUtilsApi.registerReflectiveManascoreAutocaster`
+registrations (bone-golem, Tempest slime-boss, assassin, colony-defender) and
+drive mob skill use with Nightmare's Tensura Utils' **"Sentient" skill**
+(`nightmareutils:sentient`) instead, granted per-mob.
+
+**Why:** the Sentient skill IS the same reflective-autocaster machinery, but the
+nightmareutils mod registers ONE global autocaster keyed on
+`SentientSkillService.hasSentient(mob)` (verified in the jar:
+`ModLifecycle.init` registers it + the tick listeners). So a single per-mob
+grant replaces every bespoke predicate/cooldown/skill-filter we maintained —
+less code, one mechanism, and it auto-covers any learned active skill. Sentient
+drives only LEARNED ACTIVE skills (it toggles them); it never touches a mob's
+native-AI attacks, so granting it to a passive-only / true-native-caster mob is
+a safe no-op (no double-cast).
+
+**As built:** `ExampleMod.grantSentient(LivingEntity)` / `removeSentient(...)`
+look the skill up via `SkillAPI.getSkillRegistry().get(SENTIENT_ID)` and
+learn/forget it. Granted at: every garrison defender + anchor boss
+(`spawnDefender` / `spawnGarrison`, skip `isSkillUntouched`), the assassin at
+manifestation, and the colony-defender body in `defenseSwapToSubordinate`.
+**Colony defenders get `removeSentient` on swap-back** (in `defenseSwapToColony`,
+BEFORE the snapshot is captured) so the autonomous-casting driver never persists
+into a normally-summoned subordinate — mirrors the old tag-scoped behaviour. No
+registration on our side (the mod's own `SentientSkillService` ticks it).
+
+## Jura-Tempest anchor Slime → "Rimuru" demon-lord boss (2026-06-24)
+
+**Decision:** the Tempest anchor Slime is named **Rimuru** and buffed to
+demon-lord tier with ABSOLUTE energy pools, in a new `buffRimuruBoss`, replacing
+the old flat `SLIME_BOSS_BUFF ×8`.
+
+**Stats:** HP ×100 (5→500), ATTACK ×40 (0.5→20), spiritual HP ×10; magicule cap
+SET to 100,000 and aura cap SET to 10,000 (absolute, via a new
+`setAttributeAbsolute` helper — the `multiplyAttribute` idiom but to a target,
+not a factor); CURRENT magicule/aura filled to those caps. Caps raised BEFORE
+filling current (else the set clamps to the slime's ~980/10 base). Kit unchanged
+(Predator learn-only; Water Blade + Corrosion driven by Sentient — now affordable
+because the 100k pool is filled, which is also what fixed the "won't cast" bug).
+
+**Why absolute, not a multiplier:** ×8 of a 5-HP slime is a glass boss (weaker
+than its own buffed subordinates). The slime's HP/ATTACK are NOT EP-derived, so
+EP can't fix them — only absolute stat values reach boss tier. EP (magicule+aura)
+is used as the lever for garrison strength.
+
+**Where applied — `spawnAnchorBoss`, NOT `spawnGarrison`'s boss block:** on
+purpose. `spawnGarrison` reads the boss EP at its TOP (`readBossEP`, before the
+boss-buff block), so the buff must land earlier to scale the garrison on the
+FIRST encounter. `spawnAnchorBoss` is the single funnel for every boss creation
+(initial colony, wild, AND `resetGarrison`'s revive), so applying it there also
+keeps a revived Rimuru strong. It runs after `markBoss`, overriding markBoss's
+"Slime" nameplate with "Rimuru".
+
+**Accepted side effect — the garrison scales up.** Filling the pools sets
+EP = magicule + aura ≈ 110,000; `readBossEP` feeds the garrison scaler →
+scale √(110k/5k)=4.69 → **count 20 (the cap), stat× ≈2.85**. This is intended
+(strong subordinates). The boss does NOT receive `statFactor` (only rank-and-file
+do), so there is no triple-stack on Rimuru; the ×100/×40 are the only multipliers
+on him. ⚠ all values BALANCE GUESSES — tune after a siege test.

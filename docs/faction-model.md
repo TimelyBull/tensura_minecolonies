@@ -50,9 +50,31 @@
 >   removed; anchor changed Shin Ryusei → **SLIME** (`BOSS_PROFILES` SLIME →
 >   TEMPEST KEYSTONE; only the MARKED anchor slime triggers the fan-out);
 >   rank-and-file `[GOBLIN, LIZARDMAN]`.
-> - **Slime boss kit:** heavy `SLIME_BOSS_BUFF ×8` (slime base stats are low)
->   + a canon kit (Predator / Water Blade / Corrosion / Self-Regeneration).
->   ⚠ buff is a balance guess.
+> - **Slime boss = "Rimuru" (2026-06-24):** the anchor slime is named **Rimuru**
+>   and buffed to demon-lord tier in `buffRimuruBoss` (called from
+>   `spawnAnchorBoss`, BEFORE `spawnGarrison` reads the boss EP). Replaces the old
+>   `SLIME_BOSS_BUFF ×8`. Stats: **HP ×100 (5→500), ATTACK ×40 (0.5→20),
+>   spiritual HP ×10**, magicule/aura CAPS **set absolute to 100,000 / 10,000**,
+>   and the CURRENT pools filled to those caps (via `setAttributeAbsolute` for the
+>   caps + `IExistence.setMagicule/setAura`). Kit unchanged (Predator / Water Blade
+>   / Corrosion / Self-Regeneration). ⚠ all BALANCE GUESSES.
+>   - **Deliberate side effect — the garrison scales up.** Filling the pools sets
+>     EP = magicule+aura ≈ **110,000**, and `readBossEP` feeds the garrison
+>     scaler. At 110k EP: scale √(110k/5k)=4.69 → **count 20 (the cap)**, **stat×
+>     ≈2.85**. So Rimuru's settlement fields the max 20 defenders at ~×2.85
+>     (intended: strong subordinates). Applying the buff in `spawnAnchorBoss`
+>     (pre-`readBossEP`) is what makes this happen on the FIRST encounter; it also
+>     covers `resetGarrison`'s revive path (re-routes through `spawnAnchorBoss`).
+>   - **CORRECTION (2026-06-23): the Slime does NOT native-cast — it melee-only'd
+>     in-game.** Jar re-inspection of its brain confirmed `getFightTasks` =
+>     target-invalidate → walk → leap → `AnimatableMeleeAttack`, with NO
+>     skill-cast behaviour anywhere (and Tensura has no generic learned-skill
+>     cast behaviour). The original "native-casts" call was a bytecode-density
+>     false positive. Casting is now driven by the **Sentient** skill (granted to
+>     the boss; see the Sentient refactor) — it fires the learned **Water Blade +
+>     Corrosion**. Predator (analytic) + Self-Regeneration (passive) stay
+>     learn-only. The boss's now-filled 100k magicule is what lets it actually pay
+>     the cast cost (the earlier "won't cast" bug was an empty pool).
 >   - **CORRECTION (2026-06-23): the Slime does NOT native-cast — it melee-only'd
 >     in-game.** Jar re-inspection of its brain confirmed `getFightTasks` =
 >     target-invalidate → walk → leap → `AnimatableMeleeAttack`, with NO

@@ -636,6 +636,20 @@ These are first guesses with no combat playtest — flag for the polish
 pass. Likely tuning levers: BASELINE_EP (how strong "scale 1" feels),
 the exponent (curve steepness), and STAT_FACTOR_MAX (per-mob lethality).
 
+**Rimuru (Tempest anchor) interaction (2026-06-24).** The Jura-Tempest anchor
+Slime is buffed to demon-lord tier in `buffRimuruBoss` (called from
+`spawnAnchorBoss`, BEFORE `spawnGarrison` reads the boss EP). It SETS the boss's
+magicule cap to 100,000 and aura cap to 10,000 and fills the current pools to
+those caps, so `readBossEP` = magicule + aura ≈ **110,000** when the garrison is
+raised. Through the table above: scale = √(110k/5k) = **4.69** → **count = 20
+(hits MAX_COUNT)**, **stat× ≈ 2.85**. So Rimuru's settlement always fields the
+max-size garrison at ~×2.85 (intended — a capital with a strong warband). Two
+non-obvious points this surfaced: (1) the boss itself never receives `stat×`
+(only rank-and-file do — the boss only gets its own `buffRimuruBoss` stats), so
+no triple-stack; (2) `GARRISON_STAT_FACTOR_MAX = 4.0` is effectively unreachable
+— with `SCALE_MAX = 6.0`, the max `stat×` is `1+(6−1)×0.5 = 3.5`. The old
+`SLIME_BOSS_BUFF ×8` was removed (replaced by `buffRimuruBoss`).
+
 ## Spawning + tethering
 
 Raid-engine path: `type.create` + `finalizeSpawn(SPAWN_EGG)` +

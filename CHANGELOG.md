@@ -37,6 +37,15 @@ Copy the relevant version's section into the CurseForge release notes on each up
   attack is over. If that monster body is slain in the fight, the citizen
   dies — being a defender is a real risk. (The power threshold is tunable.)
 
+### Changed
+- **The Jura-Tempest Federation's boss is now Rimuru — a true demon-lord-tier
+  slime.** The faction's anchor slime is named **Rimuru** and is vastly
+  stronger: far more health, much harder hits, a huge magicule/aura pool (so it
+  freely casts its water and corrosion attacks), and tougher spiritual defense.
+  Because Rimuru is now so powerful, his settlement fields a **larger, stronger
+  garrison** to match — expect a full warband of buffed goblins and lizardmen
+  around him. (He keeps his Predator skill.)
+
 ### Fixed
 - **The Jura-Tempest Slime boss now uses its skills in a fight.** The Slime
   that leads the Jura-Tempest Federation was only attacking with melee body-slams
