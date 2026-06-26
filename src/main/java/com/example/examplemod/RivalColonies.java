@@ -213,6 +213,47 @@ public final class RivalColonies {
         };
     }
 
+    /** Unique named characters (Otherworlder heroes / imperial lieutenants)
+     *  that must spawn AT MOST ONCE per garrison — there shouldn't be two
+     *  Kyoyas standing side by side. Generic troops (knights, daemons,
+     *  salamander, goblins, dwarves, …) repeat freely. */
+    private static boolean isUniqueGarrisonMob(EntityType<?> type) {
+        return type == HumanEntityTypes.KIRARA_MIZUTANI.get()
+                || type == HumanEntityTypes.KYOYA_TACHIBANA.get()
+                || type == HumanEntityTypes.SHOGO_TAGUCHI.get()
+                || type == HumanEntityTypes.MARK_LAUREN.get()
+                || type == HumanEntityTypes.SHINJI_TANIMURA.get()
+                || type == HumanEntityTypes.SHIN_RYUSEI.get();
+    }
+
+    /** First repeatable (non-unique) type in a roster — used to substitute a
+     *  would-be duplicate Otherworlder. Null only if the roster is all-unique. */
+    private static EntityType<? extends Mob> firstRepeatableGarrisonMob(
+            EntityType<? extends Mob>[] roster) {
+        for (EntityType<? extends Mob> t : roster) {
+            if (!isUniqueGarrisonMob(t)) return t;
+        }
+        return null;
+    }
+
+    /** Round-robin pick for garrison slot {@code i}, but never spawn a second
+     *  copy of a unique character: a duplicate Otherworlder is replaced by the
+     *  first repeatable roster type (kept only if the roster is all-unique).
+     *  Records uniques actually used in {@code usedUniques}. */
+    private static EntityType<? extends Mob> pickGarrisonType(
+            EntityType<? extends Mob>[] roster, int i, java.util.Set<EntityType<?>> usedUniques) {
+        EntityType<? extends Mob> type = roster[i % roster.length];
+        if (isUniqueGarrisonMob(type)) {
+            if (usedUniques.contains(type)) {
+                EntityType<? extends Mob> repeatable = firstRepeatableGarrisonMob(roster);
+                if (repeatable != null) return repeatable;
+            } else {
+                usedUniques.add(type);
+            }
+        }
+        return type;
+    }
+
     // ------------------------------------------------------------------
     // GARRISON SCALING — derived from the BOSS's EP, not the player.
     // ⚠⚠ ALL BALANCE GUESSES — no combat playtest yet. Tune after the
@@ -1012,8 +1053,9 @@ public final class RivalColonies {
         }
 
         s.garrisonUuids.clear();
+        java.util.Set<EntityType<?>> usedUniques = new java.util.HashSet<>();
         for (int i = 0; i < count; i++) {
-            EntityType<? extends Mob> type = roster[i % roster.length];
+            EntityType<? extends Mob> type = pickGarrisonType(roster, i, usedUniques);
             Mob defender = spawnDefender(level, type, s, statFactor);
             if (defender != null) s.garrisonUuids.add(defender.getUUID());
         }
@@ -1239,11 +1281,15 @@ public final class RivalColonies {
         // (betrayal is per-assault; a fresh assault re-derives it, so the
         // survivors must not carry the last assault's multiplier).
         int alive = 0;
+        // Seed the unique-tracker with Otherworlders that are STILL ALIVE, so
+        // the top-up below doesn't respawn a second copy of a living unique.
+        java.util.Set<EntityType<?>> usedUniques = new java.util.HashSet<>();
         for (UUID uuid : s.garrisonUuids) {
             Entity e = level.getEntity(uuid);
             if (e instanceof Mob mob && mob.isAlive()) {
                 stripBetrayalBuff(mob);
                 mob.setHealth(mob.getMaxHealth());
+                if (isUniqueGarrisonMob(mob.getType())) usedUniques.add(mob.getType());
                 alive++;
             }
         }
@@ -1254,7 +1300,7 @@ public final class RivalColonies {
                     ? readBossEP(resolveBoss(level, s)) : GARRISON_FALLBACK_BOSS_EP);
             double statFactor = statFactorForScale(scale);
             for (int i = alive; i < s.defenderCountAtStart; i++) {
-                EntityType<? extends Mob> type = roster[i % roster.length];
+                EntityType<? extends Mob> type = pickGarrisonType(roster, i, usedUniques);
                 Mob defender = spawnDefender(level, type, s, statFactor);
                 if (defender != null) s.garrisonUuids.add(defender.getUUID());
             }
