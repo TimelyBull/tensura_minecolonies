@@ -161,15 +161,13 @@ public final class RivalColonies {
     @SuppressWarnings("unchecked")
     private static EntityType<? extends Mob>[] garrisonRoster(String factionId) {
         return switch (factionId) {
-            // Luminous — the Holy Empire: elite human knights led by the hero
-            // Kyoya. Lineup unchanged after the BONE_GOLEM removal (golems are
-            // player-POSSESSED and refuse to fight their owner; CloneEntity is
-            // also avoided — it renders missing-texture without a source to
-            // copy). The freed golem slot just becomes MORE KNIGHTS:
-            // FALMUTH_KNIGHT is listed twice so it's the bulk of the
-            // round-robin garrison (≈⅔ knights, ⅓ Kyoya).
+            // Luminous — the Holy Empire. The anchor BOSS is Hinata Sakaguchi
+            // (spawned in Stage A); the garrison is purely her Holy-Knight
+            // soldiers, modelled as FALMUTH_KNIGHT (no dedicated holy-knight
+            // mob exists). Kyoya was moved out — he belongs to Falmuth's
+            // roster (where he already is), not here. (CloneEntity is avoided —
+            // it renders missing-texture without a source entity to copy.)
             case "luminous" -> new EntityType[] {
-                    HumanEntityTypes.FALMUTH_KNIGHT.get(), HumanEntityTypes.KYOYA_TACHIBANA.get(),
                     HumanEntityTypes.FALMUTH_KNIGHT.get() };
             // Falmuth — militaristic kingdom: Folgen's knights + the summoned
             // Otherworlder heroes Kirara / Kyoya / Shogo. (Mark Lauren +
