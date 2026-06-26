@@ -5,6 +5,11 @@ complete deals to raise standing, and progress through three relationship
 tiers that unlock rewards. It runs in parallel with
 [Rival Colonies](rival-colonies.md); you can use both.
 
+Diplomacy is part of the faction system, which is **off by default**. Set
+`enableFactionSystem` to `true` in the [config](../reference/config.md) to
+enable it. While it's off, the **Diplomacy** tab is hidden from the roster
+and no diplomatic envoys arrive.
+
 !!! info "Where to find it"
     Open your roster with the **`G`** key and click the **Diplomacy** tab.
     Each known faction is a row showing its current standing and any offered

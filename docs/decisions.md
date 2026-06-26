@@ -2015,11 +2015,18 @@ threshold (Clayman 3, Holy bloc 5, swingables 8, diplomats 10, aloof
 standing only SCALE chance/intensity (soft influence - supersedes the
 Orc Disaster's hard isBelow-WARY gate in lore-events.md).
 
-**Config gates.** factionSystemEnabled (default TRUE) makes the whole
+**Config gates.** `enableFactionSystem` (renamed from `factionSystemEnabled`;
+**default FALSE as of Unreleased** — the whole faction + diplomacy system now
+ships OFF). It is the single source of truth — NOT a gamerule/command (there
+never was a faction gamerule/command). When false it makes the whole
 faction layer dormant at its entry points: manager reads return flat
 NEUTRAL, every write no-ops, the two ExampleMod mover hooks skip,
-/worldrep reports disabled. Colony-level systems (colony rep, generic
-raids, barrier, assassins, envoys, festivals) are untouched - boss
+RivalColonies.tick / DiplomacyManager.tick / LoreEvents early-return,
+/worldrep + /diplomacy report disabled, and the roster's Diplomacy + Wars
+buttons are hidden (server flag on RosterResponsePayload; the server-side
+diplomacy/war/faction-envoy packet handlers also refuse). Colony-level
+systems (colony rep, generic raids, barrier, assassins, RACE envoys via
+runEnvoyScheduler, festivals) are untouched - boss
 kills behave pre-faction-system (colony +10 + envoy unlocks, no faction
 consequences). enableAssassins (default TRUE, pre-existing) already
 gates the assassin system at its three entry points (daily buildup +

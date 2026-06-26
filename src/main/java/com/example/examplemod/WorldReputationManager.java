@@ -57,7 +57,7 @@ import java.util.UUID;
  *   <li><b>Offense ledger + provocation:</b> marked acts also write a
  *       no-decay offense score; {@link #isProvoked} derives
  *       per-faction provocation from it (never stored).</li>
- *   <li><b>Config gate:</b> {@code factionSystemEnabled=false} makes
+ *   <li><b>Config gate:</b> {@code enableFactionSystem=false} makes
  *       the whole layer dormant — standings read flat NEUTRAL, every
  *       write no-ops. Colony-level systems below are untouched.</li>
  * </ul>
@@ -129,9 +129,9 @@ public final class WorldReputationManager {
      *  the two mover hooks in ExampleMod and future event triggers. */
     public static boolean isFactionSystemEnabled() {
         try {
-            return Config.FACTION_SYSTEM_ENABLED.get();
+            return Config.ENABLE_FACTION_SYSTEM.get();
         } catch (IllegalStateException e) {
-            return true; // config not loaded yet (early startup)
+            return false; // config not loaded yet (early startup) — match the OFF default
         }
     }
 

@@ -4599,7 +4599,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
         if (!WorldReputationManager.isFactionSystemEnabled()) {
             src.sendFailure(Component.literal(
-                    "The faction system is disabled (factionSystemEnabled=false) — lore events are dormant"));
+                    "The faction system is disabled (enableFactionSystem=false) — lore events are dormant"));
             return 0;
         }
         IColony colony = resolveCommandColony(src, player);
@@ -4765,7 +4765,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
         if (!WorldReputationManager.isFactionSystemEnabled()) {
             src.sendSuccess(() -> Component.literal(
-                    "The faction system is DISABLED (factionSystemEnabled=false) — diplomacy is dormant.")
+                    "The faction system is DISABLED (enableFactionSystem=false) — diplomacy is dormant.")
                     .withStyle(ChatFormatting.GRAY), false);
             return 1;
         }
@@ -4845,7 +4845,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         ServerLevel level = player.serverLevel();
         if (!WorldReputationManager.isFactionSystemEnabled()) {
             src.sendSuccess(() -> Component.literal(
-                    "The faction system is DISABLED in the config (factionSystemEnabled=false)"
+                    "The faction system is DISABLED in the config (enableFactionSystem=false)"
                     + " — all standings read flat Neutral and no faction movers fire.")
                     .withStyle(ChatFormatting.GRAY), false);
             return 1;
@@ -4897,7 +4897,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
         if (!WorldReputationManager.isFactionSystemEnabled()) {
             src.sendFailure(Component.literal(
-                    "The faction system is disabled (factionSystemEnabled=false)"));
+                    "The faction system is disabled (enableFactionSystem=false)"));
             return 0;
         }
         String factionArg = StringArgumentType.getString(ctx, "faction")
@@ -4938,7 +4938,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
         if (!WorldReputationManager.isFactionSystemEnabled()) {
             src.sendFailure(Component.literal(
-                    "The faction system is disabled (factionSystemEnabled=false)"));
+                    "The faction system is disabled (enableFactionSystem=false)"));
             return 0;
         }
         ServerLevel level = player.serverLevel();

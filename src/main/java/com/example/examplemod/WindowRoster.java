@@ -152,15 +152,20 @@ public class WindowRoster extends AbstractWindowSkeleton {
     private Button warsButton;
     private Text countCitizensText;
     private Text countAtSideText;
+    /** Server-driven faction-system flag. When false, the Diplomacy + Wars
+     *  buttons are kept hidden (the faction layer is off and inaccessible). */
+    private boolean factionSystemEnabled;
 
     public WindowRoster(List<Networking.RosterEntry> entries, double playerMagicule,
-                        String colonyName, double colonyReputation) {
+                        String colonyName, double colonyReputation,
+                        boolean factionSystemEnabled) {
         super(XML);
         instance = this;
         this.entries = entries;
         this.playerMagicule = playerMagicule;
         this.colonyName = colonyName == null ? "" : colonyName;
         this.colonyReputation = colonyReputation;
+        this.factionSystemEnabled = factionSystemEnabled;
         this.displayed = filterAndSort(entries, this.searchText);
 
         // Per-row action button; group/clear footer. Selection has no button
@@ -399,8 +404,11 @@ public class WindowRoster extends AbstractWindowSkeleton {
         // button sits between the counts and yields the same way.
         if (countCitizensText != null) countCitizensText.setVisible(!show);
         if (countAtSideText != null) countAtSideText.setVisible(!show);
-        if (diplomacyButton != null) diplomacyButton.setVisible(!show);
-        if (warsButton != null) warsButton.setVisible(!show);
+        // Diplomacy + Wars open the faction-layer UI — hidden entirely when the
+        // faction system is off (config enableFactionSystem=false), so the only
+        // way in is gone. The server-side handlers also refuse, belt-and-braces.
+        if (diplomacyButton != null) diplomacyButton.setVisible(!show && factionSystemEnabled);
+        if (warsButton != null) warsButton.setVisible(!show && factionSystemEnabled);
     }
 
     /** Footer counts reflect the WHOLE roster (not the search filter). */
@@ -516,7 +524,8 @@ public class WindowRoster extends AbstractWindowSkeleton {
     // ------------------------------------------------------------------
 
     public static void route(List<Networking.RosterEntry> entries, double playerMagicule,
-                             String colonyName, double colonyReputation) {
+                             String colonyName, double colonyReputation,
+                             boolean factionSystemEnabled) {
         Minecraft mc = Minecraft.getInstance();
 
         BOScreen rosterScreen = (instance != null) ? safeScreen(instance) : null;
@@ -528,6 +537,7 @@ public class WindowRoster extends AbstractWindowSkeleton {
 
         if (rosterScreen != null
                 && (mc.screen == rosterScreen || blockUiConfirm || vanillaConfirmOverBlockUiRoster)) {
+            instance.factionSystemEnabled = factionSystemEnabled; // keep live refreshes accurate
             instance.setEntries(entries, playerMagicule, colonyName, colonyReputation);
             return;
         }
@@ -545,7 +555,8 @@ public class WindowRoster extends AbstractWindowSkeleton {
         if (blockUiConfirm) return;
 
         try {
-            new WindowRoster(entries, playerMagicule, colonyName, colonyReputation).open();
+            new WindowRoster(entries, playerMagicule, colonyName, colonyReputation,
+                    factionSystemEnabled).open();
         } catch (Throwable t) {
             LOGGER.error("[TM] roster: native BlockUI window failed to open; "
                     + "falling back to the vanilla screen", t);

@@ -695,7 +695,7 @@ profession (latest):**
   boss alone. Our-own scheduler generation pass (not vanilla world-gen),
   rare/capped/tunable; `rivalNaturalGeneration` toggle. Debug:
   `/rivalcolony spawn|wild <faction>` + `list`. All behind
-  factionSystemEnabled. Stages B–E extend the Settlement record's
+  enableFactionSystem. Stages B–E extend the Settlement record's
   reserved seams. Records: docs/rival-colony-investigation.md (Stage A
   as-built + DESIGN CHANGES). Placement bugfix (2026-06-13): load
   blueprints SYNCHRONOUSLY (getBlueprint, not the async
@@ -767,7 +767,7 @@ profession (latest):**
   warParty Set<UUID>, conquestReached, pendingReturn; assaultingPlayer/
   assaultOrigin already reserved; all persisted) + Wars UI (WindowWarList /
   WindowWarPicker + XML) + Networking (OpenWarPayload S2C / WarActionPayload
-  C2S). The loop that DRIVES the Stage-B garrison. Behind factionSystemEnabled.
+  C2S). The loop that DRIVES the Stage-B garrison. Behind enableFactionSystem.
 - Discovery: `tickDiscovery` (per-second), player within DISCOVERY_RANGE=80
   of a settlement center → added to discoveredBy (per-player Declare-War
   unlock) + one-time notice.
@@ -802,7 +802,7 @@ profession (latest):**
 - `ConquestPayoff` (sole-door) + `DealSpec.covenantSkillFor`/
   `factionRewardPool` + the `resolveWin` hook. Runs when an assault is WON
   (Stage C resolveWin, gated by Stage B isConquestEligible). NO second
-  colony (retired by DESIGN CHANGE 2). Behind factionSystemEnabled.
+  colony (retired by DESIGN CHANGE 2). Behind enableFactionSystem.
   Structure-type-agnostic.
 - Citizen levy → the player's EXISTING colony (lend-return path:
   createAndRegisterCivilianData + incrementLevel + spawnOrCreateCitizen).
@@ -836,7 +836,7 @@ profession (latest):**
   new `Settlement.betrayalFactor`/`betrayalTier` + `WorldRepReason.
   WAR_DECLARED`. Declaring war on a faction with diplomatic relations
   scales the garrison up by tier AND shatters the relationship. Behind
-  factionSystemEnabled.
+  enableFactionSystem.
 - Detection: `DiplomacyManager.getState` at declareWar. Tier multipliers
   (named/tunable, BALANCE GUESSES): OPEN ×1.25, PACT ×1.6, COVENANT ×2.0,
   NONE ×1.0. Applied via the assassin multiplyAttribute idiom over
@@ -954,7 +954,7 @@ profession (latest):**
   positive earned only. UI: [Roster | Diplomacy] tab strip →
   `DiplomacyScreen` (snapshot/action payloads, live refresh) +
   `FactionEnvoyScreen`. Debug `/diplomacy`. All behind
-  `factionSystemEnabled`. Records: docs/diplomacy.md (as-built header).
+  `enableFactionSystem`. Records: docs/diplomacy.md (as-built header).
 
 **Orc Disaster lore event (Layer 2, consuming the faction model):**
 - `LoreEvents` = the shared spine (descriptor map + `EncounterFactory`
@@ -970,7 +970,7 @@ profession (latest):**
   forced-HOSTILE clamp + the RECOVERABLE diplomacy-closed flag (mending
   ritual deferred to the diplomacy build) + flavor. Timeout → 8-day
   cooldown; slain → never recurs; offense resets either way. Whole
-  event behind `factionSystemEnabled`. Debug: `/tensuraraid disaster`.
+  event behind `enableFactionSystem`. Debug: `/tensuraraid disaster`.
   Charybdis/Ifrit deferred as future EncounterFactory plug-ins.
   Records: docs/lore-events.md (as-built header).
 
@@ -989,10 +989,17 @@ profession (latest):**
   deduped) don't ripple. Wild/unmarked boss kills: zero faction effect
   (colony +10 + envoy unlocks unchanged). Offense ledger (+10/+1 ×w,
   no decay) + derived per-faction provocation thresholds.
-- Config: `factionSystemEnabled` (default true) — whole faction layer
-  dormant when off, colony-level systems untouched; `enableAssassins`
-  is the separate assassin kill-switch. Debug: expanded `/worldrep`
-  (base/earned/effective/offense/provoked) + `/worldrep mark`.
+- Config: `enableFactionSystem` (key renamed from `factionSystemEnabled`;
+  **default FALSE** — the whole faction + diplomacy system ships OFF) —
+  single source of truth (no gamerule/command). When off: whole faction
+  layer dormant + UI inaccessible (RivalColonies/Diplomacy/LoreEvents ticks
+  early-return → no settlement generation, no diplomacy, no war/lore raids;
+  roster Diplomacy/Wars buttons hidden via a server flag on
+  RosterResponsePayload; onDiplomacyAction/onWarAction/onFactionEnvoyResponse
+  refuse server-side). Core race-citizen pipeline + RACE envoys
+  (runEnvoyScheduler) + colony reputation + threat-response stay ON.
+  `enableAssassins` is the separate assassin kill-switch. Debug: expanded
+  `/worldrep` (base/earned/effective/offense/provoked) + `/worldrep mark`.
   Records: docs/faction-model.md (as-built header), decisions.md.
 
 **Raid system v1:**

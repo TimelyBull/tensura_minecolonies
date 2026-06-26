@@ -8,7 +8,23 @@ Copy the relevant version's section into the CurseForge release notes on each up
 
 ## [Unreleased]
 
-_Nothing yet — v0.1.1 in development._
+### Changed
+- **The whole faction & diplomacy system is now off by default, behind one
+  setting.** A single config option, `enableFactionSystem` (in the mod's
+  config file), turns the entire faction layer on or off — rival faction
+  colonies and their settlements, all diplomacy (visiting envoys, deals,
+  trades), war and conquest, the special lore raids (like the Orc Disaster),
+  and the world-reputation reactions to killing named bosses. It now defaults
+  to **off**, so a fresh install is the simple "Tensura mobs as colony
+  citizens" experience with none of the faction extras. Turn it on in the
+  config to get them back.
+- **The Diplomacy and Wars buttons are hidden when the faction system is off.**
+  With the system disabled, those buttons no longer appear on the roster
+  screen and the menus refuse to open, so nothing faction-related is reachable.
+- Core features are unaffected by this switch and stay on regardless: naming
+  Tensura mobs into your colony, race emissaries that let a colony grow new
+  races, colony reputation and its raids, the barrier, festivals, and the
+  assassin system (which keeps its own separate on/off setting).
 
 ## [0.1.0] - 2026-06-26
 

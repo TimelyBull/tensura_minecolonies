@@ -68,7 +68,7 @@ import java.util.function.Supplier;
  * NOT build garrisons (B), the war flow (C), conquest (D), or betrayal
  * scaling (E) — those extend the record this stage lays down.
  *
- * <p>Everything is gated behind {@code factionSystemEnabled} (the
+ * <p>Everything is gated behind {@code enableFactionSystem} (the
  * settlement layer is part of the faction system).
  */
 public final class RivalColonies {
@@ -1448,7 +1448,7 @@ public final class RivalColonies {
      */
     static String declareWar(ServerPlayer player, int settlementId, List<Integer> partyEntityIds) {
         if (!WorldReputationManager.isFactionSystemEnabled()) {
-            return "the faction system is disabled (factionSystemEnabled=false)";
+            return "the faction system is disabled (enableFactionSystem=false)";
         }
         ServerLevel originLevel = player.serverLevel();
         SettlementSavedData data = SettlementSavedData.get(originLevel);
@@ -2011,7 +2011,7 @@ public final class RivalColonies {
 
     static String debugSpawn(ServerPlayer player, String factionId, boolean wild) {
         if (!WorldReputationManager.isFactionSystemEnabled()) {
-            return "the faction system is disabled (factionSystemEnabled=false)";
+            return "the faction system is disabled (enableFactionSystem=false)";
         }
         BossFaction faction = BossFaction.byId(factionId);
         if (faction == null) return "unknown faction '" + factionId + "'";

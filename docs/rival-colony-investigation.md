@@ -270,7 +270,7 @@ The structural foundation is built. As-built record:
   settlement ~220 blocks from a player, min-spacing 400, capped at 12,
   config-gated; `rivalNaturalGeneration=false` makes it debug-command-
   only. All constants named/tunable.
-- **Gating:** the whole layer no-ops when `factionSystemEnabled` is off
+- **Gating:** the whole layer no-ops when `enableFactionSystem` is off
   (every entry point checks).
 - **Placement BUGFIX (2026-06-13).** The first `/rivalcolony spawn`
   placed the boss but NO buildings. Diagnosed (bytecode, no live log):
@@ -578,7 +578,7 @@ The defending force + the persistence/respawn/heal reset + the 60%-win
 tracking Stage C will drive. Structure-type-agnostic: identical for
 MINECOLONIES_CLUSTER towns and DWARVEN_VILLAGE settlements (it operates
 on the settlement's center + anchor boss). All behind
-`factionSystemEnabled`. Code: `RivalColonies` (garrison block) +
+`enableFactionSystem`. Code: `RivalColonies` (garrison block) +
 `GarrisonTag` + the new `Settlement` fields.
 
 ## Per-faction defender rosters
@@ -747,7 +747,7 @@ Verified: spawn raises a themed, boss-EP-scaled, tethered garrison;
 killing defenders increments the tally (GARRISON_TAG); the boss is the
 marked anchor and its death sets `bossDead`; the 60% check reads
 correctly; reset restores the garrison + heals/revives the boss; state
-persists in `SettlementSavedData` across reload; `factionSystemEnabled`
+persists in `SettlementSavedData` across reload; `enableFactionSystem`
 off → no garrison; build green.
 
 Deferred to C–E: the discovery/Declare-War/teleport-assault loop that
@@ -763,7 +763,7 @@ The loop that DRIVES the Stage-B garrison: discover → Declare War →
 teleport in with a war party → fight → WIN (B's `isConquestEligible`) or
 RETREAT/die/logout → teleport back + B's `resetGarrison`. C ENDS at
 "conquest-eligible reached" (Stage D does the payoff) and "incomplete →
-reset". All behind `factionSystemEnabled`. Code: `RivalColonies`
+reset". All behind `enableFactionSystem`. Code: `RivalColonies`
 (Stage-C block) + new `Settlement` fields + the Wars UI (`WindowWarList`
 / `WindowWarPicker`) + `Networking` (OpenWarPayload / WarActionPayload).
 
@@ -864,7 +864,7 @@ Stage B's `isConquestEligible` — boss dead AND ≥60% defenders killed),
 the player gets three rewards and the settlement becomes a permanent
 defeated husk. **NO second colony** — that mechanic is RETIRED (DESIGN
 CHANGE 2; MineColonies is one-player-colony by design). Behind
-`factionSystemEnabled`. Code: `ConquestPayoff` (the sole-door payoff) +
+`enableFactionSystem`. Code: `ConquestPayoff` (the sole-door payoff) +
 `DealSpec.covenantSkillFor`/`factionRewardPool` + the `resolveWin` hook.
 Structure-type-agnostic (town husks and dwarven-village husks identical).
 
@@ -944,7 +944,7 @@ colony (Dwargon = high-Strength miners, etc.), the faction's Covenant
 skill, and loot chest(s) at the ruin; the settlement flips to a husk
 (buildings remain, `conquered` set, garrison cleared, excluded from
 re-war); the boss-kill world-rep fan-out fired during the fight; overflow
-is reported; no second colony is created; `factionSystemEnabled` off →
+is reported; no second colony is created; `enableFactionSystem` off →
 no payoff. Build green.
 
 Deferred to E: betrayal scaling (a Covenant ally betraying you escalates
@@ -959,7 +959,7 @@ A thin add over B/C: declaring war on a faction the player has DIPLOMATIC
 relations with (OPEN/PACT/COVENANT) scales the garrison UP as a betrayal
 punishment — the deeper the ally, the harder the fight — AND the
 war-declaration standing crash SHATTERS the relationship via the existing
-below-WARY collapse. Behind `factionSystemEnabled`. Code: `RivalColonies`
+below-WARY collapse. Behind `enableFactionSystem`. Code: `RivalColonies`
 (betrayal block in `declareWar` + `ensureBetrayalBuffed`) + new
 `Settlement.betrayalFactor`/`betrayalTier` + `WorldRepReason.WAR_DECLARED`.
 
@@ -1024,7 +1024,7 @@ physical resistance on defenders; a COVENANT faction → ×2.0 + resistance +
 regen + capstone (brutal). `/rivalcolony garrison <id>` shows the betrayal
 line. The relationship collapses to NONE within a second (watch
 `/diplomacy`). The betrayal factor stacks on B's boss-EP scaling.
-`factionSystemEnabled` off → no war at all. Build green.
+`enableFactionSystem` off → no war at all. Build green.
 
 ## Siege connection (future, NOT built)
 

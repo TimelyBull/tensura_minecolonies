@@ -4,7 +4,9 @@ Rival colonies are settlements belonging to the Tensura
 [factions](world-reputation.md). You can discover one, declare war on it,
 march in with a war party, defeat its garrison and boss, and conquer it for
 rewards. It's the combat counterpart to [diplomacy](diplomacy.md), and runs
-behind the same [config](../reference/config.md) switch (`factionSystemEnabled`).
+behind the same [config](../reference/config.md) switch (`enableFactionSystem`),
+which is **off by default** — set it to `true` to enable rival colonies. While
+it's off, no settlements generate.
 
 ## Settlements
 

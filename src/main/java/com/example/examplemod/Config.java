@@ -17,22 +17,30 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 public class Config {
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
-    /** Master switch for the whole FACTION LAYER (world reputation /
-     *  faction standings / marked-boss movers / faction events / future
-     *  diplomacy). When false the layer is dormant: standings read as
-     *  flat NEUTRAL, no mover writes, marked-boss kills carry no faction
-     *  consequences, /worldrep reports the layer disabled. Everything
-     *  BELOW the layer (colony reputation, generic raids, the barrier,
-     *  assassins, envoys, festivals) is untouched — the gates sit at the
-     *  faction layer's entry points only (WorldReputationManager + the
-     *  two ExampleMod mover hooks). */
-    public static final ModConfigSpec.BooleanValue FACTION_SYSTEM_ENABLED = BUILDER
-            .comment("Enable the faction layer (world reputation, faction standings,",
-                     "marked-boss consequences, faction events, future diplomacy).",
-                     "false = the layer is dormant; boss kills behave pre-faction-system",
-                     "(colony +10 and envoy unlocks still apply); colony-level systems",
-                     "(colony reputation, raids, barrier, assassins, envoys) unaffected.")
-            .define("factionSystemEnabled", true);
+    /** Master switch for the ENTIRE faction + diplomacy system. This is the
+     *  single source of truth — there is no gamerule or command for it.
+     *  When false (the DEFAULT), the whole layer is dormant and inaccessible:
+     *  no rival-colony / settlement generation, no diplomacy (inbound or
+     *  player-sent envoys, deals, trades), no warfare / conquest, no lore
+     *  raids (Orc Disaster etc.), no marked-boss world-reputation
+     *  consequences, and the Diplomacy / Wars buttons are hidden from the
+     *  roster menu. Reads return flat NEUTRAL and writes no-op.
+     *  <p>Everything BELOW the faction layer is untouched and stays ON:
+     *  naming Tensura mobs as colony citizens, the race-envoy system that
+     *  adds races to a colony's spawn set, colony reputation, generic
+     *  reputation raids, the barrier, assassins (own toggle), the threat-
+     *  response defenders, and festivals. The gates sit at the faction
+     *  layer's entry points only (read via
+     *  {@link WorldReputationManager#isFactionSystemEnabled()}). */
+    public static final ModConfigSpec.BooleanValue ENABLE_FACTION_SYSTEM = BUILDER
+            .comment("Enable the ENTIRE faction + diplomacy system (rival colonies,",
+                     "settlement generation, diplomacy envoys/deals/trades, warfare and",
+                     "conquest, lore raids like the Orc Disaster, and marked-boss world",
+                     "reputation). This is the only switch — there is no gamerule/command.",
+                     "DEFAULT false = the whole faction layer is off and inaccessible;",
+                     "the core mod (Tensura mobs as citizens, race envoys, colony",
+                     "reputation, generic raids, barrier, assassins) is unaffected.")
+            .define("enableFactionSystem", false);
 
     /** Master switch for the assassin system. When false: no
      *  determination buildup, existing LURKING/ARMED plots are defused

@@ -193,7 +193,7 @@ public class DiplomacyScreen extends Screen {
 
         if (!enabled) {
             graphics.drawString(this.font,
-                    "The faction system is disabled (factionSystemEnabled=false).",
+                    "The faction system is disabled (enableFactionSystem=false).",
                     LIST_X, LIST_TOP + 8, 0xAAAAAA, false);
             return;
         }

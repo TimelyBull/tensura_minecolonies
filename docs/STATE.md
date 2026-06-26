@@ -26,6 +26,19 @@ Structurize, Architectury, GeckoLib, SmartBrainLib, TerraBlender, blockui, Night
 
 **Release status: ALPHA.** Description carries a backup warning. Lots built, little playtested.
 
+**Faction system now ships OFF by default (Unreleased).** The single config option
+`enableFactionSystem` (renamed from `factionSystemEnabled`; default flipped `true` →
+`false`) is the sole on/off switch — no gamerule, no command. When off the whole
+faction + diplomacy layer is dormant AND inaccessible: no settlement/rival-colony
+generation, no diplomacy (envoys/deals/trades/war/conquest), no lore raids, no
+marked-boss world-rep, and the roster's Diplomacy + Wars buttons are hidden (a
+server flag on `RosterResponsePayload` drives visibility; the diplomacy/war/
+faction-envoy packet handlers also refuse server-side). The core race-citizen
+pipeline, the RACE-envoy scheduler (`runEnvoyScheduler`), colony reputation, and
+threat-response are NOT gated by this flag and stay on. ⚠ TOML key changed, so
+existing worlds with a `factionSystemEnabled` line fall back to the new default
+(off) on update. See faction-model.md + decisions.md "Config gates".
+
 ---
 
 ## ⚠️ The single most important fact about project state

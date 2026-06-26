@@ -55,7 +55,7 @@ specced unless noted):
   shatters Clayman relations with zero event-specific code.
 - **Gate CONFIRMED:** `DiplomacyManager.tick`, every mutator, the
   snapshot, the inbound roll and `/diplomacy` all no-op/report-dormant
-  when `factionSystemEnabled=false` (on top of the Layer-1 manager
+  when `enableFactionSystem=false` (on top of the Layer-1 manager
   gate).
 - **Stage 2–4 seams left:** the sealed Requirement interface
   (LendCitizens), per-faction DealSpec tables (data swap over DEALS),
@@ -115,7 +115,7 @@ flavored deal tables + the fuller UI. As-built record:
 - **Fuller UI:** the faction list now shows running deals at a glance
   ("deal 47%" on the row), lending deals show a time-based % bar +
   "Citizens away — back in ~Nh", and the picker window joins the
-  paper-styled family. All behind `factionSystemEnabled` (the picker
+  paper-styled family. All behind `enableFactionSystem` (the picker
   path routes through acceptDeal/handleLendConfirm, both gated).
 - **Stages remaining:** Stage 3 = rewards (raid-support, buffs,
   exclusives); Stage 4 = the mending ritual (milestone deal offered
@@ -386,7 +386,7 @@ faction's danger threshold. As-built:
   a colony with a town hall (`DiplomacyManager.ownsColony`). The snapshot
   `canSend` now includes `hasColony`, so both buttons disable without a
   colony; the server-side gate returns "Found a colony first…" if invoked
-  anyway. Behind `factionSystemEnabled` like the rest.
+  anyway. Behind `enableFactionSystem` like the rest.
 - **Envoy = subordinate dispatch (the picker).** Clicking Send Envoy
   (or Send Gift) validates, then opens a PICKER (`WindowEnvoyPicker`, the
   lend/war-picker shape) listing the player's at-your-side subordinates
@@ -443,7 +443,7 @@ faction's danger threshold. As-built:
 
 **What this is:** the builder's-path parallel to the hostility arc — a
 TIERED, RECIPROCAL-EXCHANGE relationship system sitting on the Layer-1
-faction model (docs/faction-model.md), gated by `factionSystemEnabled`.
+faction model (docs/faction-model.md), gated by `enableFactionSystem`.
 Full arc: NEUTRAL → DIPLOMACY (fragile, decays) → ALLIANCE (durable);
 entry via envoy exchange (race-gated); the core loop is faction DEALS
 (reciprocal, deadline-bound, standing-driving) on a progressive
@@ -733,7 +733,7 @@ per-day hook; diplomacy decay joins it):
 Decay writes go through `modifyStanding` with a `DIPLOMACY` (or a new
 `DECAY`) reason — visible in the log like every other mover.
 
-## #7 The gate — confirmed: entirely behind `factionSystemEnabled`
+## #7 The gate — confirmed: entirely behind `enableFactionSystem`
 
 Diplomacy reads/writes standing exclusively through
 `WorldReputationManager`, whose every entry point already no-ops/reads-
@@ -770,7 +770,7 @@ nothing below the faction layer notices.
    payload, the established Networking pattern).
 6. Movers table above through the sole door (DIPLOMACY reason live) +
    the daily decay pass (0.5/day OPEN, 0.1/day PACT, idle-days only).
-7. Everything behind `factionSystemEnabled`; `/diplomacy` debug command
+7. Everything behind `enableFactionSystem`; `/diplomacy` debug command
    (state readout, force-open, force-offer) in the /worldrep idiom.
 
 **Built to extend:** Stage 2 = `LendCitizens` requirement (the verified

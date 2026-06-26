@@ -40,7 +40,7 @@ import java.util.UUID;
  * (race-gated), the relations tier system, the deal lifecycle, standing
  * movers + decay. Every standing read/write goes through
  * {@link WorldReputationManager} (Layer 1's sole door); every entry
- * point here is additionally gated by {@code factionSystemEnabled}.
+ * point here is additionally gated by {@code enableFactionSystem}.
  *
  * <p>Driven from {@code ExampleMod.onServerTickPost} on the shared 1 s
  * cadence; the daily pass (offer refresh, decay, inbound envoy rolls)

@@ -5,8 +5,8 @@ Standing drives [diplomacy](diplomacy.md), [rival-colony](rival-colonies.md)
 behaviour, and faction events. It's per-player and separate from
 [colony reputation](colony-reputation.md). View it with `/worldrep`.
 
-The whole faction layer can be turned off in the
-[config](../reference/config.md) (`factionSystemEnabled`).
+The whole faction system is **off by default**. Turn it on by setting
+`enableFactionSystem` to `true` in the [config](../reference/config.md).
 
 ## Standing tiers
 

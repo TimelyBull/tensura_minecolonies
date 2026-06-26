@@ -40,7 +40,7 @@ trigger/consequence design.** As-built record:
   `WorldReputationSavedData` through the manager.
 - **Faction gate:** the trigger phase, `/tensuraraid disaster` (the
   debug force-start), and all consequence writes sit behind
-  `factionSystemEnabled` — when off, no march ever fires, and a
+  `enableFactionSystem` — when off, no march ever fires, and a
   self-summoned OrcDisasterEntity is unmarked → just a boss.
 - **The pattern landed:** `LoreEvents` is the shared spine (descriptor
   map, provocation arming, soft-influence roll, recurrence, resolution

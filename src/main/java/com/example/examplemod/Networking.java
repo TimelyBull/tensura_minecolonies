@@ -302,7 +302,8 @@ public final class Networking {
      *  magicule (counter), the player's primary colony name (subtitle), and
      *  that colony's reputation (header tier line; 50.0 when no colony). */
     public record RosterResponsePayload(List<RosterEntry> entries, double playerMagicule,
-                                        String colonyName, double colonyReputation)
+                                        String colonyName, double colonyReputation,
+                                        boolean factionSystemEnabled)
             implements CustomPacketPayload {
         public static final Type<RosterResponsePayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "roster_response"));
@@ -317,6 +318,11 @@ public final class Networking {
                         RosterResponsePayload::colonyName,
                         ByteBufCodecs.DOUBLE,
                         RosterResponsePayload::colonyReputation,
+                        // Server-driven so the roster's Diplomacy/Wars buttons reflect
+                        // the SERVER's config even in multiplayer (the config is COMMON,
+                        // not synced). Hidden when the faction system is off.
+                        ByteBufCodecs.BOOL,
+                        RosterResponsePayload::factionSystemEnabled,
                         RosterResponsePayload::new
                 );
 
@@ -833,7 +839,8 @@ public final class Networking {
         LOGGER.info("[TM] roster: sending {} entries (magicule {}) to {}",
                 entries.size(), magicule, sp.getName().getString());
         PacketDistributor.sendToPlayer(sp,
-                new RosterResponsePayload(entries, magicule, colonyName, reputation));
+                new RosterResponsePayload(entries, magicule, colonyName, reputation,
+                        WorldReputationManager.isFactionSystemEnabled()));
     }
 
     // ------------------------------------------------------------------
@@ -1213,6 +1220,9 @@ public final class Networking {
 
     private static void onWarAction(WarActionPayload payload, IPayloadContext context) {
         if (!(context.player() instanceof ServerPlayer sp)) return;
+        // Faction layer off → the war UI is inaccessible (the roster button is
+        // hidden client-side; this is the server-side belt-and-braces refusal).
+        if (!WorldReputationManager.isFactionSystemEnabled()) return;
         context.enqueueWork(() -> {
             switch (payload.action()) {
                 case WarActionPayload.LIST -> sendWarListTo(sp);
@@ -1351,12 +1361,18 @@ public final class Networking {
 
     private static void onFactionEnvoyResponse(FactionEnvoyResponsePayload payload, IPayloadContext context) {
         if (!(context.player() instanceof ServerPlayer sp)) return;
+        // Faction layer off → no faction envoys exist; ignore any stale response.
+        if (!WorldReputationManager.isFactionSystemEnabled()) return;
         context.enqueueWork(() ->
                 DiplomacyManager.handleFactionEnvoyResponse(sp, payload.entityId(), payload.accepted()));
     }
 
     private static void onDiplomacyAction(DiplomacyActionPayload payload, IPayloadContext context) {
         if (!(context.player() instanceof ServerPlayer sp)) return;
+        // Faction layer off → diplomacy is inaccessible (the roster Diplomacy
+        // button is hidden client-side; refuse here too so nothing opens even
+        // if a stale/forged packet arrives).
+        if (!WorldReputationManager.isFactionSystemEnabled()) return;
         context.enqueueWork(() -> {
             String failure = null;
             BossFaction faction = BossFaction.byId(payload.factionId());

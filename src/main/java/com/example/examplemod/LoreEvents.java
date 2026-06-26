@@ -46,7 +46,7 @@ import java.util.UUID;
  *       numbers here. This class adds only the bespoke extras: the
  *       forced-HOSTILE clamp, the RECOVERABLE diplomacy-closed flag,
  *       offense reset, and the recurrence bookkeeping.</li>
- *   <li><b>Gated by {@code factionSystemEnabled}</b> — the trigger
+ *   <li><b>Gated by {@code enableFactionSystem}</b> — the trigger
  *       phase and the debug force-start both no-op when the faction
  *       layer is off (and a self-summoned boss is unmarked anyway).</li>
  * </ul>

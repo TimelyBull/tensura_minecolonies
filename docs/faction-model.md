@@ -243,13 +243,29 @@ with the merge above in mind).
   `data/tensura_minecolonies/tags/manascore_race/races/human_side.json`,
   the reworked ExampleMod mover hooks (marked-only), the expanded
   `/worldrep` (base/earned/effective/offense/provoked + `mark` debug).
-- **Config gates:** `factionSystemEnabled` (default true) — the whole
-  faction layer goes dormant at its entry points (manager reads return
-  flat NEUTRAL, writes no-op, mover hooks skip, /worldrep reports
-  disabled); colony-level systems below are untouched and boss kills
-  behave pre-faction-system (colony +10 + envoy unlocks, zero faction
-  effect). `enableAssassins` (pre-existing, default true) is the
-  independent assassin kill-switch.
+- **Config gates:** `enableFactionSystem` (config key renamed from
+  `factionSystemEnabled`; **default FALSE as of Unreleased** — the whole
+  faction + diplomacy system now ships OFF). It is the SINGLE source of
+  truth — there is no gamerule and no command for it (there never was a
+  faction gamerule/command; only `/worldrep` + `/diplomacy` debug readouts,
+  which already refuse when off). When false the whole faction layer goes
+  dormant at its entry points (manager reads return flat NEUTRAL, writes
+  no-op, mover hooks skip, RivalColonies.tick early-returns so NO settlement
+  generation, DiplomacyManager.tick early-returns so no envoys/deals/war,
+  LoreEvents/raid ally-support skip, `/worldrep` + `/diplomacy` report
+  disabled, and the roster's **Diplomacy + Wars buttons are hidden** — the
+  server-side `onDiplomacyAction`/`onWarAction`/`onFactionEnvoyResponse`
+  handlers also refuse, belt-and-braces, so the UI is truly inaccessible).
+  The roster's Diplomacy/Wars visibility is driven by a server flag on
+  `RosterResponsePayload` (the config is COMMON, not client-synced, so the
+  button state must come from the server to be correct in multiplayer).
+  Colony-level systems below are untouched and boss kills behave
+  pre-faction-system (colony +10 + envoy unlocks, zero faction effect). The
+  core race-citizen pipeline — naming, the RACE-envoy scheduler
+  (`runEnvoyScheduler`, adds races to a colony's spawn set), colony
+  reputation, generic raids, threat-response defenders — is NOT gated by
+  this flag and stays on. `enableAssassins` (pre-existing, default true) is
+  the independent assassin kill-switch.
 - **Divergence:** the #2 worked example listed Carrion at +7.2 on a
   marked Orc Disaster kill — the confirmed TABLE gives Carrion the same
   1.5× swing as Milim, so it actually lands **+10.8**. Table wins.
