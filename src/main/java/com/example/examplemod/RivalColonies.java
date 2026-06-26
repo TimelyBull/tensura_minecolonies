@@ -161,15 +161,16 @@ public final class RivalColonies {
     @SuppressWarnings("unchecked")
     private static EntityType<? extends Mob>[] garrisonRoster(String factionId) {
         return switch (factionId) {
-            // Luminous — the Holy Empire: elite human knights + a holy
-            // construct (no dedicated "holy" mob exists; Bone Golem reads
-            // as a sanctified guardian and is the spellcaster — see the
-            // bone-golem combat AI). NOTE: CloneEntity is deliberately NOT
-            // used — it renders with the missing-texture skin when spawned
-            // without a source entity to copy.
+            // Luminous — the Holy Empire: elite human knights led by the hero
+            // Kyoya. Lineup unchanged after the BONE_GOLEM removal (golems are
+            // player-POSSESSED and refuse to fight their owner; CloneEntity is
+            // also avoided — it renders missing-texture without a source to
+            // copy). The freed golem slot just becomes MORE KNIGHTS:
+            // FALMUTH_KNIGHT is listed twice so it's the bulk of the
+            // round-robin garrison (≈⅔ knights, ⅓ Kyoya).
             case "luminous" -> new EntityType[] {
                     HumanEntityTypes.FALMUTH_KNIGHT.get(), HumanEntityTypes.KYOYA_TACHIBANA.get(),
-                    HumanEntityTypes.BONE_GOLEM.get() };
+                    HumanEntityTypes.FALMUTH_KNIGHT.get() };
             // Falmuth — militaristic kingdom: Folgen's knights + the summoned
             // Otherworlder heroes Kirara / Kyoya / Shogo. (Mark Lauren +
             // Shinji Tanimura moved to the Eastern Empire roster.)
@@ -178,21 +179,28 @@ public final class RivalColonies {
                     HumanEntityTypes.KYOYA_TACHIBANA.get(), HumanEntityTypes.SHOGO_TAGUCHI.get() };
             // Shizu — DEPRECATED (soft-retired): no garrison roster.
             // Leon — a demon lord's keep. The anchor boss is a (scaled-up,
-            // high-EP) Ifrit; the rank-and-file are a BONE_GOLEM and a
-            // SALAMANDER. BONE_GOLEM is an explicit PLACEHOLDER — swap it for
-            // a more Leon-appropriate elite when one exists (it is NOT a
-            // flame statement; the fire theme is the Ifrit + Salamander).
+            // high-EP) Ifrit; the rank-and-file are daemons (Lesser = troops,
+            // Greater = elites) plus a Salamander fire-spirit — far more
+            // on-theme for a demon lord than the old BONE_GOLEM placeholder
+            // (removed: golems are player-POSSESSED and won't fight their
+            // owner). Daemons are neutral mobs but NOT player-owned, so the
+            // garrison anger-targeting makes them hostile normally.
             // Leon's fire-resistance/heat skills are granted in spawnDefender.
             case "leon" -> new EntityType[] {
-                    HumanEntityTypes.BONE_GOLEM.get(), MonsterEntityTypes.SALAMANDER.get() };
-            // Eastern Empire — magitech military power: BONE_GOLEM soldiers
-            // (placeholder) led by the imperial lieutenants Shin Ryusei, Mark
-            // Lauren and Shinji Tanimura (all native casters; NO granted skills
-            // — see isSkillUntouched). HIGH power tier via factionPowerMultiplier
-            // + the Mai boss-buff in spawnGarrison. ⚠ FUTURE CANON: these three
-            // later defect to the Jura-Tempest Federation (see faction-model.md).
+                    MonsterEntityTypes.LESSER_DAEMON.get(), MonsterEntityTypes.GREATER_DAEMON.get(),
+                    MonsterEntityTypes.SALAMANDER.get() };
+            // Eastern Empire — magitech military power: FALMUTH_KNIGHT
+            // rank-and-file soldiers (listed twice so they're the bulk of the
+            // round-robin garrison) led by the imperial lieutenants Shin
+            // Ryusei, Mark Lauren and Shinji Tanimura (all native casters; NO
+            // granted skills — see isSkillUntouched). HIGH power tier via
+            // factionPowerMultiplier + the Mai boss-buff in spawnGarrison.
+            // (BONE_GOLEM soldiers removed — golems are player-POSSESSED and
+            // won't fight their owner.) ⚠ FUTURE CANON: these three later
+            // defect to the Jura-Tempest Federation (see faction-model.md).
             case "eastern_empire" -> new EntityType[] {
-                    HumanEntityTypes.BONE_GOLEM.get(), HumanEntityTypes.SHIN_RYUSEI.get(),
+                    HumanEntityTypes.FALMUTH_KNIGHT.get(), HumanEntityTypes.FALMUTH_KNIGHT.get(),
+                    HumanEntityTypes.SHIN_RYUSEI.get(),
                     HumanEntityTypes.MARK_LAUREN.get(), HumanEntityTypes.SHINJI_TANIMURA.get() };
             // Jura-Tempest Federation — the forest nation's kin (the boss is
             // the buffed anchor SLIME; rank-and-file are goblins + lizardmen).
