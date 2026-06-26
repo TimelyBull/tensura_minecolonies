@@ -244,6 +244,26 @@ public final class TensuraRaids {
         return false;
     }
 
+    /** Stop an enemy skill/attack at any fueled barrier: true if some active
+     *  barrier in this dimension blocks an attack from {@code attackerPos} to a
+     *  victim at {@code victimPos} (and it chipped the facing section). Used by
+     *  the LivingIncomingDamageEvent handler for beams/breaths/AoE that aren't
+     *  blockable as projectile entities. */
+    static boolean tryBlockAttackByBarrier(ServerLevel level,
+            net.minecraft.world.phys.Vec3 attackerPos, net.minecraft.world.phys.Vec3 victimPos, long now) {
+        Iterator<Map.Entry<GlobalPos, BarrierEntry>> it = ACTIVE_BARRIERS.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<GlobalPos, BarrierEntry> e = it.next();
+            if (now - e.getValue().lastSeen() > BARRIER_STALE_TICKS) { it.remove(); continue; }
+            if (!e.getKey().dimension().equals(level.dimension())) continue;
+            if (level.getBlockEntity(e.getKey().pos()) instanceof BarrierBlockEntity be
+                    && be.tryBlockIncomingAttack(attackerPos, victimPos, now)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Nearest fueled barrier within 160 blocks of {@code center}, or null. */
     static BlockPos nearestActiveBarrier(ServerLevel level, BlockPos center) {
         long now = level.getGameTime();

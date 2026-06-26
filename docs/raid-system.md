@@ -42,9 +42,14 @@ push is **radial high up, horizontalized below `center.y + 3`** (Y preserved) so
 mobs aren't shoved into terrain. Mobs don't *seek* holes — opportunistic passage
 only (accepted; pathfinding integration is infeasible cheaply).
 
-**Damage = two counters.** A drain `D` reduces BOTH the pressed section's health
-AND the shared pool by `D`. Section health gates the localized hole; the pool
-gates the whole-barrier fall.
+**Damage model — DECOUPLED (2026-06-21, was two-counter).** Attacks (contact,
+projectiles, blocked skills) now reduce ONLY the pressed section's health — they
+no longer drain the shared pool. Section health gates the localized hole; the
+pool gates the whole-barrier fall and funds repairs. (The old two-counter model
+subtracted attack damage from the pool too, which made high tiers' pools empty
+before a section broke — T4 pool 250k ÷ section 60k ≈ 4.2, so a handful of
+attacked sections drained the pool first. Decoupling fixes that.) The pool now
+drains ONLY from layer upkeep + section repairs.
 
 **Projectiles (2026-06-20).** Enemy projectiles are absorbed at intact sections
 and pass through holes, mirroring the mob collision. `serverTick` sweeps
@@ -53,14 +58,25 @@ player / citizen shots are NOT blocked — defenders can fire out). Crossing is
 detected against the projectile's PREVIOUS position (`xo/yo/zo`) so fast shots
 can't tunnel the thin shell: per layer outer→inner, `distOld ≥ R && distNew < R`
 = crossed inward → intact section absorbs (`discard()` + spark + `GLASS_HIT`,
-chipping `PROJECTILE_SECTION_DAMAGE` 200 off the section and pool), broken
-section → pass to the inner layer. `isBlockableHostile` is the shared
+chipping `PROJECTILE_SECTION_DAMAGE` 200 off the SECTION only — not the pool),
+broken section → pass to the inner layer. `isBlockableHostile` is the shared
 mob/projectile-owner predicate.
 
-**Regen.** Per-second sweep over the ≤72 sections: a section below full that has
-waited `REGEN_DELAY_TICKS` (15 s since its last hit) climbs one step
-(`maxHealth/3`) and pays `REGEN_COST_FRACTION × tier` (5k/10k/20k/30k) from the
-pool; no pool → stall and retry. 3 steps back to full.
+**Skills/beams (2026-06-21).** Beams/breaths (`VoiceCannonSkill`, `BeamProjectile`,
+`BreathEntity`, …) extend `TensuraProjectile` but are anchored at the caster and
+deal damage along a length, so the projectile-crossing blocker can't catch them.
+`tryBlockIncomingAttack` (called from a `LivingIncomingDamageEvent` handler)
+cancels hostile damage to a victim INSIDE the barrier when the attacker is
+outside an intact section in its direction, chipping that section
+(`ATTACK_SECTION_DAMAGE` 100, section-only — no pool drain). Aimed through a hole
+→ gets through.
+
+**Regen (DECOUPLED 2026-06-21).** Per-second sweep over the ≤72 sections: a
+section below full that has waited `REGEN_DELAY_TICKS` (15 s since its last hit)
+is rebuilt up to the NEXT opacity phase boundary (25/50/75/100% of the tier's
+section health) and the pool pays EXACTLY the health restored (1:1), pool-limited
+(partial if the pool can't afford the full step; empty pool → stall). Repairs +
+upkeep are the pool's only costs now.
 
 **Whole-barrier fall + refuel.** Pool 0 → `fieldUp` false → glass-break + alert
 (as before); the up→down edge is the whole-barrier fall. The down→up edge

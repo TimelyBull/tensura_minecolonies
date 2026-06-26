@@ -108,6 +108,12 @@ public class BarrierBlockEntity extends BlockEntity {
      *  fire chips a section open like melee contact does. Tunable. */
     public static final double PROJECTILE_SECTION_DAMAGE = 200.0;
 
+    /** Section (and pool) damage when an enemy SKILL/attack is stopped at an
+     *  intact section — beams, breaths, AoE, hitscan: anything that deals
+     *  damage but isn't blockable as a moving projectile entity. Charged per
+     *  damage tick, so a sustained beam wears the section open. Tunable. */
+    public static final double ATTACK_SECTION_DAMAGE = 100.0;
+
     // --- Quad-sphere sectioning (shared by collision + render + state) ---
     /** Faces of the cube (6). */
     public static final int SECTION_FACES = 6;
@@ -123,13 +129,10 @@ public class BarrierBlockEntity extends BlockEntity {
 
     // --- Section regeneration ---
     /** A section waits this long after its last hit before it starts healing
-     *  (and the gap between regen steps): 15 seconds. */
+     *  (and the gap between regen steps): 15 seconds. Each step rebuilds it to
+     *  the next opacity phase and costs the EXACT health restored from the pool
+     *  (1:1) — see {@link #regenSections}. */
     public static final int REGEN_DELAY_TICKS = 300;
-    /** Number of regen steps from broken back to full. */
-    public static final int REGEN_STEPS = 3;
-    /** Each regen step costs this fraction of the section's tier value from the
-     *  pool (0.5 → 5k/10k/20k/30k by tier). */
-    public static final double REGEN_COST_FRACTION = 0.5;
     /** When the pool can't pay a regen step, retry this soon. */
     public static final int REGEN_STALL_RETRY_TICKS = 20;
 
@@ -166,9 +169,11 @@ public class BarrierBlockEntity extends BlockEntity {
     /** Player toggle: render the wall shells or keep them invisible (the field
      *  still works either way). */
     private boolean wallVisible = true;
-    /** Last second's contact drain (magicule/s) for the readout. */
+    /** Last second's measured pool drain from REPAIRS (magicule/s) — the
+     *  readout's variable part (upkeep is added live). Attacks no longer drain
+     *  the pool, so this now tracks section-rebuild spend, not contact. */
     private double lastContactDrainPerSecond = 0.0;
-    /** Accumulates this second's contact drain for the readout. */
+    /** Accumulates this second's repair pool-spend for the readout. */
     private double contactDrainAccumulator = 0.0;
 
     // --- Per-section state (MAX_LAYERS × SECTION_COUNT, indexed layer*24+sec) ---
@@ -217,7 +222,7 @@ public class BarrierBlockEntity extends BlockEntity {
     }
 
     /** Menu drain readout, magicule/s: live layer upkeep + last second's
-     *  measured contact drain. */
+     *  measured repair spend (attacks no longer drain the pool). */
     public double getLastDrainPerSecond() {
         return (activeLayers - 1) * LAYER_UPKEEP_PER_SECOND + lastContactDrainPerSecond;
     }
@@ -376,24 +381,35 @@ public class BarrierBlockEntity extends BlockEntity {
         setChanged();
     }
 
-    /** Per-second regen sweep over the ≤72 sections: any below full that has
-     *  waited its delay climbs one step (= maxHealth / REGEN_STEPS), paying
-     *  REGEN_COST_FRACTION × tier value from the pool. No pool → stall. */
+    /** Per-second regen sweep over the ≤72 sections: any section below full that
+     *  has waited its delay is rebuilt up to the NEXT opacity phase boundary
+     *  (25% / 50% / 75% / 100% of the tier's section health), and the pool is
+     *  debited EXACTLY the health restored (1:1). Pool-limited — if the pool can
+     *  only afford part of the step it restores that much; an empty pool stalls.
+     *  This is the pool's ONLY section cost now: attacks damage sections but no
+     *  longer drain the pool (decoupled model), so the pool is spent purely on
+     *  upkeep + rebuilding what was broken. */
     private void regenSections(long now) {
         ensureSections();
         double maxH = maxSectionHealth();
-        double cost = maxH * REGEN_COST_FRACTION;
-        double step = maxH / REGEN_STEPS;
         for (int i = 0; i < sectionHealth.length; i++) {
-            if (sectionHealth[i] >= maxH) continue;
+            double cur = sectionHealth[i];
+            if (cur >= maxH) continue;
             if (now < sectionRegenTick[i]) continue;
-            if (poolStoredCache < cost) {
-                // Can't pay — stall and retry shortly.
+            // Health needed to reach the next opacity phase boundary.
+            double frac = cur / maxH;
+            double nextFrac = frac < 0.25 ? 0.25 : frac < 0.5 ? 0.5 : frac < 0.75 ? 0.75 : 1.0;
+            double need = nextFrac * maxH - cur;
+            if (need <= 0) continue;
+            double afford = Math.min(need, poolStoredCache);
+            if (afford <= 0) {
+                // No magicule to rebuild — stall and retry shortly.
                 sectionRegenTick[i] = now + REGEN_STALL_RETRY_TICKS;
                 continue;
             }
-            drainFromPool(cost);
-            sectionHealth[i] = Math.min(maxH, sectionHealth[i] + step);
+            drainFromPool(afford);                 // exact magicules = health restored
+            sectionHealth[i] = cur + afford;
+            contactDrainAccumulator += afford;     // pool-drain readout (repairs)
             sectionRegenTick[i] = now + REGEN_DELAY_TICKS;
             setChanged();
         }
@@ -722,11 +738,12 @@ public class BarrierBlockEntity extends BlockEntity {
         Vec3 center = Vec3.atCenterOf(pos);
         double outerR = be.getEffectiveRadius();
         double reach = outerR + CONTACT_BAND;
-        double drainThisTick = 0.0;
 
         // SPHERICAL collision with per-section holes. For each hostile, walk
         // the layers OUTER→INNER: the first INTACT section it presses blocks +
-        // drains it; a BROKEN section is a gap it passes through to the next.
+        // damages it; a BROKEN section is a gap it passes through to the next.
+        // Attacks damage SECTION HEALTH only — the pool is NOT drained by
+        // attacks (decoupled model); the pool pays only upkeep + repairs.
         for (Mob mob : serverLevel.getEntitiesOfClass(Mob.class,
                 AABB.ofSize(center, reach * 2 + 2, reach * 2 + 2, reach * 2 + 2),
                 m -> m.isAlive() && isBlockableHostile(m))) {
@@ -748,7 +765,7 @@ public class BarrierBlockEntity extends BlockEntity {
 
                 pushFromShell(mob, center, R, dx, dy, dz, dist);
 
-                // EP-scaled contact drain → this section's health AND the pool.
+                // EP-scaled contact damage → this section's health ONLY.
                 ExistenceStorage exist = ExampleMod.readExistence(mob);
                 double ep = exist != null && exist.getEP() > 0 ? exist.getEP() : FALLBACK_RAIDER_EP;
                 double attack = FALLBACK_ATTACK_DAMAGE;
@@ -761,8 +778,6 @@ public class BarrierBlockEntity extends BlockEntity {
                 } catch (Throwable ignored) { }
                 double drain = attack * (ep * BARRIER_DRAIN_EP_MULTIPLIER) / 20.0;
                 be.damageSection(layer, section, drain, gameTime);
-                drainThisTick += drain;
-                be.contactDrainAccumulator += drain;
 
                 if (gameTime % 20 == 0) {
                     mob.getLookControl().setLookAt(center.x, center.y, center.z);
@@ -799,10 +814,9 @@ public class BarrierBlockEntity extends BlockEntity {
                 boolean crossedInward = distOld >= R && distNew < R;
                 if (crossedInward) {
                     if (be.isSectionIntact(layer, psec)) {
-                        // Absorbed — chip the section + pool, spark, remove it.
+                        // Absorbed — chip the SECTION only (not the pool),
+                        // spark, remove it.
                         be.damageSection(layer, psec, PROJECTILE_SECTION_DAMAGE, gameTime);
-                        drainThisTick += PROJECTILE_SECTION_DAMAGE;
-                        be.contactDrainAccumulator += PROJECTILE_SECTION_DAMAGE;
                         serverLevel.sendParticles(ParticleTypes.CRIT,
                                 proj.getX(), proj.getY(), proj.getZ(), 6, 0.1, 0.1, 0.1, 0.02);
                         serverLevel.playSound(null, proj.blockPosition(),
@@ -815,10 +829,6 @@ public class BarrierBlockEntity extends BlockEntity {
                 if (distNew >= R) break;       // outside this (and all inner) shells
                 // else already inside this shell → check inner layers
             }
-        }
-
-        if (drainThisTick > 0) {
-            be.drainFromPool(drainThisTick);
         }
 
         // Push section opacity changes (break/fade/regen) to clients, change-only.
@@ -846,6 +856,40 @@ public class BarrierBlockEntity extends BlockEntity {
         if (be.getTier() >= BARRIER_REGEN_BUFF_TIER) {
             applyT3RegenBuff(serverLevel, center, outerR);
         }
+    }
+
+    /**
+     * Should an incoming attack from {@code attackerPos} to a victim at
+     * {@code victimPos} be stopped by this barrier? True when the victim is
+     * inside the barrier AND the attacker is outside an INTACT section in its
+     * direction — chips that section + pool and the caller cancels the damage.
+     * This is what stops enemy SKILLS (beams, breaths, AoE) that aren't
+     * blockable as moving projectile entities. Attacks aimed through a broken
+     * section (a hole) get through, consistent with the collision model.
+     */
+    public boolean tryBlockIncomingAttack(Vec3 attackerPos, Vec3 victimPos, long gameTime) {
+        ensureSections();
+        if (poolStoredCache <= 0) return false;
+        Vec3 c = Vec3.atCenterOf(worldPosition);
+        double outerR = getEffectiveRadius();
+        if (victimPos.distanceToSqr(c) >= outerR * outerR) return false; // victim not inside
+        double ax = attackerPos.x - c.x, ay = attackerPos.y - c.y, az = attackerPos.z - c.z;
+        double aDist = Math.sqrt(ax * ax + ay * ay + az * az);
+        int sec = sectionIndex(ax, ay, az);
+        for (int layer = activeLayers - 1; layer >= 0; layer--) {
+            double R = getLayerRadius(layer);
+            if (aDist >= R) {                       // attacker is outside this shell
+                if (isSectionIntact(layer, sec)) {
+                    // Decoupled: chip the SECTION only; the pool isn't drained
+                    // by attacks (only upkeep + repairs spend it).
+                    damageSection(layer, sec, ATTACK_SECTION_DAMAGE, gameTime);
+                    return true;                    // stopped at this intact shell
+                }
+                // hole in the attacker's direction → attack enters; try inner shell
+            }
+            // attacker inside this shell → no block from it; try inner
+        }
+        return false;
     }
 
     /** Push a mob back to just outside an intact section's surface — ALWAYS

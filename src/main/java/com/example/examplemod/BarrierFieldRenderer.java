@@ -33,6 +33,10 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
 
     private static final ResourceLocation WALL_TEXTURE = ResourceLocation.fromNamespaceAndPath(
             ExampleMod.MODID, "textures/block/barrier_field.png");
+    /** Depth-write-OFF translucent type so overlapping panels blend evenly
+     *  (see {@link BarrierRenderType}). Built once. */
+    private static final net.minecraft.client.renderer.RenderType WALL_RENDER_TYPE =
+            BarrierRenderType.barrier(WALL_TEXTURE);
 
     /** Base (full-health) vertex alpha. The texture itself is ~65% alpha, so
      *  on-screen opacity tops out around 0.65 × this. */
@@ -70,7 +74,7 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
         tintG = TIER_TINTS[tintIndex][1];
         tintB = TIER_TINTS[tintIndex][2];
 
-        VertexConsumer vc = bufferSource.getBuffer(RenderType.entityTranslucent(WALL_TEXTURE));
+        VertexConsumer vc = bufferSource.getBuffer(WALL_RENDER_TYPE);
         Matrix4f pose = poseStack.last().pose();
 
         // PoseStack origin = block corner; the sphere centres on the block.

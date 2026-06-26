@@ -1521,6 +1521,29 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     }
 
     /**
+     * Stop enemy SKILLS / attacks at a fueled barrier — beams (e.g. the
+     * direwolf's voice cannon), breaths, AoE, any non-projectile damage. When a
+     * barrier-blockable hostile OUTSIDE a barrier damages something INSIDE it,
+     * cancel the hit and chip the facing section. Complements the
+     * projectile-entity blocker, which only catches moving point projectiles.
+     */
+    @SubscribeEvent
+    public void onBarrierBlockIncomingDamage(
+            net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent event) {
+        if (!(event.getEntity().level() instanceof ServerLevel level)) return;
+        net.minecraft.world.entity.Entity owner = event.getSource().getEntity();
+        net.minecraft.world.entity.Entity direct = event.getSource().getDirectEntity();
+        net.minecraft.world.entity.Entity hostile =
+                BarrierBlockEntity.isBlockableHostile(owner) ? owner
+                : BarrierBlockEntity.isBlockableHostile(direct) ? direct : null;
+        if (hostile == null) return;
+        if (TensuraRaids.tryBlockAttackByBarrier(level, hostile.position(),
+                event.getEntity().position(), level.getGameTime())) {
+            event.setCanceled(true);
+        }
+    }
+
+    /**
      * Reputation mover — building constructed or upgraded (+2). Repairs
      * and removals don't move reputation (maintenance isn't growth).
      * Subscribed on the MineColonies event bus in {@link #commonSetup}.
