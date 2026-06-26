@@ -1724,6 +1724,16 @@ public final class RivalColonies {
             if (nearest != null) {
                 BrainUtils.setTargetOfEntity(mob, nearest);
                 mob.setTarget(nearest);
+                // Bone Golems (and other Tensura constructs) are NeutralMobs:
+                // their brain DROPS any hostile target it isn't ANGRY at on the
+                // next tick, so setTarget alone never sticks — the golem just
+                // stands there (and its autocaster, which reads getTarget(),
+                // never fires). Make it genuinely angry at the invader so the
+                // target holds for the assault.
+                if (mob instanceof net.minecraft.world.entity.NeutralMob neutral) {
+                    neutral.setPersistentAngerTarget(nearest.getUUID());
+                    neutral.startPersistentAngerTimer();
+                }
             }
         }
     }
