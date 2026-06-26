@@ -46,38 +46,54 @@ events are planned — see the [Roadmap](../roadmap.md).)
 
 ## The barrier
 
-The barrier is a block you craft and place that projects a protective field
-around itself while it has magicule fuel **and** a raid is active. The field
-is a square footprint centred on the block.
+The barrier is a Barrier Core block you place that projects a protective
+**sphere** around itself while it holds magicule fuel. The sphere is centred on
+the block and sinks partway into the ground.
+
+### Panels and holes
+
+The sphere is divided into **24 panels**, each with its own health. Attacks
+land on the specific panel being hit: that panel fades through three stages and
+then **shatters into a hole** — only that panel, while the rest of the sphere
+stays up. Enemies, their arrows, and their spells pass through an open hole;
+intact panels block them and shove enemies straight back. A panel's health
+depends on the core tier (below).
+
+A broken panel **repairs itself**: 15 seconds after it was last hit it grows
+back one stage at a time. Each repair step draws magicule from the core's fuel
+pool (it costs exactly the health it restores), so a barrier with no fuel can't
+mend its holes until you refuel.
 
 ### Tiers (cumulative)
 
-There are four **Barrier Core** tiers. Each higher tier has a larger radius,
-more fuel capacity, and adds an effect on top of the lower tiers'. The wall
-is colour-coded by tier:
+Four **Barrier Core** tiers. Higher tiers have a larger radius, more fuel
+capacity, tougher panels, and add an effect on top of the lower tiers'. Each
+tier's sphere is colour-coded:
 
-| Tier | Radius | Effect (cumulative) | Wall colour |
-|---|---|---|---|
-| 1 | 16 | **Wall** — blocks hostiles from entering | Blue |
-| 2 | 28 | + **Heal** — Regeneration to non-hostiles inside | Green |
-| 3 | 42 | + **Eject** — teleports hostiles back out | Magenta |
-| 4 | 60 | (all of the above) | Gold |
+| Tier | Radius | Panel health | Effect (cumulative) | Colour |
+|---|---|---|---|---|
+| 1 | 16 | 10,000 | **Wall** — blocks hostiles | Blue |
+| 2 | 28 | 20,000 | + **Heal** — Regeneration to non-hostiles inside | Green |
+| 3 | 42 | 40,000 | + **Magicule regen** — your own magicule regenerates 10% faster while inside | Magenta |
+| 4 | 60 | 60,000 | (all of the above) | Gold |
 
-While fueled, a barrier also **prevents hostile mobs from spawning** inside
-its footprint.
+While fueled, a barrier also **prevents hostile mobs from spawning** inside its
+footprint, and stops enemy arrows, spells, and breath attacks at its panels
+(these still pass through an open hole).
 
 ### Fuel
 
 The barrier runs on magicule:
 
-- **Right-click** it with empty hand to channel your own magicule in (or
-  open its menu for finer control).
-- **Right-click** with magic crystals to add fixed amounts (low / medium /
-  high quality crystals add increasing amounts).
+- **Right-click** with an empty hand to open its menu (move your own magicule
+  in or out, set the layer count, show or hide the walls).
+- **Right-click** with Tensura magic crystals to add fixed amounts (low /
+  medium / high quality add increasing amounts).
 
-Hostiles pressing the wall drain its fuel — harder-hitting, higher-EP mobs
-drain it faster. At zero fuel the field drops (with a warning); refuel to
-raise it again. The wall's transparency shows its fuel level at a glance.
+The fuel pool is spent on keeping extra layers raised and on repairing broken
+panels — **attacks themselves no longer drain it**. At zero fuel the whole
+barrier drops (with a warning); refuel and it raises again with every panel
+restored to full. Each panel's transparency shows its remaining health.
 
 ### Magicule Storage
 
@@ -88,12 +104,13 @@ as you build or break it.
 
 ### Concentric layers (Demon Lords / Heroes)
 
-A Barrier Core can project up to **three concentric square shells**,
-expanding outward. The first layer is available to anyone; raising it to two
-or three requires you to be a true Demon Lord or true Hero. Extra layers
-cost ongoing magicule upkeep from the core's fuel pool, on top of raider
-drain. When the pool can't pay, the outermost layer drops first, then the
-next, down to the always-available first layer.
+A Barrier Core can project up to **three concentric spheres**, expanding
+outward. The first layer is available to anyone; raising it to two or three
+requires you to be a true Demon Lord or true Hero. Each extra layer costs
+ongoing magicule upkeep from the fuel pool. When the pool can't pay, the
+outermost layer drops first, then the next, down to the always-available first
+layer.
 
 The Barrier Core's menu (right-click) shows fuel, lets you move magicule
-between yourself and the core, and sets the layer count.
+between yourself and the core, sets the layer count, and toggles whether the
+walls are visible.

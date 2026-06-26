@@ -38,9 +38,29 @@ OUTER→INNER: real 3D distance from center; the first INTACT section it presses
 (within `[R−WALL_BAND, R+CONTACT_BAND]`) blocks + drains it, then `break`; a
 BROKEN section is a gap → `continue` inward; well-inside an intact shell →
 `continue` so inner shells can still block (no eject of deep-inside mobs). The
-push is **radial high up, horizontalized below `center.y + 3`** (Y preserved) so
-mobs aren't shoved into terrain. Mobs don't *seek* holes — opportunistic passage
-only (accepted; pathfinding integration is infeasible cheaply).
+push is **ALWAYS HORIZONTAL** (`pushFromShell`, Y preserved; upward velocity
+cancelled) — updated 2026-06-21: the earlier radial push pointed partly upward
+and flung mobs up the dome, so it's now purely horizontal (mobs are shoved
+straight back, never launched up or driven into terrain). Mobs don't *seek*
+holes — opportunistic passage only (accepted; pathfinding integration is
+infeasible cheaply).
+
+**Render (even translucency, 2026-06-21).** The sphere draws via a custom
+`BarrierRenderType` (a clone of `entityTranslucent` with **depth-write OFF** +
+sort-on-upload) instead of plain `entityTranslucent`. Coincident panels (two
+windings + near/far hemispheres) were z-fighting under depth-write, so a panel
+read brighter/fainter than its neighbour by distance ("far panels look lower
+capacity"); depth-write-off makes every panel blend consistently.
+
+**Enemy SKILLS — damage interception (2026-06-21).** Beams/breaths
+(`VoiceCannonSkill`, `BeamProjectile`, `BreathEntity`, …) extend
+`TensuraProjectile` but are anchored at the caster and deal damage along a
+length, so the projectile-crossing blocker can't catch them. A
+`LivingIncomingDamageEvent` handler (`BarrierBlockEntity.tryBlockIncomingAttack`
++ `TensuraRaids.tryBlockAttackByBarrier`) cancels hostile damage to a victim
+INSIDE the barrier when the attacker is outside an intact section in its
+direction, chipping that section (`ATTACK_SECTION_DAMAGE`). Aimed through a hole
+→ gets through.
 
 **Damage model — DECOUPLED (2026-06-21, was two-counter).** Attacks (contact,
 projectiles, blocked skills) now reduce ONLY the pressed section's health — they

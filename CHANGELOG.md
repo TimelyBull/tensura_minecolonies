@@ -47,6 +47,25 @@ Copy the relevant version's section into the CurseForge release notes on each up
   around him. (He keeps his Predator skill.)
 
 ### Fixed
+- **Enemy mobs no longer fly up over the barrier.** Mobs that hit the barrier
+  used to get launched up and over the dome; they're now pushed straight back
+  horizontally and pile against the wall as intended.
+- **Enemy skills and breath attacks no longer pass through the barrier.** Beam
+  and breath skills (such as a direwolf's voice cannon) used to ignore the
+  barrier and hit whoever was inside. The barrier now stops them at an intact
+  panel — chipping that panel, like it does arrows — while they still pass
+  through an open hole.
+- **Barrier panels now look even.** Panels farther from you used to appear
+  fainter (as if weaker) than nearby ones because of a rendering quirk; every
+  panel now shows its true strength consistently.
+- **Faction defenders now actually fight you when you declare war.** Most
+  faction garrison units are "neutral" mob types that ignore a target they
+  aren't angry at, so they often just stood there during an assault. They now
+  properly turn hostile and attack you — and their casters use their spells.
+- **No more duplicate heroes in a garrison.** Named characters (Kyoya, Kirara,
+  Shogo, Mark Lauren, Shinji, Shin Ryusei) now appear at most once per garrison
+  instead of spawning as several copies; the remaining slots are filled by
+  ordinary troops.
 - **The Jura-Tempest Slime boss now uses its skills in a fight.** The Slime
   that leads the Jura-Tempest Federation was only attacking with melee body-slams
   and never used the water and corrosion attacks it was meant to have. It now
@@ -89,6 +108,12 @@ Copy the relevant version's section into the CurseForge release notes on each up
   current visit is resolved.
 
 ### Changed
+- **Bone golems removed from faction garrisons.** Faction defenders no longer
+  include bone golems — golems are constructs the player controls, so they
+  refused to fight you. They've been replaced with fitting troops: **daemons**
+  for Leon, **imperial knights** for the Eastern Empire, and more **Holy
+  Knights** for Luminous. Luminous's garrison is now its boss **Hinata** plus
+  Holy-Knight soldiers (Kyoya fights for Falmuth, not Luminous).
 - **Leon's fire spirits are now properly fireproof.** Ifrit, the flame-spirit
   boss of Leon's keep, is now fully immune to fire and heat (on top of its
   existing self-healing and its own native fire attacks), and its salamanders
@@ -109,8 +134,9 @@ Copy the relevant version's section into the CurseForge release notes on each up
 - **The Otherworlders are now the Eastern Empire.** The Otherworlders faction
   has been re-themed into the **Eastern Empire** — a major eastern military
   power. Its town still stands and Mai Furuki still leads it (a stand-in for
-  proper Empire commanders later), but it now fields a heavy **magitech golem
-  army** and ranks among the strongest factions — comparable to the Holy
+  proper Empire commanders later), but it now fields **imperial soldiers**
+  (knight rank-and-file under its named lieutenants) and ranks among the
+  strongest factions — comparable to the Holy
   bloc. It's a secular power that keeps no alliances (notably, it is **not**
   allied with the Holy bloc). Existing worlds carry over automatically: any
   standing or relations you had with the Otherworlders become your standing
@@ -121,8 +147,7 @@ Copy the relevant version's section into the CurseForge release notes on each up
   an old world already had a Shizu town, it simply sits inert; your past
   standing with her is kept but unused.) In her place, **Leon** now fields a
   proper fortress garrison: a scaled-up Ifrit boss leading fire-resistant
-  defenders (a salamander and a heavy construct), fitting his strength as a
-  Demon Lord.
+  defenders (daemons and a salamander), fitting his strength as a Demon Lord.
 - **The Carrion faction is now "Eurazania" (the Beast Kingdom).** Calion's
   beastfolk nation now shows the name "Eurazania" everywhere a faction label
   appears. It stays exactly as it was otherwise — diplomacy and reputation
@@ -151,23 +176,25 @@ Copy the relevant version's section into the CurseForge release notes on each up
   own colony as before. Existing worlds carry over automatically: any standing,
   relations, deals, or settlement you had with the Jura Alliance are merged into
   the combined faction with no lost progress.
-- **Barrier damage is now local to each panel.** Attacks still drain the
-  barrier's shared fuel pool, but they now also wear down the specific panel
-  being struck; that panel breaks into a hole when its own health runs out,
-  without dropping the rest of the barrier. The whole barrier still falls only
-  when the fuel pool reaches zero — and refueling from empty restores every
-  panel to full. Keeping extra layers raised still costs a steady trickle of
-  fuel (50 per second for each layer beyond the first).
+- **Barrier damage is local to each panel — and no longer drains your fuel.**
+  Attacking a barrier wears down only the panel being hit; it does NOT drain the
+  shared fuel pool. A panel breaks into a hole when its own health runs out,
+  without dropping the rest of the barrier. The fuel pool is now spent only on
+  keeping extra layers raised and on REPAIRING broken panels (a repair costs
+  exactly the health it restores). The whole barrier still falls only when the
+  fuel pool reaches zero, and refueling from empty restores every panel to full.
+  (This fixes higher-tier barriers, whose pool used to empty before a tough
+  panel could be broken.)
 - **Tier 3 barriers no longer throw enemies out — they recharge you instead.**
   The old tier-3 "teleport hostiles back outside" effect has been removed.
   Now, while you stand inside a tier 3 or 4 barrier, your own magicule
   regenerates 10% faster.
-- **Any hostile drains the barrier, not just raid monsters.** Previously only
-  monsters that were part of an active raid wore down a barrier's fuel; ordinary
-  wild hostiles were blocked for free. Now any hostile pressing the wall —
-  wild monsters and raid monsters alike — costs the barrier fuel.
-- **Barrier fuel drain halved.** Hostiles now wear down a barrier's magicule at
-  half the previous rate, so a given amount of fuel lasts about twice as long.
+- **Any hostile wears the barrier down, not just raid monsters.** Previously
+  only monsters that were part of an active raid damaged a barrier; ordinary
+  wild hostiles were blocked for free. Now any hostile pressing the wall — wild
+  monsters and raid monsters alike — wears down the panel it's pushing on.
+- **Barrier damage rate halved.** Hostiles now wear a barrier's panels down at
+  half the previous rate, so a barrier holds about twice as long under attack.
 - **Enemy spell-casting now runs on Nightmare's Tensura Utils.** Garrison
   bone golems and the colony assassin still cast their magic in combat, but
   the casting is now handled by the Nightmare's Tensura Utils mod's

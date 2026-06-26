@@ -2174,3 +2174,47 @@ scale √(110k/5k)=4.69 → **count 20 (the cap), stat× ≈2.85**. This is inte
 (strong subordinates). The boss does NOT receive `statFactor` (only rank-and-file
 do), so there is no triple-stack on Rimuru; the ×100/×40 are the only multipliers
 on him. ⚠ all values BALANCE GUESSES — tune after a siege test.
+
+## Barrier + garrison decisions (2026-06-21)
+
+**Bone golems can't be enemy defenders — they're player-possessed.** Tensura
+golems (`BoneGolemEntity → TensuraHumanoidEntity → TensuraTamableEntity →
+TamableAnimal`) are owned constructs; a tamed mob won't attack its owner even
+when angered, so they ignored the player as garrison defenders. REMOVED from all
+rosters and replaced (Leon → Lesser/Greater Daemon; Eastern Empire → Falmuth
+Knight rank-and-file; Luminous → pure Falmuth Knights, Kyoya kept in Falmuth).
+Boss anchors unchanged (Luminous = Hinata).
+
+**Garrison targeting needs NeutralMob anger, not just `setTarget`.** Nearly
+every Tensura defender is a SmartBrainLib `NeutralMob`; its brain drops a hostile
+target it isn't ANGRY at, so `setTarget`/`BrainUtils.setTargetOfEntity` alone
+didn't stick. `steerGarrisonToInvaders` now also sets the persistent-anger target
++ timer on the invader. This is load-bearing for ALL neutral defenders (knights,
+heroes, daemons, dwarves, goblins) — not just the golem; the golem is the one
+case it can't fix (owned). So the anger fix is KEPT.
+
+**Unique Otherworlders spawn at most once.** Round-robin spawn duplicated named
+characters when count > roster length. `pickGarrisonType` caps named
+Otherworlders/lieutenants at one per garrison and substitutes a repeatable
+troop; `resetGarrison` seeds the tracker with still-alive uniques.
+
+**Barrier damage DECOUPLED from the fuel pool.** The original two-counter model
+drained both the pressed section's health AND the shared pool per hit; section
+health scales ×6 across tiers (10k→60k) but pool capacity only ×2.5
+(100k→250k), so a high-tier pool emptied before any section broke. Now attacks
+(contact / projectiles / blocked skills) reduce ONLY section health; the pool is
+spent solely on layer upkeep + repairs (a repair costs exactly the health it
+restores, 1:1). Whole-barrier fall still gated on pool 0; refuel resets sections.
+
+**Barrier push is purely horizontal; render uses a depth-write-off type.** The
+old radial push pointed partly upward and flung mobs up the dome → now always
+horizontal (`pushFromShell`, Y preserved). Coincident translucent panels
+z-fought under default `entityTranslucent` (far panels looked fainter) → custom
+`BarrierRenderType` with depth-write OFF + sort-on-upload blends them evenly.
+
+**Enemy skills stopped by damage interception, not entity blocking.** Beams /
+breaths extend `TensuraProjectile` but are anchored at the caster (not moving
+point projectiles), so the projectile-crossing blocker missed them. A
+`LivingIncomingDamageEvent` handler cancels hostile damage to a victim inside
+the barrier when the attacker is outside an intact section in its direction,
+chipping that section.

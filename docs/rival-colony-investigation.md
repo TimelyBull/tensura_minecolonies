@@ -589,15 +589,37 @@ marked) is part of the garrison — these are the rank-and-file around it.
 Abstract factions (Tempest, Carrion, Milim, Clayman) have no settlement,
 so no roster.
 
+Defender rosters (CURRENT — 2026-06-21):
+
 | Faction | Anchor boss | Defender roster |
 |---|---|---|
-| Luminous | Hinata Sakaguchi | Falmuth Knight, Clone, Bone Golem *(holy construct stand-in — Tensura has no dedicated holy mob)* |
+| Luminous | Hinata Sakaguchi | Falmuth Knight (Holy-Knight soldiers — the boss Hinata is the only named unit) |
 | Falmuth | Folgen | Falmuth Knight, Kirara Mizutani, Kyoya Tachibana, Shogo Taguchi |
-| Shizu | Shizu | Ifrit Clone, Salamander, Hell Caterpillar, Hell Moth |
-| Leon | Ifrit | Ifrit Clone, Salamander, Arch Daemon, Greater Daemon, Lesser Daemon |
-| Otherworlders | Mai Furuki | Clone, Mark Lauren, Shinji Tanimura, Kirara Mizutani |
-| Jura Alliance | Shin Ryusei | Tempest Serpent, Goblin, Lizardman, Slime |
-| Dwargon | Gazel Dwargo | Dwarf, War Gnome, Beast Gnome |
+| Shizu | — (deprecated, no roster) | — |
+| Leon | Ifrit | Lesser Daemon, Greater Daemon, Salamander |
+| Eastern Empire | Mai Furuki | Falmuth Knight ×2 (rank-and-file), Shin Ryusei, Mark Lauren, Shinji Tanimura |
+| Jura-Tempest Federation | Slime | Goblin, Lizardman |
+| Dwargon | Gazel Dwargo | Dwarf |
+
+**Roster rework (2026-06-21):**
+- **Bone Golems REMOVED from every roster.** Golems are player-POSSESSED
+  (owned `TamableAnimal`) constructs and refuse to attack their owner, so they
+  can't serve as enemies. Replacements: Leon → daemons (Lesser/Greater) +
+  Salamander; Eastern Empire → Falmuth Knight rank-and-file (×2 weight) under
+  the three lieutenants; Luminous → pure Falmuth Knights (Kyoya was moved out —
+  he belongs to Falmuth's roster, where he already is).
+- **Garrison targeting fix.** Nearly every defender is a SmartBrainLib
+  `NeutralMob` (`PlayerLikeEntity` / `TensuraMerchantEntity` →
+  `TensuraHumanoidEntity` → `TensuraTamableEntity`), whose brain drops any
+  hostile target it isn't ANGRY at. `steerGarrisonToInvaders` now also sets the
+  NeutralMob persistent-anger target + timer on the invader, so defenders
+  actually fight (and their autocaster, which reads `getTarget()`, fires).
+  Golems are the one type this can't fix — owned mobs won't attack their owner.
+- **One-of-each unique.** Round-robin spawn (`roster[i % len]`) duplicated named
+  Otherworlders when count > roster length (two Kyoyas). `pickGarrisonType`
+  caps uniques (Kirara/Kyoya/Shogo/Mark Lauren/Shinji/Shin Ryusei) at one per
+  garrison, substituting a repeatable troop; `resetGarrison` seeds the tracker
+  with still-alive uniques. Generic troops repeat freely.
 
 ## Boss-EP scaling formula (⚠ ALL BALANCE GUESSES — need a siege playtest)
 
