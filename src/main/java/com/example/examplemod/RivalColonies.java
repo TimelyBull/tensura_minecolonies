@@ -133,6 +133,32 @@ public final class RivalColonies {
                     net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
                             "tensura", "dwarf_village"));
 
+    /** Our OWN worldgen faction structures → the faction each one populates.
+     *  A player near an unpopulated one triggers the real settlement build
+     *  ({@link #tickWorldgenSettlements}). Each structure is a separate data
+     *  JSON (shared {@code faction_anchor} type) with its own structure_set +
+     *  themed biome tag. Dwargon is NOT here — it adopts Tensura's existing
+     *  {@code dwarf_village} structure via {@link #tickDwarvenVillages}. */
+    private static final Map<net.minecraft.resources.ResourceKey<
+            net.minecraft.world.level.levelgen.structure.Structure>, String> WORLDGEN_STRUCTURES =
+            new LinkedHashMap<>();
+    static {
+        putWorldgenStructure("faction_anchor_falmuth", "falmuth");
+        putWorldgenStructure("faction_anchor_leon", "leon");
+        putWorldgenStructure("faction_anchor_tempest", "tempest");
+        putWorldgenStructure("faction_anchor_eastern_empire", "eastern_empire");
+        putWorldgenStructure("faction_anchor_luminous", "luminous");
+    }
+
+    private static void putWorldgenStructure(String structureName, String factionId) {
+        WORLDGEN_STRUCTURES.put(
+                net.minecraft.resources.ResourceKey.create(
+                        net.minecraft.core.registries.Registries.STRUCTURE,
+                        net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+                                ExampleMod.MODID, structureName)),
+                factionId);
+    }
+
     /** True when the faction can generate a physical settlement (the 6
      *  town factions + Dwargon-village). */
     public static boolean isPhysical(String factionId) {
@@ -176,17 +202,17 @@ public final class RivalColonies {
                     HumanEntityTypes.FALMUTH_KNIGHT.get(), HumanEntityTypes.KIRARA_MIZUTANI.get(),
                     HumanEntityTypes.KYOYA_TACHIBANA.get(), HumanEntityTypes.SHOGO_TAGUCHI.get() };
             // Shizu — DEPRECATED (soft-retired): no garrison roster.
-            // Leon — a demon lord's keep. The anchor boss is a (scaled-up,
-            // high-EP) Ifrit; the rank-and-file are daemons (Lesser = troops,
-            // Greater = elites) plus a Salamander fire-spirit — far more
-            // on-theme for a demon lord than the old BONE_GOLEM placeholder
-            // (removed: golems are player-POSSESSED and won't fight their
-            // owner). Daemons are neutral mobs but NOT player-owned, so the
-            // garrison anger-targeting makes them hostile normally.
-            // Leon's fire-resistance/heat skills are granted in spawnDefender.
+            // Leon — PLACEHOLDER ROSTER (2026-06-26). The rank-and-file are
+            // FALMUTH_KNIGHT soldiers standing in for the demon-lord's real
+            // garrison until a proper Leon roster lands. The anchor BOSS is
+            // unchanged (still the high-EP Ifrit in ANCHORS). The previous
+            // daemon + Salamander fire roster was swapped out (the fire mobs
+            // roamed far and read as out-of-place). NOTE: Leon still grants
+            // FLAME/HEAT resistance to defenders in assignFactionDefenderSkills
+            // — now thematically odd on human knights but harmless (fire-only,
+            // doesn't affect melee); revisit when the real roster lands.
             case "leon" -> new EntityType[] {
-                    MonsterEntityTypes.LESSER_DAEMON.get(), MonsterEntityTypes.GREATER_DAEMON.get(),
-                    MonsterEntityTypes.SALAMANDER.get() };
+                    HumanEntityTypes.FALMUTH_KNIGHT.get() };
             // Eastern Empire — magitech military power: FALMUTH_KNIGHT
             // rank-and-file soldiers (listed twice so they're the bulk of the
             // round-robin garrison) led by the imperial lieutenants Shin
@@ -376,15 +402,10 @@ public final class RivalColonies {
             new Building("fundamentals/residence1.blueprint", GRID, GRID),
             new Building("fundamentals/residence1.blueprint", 0, GRID * 2));
 
-    // --- natural generation tuning (all named) ---
-    /** Per online player, per day: chance to seed a settlement nearby. */
-    static final double NATURAL_GEN_CHANCE_PER_DAY = 0.05;
-    /** Settlement spawns this far (blocks) from the triggering player. */
-    static final int NATURAL_GEN_DISTANCE = 220;
-    /** No two settlements within this distance (blocks). */
-    static final int MIN_SETTLEMENT_SPACING = 400;
-    /** Hard cap on naturally-generated settlements per world. */
-    static final int MAX_NATURAL_SETTLEMENTS = 12;
+    // (Stage 4) The old proximity-scatter natural-gen tuning constants
+    // (NATURAL_GEN_CHANCE_PER_DAY / NATURAL_GEN_DISTANCE / MIN_SETTLEMENT_SPACING
+    // / MAX_NATURAL_SETTLEMENTS) were removed — worldgen structure_sets now own
+    // placement (spacing/separation/salt in the JSON).
 
     // --- #2 site selection + foundation leveling (tunable) ---
     /** Candidate centers sampled when siting a settlement; the flattest
@@ -417,45 +438,41 @@ public final class RivalColonies {
         };
     }
 
-    /**
-     * Generate a faction boss near {@code center}, choosing wild vs
-     * colony per config. PHYSICAL factions only (abstract → nothing).
-     * Returns the created Settlement (colony) or null (wild / abstract /
-     * disabled).
-     */
-    static Settlement generate(ServerLevel level, ServerPlayer placer, String factionId,
-                               BlockPos center) {
-        if (!WorldReputationManager.isFactionSystemEnabled()) return null;
-        if (!isPhysical(factionId)) return null;
-        // Dwargon never generates a TOWN — it adopts existing dwarven
-        // villages (the village poll). Route any stray call to a WILD
-        // Gazel rather than a faux-town.
-        if (!isTownFaction(factionId)) {
-            spawnAnchorBoss(level, factionId, center, false);
-            return null;
-        }
-        if (Config.RIVAL_SETTLEMENT_MODE.get() == Config.SettlementMode.NONE) {
-            // Layer disabled — still allow the WILD boss (free roaming).
-            spawnAnchorBoss(level, factionId, center, false);
-            return null;
-        }
-        if (rollColony(level)) {
-            return generateColony(level, placer, factionId, center);
-        }
-        spawnAnchorBoss(level, factionId, center, false); // WILD
-        LOGGER.info("[TM] rival: {} generated WILD (unmarked) at {}", factionId, center);
-        return null;
-    }
+    // (Stage 4) The old `generate()` wrapper — the proximity-scatter entry that
+    // rolled WILD-boss vs COLONY per config — was removed with the scatter. For
+    // TOWN factions, a worldgen anchor now ALWAYS populates as a COLONY
+    // (populateSettlementAt → generateColony). ⚠ BEHAVIOR CHANGE: the
+    // wild-boss-alone variant + RIVAL_SETTLEMENT_SOME_CHANCE no longer apply to
+    // town natural-gen (RIVAL_SETTLEMENT_MODE NONE still disables via the
+    // settlementsOn gate; the wild/colony roll survives ONLY for Dwargon dwarf
+    // villages, which still call rollColony). Re-add a wild variant later if
+    // wanted (e.g. roll at populate time). The debug command + ALL/colony
+    // callers use generateColony directly.
 
     /** Force the COLONY version (the debug command + ALL mode). */
     static Settlement generateColony(ServerLevel level, ServerPlayer placer, String factionId,
                                      BlockPos rawCenter) {
         if (!WorldReputationManager.isFactionSystemEnabled() || !isTownFaction(factionId)) return null;
         String pack = PACKS.get(factionId);
-        // #2 — site selection: pick the FLATTEST nearby spot for the town
-        // (rejects cliff/steep sites that left buildings half-off ledges).
+        // PACK-READINESS GUARD. Structurize registers/indexes its structure
+        // packs ASYNC on a worker thread (and reloads them on relog). Generating
+        // before the blueprint index is ready 404s every building
+        // (NoSuchFileException) and leaves an EMPTY town — observed in-game:
+        // 7/10 buildings failed when generation ran ~2 min after world load,
+        // while the SAME pack/paths succeeded later (and post-relog). Probe the
+        // town-hall blueprint first; if the pack isn't ready, DEFER (return
+        // null) instead of building a husk. Callers leave any pending marker in
+        // place, so a retry / the next attempt succeeds once the pack settles.
+        if (!isPackBlueprintsReady(level, pack)) {
+            LOGGER.warn("[TM] rival: pack '{}' blueprints not ready yet — deferring "
+                    + "{} settlement generation (retry once Structurize finishes loading)",
+                    pack, factionId);
+            return null;
+        }
+        // #2 — site selection: pick a reasonably flat nearby spot (rejects
+        // cliff faces) — but exact flatness matters less now that buildings
+        // follow the terrain individually (below).
         BlockPos center = findBuildableCenter(level, rawCenter);
-        int baseY = center.getY();
 
         Settlement s = new Settlement();
         SettlementSavedData data = SettlementSavedData.get(level);
@@ -466,13 +483,22 @@ public final class RivalColonies {
         s.center = center;
         s.packName = pack;
 
-        for (Building b : LAYOUT) {
-            // #3 — coplanar placement on the WIDENED grid: every building
-            // sits at the town's single base Y (not per-building terrain),
-            // so a slope can't terrace or overlap them.
-            BlockPos at = new BlockPos(center.getX() + b.dx(), baseY, center.getZ() + b.dz());
-            // #2 — level a flat foundation pad under the building first.
-            levelPad(level, at);
+        // Stage 6 (Part B) — terrain-FOLLOWING placement. Each building sits at
+        // its OWN local ground height (true ground beneath any trees) so the
+        // town drapes naturally over the land — different buildings on different
+        // Y levels, like a hillside settlement — and each gets its own
+        // biome-matched, edge-graded foundation pad. Heights are computed FIRST
+        // (from natural terrain) so an earlier pad can't skew a later one.
+        int[] buildingY = new int[LAYOUT.size()];
+        for (int i = 0; i < LAYOUT.size(); i++) {
+            Building b = LAYOUT.get(i);
+            buildingY[i] = groundSurfaceY(level, center.getX() + b.dx(),
+                    center.getZ() + b.dz()) + 1;
+        }
+        for (int i = 0; i < LAYOUT.size(); i++) {
+            Building b = LAYOUT.get(i);
+            BlockPos at = new BlockPos(center.getX() + b.dx(), buildingY[i], center.getZ() + b.dz());
+            levelBuildingPad(level, at);
             placeBuilding(level, placer, pack, b.path(), at);
             s.buildingPositions.add(at);
         }
@@ -600,6 +626,22 @@ public final class RivalColonies {
      * Structurize {@code Manager} (ticked server-side, places over a few
      * ticks). A null blueprint logs exactly which pack/path failed.
      */
+    /** True when {@code pack}'s blueprints are resolvable right now. Probes the
+     *  first LAYOUT entry (the town hall); a null result or a throw means
+     *  Structurize hasn't finished indexing the pack yet (async load / pending
+     *  relog reload), so generation should defer rather than build an empty
+     *  town. Cheap belt for the timing race observed in-game. */
+    private static boolean isPackBlueprintsReady(ServerLevel level, String pack) {
+        if (pack == null) return false;
+        if (LAYOUT.isEmpty()) return true;
+        String probe = LAYOUT.get(0).path(); // the town hall
+        try {
+            return StructurePacks.getBlueprint(pack, probe, level.registryAccess()) != null;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     private static void placeBuilding(ServerLevel level, ServerPlayer placer, String pack,
                                       String path, BlockPos pos) {
         try {
@@ -622,10 +664,11 @@ public final class RivalColonies {
     // #2 — site selection + foundation leveling
     // ------------------------------------------------------------------
 
-    /** Pick the FLATTEST nearby surface for a settlement center: sample a
-     *  handful of candidates and keep the one with the smallest
-     *  surface-height range over the footprint (stops early on a flat
-     *  enough spot). Never fails — falls back to the requested spot. */
+    /** Pick a reasonably flat nearby surface for a settlement center: sample a
+     *  handful of candidates and keep the one with the smallest GROUND-height
+     *  range over the footprint (stops early on a flat-enough spot). Rejects
+     *  cliff faces; gentle slopes are fine now that buildings follow the terrain
+     *  individually. Never fails — falls back to the requested spot. */
     private static BlockPos findBuildableCenter(ServerLevel level, BlockPos raw) {
         BlockPos best = null;
         int bestRange = Integer.MAX_VALUE;
@@ -633,23 +676,24 @@ public final class RivalColonies {
             BlockPos cand = (i == 0) ? raw : raw.offset(
                     level.getRandom().nextInt(SITE_SCATTER * 2 + 1) - SITE_SCATTER, 0,
                     level.getRandom().nextInt(SITE_SCATTER * 2 + 1) - SITE_SCATTER);
-            BlockPos surf = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, cand);
+            BlockPos surf = new BlockPos(cand.getX(),
+                    groundSurfaceY(level, cand.getX(), cand.getZ()) + 1, cand.getZ());
             int range = surfaceRange(level, surf);
             if (range < bestRange) { bestRange = range; best = surf; }
             if (range <= SITE_FLAT_ENOUGH) break;
         }
-        return best != null ? best : level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, raw);
+        return best != null ? best : new BlockPos(raw.getX(),
+                groundSurfaceY(level, raw.getX(), raw.getZ()) + 1, raw.getZ());
     }
 
-    /** Max−min WORLD_SURFACE height over a coarse grid spanning the layout
-     *  footprint — the "how steep is this site" metric. */
+    /** Max−min GROUND height (true terrain, ignoring trees) over a coarse grid
+     *  spanning the layout footprint — the "how steep is this site" metric. */
     private static int surfaceRange(ServerLevel level, BlockPos center) {
         int min = Integer.MAX_VALUE, max = Integer.MIN_VALUE;
         int ext = GRID + BUILDING_PAD_HALF;
         for (int dx = -ext; dx <= ext; dx += 8) {
             for (int dz = -ext; dz <= ext + GRID; dz += 8) {
-                int y = level.getHeight(Heightmap.Types.WORLD_SURFACE,
-                        center.getX() + dx, center.getZ() + dz);
+                int y = groundSurfaceY(level, center.getX() + dx, center.getZ() + dz);
                 if (y < min) min = y;
                 if (y > max) max = y;
             }
@@ -657,19 +701,76 @@ public final class RivalColonies {
         return max - min;
     }
 
-    /** Lay a flat foundation pad at a building's base Y: a solid ground
-     *  layer below + cleared air above, so the schematic sits flush
-     *  instead of half-buried or off a ledge. */
-    private static void levelPad(ServerLevel level, BlockPos at) {
-        int baseY = at.getY();
-        net.minecraft.world.level.block.state.BlockState foundation = Blocks.STONE.defaultBlockState();
+    /** True ground surface Y at a column — the highest SOLID terrain block,
+     *  scanning DOWN past trees/leaves/foliage/snow/water so a building doesn't
+     *  end up perched at tree-canopy height. */
+    private static int groundSurfaceY(ServerLevel level, int x, int z) {
+        int y = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z) - 1;
+        int floor = level.getMinBuildHeight();
+        while (y > floor) {
+            if (isGroundSurface(level.getBlockState(new BlockPos(x, y, z)))) return y;
+            y--;
+        }
+        return level.getHeight(Heightmap.Types.OCEAN_FLOOR, x, z) - 1; // fallback
+    }
+
+    /** A solid terrain block to stand a building on (excludes air, fluids,
+     *  replaceable plants/snow-layers, leaves and logs). */
+    private static boolean isGroundSurface(net.minecraft.world.level.block.state.BlockState st) {
+        if (st.isAir() || !st.getFluidState().isEmpty() || st.canBeReplaced()) return false;
+        if (st.is(net.minecraft.tags.BlockTags.LEAVES) || st.is(net.minecraft.tags.BlockTags.LOGS)) return false;
+        return true;
+    }
+
+    /** Width (blocks) of the graded edge ring that tapers a building's pad down
+     *  to the surrounding terrain instead of a vertical cliff. */
+    private static final int FOUNDATION_SKIRT = 6;
+
+    /**
+     * Stage 6 (Part B) — lay ONE building's foundation pad at its own local Y and
+     * grade its edges into the terrain, so each building drapes onto the land at
+     * its own height (a terraced/hillside look). For every column in the pad:
+     *   - the visible top reuses the column's own surface block (grass / sand /
+     *     snow / …) so it matches the biome instead of bare stone;
+     *   - holes below the target are filled (dirt) so the building never floats;
+     *   - terrain above is cleared so it isn't buried in a hillside;
+     *   - across the {@link #FOUNDATION_SKIRT} ring the height tapers from the
+     *     building's base toward the natural GROUND (ignoring trees), softening
+     *     the edge. ⚠ Aesthetic + tunable — wants in-game visual iteration.
+     */
+    private static void levelBuildingPad(ServerLevel level, BlockPos at) {
+        int half = BUILDING_PAD_HALF;
+        int coreTop = at.getY() - 1; // ground-surface Y under this building
+        net.minecraft.world.level.block.state.BlockState dirt = Blocks.DIRT.defaultBlockState();
         net.minecraft.world.level.block.state.BlockState air = Blocks.AIR.defaultBlockState();
-        for (int dx = -BUILDING_PAD_HALF; dx <= BUILDING_PAD_HALF; dx++) {
-            for (int dz = -BUILDING_PAD_HALF; dz <= BUILDING_PAD_HALF; dz++) {
+
+        for (int dx = -half - FOUNDATION_SKIRT; dx <= half + FOUNDATION_SKIRT; dx++) {
+            for (int dz = -half - FOUNDATION_SKIRT; dz <= half + FOUNDATION_SKIRT; dz++) {
+                int outside = Math.max(0, Math.max(Math.abs(dx) - half, Math.abs(dz) - half));
+                if (outside > FOUNDATION_SKIRT) continue;
                 int x = at.getX() + dx, z = at.getZ() + dz;
-                level.setBlock(new BlockPos(x, baseY - 1, z), foundation, 2);
-                for (int dy = 0; dy < PAD_CLEAR_HEIGHT; dy++) {
-                    level.setBlock(new BlockPos(x, baseY + dy, z), air, 2);
+
+                int naturalTop = groundSurfaceY(level, x, z);
+                int targetTop = (outside == 0) ? coreTop
+                        : (int) Math.round(coreTop + (naturalTop - coreTop)
+                                * (outside / (double) FOUNDATION_SKIRT));
+
+                net.minecraft.world.level.block.state.BlockState surface =
+                        level.getBlockState(new BlockPos(x, naturalTop, z));
+                if (surface.isAir() || !surface.getFluidState().isEmpty()) surface = dirt;
+
+                // Fill any gap below the target with dirt (no floating pads).
+                for (int y = Math.min(naturalTop, targetTop); y < targetTop; y++) {
+                    level.setBlock(new BlockPos(x, y, z), dirt, 2);
+                }
+                level.setBlock(new BlockPos(x, targetTop, z), surface, 2);
+
+                // Clear terrain above (no buried/cut building), up to the natural
+                // surface plus headroom in the core (also removes trees on the pad).
+                int worldTop = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z) - 1;
+                int clearTo = Math.max(worldTop, targetTop + (outside == 0 ? PAD_CLEAR_HEIGHT : 1));
+                for (int y = targetTop + 1; y <= clearTo; y++) {
+                    level.setBlock(new BlockPos(x, y, z), air, 2);
                 }
             }
         }
@@ -726,11 +827,10 @@ public final class RivalColonies {
     }
 
     // ------------------------------------------------------------------
-    // Natural generation — our own scheduler pass (NOT vanilla world-gen)
+    // Settlement generation cadence (Stage 4: natural placement is now VANILLA
+    // WORLDGEN — see tickWorldgenSettlements + the worldgen/ data JSON. The old
+    // per-dimension lastNaturalDay scatter throttle was removed with the scatter.)
     // ------------------------------------------------------------------
-
-    private static final Map<net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>, Long>
-            lastNaturalDay = new java.util.HashMap<>();
 
     /** Cadence for the AMBIENT sub-passes (garrison tether, proximity
      *  discovery, dwarven-village polling, natural gen). 100 ticks (5 s) —
@@ -770,24 +870,14 @@ public final class RivalColonies {
             // village (a structure lookup per player).
             tickDwarvenVillages(level);
 
-            // Natural TOWN scatter — gated by the natural-gen toggle.
+            // Stage 4 — worldgen is now the ONLY natural settlement source.
+            // The old proximity scatter (which dropped towns right next to the
+            // player, the original complaint) is RETIRED. RIVAL_NATURAL_GEN
+            // keeps its meaning: true = our worldgen faction anchors auto-
+            // populate into full settlements as players explore; false = anchors
+            // stay dormant markers and only the debug commands populate them.
             if (!Config.RIVAL_NATURAL_GEN.get()) continue;
-            long day = level.getDayTime() / 24_000L;
-            Long prev = lastNaturalDay.put(level.dimension(), day);
-            if (prev == null || prev == day) continue; // once per in-game day
-
-            SettlementSavedData data = SettlementSavedData.get(level);
-            if (data.all().size() >= MAX_NATURAL_SETTLEMENTS) continue;
-
-            for (ServerPlayer player : level.players()) {
-                if (level.getRandom().nextDouble() >= NATURAL_GEN_CHANCE_PER_DAY) continue;
-                String factionId = randomPhysicalFaction(level);
-                if (factionId == null) continue;
-                BlockPos center = scatterNear(level, player.blockPosition());
-                if (tooCloseToExisting(data, level, center)) continue;
-                generate(level, player, factionId, center);
-                break; // at most one seed per dimension per day
-            }
+            tickWorldgenSettlements(level);
         }
     }
 
@@ -832,6 +922,56 @@ public final class RivalColonies {
                 registerDwarvenVillage(level, data, villageCenter, box);
             } else {
                 LOGGER.info("[TM] rival: dwarf village @ {} rolled WILD (plain village)", villageCenter);
+            }
+        }
+    }
+
+    /**
+     * Stage 2 — the WORLDGEN settlement populate trigger. For each of our own
+     * faction structures ({@link #WORLDGEN_STRUCTURES}), poll whether any player
+     * is standing inside a generated start; the first time one is, build the real
+     * settlement there ({@link #populateSettlementAt} → generateColony, with the
+     * config gate + pack-readiness guard + double-populate guard by start
+     * center). Mirrors the proven {@link #tickDwarvenVillages} poll — runs on the
+     * server thread (safe, unlike the removed ChunkEvent.Load spike). The
+     * structure's own marker keeps it {@code /locate}-able; this only adds the
+     * boss/garrison/buildings on first visit.
+     */
+    /** How many chunks around a player to scan for an unpopulated anchor's start. */
+    private static final int WORLDGEN_DETECT_CHUNK_RADIUS = 4; // ~64 blocks
+
+    private static void tickWorldgenSettlements(ServerLevel level) {
+        if (WORLDGEN_STRUCTURES.isEmpty()) return;
+        var registry = level.registryAccess()
+                .registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
+        SettlementSavedData data = SettlementSavedData.get(level);
+        for (Map.Entry<net.minecraft.resources.ResourceKey<
+                net.minecraft.world.level.levelgen.structure.Structure>, String> e
+                : WORLDGEN_STRUCTURES.entrySet()) {
+            net.minecraft.world.level.levelgen.structure.Structure structure = registry.get(e.getKey());
+            if (structure == null) continue; // datapack override / not loaded
+            String factionId = e.getValue();
+            for (ServerPlayer player : level.players()) {
+                // Scan the loaded chunks around the player for this structure's
+                // START. This is BB-INDEPENDENT (unlike getStructureAt, which
+                // needs the player inside the start's bounding box) — the start
+                // is recorded in its origin chunk, so a marker of any footprint
+                // is found, and already-generated anchors work too.
+                net.minecraft.world.level.ChunkPos pc = player.chunkPosition();
+                int r = WORLDGEN_DETECT_CHUNK_RADIUS;
+                for (int dx = -r; dx <= r; dx++) {
+                    for (int dz = -r; dz <= r; dz++) {
+                        net.minecraft.world.level.chunk.LevelChunk chunk =
+                                level.getChunkSource().getChunkNow(pc.x + dx, pc.z + dz);
+                        if (chunk == null) continue; // not loaded — skip (don't force-load)
+                        net.minecraft.world.level.levelgen.structure.StructureStart start =
+                                chunk.getStartForStructure(structure);
+                        if (start == null || !start.isValid()) continue;
+                        BlockPos center = start.getBoundingBox().getCenter();
+                        if (data.isPopulated(center.asLong())) continue;
+                        populateSettlementAt(level, center, factionId, data);
+                    }
+                }
             }
         }
     }
@@ -883,32 +1023,9 @@ public final class RivalColonies {
         return spawnAnchorBoss(level, DWARGON, center.above(), false);
     }
 
-    /** Natural TOWN gen picks only from the 6 MINECOLONIES_CLUSTER
-     *  factions — Dwargon is excluded (it adopts dwarf villages via the
-     *  {@link #tickDwarvenVillages} poll, not faux-town scattering). */
-    private static String randomPhysicalFaction(ServerLevel level) {
-        List<String> ids = new ArrayList<>(PACKS.keySet());
-        if (ids.isEmpty()) return null;
-        return ids.get(level.getRandom().nextInt(ids.size()));
-    }
-
-    private static BlockPos scatterNear(ServerLevel level, BlockPos around) {
-        double angle = level.getRandom().nextDouble() * Math.PI * 2;
-        int dx = (int) (Math.cos(angle) * NATURAL_GEN_DISTANCE);
-        int dz = (int) (Math.sin(angle) * NATURAL_GEN_DISTANCE);
-        return around.offset(dx, 0, dz);
-    }
-
-    private static boolean tooCloseToExisting(SettlementSavedData data, ServerLevel level,
-                                              BlockPos center) {
-        for (Settlement s : data.all()) {
-            if (!s.dimension.equals(level.dimension())) continue;
-            if (s.center.distSqr(center) < (long) MIN_SETTLEMENT_SPACING * MIN_SETTLEMENT_SPACING) {
-                return true;
-            }
-        }
-        return false;
-    }
+    // (Stage 4) randomPhysicalFaction / scatterNear / tooCloseToExisting were
+    // removed with the proximity scatter — vanilla worldgen now decides where
+    // settlements appear (per-faction structure_set placement in the data JSON).
 
     // ==================================================================
     // STAGE B — garrison raise / scale / tether / reset / win-tracking
@@ -1500,8 +1617,19 @@ public final class RivalColonies {
         beginAssault(settlementLevel, s);
 
         // Teleport the player to the settlement edge, then bring the party.
-        BlockPos arrival = settlementLevel.getHeightmapPos(Heightmap.Types.WORLD_SURFACE,
-                s.center.offset(GARRISON_SPAWN_RADIUS + 6, 0, 0));
+        // FORCE-LOAD the destination chunk first: declaring war from afar leaves
+        // the settlement chunk unloaded, and a heightmap read on an unloaded
+        // column returns the BOTTOM of the world → "teleported beneath the
+        // world". Then guard the result against a void read by falling back to
+        // the settlement's known surface Y (from generation).
+        BlockPos arrivalXZ = s.center.offset(GARRISON_SPAWN_RADIUS + 6, 0, 0);
+        settlementLevel.getChunk(arrivalXZ.getX() >> 4, arrivalXZ.getZ() >> 4); // load to FULL
+        BlockPos arrival = settlementLevel.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, arrivalXZ);
+        if (arrival.getY() <= settlementLevel.getMinBuildHeight() + 1) {
+            // No terrain at the query — use the settlement's stored surface Y so
+            // the player never lands in the void.
+            arrival = new BlockPos(arrivalXZ.getX(), s.center.getY() + 1, arrivalXZ.getZ());
+        }
         player.teleportTo(settlementLevel, arrival.getX() + 0.5, arrival.getY(), arrival.getZ() + 0.5,
                 player.getYRot(), player.getXRot());
 
@@ -1719,7 +1847,14 @@ public final class RivalColonies {
     private static BlockPos partyArrivalPos(ServerLevel level, BlockPos around, int index) {
         int dx = (index % 5 - 2) * WAR_PARTY_SPREAD;
         int dz = (index / 5 - 1) * WAR_PARTY_SPREAD;
-        return level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, around.offset(dx, 0, dz));
+        BlockPos xz = around.offset(dx, 0, dz);
+        level.getChunk(xz.getX() >> 4, xz.getZ() >> 4); // load for a valid heightmap read
+        BlockPos pos = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, xz);
+        if (pos.getY() <= level.getMinBuildHeight() + 1) {
+            // void read — drop next to the player's (already-validated) arrival Y
+            pos = new BlockPos(xz.getX(), around.getY(), xz.getZ());
+        }
+        return pos;
     }
 
     // --- the assault drive + resolution --------------------------------
@@ -2190,5 +2325,46 @@ public final class RivalColonies {
                     + (s.discoveredBy.isEmpty() ? "" : ", discovered×" + s.discoveredBy.size()));
         }
         return out;
+    }
+
+    // ====================================================================
+    // Worldgen settlement populate STEP (production).
+    // Trigger: tickWorldgenSettlements (structure-start detection) above.
+    // (The Stage-0 /factiongen spike command + its pending-site map were
+    // removed in Stage 5; /rivalcolony spawn remains for debug spawning.)
+    // ====================================================================
+
+    /** The shared populate STEP: config-gate AT POPULATE TIME (the crux of
+     *  Option C) + double-populate guard (by site center) + the existing
+     *  generateColony blueprint/boss/garrison pipeline (with its pack-readiness
+     *  guard). Returns true only when a settlement was actually built. */
+    static boolean populateSettlementAt(ServerLevel level, BlockPos center, String factionId,
+                                        SettlementSavedData data) {
+        long key = center.asLong();
+        if (data.isPopulated(key)) return false;
+        // CONFIG GATE AT POPULATE TIME. When OFF: do NOT mark populated, so the
+        // structure stays a dormant marker and populates later once enabled.
+        if (!WorldReputationManager.isFactionSystemEnabled()) {
+            LOGGER.info("[TM] rival: populate suppressed — faction system OFF (center {})", center);
+            return false;
+        }
+        // Structurize's queued building placement wants a player (placer); a
+        // player is present at populate time (detection is player-proximity
+        // driven). Null-safe regardless.
+        ServerPlayer placer = level.players().isEmpty() ? null : level.players().get(0);
+        Settlement s = generateColony(level, placer, factionId, center);
+        if (s == null) {
+            // null = pack not ready yet, or generation declined — leave UNmarked
+            // so the next detection tick retries.
+            LOGGER.warn("[TM] rival: generateColony returned null for {} at {} "
+                    + "(placer={}) — will retry", factionId, center,
+                    placer != null ? placer.getName().getString() : "none");
+            return false;
+        }
+        data.markPopulated(key);
+        LOGGER.info("[TM] rival: populated settlement #{} ({}) at {} via first-load "
+                + "({} buildings, bossUuid={})", s.id, factionId, s.center,
+                s.buildingPositions.size(), s.bossUuid);
+        return true;
     }
 }

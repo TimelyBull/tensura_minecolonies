@@ -9,6 +9,23 @@ Copy the relevant version's section into the CurseForge release notes on each up
 ## [Unreleased]
 
 ### Changed
+- **Rival faction settlements now generate as real world structures.** Instead
+  of towns popping into existence right next to you in areas you'd already
+  explored, faction settlements are now part of normal world generation: they
+  appear in newly-generated land ahead of you, in biomes that fit each faction,
+  spaced apart, and they can be found with `/locate` and placed with `/place`
+  like any other structure (and respected by mods that control structure
+  spawning). Each settlement still raises its boss and garrison the first time
+  you get close. (Faction system off by default — see `enableFactionSystem`.)
+  Note: existing worlds keep any settlements they already had; the new
+  structures only appear in land generated from now on.
+- **Faction settlements sit on the land more naturally.** Buildings now follow
+  the lie of the land — standing at different heights on a slope like a hillside
+  village instead of all on one flat platform. Each building's foundation matches
+  the ground around it (grass, sand, snow, etc.) rather than a slab of bare
+  stone, fills in holes underneath, clears terrain that would bury it (including
+  trees), and tapers its edges into the surrounding land instead of forming a
+  hard cliff. (Buildings also sit on the real ground now, not up at tree height.)
 - **The whole faction & diplomacy system is now off by default, behind one
   setting.** A single config option, `enableFactionSystem` (in the mod's
   config file), turns the entire faction layer on or off — rival faction
@@ -25,6 +42,24 @@ Copy the relevant version's section into the CurseForge release notes on each up
   Tensura mobs into your colony, race emissaries that let a colony grow new
   races, colony reputation and its raids, the barrier, festivals, and the
   assassin system (which keeps its own separate on/off setting).
+
+- **Leon's settlement guards are now (placeholder) human soldiers.** Leon's
+  rival settlement is now defended by soldiers instead of the previous fire
+  demons and salamanders, while its boss is unchanged. This is a temporary
+  stand-in until Leon gets its own proper defenders. (Only relevant when the
+  faction system is turned on.)
+
+### Fixed
+- **Rival settlements no longer generate as empty, building-less towns.** If a
+  settlement tried to generate before the game had finished loading its town
+  schematics, the buildings silently failed and only the boss and guards
+  appeared. Generation now waits until the schematics are ready. (Only relevant
+  when the faction system is turned on.)
+- **Config options now show readable names.** In the in-game config screen the
+  settings were showing their raw internal keys (e.g.
+  `tensura_minecolonies.configuration.enableAssassins`) instead of proper
+  labels. Every option now displays a clear name (Enable Faction System, Enable
+  Assassins, Rival Settlement Mode, and so on).
 
 ## [0.1.0] - 2026-06-26
 

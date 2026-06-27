@@ -26,6 +26,39 @@ full A–E as-built records. Remaining deferred follow-ons:
 - **Payout / balance tuning** — all the flagged BALANCE-GUESS constants
   (garrison `GARRISON_*` scaling, the `BETRAYAL_MULT_*` tier multipliers)
   want a combat playtest pass.
+- **Warfare REWARDS need editing** (TODO, user-requested 2026-06-26). Warfare
+  itself works (declare war → assault → conquest), but the conquest payoff
+  (`ConquestPayoff` — the citizen levy, the boss's Covenant skill grant, the
+  loot-chest pool) wants a rebalance/redesign pass. Decide what a conquest
+  should actually award per faction and retune the `CitizenProfile` counts /
+  skill grants / `factionRewardPool` accordingly. Separate from the worldgen
+  rework.
+- **Settlement placement polish — Stage 6 (IMPLEMENTED 2026-06-27, pending more
+  visual tuning).** Part A laid one continuous flat plateau (`levelTownFoundation`);
+  on user feedback ("looks better but cuts some land, generates at tree height,
+  want different buildings on different Y") it was reworked to **Part B —
+  terrain-FOLLOWING**: (1) `groundSurfaceY` scans past trees/leaves/foliage/snow
+  to TRUE ground, fixing the tree-height look (also used by `findBuildableCenter`
+  / `surfaceRange`); (2) each building is placed at its OWN local ground Y
+  (computed up front) so the town drapes over slopes like a hillside village;
+  (3) each gets its own biome-matched, edge-graded pad (`levelBuildingPad`:
+  reuses the column's surface block, fills holes, clears terrain incl. trees,
+  `FOUNDATION_SKIRT`=6 taper). REMAINING to iterate by eye: tune skirt / clear
+  headroom and `BUILDING_PAD_HALF`; very steep sites may still need work (the
+  pads can step hard between buildings); cross-faction spacing still optional.
+- **Faction mobs must not wander far outside the settlement** (TODO,
+  user-reported 2026-06-26). The garrison tether (`tickGarrison`,
+  `GARRISON_TETHER_RADIUS = 40`) walks idle strays back to center, but it
+  YIELDS to native combat — so a defender that aggros (e.g. Leon's
+  Ifrits/Salamanders) chases the target far from the settlement, blasting
+  terrain well outside the town. This is the same "fire mobs roaming far,
+  catching everything on fire" the original settlement-generation bug report
+  described. Future work: contain garrison mobs to a bounded region around
+  their settlement even while in combat — e.g. a hard leash (forcibly return
+  past a max radius regardless of target), cap chase distance, or make
+  defenders disengage + return when pulled beyond a threshold. Applies to
+  BOTH the current runtime-placed settlements and the planned worldgen ones.
+  Tie the leash radius to a named constant alongside `GARRISON_TETHER_RADIUS`.
 
 ## Generated bosses belonging to colonies (rival-colony-arc preview)
 

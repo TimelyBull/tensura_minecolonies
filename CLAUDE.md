@@ -397,6 +397,20 @@ MDK-1.21.1-ModDevGradle-main/
 
 The MDK default package (`com.example.examplemod`) and class names (`ExampleMod`, `ExampleModClient`, `Config`) have not been renamed yet. When writing new code, start new classes in a proper package like `com.tensura.minecolonies` and migrate the existing files when convenient. Do not block feature work on this rename.
 
+Related MDK-rename leftovers (surfaced while fixing config display names):
+- The lang file still lives under the MDK asset namespace
+  `assets/examplemod/lang/en_us.json` (not `assets/tensura_minecolonies/lang/`).
+  It still loads — Minecraft merges lang keys globally regardless of the folder
+  namespace — but it's the wrong home. Config display names broke because the
+  config lang keys had the stale `examplemod.configuration.*` prefix while
+  NeoForge's config screen looks up `tensura_minecolonies.configuration.*`
+  (the real mod id). Fixed by re-prefixing the keys; moving the file into the
+  `tensura_minecolonies` namespace folder is deferred cleanup.
+- Vestigial MDK placeholder config options remain in `Config.java`
+  (`logDirtBlock`, `magicNumber`, `magicNumberIntroduction`, `items`) plus the
+  example block/item (`block.examplemod.*` / `item.examplemod.*`). Safe to
+  delete when convenient (also touches the `commonSetup` example logging).
+
 ## Current feature status (Milestone 3 vertical slice)
 
 The "two bodies, one identity" design is largely implemented end-to-end.

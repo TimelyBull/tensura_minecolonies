@@ -33,6 +33,12 @@ class SettlementSavedData extends SavedData {
      *  this set additionally remembers the ones that rolled "normal". */
     private final java.util.Set<Long> evaluatedVillages = new java.util.HashSet<>();
 
+    /** Worldgen-settlement origins already populated into a real settlement —
+     *  the double-populate guard (packed-long structure-start centers). Written
+     *  via {@link #markPopulated}; read by {@code RivalColonies.populateSettlementAt}.
+     *  NBT key kept as "spikePopulated" for backward-compat with existing saves. */
+    private final java.util.Set<Long> populatedStarts = new java.util.HashSet<>();
+
     private SettlementSavedData() {}
 
     static SettlementSavedData get(ServerLevel anyLevel) {
@@ -76,6 +82,15 @@ class SettlementSavedData extends SavedData {
         if (evaluatedVillages.add(center.asLong())) setDirty();
     }
 
+    // --- worldgen-settlement double-populate guard ---
+    boolean isPopulated(long centerLong) {
+        return populatedStarts.contains(centerLong);
+    }
+
+    void markPopulated(long centerLong) {
+        if (populatedStarts.add(centerLong)) setDirty();
+    }
+
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         tag.putInt("nextId", nextId);
@@ -88,6 +103,11 @@ class SettlementSavedData extends SavedData {
         int i = 0;
         for (Long v : evaluatedVillages) evaluated[i++] = v;
         tag.putLongArray("evaluatedVillages", evaluated);
+        // Worldgen-settlement double-populate guard (NBT key kept for save compat).
+        long[] populated = new long[populatedStarts.size()];
+        int j = 0;
+        for (Long v : populatedStarts) populated[j++] = v;
+        tag.putLongArray("spikePopulated", populated);
         return tag;
     }
 
@@ -102,6 +122,11 @@ class SettlementSavedData extends SavedData {
         }
         for (long v : tag.getLongArray("evaluatedVillages")) {
             data.evaluatedVillages.add(v);
+        }
+        // Worldgen-settlement double-populate guard. ("spikePending" from older
+        // saves — the removed Stage-0 scaffolding — is simply ignored.)
+        for (long v : tag.getLongArray("spikePopulated")) {
+            data.populatedStarts.add(v);
         }
         return data;
     }

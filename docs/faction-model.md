@@ -156,6 +156,24 @@
 >   multiplier; ⚠ balance seam). Canon skills granted at spawn
 >   (`assignFactionDefenderSkills`): defenders get Flame-Attack + Heat
 >   Resistance; the Ifrit boss also gets Self-Regeneration.
+>
+> **UPDATE (2026-06-26) — Leon rank-and-file → FALMUTH_KNIGHT (PLACEHOLDER).**
+> Leon's garrison roster is now just `[FALMUTH_KNIGHT]` — plain human soldiers
+> standing in until a real Leon roster is authored. The anchor BOSS is
+> unchanged (still the high-EP Ifrit). This replaces the daemon/Salamander fire
+> roster (the fire mobs roamed far and read as out of place — see
+> docs/future-ideas.md mob-leash TODO). The leon `assignFactionDefenderSkills`
+> Flame/Heat resistance grants are now thematically odd on knights but harmless
+> (fire-only, no melee effect); revisit alongside the real roster.
+>
+> **CORRECTION (2026-06-26) — Caledonia blueprints are NOT broken.** An earlier
+> in-log finding read as "Leon's Caledonia buildings 404 / empty town". Re-test
+> showed the SAME pack/paths generate all 10 buildings cleanly once Structurize
+> has finished loading — the failure was a PACK-LOAD TIMING race (generation ran
+> ~2 min after world load, before the blueprint index settled), not wrong paths.
+> Fixed by a pack-readiness guard in `generateColony` (`isPackBlueprintsReady`
+> probes the town-hall blueprint and DEFERS generation if the pack isn't ready).
+> Keep the Caledonia pack; no path/pack swap needed.
 
 > **CONSOLIDATION STEP 2 (2026-06-21) — Carrion → Eurazania + heroes → Falmuth.**
 > (A) The `carrion` faction was renamed to **Eurazania** (the Beast Kingdom):

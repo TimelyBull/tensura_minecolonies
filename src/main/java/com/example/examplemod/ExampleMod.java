@@ -336,6 +336,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         BLOCK_ENTITIES.register(modEventBus);
         COLONY_EVENT_TYPES.register(modEventBus);
         CREATIVE_MODE_TABS.register(modEventBus);
+        // STAGE 1 — worldgen structure type + piece type (data-driven structure
+        // + structure_set + biome tag live under resources/data/.../worldgen).
+        FactionStructures.register(modEventBus);
         NeoForge.EVENT_BUS.register(this);
         // "Patrol Colony Outskirts" subordinate command — per-entity tick
         // driver lives in its own handler class. The command-cycle branch is

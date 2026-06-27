@@ -1,0 +1,6 @@
+{
+  "type": "tensura_minecolonies:faction_anchor",
+  "biomes": "#tensura_minecolonies:has_structure/faction_anchor_leon",
+  "step": "surface_structures",
+  "spawn_overrides": {}
+}

@@ -1,5 +1,93 @@
 # Investigation: the rival-colony arc — the two pivotal unknowns
 
+> **WORLDGEN-STRUCTURE REWORK — IN PROGRESS (Option C; 2026-06-26).** The old
+> proximity "instant block-stamp near the player" placement is being replaced by
+> real data-driven worldgen structures (so settlements are `/locate`/`/place`-
+> able, generate AHEAD of the player, and respect structure-blocking mods). See
+> the staged plan; status so far:
+> - **Stage 0 (de-risk spike) — DONE + IN-GAME VERIFIED.** Proved the existing
+>   `generateColony` blueprint+boss+garrison pipeline works when driven from a
+>   populate hook, config-gated at populate time. Surfaced + fixed two real bugs:
+>   a world load/save HANG (an off-thread `ChunkEvent.Load` auto-trigger —
+>   removed) and an empty-town race (Structurize pack index not ready — fixed by
+>   the `isPackBlueprintsReady` guard in `generateColony`). All 5 town packs
+>   verified generating buildings cleanly in-game.
+> - **Stage 1 (one real structure) — DONE + IN-GAME VERIFIED.** Registered a
+>   custom `StructureType` + `StructurePieceType` (`FactionStructures`) and a
+>   minimal `FactionAnchorStructure`/`FactionAnchorPiece` (gold-marker), plus
+>   data JSON (`worldgen/structure` + `worldgen/structure_set` random_spread +
+>   `tags/worldgen/biome/has_structure`) for ONE faction (Falmuth). Confirmed
+>   `/place`, `/locate` (found a natural one 498 blocks away), no errors.
+> - **Stage 2 (wire populate to the structure) — BUILT, pending in-game test.**
+>   `tickWorldgenSettlements` (server-thread, ambient) calls the de-spiked
+>   `populateSettlementAt` → `generateColony` (config gate + pack-readiness +
+>   double-populate guard by start-center). The `/factiongen` command is retained
+>   as a debug tool but is no longer the real trigger.
+>   - **Detection v1 used `getStructureAt(playerPos)` — FAILED in-game** (no
+>     populate). That requires the player INSIDE the start's bounding box; the
+>     marker BB is tiny, so 13 blocks away never matched (and widening the BB
+>     only affects newly-generated anchors). **Detection v2 (current):** scan the
+>     loaded chunks within `WORLDGEN_DETECT_CHUNK_RADIUS` (4 ≈ 64 blocks) of the
+>     player via `getChunkNow(...).getStartForStructure(structure)` — this is
+>     BB-INDEPENDENT (finds the start in its origin chunk) and works for
+>     already-generated anchors. The marker piece BB was reverted to small.
+> - **Stage 3 (all town factions + themed biomes) — BUILT, pending in-game test.**
+>   Added worldgen structure + structure_set (unique salt) + themed biome tag for
+>   leon (savanna/desert/badlands), tempest (jungle/forest/swamp), eastern_empire
+>   (taiga family), luminous (snowy_plains/ice_spikes); Falmuth's tag narrowed to
+>   plains/sunflower_plains/meadow so themes don't all overlap. All five share the
+>   one `faction_anchor` structure TYPE + piece (only JSON + a `WORLDGEN_STRUCTURES`
+>   map entry per faction — no new Java per faction). Dwargon stays on Tensura's
+>   own `dwarf_village` via `tickDwarvenVillages` (its populate ADOPTS the village
+>   rather than stamping MC blueprints, so it can't share `populateSettlementAt`).
+>   ⚠ Cross-faction spacing is NOT enforced (each faction is its own structure_set
+>   grid with a distinct salt — same-faction spacing holds, but two different
+>   factions can land near each other); revisit in Stage 6 if needed.
+> - **Stage 4 (retire old proximity scatter) — BUILT, pending in-game test.**
+>   Worldgen is now the ONLY natural settlement source: removed the per-day
+>   per-player scatter block + its helpers/constants (`scatterNear`,
+>   `tooCloseToExisting`, `randomPhysicalFaction`, `NATURAL_GEN_*`,
+>   `MIN_SETTLEMENT_SPACING`, `MAX_NATURAL_SETTLEMENTS`, `lastNaturalDay`) and the
+>   dead `generate()` wild/colony wrapper. `RIVAL_NATURAL_GEN` repurposed: true =
+>   worldgen anchors auto-populate; false = anchors stay dormant markers (debug
+>   command only). ⚠ BEHAVIOR CHANGE: TOWN anchors now ALWAYS populate as a
+>   COLONY — the wild-boss-alone variant + `RIVAL_SETTLEMENT_SOME_CHANCE` no
+>   longer apply to town natural-gen (`RIVAL_SETTLEMENT_MODE` NONE still disables;
+>   the wild/colony roll survives only for Dwargon dwarf villages). Discovery /
+>   declare-war / conquest are unchanged (they key off the `Settlement` record,
+>   identical regardless of generation source) — needs an in-game war-cycle test
+>   against a worldgen settlement.
+>   - **FIX (2026-06-26): Declare-War teleported the player BENEATH the world.**
+>     `declareWar`/`partyArrivalPos` read `getHeightmapPos` on the settlement
+>     chunk, but declaring war from afar leaves it unloaded → the heightmap reads
+>     the bottom of the world. Now force-loads the destination chunk and falls
+>     back to the settlement's stored surface Y on a void read. ⚠ Warfare REWARDS
+>     (`ConquestPayoff`) still need a rebalance pass — see docs/future-ideas.md.
+> - **Stage 5 (cleanup + drop the spike) — DONE.** Deleted `FactionStructureSpike`
+>   (the `/factiongen` command) + its registration, the four `spike*` methods in
+>   RivalColonies, and the `pendingPopulates` map + accessors + persistence in
+>   SettlementSavedData. KEPT the production survivors: `populateSettlementAt`,
+>   `tickWorldgenSettlements`, and the `populatedStarts` double-populate guard
+>   (NBT key still `spikePopulated` for save-compat). `/rivalcolony spawn` remains
+>   the debug spawn. **Migration:** old saves need none — pre-rework settlements
+>   stay in `SettlementSavedData` and still discover/war/conquer (they key off the
+>   `Settlement` record, generation-source-agnostic); the old `spikePending` NBT
+>   key is ignored on load; the old proximity-gen leftovers are gone. New
+>   worldgen structures only appear in NEWLY generated chunks (expected for any
+>   structure mod — explored areas are untouched).
+> - **THE WORLDGEN REWORK (Stages 0–5) IS FUNCTIONALLY COMPLETE.** Remaining is
+>   polish/balance, tracked in docs/future-ideas.md:
+>   - **Stage 6 — settlement placement polish: IMPLEMENTED (2026-06-27), pending
+>     more visual tuning.** Part A = one flat plateau; reworked on user feedback
+>     to **Part B — terrain-FOLLOWING**: `groundSurfaceY` (scans past trees to
+>     true ground — fixes tree-height; also used by findBuildableCenter/
+>     surfaceRange), per-building local Y (hillside drape, not one plane), and a
+>     per-building biome-matched graded pad (`levelBuildingPad`). REMAINING: tune
+>     skirt/headroom/pad-half by eye; steep sites can step hard between buildings;
+>     optional cross-faction spacing. See docs/future-ideas.md.
+>   - **Warfare rewards rebalance** (`ConquestPayoff`) — user-requested.
+
+
 > **FACTION MERGE (2026-06-21):** `tempest` and `jura_alliance` are now ONE
 > faction, **"Jura-Tempest Federation"** (id `tempest`). Where the stage
 > tables below list **Jura Alliance** as the physical forest faction (anchor
@@ -303,6 +391,18 @@ The structural foundation is built. As-built record:
     exist WITH `.blueprint` in ALL 7 physical-faction packs
     (truedwarven, ancientathens, fortress, pagoda, caledonia, spacewars,
     jungle) — the shared-footprint assumption holds across factions.
+  - **PACK-LOAD TIMING RACE (2026-06-26, in-log finding + fix).** The paths
+    are correct, but Structurize registers/indexes packs ASYNC on a worker
+    thread (and reloads them on relog). Generating a settlement BEFORE the
+    index is ready 404s every building (`NoSuchFileException`) → an empty
+    husk town. Observed: Leon/Caledonia placed 0–3 of 10 buildings when
+    generation ran ~2 min after world load, but all 10 cleanly later /
+    post-relog. **Fix:** `generateColony` now calls `isPackBlueprintsReady`
+    (probes the town-hall blueprint) and DEFERS (returns null) if the pack
+    isn't ready — callers leave any pending marker so a retry / next attempt
+    succeeds once it settles. This matters for the worldgen rework: the
+    first-load populate must not run before the pack index is ready (the
+    guard covers it).
 
 Stages B–E (garrison, discovery/war, conquest, betrayal) extend
 the `Settlement` record's reserved seams (garrisonUuids,
@@ -684,6 +784,15 @@ center if it strays past `GARRISON_TETHER_RADIUS`, yielding to native
 combat while it has a live target (the SubordinatePatrol/raid-steer
 containment idiom). It also prunes UUIDs whose entity vanished without a
 death event (e.g. `/kill`) so the live count stays honest (no tally).
+
+> **TODO (user-reported 2026-06-26) — tether is too loose during combat.**
+> Because `tickGarrison` yields to native combat, a defender that aggros
+> chases its target far outside the settlement (Leon's Ifrits/Salamanders
+> were observed blasting terrain well beyond the town). The future fix is a
+> HARD leash that returns / disengages a defender pulled past a max radius
+> regardless of its target, so faction mobs stay near their settlement even
+> while fighting. Full note in `docs/future-ideas.md` (rival-colony
+> deferred follow-ons). Applies to worldgen-placed settlements too.
 
 ## Persistence + the RESET primitive (the key new mechanic)
 
