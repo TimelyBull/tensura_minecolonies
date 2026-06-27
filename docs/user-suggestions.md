@@ -22,3 +22,11 @@ into `docs/future-ideas.md` / `docs/roadmap.md` and a decision into
 2. **An in-game advisor/help NPC.** An NPC the player can talk to for guidance
    on how the mod works — a tutorial / "explain the mod" helper to lower the
    learning curve. (Could tie into the existing envoy/dialogue-screen patterns.)
+
+3. **Working subordinates don't pick up everything they harvest.** When a Tensura
+   subordinate is given a hoe or an axe, they work a field/tree but leave some of
+   the drops behind. Increase their item-pickup range, or have them path to and
+   collect items lying on the ground.
+   - *Dev note (from the maintainer): this may just be default subordinate/AI
+     behaviour from Tensura — needs to be looked into before deciding what (if
+     anything) to change.*
