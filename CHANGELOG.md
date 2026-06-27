@@ -8,6 +8,10 @@ Copy the relevant version's section into the CurseForge release notes on each up
 
 ## [Unreleased]
 
+_0.1.2 in development — nothing yet._
+
+## [0.1.1] - 2026-06-27
+
 ### Changed
 - **Rival faction settlements now generate as real world structures.** Instead
   of towns popping into existence right next to you in areas you'd already

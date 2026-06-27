@@ -11,6 +11,8 @@ Planning documents live in `docs/` and should be kept current as work progresses
 - [docs/roadmap.md](docs/roadmap.md) — milestone checklist and feature tiers; update task status as work completes
 - [docs/decisions.md](docs/decisions.md) — record of key architectural and design decisions with reasoning; add new entries when a non-obvious choice is made
 - [docs/dependencies.md](docs/dependencies.md) — exact jar versions in `libs/` and confirmed registry IDs; update when new deps are added
+- [docs/future-ideas.md](docs/future-ideas.md) — recorded (not scheduled) design ideas / deferred follow-ons
+- [docs/user-suggestions.md](docs/user-suggestions.md) — community feature requests captured for future consideration
 - [CHANGELOG.md](CHANGELOG.md) — player-facing, Keep-a-Changelog style, versioned (Added/Changed/Fixed). **MAINTAIN IT:** every change-set appends an entry (new version heading, or under `[Unreleased]`), written in plain player terms (it's copied into CurseForge release notes) — no API names/class names. Bump `mod_version` in `gradle.properties` to match the version heading on a release.
 
 ## Player wiki (`wiki/` + `mkdocs.yml`)

@@ -5,12 +5,16 @@ first in any new session to catch up. Update it at the END of each work session.
 Pair with: `decisions.md` (why things are the way they are), `CHANGELOG.md` (what changed),
 `roadmap.md` / TODO (what's next), and the per-system docs in `docs/`.
 
-_Last updated: 2026-06-24 — update this every session._
+_Last updated: 2026-06-27 — update this every session._
 
-_Repo state: branch `patrol-colony-outskirts`. HEAD = `19431ec` (Sentient-refactor checkpoint).
-UNCOMMITTED working-tree changes on top: the **Rimuru boss buff** (RivalColonies) + docs. The
-Sentient refactor itself is committed in `19431ec`; the Rimuru buff is not yet committed. Multiple
-`[TM][DIAG]` logging lines (FIX 2 + Sentient + Rimuru) remain in, pending the in-game verify._
+_Version: **0.1.1 released** (worldgen rival-colony rework + faction-system-off-by-default +
+invite-crash guard); **0.1.2 now in development** (`mod_version=0.1.2`, fresh `[Unreleased]` in
+CHANGELOG)._
+
+_Repo state: branch `patrol-colony-outskirts`. Recent commits: `e0d81b2` (invite-crash guard),
+`c14e58c` (worldgen rival-colony settlements), `402a2e9` (single enableFactionSystem switch,
+default OFF). NOT pushed. ⚠ `[TM][DIAG]` logging from the earlier FIX 2 / Sentient / Rimuru work
+may still be in — strip when those are confirmed._
 
 ---
 
@@ -26,7 +30,7 @@ Structurize, Architectury, GeckoLib, SmartBrainLib, TerraBlender, blockui, Night
 
 **Release status: ALPHA.** Description carries a backup warning. Lots built, little playtested.
 
-**Faction system now ships OFF by default (Unreleased).** The single config option
+**Faction system ships OFF by default (since 0.1.1).** The single config option
 `enableFactionSystem` (renamed from `factionSystemEnabled`; default flipped `true` →
 `false`) is the sole on/off switch — no gamerule, no command. When off the whole
 faction + diplomacy layer is dormant AND inaccessible: no settlement/rival-colony
