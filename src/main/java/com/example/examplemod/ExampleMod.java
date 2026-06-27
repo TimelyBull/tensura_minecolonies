@@ -6376,13 +6376,20 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             }
         }
 
-        // Execute due swaps
+        // Execute due swaps. Each is guarded so a single bad swap can never crash
+        // the server tick or abort the others (defense-in-depth on top of the
+        // catch inside executePendingSwap).
         java.util.Iterator<PendingSwap> it = pendingSwaps.iterator();
         while (it.hasNext()) {
             PendingSwap p = it.next();
             if (now < p.executeAtTick()) continue;
             it.remove();
-            executePendingSwap(server, p);
+            try {
+                executePendingSwap(server, p);
+            } catch (Throwable t) {
+                LOGGER.error("[TM] swap: executePendingSwap threw (identity {}) — skipped to "
+                        + "protect the server tick", p.identityId(), t);
+            }
         }
     }
 
@@ -6432,9 +6439,23 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // All validations pass — run the actual swap. FIX 1: if the swap fails
         // mid-execute (e.g. summonGoblin rolled back), refund the magicule that
         // was charged up front so a failed swap never costs the player.
-        boolean ok = executeAction(player, identity, target, pending.materializePos());
+        //
+        // CRASH GUARD: the send/summon path touches a lot of fragile state
+        // (entity spawn, stat copy, race-tag attach, Tensura/ManasCore storages).
+        // An uncaught throw here would propagate to the server tick and CRASH
+        // the game (on an integrated server, the whole client). Catch everything:
+        // a failed "invite" must degrade to a logged error + refund + retry, not
+        // a crash. (User-reported: "Minecraft crashes when I invite a goblin.")
+        boolean ok;
+        try {
+            ok = executeAction(player, identity, target, pending.materializePos());
+        } catch (Throwable t) {
+            LOGGER.error("[TM] swap: the body-swap threw for identity {} — aborting and "
+                    + "refunding instead of crashing", pending.identityId(), t);
+            ok = false;
+        }
         if (!ok) {
-            sendAdvisoryNotice(player, "Swap couldn't complete — magicule refunded.");
+            sendAdvisoryNotice(player, "Swap couldn't complete — magicule refunded. Try again.");
             refundMagicule(player, pending.magiculePaid());
         }
     }

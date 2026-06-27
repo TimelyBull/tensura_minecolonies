@@ -50,6 +50,12 @@ Copy the relevant version's section into the CurseForge release notes on each up
   faction system is turned on.)
 
 ### Fixed
+- **Inviting a Tensura mob into your colony no longer crashes the game.** Sending
+  a named goblin (or any Tensura creature) to your colony from the roster could
+  throw an error mid-swap that crashed Minecraft, and on restart the citizen
+  showed up as an ordinary colonist with the name you gave it. The swap is now
+  guarded: if it can't complete it refunds your magicules and asks you to try
+  again instead of crashing.
 - **Rival settlements no longer generate as empty, building-less towns.** If a
   settlement tried to generate before the game had finished loading its town
   schematics, the buildings silently failed and only the boss and guards

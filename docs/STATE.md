@@ -188,9 +188,22 @@ ITSELF the colonist (one entity) — vs. our two-bodies swap (separate entities 
 
 ## Known bugs
 
+0. **CRASH when "inviting" (sending) a Tensura mob to the colony via the roster** — user-reported
+   2026-06-27 (unknown version). The delayed body-swap executed in `onServerTickPost` ran
+   `executePendingSwap → executeAction → sendGoblinToColony` with NO top-level try/catch, so any
+   throw in that fragile path (entity spawn / stat copy / race-tag attach / Tensura storages)
+   propagated to the server tick and crashed the game (integrated server = whole client). On
+   restart the half-converted citizen showed as a plain colonist with the given name (the send
+   crashed before the RaceTag/`raceTagSnapshot` was persisted + before `mode` flipped to IN_COLONY,
+   so the Fix-2 reconcile skips it → no race appearance). **CRASH GUARD ADDED (uncommitted):**
+   wrapped the `executeAction` call (refund + "try again" on throw) AND the per-swap loop call —
+   a failed invite now degrades to a logged error + magicule refund, never a crash. ⚠ This is a
+   SAFETY NET, not a root-cause fix: the underlying exception isn't identified (need the user's
+   `crash-reports/crash-*.txt` to pin it; may already be fixed in current code). With the crash
+   gone, a normal send should complete and persist the appearance (no revert).
 1. **Chunk-unload / relog colonist revert** — Fix 2 (Option B reconcile pass) BUILT+COMMITTED
    (`bca87f6`); **in-game confirmation PENDING** (DIAG logging still in — see Fix 2 above). NOT
-   yet "confirmed fixed."
+   yet "confirmed fixed." (Bug 0 above is a crash-driven instance of this revert.)
 2. **Summon→send strand** — Fix 1 (needs in-range verification).
 3. **Third-party capture orphans subordinates** — Fix 3 recovery tool (needs verification);
    auto-prevention deferred. User lost ~250 (recoverable as colonists from snapshot, correct race,
