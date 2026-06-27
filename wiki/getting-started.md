@@ -9,8 +9,15 @@ This is a NeoForge mod for **Minecraft 1.21.1**. It requires both base mods
 |---|---|
 | Minecraft | 1.21.1 |
 | NeoForge | 21.1.233+ |
-| Tensura: Reincarnated | 2.0.1.0 |
-| MineColonies | 1.1.1319 |
+| Tensura: Reincarnated | 2.0.1.0+ |
+| MineColonies | 1.1.1319+ |
+
+!!! warning "MineColonies version matters"
+    This mod **requires MineColonies 1.1.1319 or newer**. MineColonies changed
+    its citizen API in that build, so on an older version (e.g. 1.1.1281) the
+    mod would crash when you invite a creature to your colony. It now refuses to
+    load on an incompatible version with a clear message instead of crashing —
+    so if the game won't start, check your MineColonies version first.
 
 MineColonies also pulls in Structurize, BlockUI, Domum Ornamentum, and
 MultiPiston; Tensura pulls in ManasCore, GeckoLib, SmartBrainLib, and

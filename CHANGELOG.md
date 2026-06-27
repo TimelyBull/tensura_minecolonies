@@ -21,6 +21,13 @@ _0.1.2 in development._
 - **Faction settlements are now rare.** Each faction's settlements generate far
   less often (roughly woodland-mansion rarity), so finding them all is a
   proper exploration goal rather than something you trip over constantly.
+- **Now requires MineColonies 1.1.1319 or newer.** MineColonies changed its
+  citizen API in that build; on older versions the mod would crash when you
+  invited a creature to your colony. The mod now declares its required mods and
+  versions, so an incompatible version shows a clear "requires MineColonies
+  1.1.1319+" message at load instead of crashing mid-game. (It also now properly
+  declares Tensura, ManasCore, Structurize, BlockUI and Domum Ornamentum as
+  requirements.)
 
 _(Existing worlds keep any gold pillars already generated — worldgen only
 affects newly-generated land. Both changes need the faction system turned on

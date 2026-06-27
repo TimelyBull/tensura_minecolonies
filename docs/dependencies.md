@@ -49,6 +49,30 @@ MineColonies that must be present for the game to run.
 | `multipiston-1.2.58-1.21.1.jar` | 1.2.58 |
 | `towntalk-1.2.0.jar` | 1.2.0 |
 
+## Declared dependency ranges (neoforge.mods.toml)
+
+Required dependencies the mod declares at runtime (modId → versionRange). Floors
+= the versions in `libs/` (the exact build target); an incompatible version is
+refused at load with a clear message instead of crashing mid-game. The modIds
+are the authoritative ones read from each dependency jar's own `mods.toml`.
+
+| modId | versionRange | Why this floor |
+|---|---|---|
+| `neoforge` | `${neo_version_range}` | platform |
+| `minecraft` | `${minecraft_version_range}` | platform |
+| `minecolonies` | `[1.1.1319,)` | the generic "Civilian" citizen-manager API (`spawnOrCreateCivilian`/`getCivilian`/`removeCivilian`/`createAndRegisterCivilianData`) doesn't exist before this; older builds (e.g. 1.1.1281) `NoSuchMethodError` mid-game |
+| `structurize` | `[1.0.830,)` | schematic placement APIs (StructurePacks) |
+| `blockui` | `[1.0.209,)` | citizen-window tab injection extends BlockUI types |
+| `domum_ornamentum` | `[1.0.231,)` | decorative blocks in placed schematics |
+| `tensura` | `[2.0.1.0,)` | races / entities / storages |
+| `manascore` | `[4.0.0.2,)` | Tensura's skill/storage/attribute library |
+| `nightmareutils` | `[0.1,)` | mob-skill autocaster (public API) |
+
+⚠ The true MINIMUM compatible MineColonies is unverified — 1281 is known broken,
+1319 known good; the exact build where the Civilian API landed wasn't bisected
+(no 1281 jar to inspect). Lower the `minecolonies` floor only if an older build
+is tested working.
+
 ## Confirmed registry IDs
 
 | Entity | Registry ID |

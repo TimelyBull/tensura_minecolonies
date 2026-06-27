@@ -97,6 +97,65 @@ config="${mod_id}.mixins.json"
     ordering="AFTER"
     side="BOTH"
 
+# MineColonies — the colony half of the integration. Floor pinned to the build
+# this mod COMPILES against (1.1.1319): the citizen/entity-manager "Civilian"
+# API (spawnOrCreateCivilian / getCivilian / removeCivilian /
+# createAndRegisterCivilianData) used throughout the citizen pipeline does NOT
+# exist in older builds (e.g. 1.1.1281), so an older MineColonies would crash
+# mid-game with a NoSuchMethodError. This required range makes an incompatible
+# version refuse to load with a clear message instead.
+[[dependencies.${mod_id}]]
+    modId="minecolonies"
+    type="required"
+    versionRange="[1.1.1319,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# Structurize — MineColonies' schematic engine; settlement blueprint placement
+# uses its StructurePacks + placement APIs. Floor = the build target.
+[[dependencies.${mod_id}]]
+    modId="structurize"
+    type="required"
+    versionRange="[1.0.830,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# BlockUI — MineColonies' GUI toolkit; the citizen-window tab injection
+# (trade button) extends BlockUI types at compile time. Floor = the build target.
+[[dependencies.${mod_id}]]
+    modId="blockui"
+    type="required"
+    versionRange="[1.0.209,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# Domum Ornamentum — MineColonies decorative-block dependency present in the
+# placed schematics. Floor = the build target.
+[[dependencies.${mod_id}]]
+    modId="domum_ornamentum"
+    type="required"
+    versionRange="[1.0.231,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# Tensura: Reincarnated — the mob half of the integration (races, entities,
+# storages). Floor = the build target.
+[[dependencies.${mod_id}]]
+    modId="tensura"
+    type="required"
+    versionRange="[2.0.1.0,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# ManasCore — Tensura's library (skills / storages / attributes / race tags).
+# Floor = the build target.
+[[dependencies.${mod_id}]]
+    modId="manascore"
+    type="required"
+    versionRange="[4.0.0.2,)"
+    ordering="AFTER"
+    side="BOTH"
+
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.

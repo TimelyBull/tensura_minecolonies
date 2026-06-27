@@ -11,10 +11,21 @@ _Version: **0.1.1 released** (worldgen rival-colony rework + faction-system-off-
 invite-crash guard); **0.1.2 now in development** (`mod_version=0.1.2`, fresh `[Unreleased]` in
 CHANGELOG)._
 
-_Repo state: branch `patrol-colony-outskirts`. Recent commits: `e0d81b2` (invite-crash guard),
-`c14e58c` (worldgen rival-colony settlements), `402a2e9` (single enableFactionSystem switch,
-default OFF). NOT pushed. ⚠ `[TM][DIAG]` logging from the earlier FIX 2 / Sentient / Rimuru work
-may still be in — strip when those are confirmed._
+_Repo state: branch `patrol-colony-outskirts`. ⚠ `[TM][DIAG]` logging from the earlier FIX 2 /
+Sentient / Rimuru work may still be in — strip when those are confirmed._
+
+_**Dependency floors now DECLARED in neoforge.mods.toml (0.1.2).** The mod previously declared NO
+hard deps except nightmareutils — so a mismatched MineColonies loaded fine and crashed mid-game.
+A user on **MineColonies 1.1.1281** hit `NoSuchMethodError ICitizenManager.spawnOrCreateCivilian(
+ICivilianData, Level, List, boolean)` — that generic "Civilian" citizen-manager API
+(spawnOrCreateCivilian / getCivilian / removeCivilian / createAndRegisterCivilianData, used
+heavily across the citizen pipeline) was introduced AFTER 1281 and is what this build (1.1.1319)
+compiles against. Required floors added: `minecolonies [1.1.1319,)`, `structurize [1.0.830,)`,
+`blockui [1.0.209,)`, `domum_ornamentum [1.0.231,)`, `tensura [2.0.1.0,)`, `manascore [4.0.0.2,)`
+(+ existing `nightmareutils [0.1,)`). Now an incompatible MC refuses to load with a clear message
+instead of crashing. Floors = the versions in libs/ (exact build target); true minimum compatible
+MineColonies is unverified (no 1281 jar to inspect) — lower the floor only if an older build is
+tested working._
 
 ---
 
