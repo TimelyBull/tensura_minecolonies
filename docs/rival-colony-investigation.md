@@ -75,6 +75,17 @@
 >   key is ignored on load; the old proximity-gen leftovers are gone. New
 >   worldgen structures only appear in NEWLY generated chunks (expected for any
 >   structure mod — explored areas are untouched).
+> - **0.1.2 fix — marker removed + made rare (2026-06-27, user-reported "gold
+>   pillars everywhere").** Worldgen can't read the runtime config, so the
+>   `FactionAnchorPiece` gold-column marker generated even with the faction
+>   system OFF (the default) → bare gold pillars littering worlds with no
+>   settlements. The marker now places NOTHING (empty `postProcess`); an
+>   un-populated anchor is invisible (the start is still recorded, so detection +
+>   /locate work, and the town still stamps on approach when the system is on).
+>   All 5 structure_sets bumped to spacing 80 / separation 20 (was 20–24/8) — i.e.
+>   woodland-mansion rarity, per the "factions should be rare, search-to-find"
+>   intent. Old pillars in already-generated chunks remain (worldgen only affects
+>   new land).
 > - **THE WORLDGEN REWORK (Stages 0–5) IS FUNCTIONALLY COMPLETE.** Remaining is
 >   polish/balance, tracked in docs/future-ideas.md:
 >   - **Stage 6 — settlement placement polish: IMPLEMENTED (2026-06-27), pending

@@ -7,35 +7,34 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.WorldGenLevel;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.pieces.StructurePieceSerializationContext;
 
 /**
- * STAGE 1 — the single piece of the {@link FactionAnchorStructure} marker.
- * For now it places a short gold-block column at the structure's surface
- * position so the structure is visually findable as well as {@code /locate}-able.
- * In a later stage this is what gets replaced by (or extended to trigger) the
- * real settlement populate; for Stage 1 it just proves a custom structure
- * registers, generates ahead of the player, and is locatable.
+ * The single piece of the {@link FactionAnchorStructure} — an INVISIBLE anchor.
+ * It places NO blocks; it exists only so the structure produces a valid,
+ * {@code /locate}-able structure start that {@link RivalColonies#tickWorldgenSettlements}
+ * can detect (via the chunk's structure data, not any blocks) to grow the real
+ * settlement when a player approaches AND the faction system is enabled.
+ *
+ * <p>It used to place a gold-block "marker" column (Stage-1 debug visualisation).
+ * That was REMOVED in 0.1.2: because worldgen can't read the runtime config, the
+ * marker generated even with the faction system OFF (the default), littering
+ * worlds with bare gold pillars that never became settlements. With no marker,
+ * an un-populated anchor is invisible — nothing shows until a town actually
+ * builds (faction system on + player nearby).
  */
 public class FactionAnchorPiece extends StructurePiece {
 
-    private static final int MARKER_HEIGHT = 4;
-
-    /** Generation constructor — a small box centred on {@code pos}; the visible
-     *  marker is the centre column. Detection no longer depends on this box's
-     *  size: {@link RivalColonies#tickWorldgenSettlements} finds the start by
-     *  scanning chunks near the player (BB-independent), so a tiny marker box is
-     *  fine and works for already-generated anchors too. */
+    /** Tiny bounding box — just enough to record a valid structure start. */
     public FactionAnchorPiece(BlockPos pos) {
         super(FactionStructures.FACTION_ANCHOR_PIECE.get(), 0,
                 new BoundingBox(
                         pos.getX() - 1, pos.getY(), pos.getZ() - 1,
-                        pos.getX() + 1, pos.getY() + MARKER_HEIGHT, pos.getZ() + 1));
-        setOrientation(Direction.NORTH); // identity transform for placeBlock()
+                        pos.getX() + 1, pos.getY() + 1, pos.getZ() + 1));
+        setOrientation(Direction.NORTH);
     }
 
     /** Load constructor — the bounding box is restored by the base class. */
@@ -52,10 +51,8 @@ public class FactionAnchorPiece extends StructurePiece {
     @Override
     public void postProcess(WorldGenLevel level, StructureManager structureManager, ChunkGenerator generator,
                             RandomSource random, BoundingBox box, ChunkPos chunkPos, BlockPos pos) {
-        // Relative (1, dy, 1) = the box centre column. placeBlock only writes
-        // inside `box` (the current chunk's writable region).
-        for (int dy = 0; dy < MARKER_HEIGHT; dy++) {
-            placeBlock(level, Blocks.GOLD_BLOCK.defaultBlockState(), 1, dy, 1, box);
-        }
+        // Intentionally empty — the anchor places nothing. The real settlement
+        // (buildings + boss + garrison) is stamped at runtime on first approach,
+        // gated by enableFactionSystem (see RivalColonies.populateSettlementAt).
     }
 }

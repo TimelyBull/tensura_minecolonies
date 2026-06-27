@@ -8,7 +8,23 @@ Copy the relevant version's section into the CurseForge release notes on each up
 
 ## [Unreleased]
 
-_0.1.2 in development — nothing yet._
+_0.1.2 in development._
+
+### Fixed
+- **No more stray gold pillars scattered across the world.** The faction-
+  settlement markers from 0.1.1 generated even with the faction system off (the
+  default), leaving bare gold columns everywhere that never became towns. The
+  marker is gone — a settlement site is now invisible until an actual town
+  builds (faction system on + you get close).
+
+### Changed
+- **Faction settlements are now rare.** Each faction's settlements generate far
+  less often (roughly woodland-mansion rarity), so finding them all is a
+  proper exploration goal rather than something you trip over constantly.
+
+_(Existing worlds keep any gold pillars already generated — worldgen only
+affects newly-generated land. Both changes need the faction system turned on
+to see settlements at all.)_
 
 ## [0.1.1] - 2026-06-27
 
