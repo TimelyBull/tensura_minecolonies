@@ -133,3 +133,64 @@ Lending currently filters to VANILLA colonists (RaceIdentity keys on
 citizenId; `resetId=true` on return would orphan identity records).
 The follow-on: remap the identity's citizenId on return (or resurrect
 with stable ids) so named race-citizens can be lent too.
+
+## Patrol / subordinate commands via Thought Communication (2026-06-27)
+
+Idea (user-suggested, captured for reference — NOT yet scoped): tie the
+subordinate command system into Tensura's **Thought Communication**
+skill, so commanding a subordinate (today the native command cycle —
+FOLLOW → WANDER → STAY → **PATROL** → FOLLOW, see roadmap.md "Patrol
+Colony Outskirts" / decisions.md) can flow through the skill rather than
+only the per-mob right-click cycle.
+
+⚠ **Intent still open — clarify before scoping.** "Incorporate patrol
+into Thought Communication" could mean any of:
+- Issue/toggle the PATROL command (and the other commands) **remotely**
+  through Thought Communication's UI, instead of having to stand next to
+  and cycle each subordinate.
+- Surface patrol/command STATUS in the Thought Communication channel
+  (e.g. read back which subordinates are patrolling / where).
+- A broader group-command surface (command many subordinates at once via
+  the skill).
+
+Notes / unknowns:
+- "Thought Communication" currently appears in the codebase/docs ONLY as
+  the Jura faction Covenant skill REWARD (docs/diplomacy.md) — there is
+  no command-system tie-in today. Needs investigation of Tensura's
+  Thought Communication skill API (does it expose a usable menu/targeting
+  hook we can attach to?).
+- The patrol command itself is brain-native via `WALK_TARGET` and is
+  inserted into Tensura's own `cycleCommands` by `ISubordinateCommandMixin`
+  (`SubordinatePatrol.handlePatrolCycle`). A remote-command path would
+  need a server-side way to set the same state without the in-person
+  cycle (the `PatrolOrder` attachment + `beginPatrol` already are the
+  state; the missing piece is a remote trigger + a UI).
+
+## Player ↔ player colony interactions — the broad design area (2026-06-27)
+
+Captured as a design area to SORT OUT (user-flagged 2026-06-27): how two
+(or more) players' colonies relate to each other. Today the mod is
+effectively single-colony / owner-gated — identity actions, sends,
+summons, diplomacy gifts, and war declarations are all keyed to the
+OWNING player. There is no coherent model for what one player can do
+with, against, or alongside another player's colony.
+
+This is the umbrella item; existing notes are narrow fragments of it that
+should be folded in when this is picked up:
+- **PvP colony raiding** (already listed above under the RIVAL-COLONY
+  ARC follow-ons) — the assault loop turned on another PLAYER's colony.
+  Needs consent/rules, PvP-safety, scheduling, defender ownership.
+- **Shared subordinate/citizen inventory access** (user-suggestions.md,
+  2026-06-27) — letting OTHER players access a named Tensura creature's
+  inventory; explicitly needs an ownership/permission model since today
+  identity actions are owner-gated.
+
+Open questions for the eventual design pass:
+- Permissions/ownership model — who can view/act on whose colony +
+  subordinates (allow-list, MineColonies' own colony permissions, a
+  Tensura-side owner check?).
+- Cooperative interactions (visiting, helping build, lending across
+  players) vs. adversarial ones (raiding, war) — and whether diplomacy/
+  reputation extends player-to-player or stays player-to-NPC-faction.
+- PvP-safety + consent (opt-in, server config) so the faction/war
+  machinery can't grief a non-participating player's colony.

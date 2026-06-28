@@ -7118,9 +7118,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             if (storage.getSkill(sentient.getRegistryName()).isPresent()) return; // already has it
             storage.learnSkill(sentient.createDefaultInstance(),
                     net.minecraft.network.chat.Component.literal(""));
-            LOGGER.info("[TM][DIAG] sentient: granted to {} ({})",
-                    mob.getName().getString(),
-                    net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()));
         } catch (Throwable t) {
             LOGGER.warn("[TM] sentient: grant failed for {}", mob.getName().getString(), t);
         }
@@ -7136,8 +7133,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             var storage = io.github.manasmods.manascore.skill.api.SkillAPI.getSkillsFrom(mob);
             if (storage.getSkill(SENTIENT_SKILL_ID).isEmpty()) return;
             storage.forgetSkill(SENTIENT_SKILL_ID, net.minecraft.network.chat.Component.literal(""));
-            LOGGER.info("[TM][DIAG] sentient: removed from {} (defender swap-back)",
-                    mob.getName().getString());
         } catch (Throwable t) {
             LOGGER.warn("[TM] sentient: remove failed for {}", mob.getName().getString(), t);
         }
@@ -7646,15 +7641,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // the body the registration-gated way. This handler is kept as a
         // zero-latency fast path for the spawn case where it CAN run.
         ICitizenData citizenData = citizen.getCitizenData();
-        // [TM][DIAG] TEMPORARY — confirms the lifecycle-timing diagnosis: on
-        // relog this should log citizenData=NULL (handler can't help; the
-        // reconcile pass does). Remove in Phase 3 after confirming in the logs.
-        LOGGER.info("[TM][DIAG] citizen join uuid={} citizenData={} hasTag={}",
-                citizen.getUUID(),
-                citizenData == null ? "NULL"
-                        : ("present(colony=" + (citizenData.getColony() == null
-                                ? "null" : citizenData.getColony().getID()) + ")"),
-                citizen.hasData(Attachments.RACE_TAG.get()));
         if (citizenData == null) return;
         int citizenId = citizenData.getId();
         int colonyId = citizenData.getColony() != null ? citizenData.getColony().getID() : -1;
@@ -7722,13 +7708,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
 
         if (!(event.getTarget() instanceof AbstractEntityCitizen citizen)) return;
-
-        // [TM][DIAG] TEMPORARY — shows whether the server-side tag is present at
-        // tracking time. On the failing relog this should be hasTag=false
-        // (server never stamped it). Remove in Phase 3.
-        LOGGER.info("[TM][DIAG] start-tracking citizen {} hasTag={} citizenData={}",
-                citizen.getUUID(), citizen.hasData(Attachments.RACE_TAG.get()),
-                citizen.getCitizenData() == null ? "NULL" : "present");
 
         // Race-tag re-sync (worker races).
         if (citizen.hasData(Attachments.RACE_TAG.get())) {

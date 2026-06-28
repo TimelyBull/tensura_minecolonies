@@ -593,12 +593,6 @@ public final class RivalColonies {
             } catch (Throwable ignored) { }
             exist.markDirty();
         }
-        LOGGER.info("[TM][DIAG] rimuru: buffed boss — HP {} atk {} maxMag {} maxAura {} EP {}",
-                String.format("%.0f", boss.getMaxHealth()),
-                String.format("%.0f", boss.getAttributeValue(Attributes.ATTACK_DAMAGE)),
-                String.format("%.0f", EnergyHelper.getMaxMagicule(boss)),
-                String.format("%.0f", EnergyHelper.getMaxAura(boss)),
-                exist != null ? String.format("%.0f", exist.getEP()) : "n/a");
     }
 
     /** Set an attribute's EFFECTIVE value to an absolute target via a stable-id

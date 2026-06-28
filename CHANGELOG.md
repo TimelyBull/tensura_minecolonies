@@ -8,7 +8,9 @@ Copy the relevant version's section into the CurseForge release notes on each up
 
 ## [Unreleased]
 
-_0.1.2 in development._
+_Nothing yet — 0.1.3 open for development._
+
+## [0.1.2] - 2026-06-27
 
 ### Fixed
 - **No more stray gold pillars scattered across the world.** The faction-

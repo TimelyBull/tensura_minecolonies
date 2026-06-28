@@ -7,12 +7,18 @@ Pair with: `decisions.md` (why things are the way they are), `CHANGELOG.md` (wha
 
 _Last updated: 2026-06-27 — update this every session._
 
-_Version: **0.1.1 released** (worldgen rival-colony rework + faction-system-off-by-default +
-invite-crash guard); **0.1.2 now in development** (`mod_version=0.1.2`, fresh `[Unreleased]` in
-CHANGELOG)._
+_Version: **0.1.2 finalized for release** (`mod_version=0.1.2`; CHANGELOG `[0.1.2] - 2026-06-27`
+cut, `[Unreleased]` reopened for 0.1.3). 0.1.2 = gold-pillar marker removed + faction settlements
+made rare + dependency floors declared (the real fix for the invite crash). Built green
+(`tensura_minecolonies-0.1.2.jar`). Previously released: 0.1.0, 0.1.1._
 
-_Repo state: branch `patrol-colony-outskirts`. ⚠ `[TM][DIAG]` logging from the earlier FIX 2 /
-Sentient / Rimuru work may still be in — strip when those are confirmed._
+_Repo state: branch `patrol-colony-outskirts`, pushed to `origin`
+(`TimelyBull/tensura_minecolonies`). All earlier "uncommitted / not pushed" notes are RESOLVED —
+working tree is clean. ✅ The temporary `[TM][DIAG]` logging (FIX 2 invite + Sentient + Rimuru, 5
+log statements + 2 comments) was STRIPPED for the 0.1.2 release. NOTE: stripping the Sentient /
+Rimuru DIAG removes their verification log lines — those features still function but their in-game
+verification (boss casts Water Blade/Corrosion; garrison scaling) is no longer log-traceable; re-add
+temporary logging if you want to re-verify._
 
 _**Dependency floors now DECLARED in neoforge.mods.toml (0.1.2).** The mod previously declared NO
 hard deps except nightmareutils — so a mismatched MineColonies loaded fine and crashed mid-game.
@@ -85,14 +91,14 @@ additive, no re-architecture of the fragile identity core):
   `getCitizenData()` on relog. Re-fixed via **Option B: a periodic reconcile pass** in the
   1s `onServerTickPost` block, resolving the body via `colony...getCivilian(id).getEntity()`
   (only populated after registration), plus Option D (re-stamp on `onStartTracking` for zero
-  flicker). STATUS: **BUILT + COMMITTED** (`bca87f6`), in-game confirmation **PENDING**.
-  ⚠ **FLAG — corrected this session:** the prior STATE.md marked this "CONFIRMED WORKING ✅,"
-  but the repo contradicts that — the temporary `[TM][DIAG]` logging is **STILL IN the code**
-  (4 lines in `ExampleMod.java`, committed in `bca87f6` as "pending the user's confirmation
-  relog"), and the "strip + commit confirmed Fix 2" TODO is unchecked. The diagnostics were
-  deliberately left in so the user could relog and verify `citizenData=NULL` + the reconcile
-  re-stamp; that confirmation has not been recorded. Treat Fix 2 as **awaiting verification**,
-  not confirmed. Once the user confirms, strip the `[TM][DIAG]` lines and commit clean.
+  flicker). STATUS: **CONFIRMED WORKING ✅ (2026-06-27, via logs).** `run/logs/latest.log` from a
+  live session shows the happy path end-to-end: invite → `send: race tag attached` →
+  `send: complete … IN_COLONY`; after a world reload the body rejoined with `hasTag=true` and the
+  client built the renderer + shadow (the creature rendered, persisting across reload). The
+  attachment rode the entity NBT on its own, so the reconcile pass never even had to fire this
+  session — meaning the harder "MC rebuilds body from CitizenData (tag lost)" branch was NOT
+  exercised by these logs, only the NBT-persist branch. The temporary `[TM][DIAG]` logging has now
+  been **STRIPPED** (release prep for 0.1.2).
 - **Fix 3 — `/recoverorphans` recovery tool (dry-run by default).** Walks SUBORDINATE
   identities whose mob UUID resolves to nothing; restores from `entitySnapshot` as colonists;
   reconciles ghost CitizenData/travelling state; never deletes records; snapshot-less records
@@ -203,22 +209,29 @@ ITSELF the colonist (one entity) — vs. our two-bodies swap (separate entities 
 
 ## Known bugs
 
-0. **CRASH when "inviting" (sending) a Tensura mob to the colony via the roster** — user-reported
-   2026-06-27 (unknown version). The delayed body-swap executed in `onServerTickPost` ran
-   `executePendingSwap → executeAction → sendGoblinToColony` with NO top-level try/catch, so any
-   throw in that fragile path (entity spawn / stat copy / race-tag attach / Tensura storages)
-   propagated to the server tick and crashed the game (integrated server = whole client). On
-   restart the half-converted citizen showed as a plain colonist with the given name (the send
-   crashed before the RaceTag/`raceTagSnapshot` was persisted + before `mode` flipped to IN_COLONY,
-   so the Fix-2 reconcile skips it → no race appearance). **CRASH GUARD ADDED (uncommitted):**
-   wrapped the `executeAction` call (refund + "try again" on throw) AND the per-swap loop call —
-   a failed invite now degrades to a logged error + magicule refund, never a crash. ⚠ This is a
-   SAFETY NET, not a root-cause fix: the underlying exception isn't identified (need the user's
-   `crash-reports/crash-*.txt` to pin it; may already be fixed in current code). With the crash
-   gone, a normal send should complete and persist the appearance (no revert).
-1. **Chunk-unload / relog colonist revert** — Fix 2 (Option B reconcile pass) BUILT+COMMITTED
-   (`bca87f6`); **in-game confirmation PENDING** (DIAG logging still in — see Fix 2 above). NOT
-   yet "confirmed fixed." (Bug 0 above is a crash-driven instance of this revert.)
+0. **CRASH when "inviting" (sending) a Tensura mob to the colony, + the half-converted plain
+   colonist** — user-reported 2026-06-27. **ROOT CAUSE FOUND + RESOLVED (2026-06-27):** the user
+   was on **MineColonies 1.1.1281**, below the generic-"Civilian" citizen-manager API this build
+   compiles against → `NoSuchMethodError` mid-send crashed the game, and the send died before the
+   RaceTag persisted + before `mode` flipped to IN_COLONY, leaving a plain colonist with the
+   creature's name. **The crash guard** (`executePendingSwap` / per-swap loop try/catch → refund +
+   "try again", no crash) shipped in 0.1.1, AND **the dependency floor** (`minecolonies [1.1.1319,)`
+   in 0.1.2) now refuses to load on an incompatible MC instead of crashing. The user confirmed:
+   after updating MineColonies the invite renders the creature correctly and the crash guard works.
+   Logs (`run/logs/latest.log`) corroborate the happy path. **CLOSED — was a version mismatch, not
+   an identity-core defect.**
+   - ⚠ LATENT (separate, NOT the user's bug, UNTESTED): all three RaceTag re-stamp paths
+     (`tickReconcileRaceTags`, `onEntityJoinLevel`, `onStartTracking`) skip `mode != IN_COLONY`.
+     If a colonist body ever materializes for a still-SUBORDINATE identity (MC respawn defeating the
+     naming-time travelling suppression, or a send that spawns the body then throws OUTSIDE
+     `sendGoblinToColony`'s rollback try — e.g. the item transfer at the top), no handler stamps it
+     → permanent plain named colonist. The version fix made this unreachable for the reported case;
+     left as a known latent edge. Test: name a creature, do NOT send it, relog — does a plain
+     colonist appear? See the investigation in this session's notes.
+1. **Chunk-unload / relog colonist revert** — Fix 2 (Option B reconcile pass) **CONFIRMED WORKING
+   ✅ (2026-06-27, via logs)** for the NBT-persist branch (see Fix 2 above). The harder
+   "MC rebuilds body from CitizenData" branch the reconcile pass exists for was not exercised by
+   those logs — treat that specific branch as still unverified-in-game.
 2. **Summon→send strand** — Fix 1 (needs in-range verification).
 3. **Third-party capture orphans subordinates** — Fix 3 recovery tool (needs verification);
    auto-prevention deferred. User lost ~250 (recoverable as colonists from snapshot, correct race,
@@ -264,20 +277,23 @@ bundling makes a regression harder to diagnose).
 
 ## Immediate next steps (the TODO)
 
-- [ ] **Verify Fix 2 in-game** (relog a Tensura colonist; watch for `[TM][DIAG] citizen join …
-      citizenData=NULL` + `[TM] FIX2B: reconcile re-stamped …`; colonist returns to Tensura form
-      within ~1s). THEN strip the `[TM][DIAG]` logging and commit the clean version.
+- [x] **Verify Fix 2** — CONFIRMED via logs 2026-06-27 (NBT-persist branch); DIAG logging stripped.
+- [x] **Strip the `[TM][DIAG]` logging** (FIX 2 + Sentient + Rimuru) — DONE for 0.1.2 release.
+- [x] **Finalize CHANGELOG `[0.1.2] - 2026-06-27`** and reopen `[Unreleased]` for 0.1.3 — DONE.
+- [ ] **Publish 0.1.2 to CurseForge** — upload `build/libs/tensura_minecolonies-0.1.2.jar`; paste
+      the `[0.1.2]` CHANGELOG section as release notes; ensure the page lists required deps
+      (MineColonies 1.1.1319+, Nightmare's Tensura Utils, Tensura, ManasCore, Structurize, BlockUI,
+      Domum Ornamentum).
 - [ ] Verify Fix 1 (in-range summon→send cycling, 15+ times).
 - [ ] Verify Fix 3 (real capture mod OR dev-only forced-orphan command; confirm dry-run mutates
       nothing).
-- [ ] **Update-path test** (pre-change save → new build; migrations + no crash). ← top risk.
+- [ ] Investigate the LATENT SUBORDINATE-with-a-body edge (Known Bug 0 sub-bullet): name a creature,
+      do NOT send it, relog — does a plain colonist appear? If so, extend the reconcile pass.
+- [ ] **Update-path test** (pre-change save → new build; migrations + no crash). ← top risk for the
+      faction stack (already shipped in 0.1.0/0.1.1; 0.1.2 itself adds no new save migrations).
 - [ ] Playtest the sphere barrier (runClient; raid it; watch sections/regen/holes).
-- [ ] **Verify the Sentient refactor + Rimuru** — `/rivalcolony spawn tempest`: boss is named
-      **Rimuru** (~500 HP), casts Water Blade + Corrosion (not just melee), garrison comes up at
-      ~20 defenders. Regression check: bone golems / assassins / colony defenders still cast.
-      Watch `[TM][DIAG] sentient: granted …`, `[TM][DIAG] rimuru: buffed boss …`, and the
-      `tempest slime boss kit verification — …=LEARNED` lines. THEN strip the `[TM][DIAG]`
-      logging and commit.
-- [ ] Push to own repo for backup (branch `patrol-colony-outskirts`, 12 commits unpushed).
+- [ ] **Re-verify the Sentient refactor + Rimuru if needed** — `/rivalcolony spawn tempest`: boss
+      named **Rimuru** (~500 HP), casts Water Blade + Corrosion (not just melee), garrison ~20
+      defenders. Regression: bone golems / assassins / colony defenders still cast. (DIAG logging
+      for this was stripped — re-add temporary logging if you want log traces.)
 - [ ] Tell Jinjer the barrier landed on shared master; consider a `.gitignore` for the shared repo.
-- [ ] Decide: bundle vs. slip identity fixes for the 2-3 day release.
