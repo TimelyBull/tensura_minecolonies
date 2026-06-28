@@ -223,9 +223,9 @@ The mod ships several custom items that are craftable / obtainable but have
 General task: audit every custom item for "can the player actually USE this?"
 and give the trophy items a real sink.
 
-## Mob aggression — a "Progressive" level (2026-06-27)
+## Citizen aggression — a "Progressive" level (2026-06-27)
 
-Idea (user-requested 2026-06-27): add a fourth value to the `mobAggression`
+Idea (user-requested 2026-06-27): add a fourth value to the `citizenAggression`
 config (today `OFF` / `MEDIUM` / `HIGH`, default OFF — see
 `Config.AggressionLevel` + `TensuraBehaviourHelperMixin`, and decisions in the
 CHANGELOG). **PROGRESSIVE** would SCALE how aggressive innately-hostile Tensura

@@ -56,23 +56,23 @@ public class Config {
      *  citizens — the extra targeting this compat mod adds on top of vanilla
      *  Tensura (which, by itself, does NOT target citizens). OFF (default) =
      *  no added aggression; MEDIUM = about half; HIGH = the old "prey on
-     *  sight" behaviour. Read via {@link #mobAggression()}. */
+     *  sight" behaviour. Read via {@link #citizenAggression()}. */
     public enum AggressionLevel { OFF, MEDIUM, HIGH }
 
-    public static final ModConfigSpec.EnumValue<AggressionLevel> MOB_AGGRESSION = BUILDER
+    public static final ModConfigSpec.EnumValue<AggressionLevel> CITIZEN_AGGRESSION = BUILDER
             .comment("How aggressive innately-hostile Tensura mobs are toward colony citizens.",
                      "OFF (default) = this mod adds NO extra aggression — citizens are invisible to",
                      "Tensura's hostile-prey targeting, as in vanilla Tensura. MEDIUM = about half:",
                      "only roughly half of mob/citizen encounters treat the citizen as prey, so mobs",
                      "lock on about half as often. HIGH = citizens are unconditional prey on sight",
                      "(the previous behaviour).")
-            .defineEnum("mobAggression", AggressionLevel.OFF);
+            .defineEnum("citizenAggression", AggressionLevel.OFF);
 
-    /** Safe read of the mob-aggression level. Returns OFF if the config
+    /** Safe read of the citizen-aggression level. Returns OFF if the config
      *  isn't loaded yet (very early startup) — matches the default. */
-    public static AggressionLevel mobAggression() {
+    public static AggressionLevel citizenAggression() {
         try {
-            return MOB_AGGRESSION.get();
+            return CITIZEN_AGGRESSION.get();
         } catch (IllegalStateException e) {
             return AggressionLevel.OFF;
         }

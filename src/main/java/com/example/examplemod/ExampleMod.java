@@ -7493,7 +7493,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         FactionProfile.validateWeb();
         // Subscribe to MineColonies' own event bus (separate from NeoForge's).
         event.enqueueWork(() -> {
-            // Mob-aggression is now a config option (Config.MOB_AGGRESSION,
+            // Citizen-aggression is now a config option (Config.CITIZEN_AGGRESSION,
             // OFF / MEDIUM / HIGH, default OFF) read by TensuraBehaviourHelperMixin —
             // the old tensuraHostileToCitizens gamerule was removed.
             RULE_MAX_NON_COLONIST_ENVOYS = net.minecraft.world.level.GameRules.register(
