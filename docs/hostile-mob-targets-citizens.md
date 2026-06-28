@@ -233,7 +233,7 @@ MC's monster set — fix is a 6-line tag JSON.
 
 Player feedback was that citizen aggression was too high. The mixin's gate
 changed from the boolean `tensuraHostileToCitizens` gamerule (default true) to
-the `Config.CITIZEN_AGGRESSION` enum config (`citizenAggression`:
+the `Config.MOB_AGGRESSION` enum config (`mobAggression`:
 **OFF / MEDIUM / HIGH, default OFF**):
 - **OFF** — the prey branch returns false; citizens are never added as prey
   (back to vanilla-Tensura behaviour, no added aggression).

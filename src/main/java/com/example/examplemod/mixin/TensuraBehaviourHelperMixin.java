@@ -36,13 +36,13 @@ import java.util.function.Predicate;
  * subordinate has a non-null owner UUID matching the citizen's colony
  * owner. Mutually exclusive code paths.
  *
- * Aggression level is config-gated ({@code citizenAggression}: OFF / MEDIUM /
+ * Aggression level is config-gated ({@code mobAggression}: OFF / MEDIUM /
  * HIGH, default OFF — replaces the old {@code tensuraHostileToCitizens}
  * gamerule). OFF = citizens never added as prey; HIGH = unconditional prey;
  * MEDIUM = a stable ~50% split per (mob, citizen) pair.
  *
  * Verification: the first invocation logs once at INFO so we can confirm
- * the mixin applied and weaved. Look for "[TM] citizen-aggression mixin
+ * the mixin applied and weaved. Look for "[TM] mob-aggression mixin
  * applied" in the log after spawning any innately-hostile Tensura mob.
  */
 @Mixin(TensuraBehaviourHelper.class)
@@ -59,21 +59,21 @@ public abstract class TensuraBehaviourHelperMixin {
     private static Predicate<LivingEntity> tensura$includeCitizens(Predicate<LivingEntity> original, LivingEntity mob) {
         if (!TM$LOGGED_APPLY) {
             TM$LOGGED_APPLY = true;
-            TM$LOG.info("[TM] citizen-aggression mixin applied — citizens added as prey for innately-hostile Tensura mobs (config-gated)");
+            TM$LOG.info("[TM] mob-aggression mixin applied — citizens added as prey for innately-hostile Tensura mobs (config-gated)");
         }
         return original.or(target -> {
             if (!(target instanceof AbstractEntityCitizen)) return false;
             // Config gate (single source of truth — replaces the old
             // tensuraHostileToCitizens gamerule). OFF = no added aggression;
             // HIGH = unconditional prey; MEDIUM = about half.
-            Config.AggressionLevel level = Config.citizenAggression();
+            Config.AggressionLevel level = Config.mobAggression();
             switch (level) {
                 case OFF:
                     return false;
                 case HIGH:
                     if (!TM$LOGGED_HIT) {
                         TM$LOGGED_HIT = true;
-                        TM$LOG.info("[TM] citizen-aggression (HIGH): first citizen accepted as prey ({})", target.getType());
+                        TM$LOG.info("[TM] mob-aggression (HIGH): first citizen accepted as prey ({})", target.getType());
                     }
                     return true;
                 case MEDIUM:
@@ -86,7 +86,7 @@ public abstract class TensuraBehaviourHelperMixin {
                     boolean prey = ((mob.getId() * 31 + target.getId()) & 1) == 0;
                     if (prey && !TM$LOGGED_HIT) {
                         TM$LOGGED_HIT = true;
-                        TM$LOG.info("[TM] citizen-aggression (MEDIUM): first citizen accepted as prey ({})", target.getType());
+                        TM$LOG.info("[TM] mob-aggression (MEDIUM): first citizen accepted as prey ({})", target.getType());
                     }
                     return prey;
             }

@@ -210,7 +210,7 @@ biome-hardcoded scheduler are the closed parts; we don't use them.
 ### #2 Spawning + threatening the colony — mostly already built
 
 - **Raiders → citizens:** the existing hostility work
-  (the `citizenAggression` config — OFF/MEDIUM/HIGH, default OFF; was the
+  (the `mobAggression` config — OFF/MEDIUM/HIGH, default OFF; was the
   `tensuraHostileToCitizens` gamerule — see
   [hostile-mob-targets-citizens.md](hostile-mob-targets-citizens.md))
   can make innately-hostile Tensura mobs target citizens. Note it now

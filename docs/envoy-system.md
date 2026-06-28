@@ -587,7 +587,7 @@ GOBLIN, `"citizen count 25 must grow past snapshot 25"` for ORC.
 - **Attachments:** `ENVOY_TAG` sibling to `RACE_TAG`.
 - **Gamerules:** `tensuraMaxNonColonistEnvoys` (default 4).
   (The old `tensuraHostileToCitizens` gamerule was replaced by the
-  `citizenAggression` config — OFF/MEDIUM/HIGH, default OFF.)
+  `mobAggression` config — OFF/MEDIUM/HIGH, default OFF.)
 - **`ColonyRaceConfigSavedData` extensions:** members set,
   accepted-envoy lock, colony creation tick, last resolve tick, active
   envoy uuid, player non-colonist envoy history, colonist kill-reset
