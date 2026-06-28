@@ -22,7 +22,7 @@ _Nothing yet._
 
 ### Changed
 - **Hostile Tensura mobs no longer hunt your colonists by default, and you can
-  now tune how aggressive they are.** A new "Citizen aggression" config option
+  now tune how aggressive they are.** A new "Mob Aggression" config option
   controls it: **Off** (the new default) means Tensura monsters add no extra
   aggression toward colonists; **Medium** is about half as aggressive; **High**
   is the old behaviour (they treat colonists as prey on sight). Existing worlds

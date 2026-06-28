@@ -19,6 +19,7 @@
   "tensura_minecolonies.configuration.section.tensura_minecolonies.common.toml": "Tensura MineColonies Settings",
   "tensura_minecolonies.configuration.section.tensura_minecolonies.common.toml.title": "Tensura MineColonies Settings",
 
+  "tensura_minecolonies.configuration.citizenAggression": "Mob Aggression",
   "tensura_minecolonies.configuration.enableFactionSystem": "Enable Faction System",
   "tensura_minecolonies.configuration.enableAssassins": "Enable Assassins",
   "tensura_minecolonies.configuration.rivalSettlementMode": "Rival Settlement Mode",
