@@ -194,3 +194,23 @@ Open questions for the eventual design pass:
   reputation extends player-to-player or stays player-to-NPC-faction.
 - PvP-safety + consent (opt-in, server config) so the faction/war
   machinery can't grief a non-participating player's colony.
+
+## Creative-tab polish — name + icon (2026-06-27)
+
+Cosmetic housekeeping (user-reported 2026-06-27): the mod's creative-menu
+tab still shows the **MDK placeholder** — title "Example Mod Tab" and the
+default purple-and-black checkered (missing-texture) square as its icon.
+
+Fix when convenient:
+- **Icon:** use the **Drago Nova** item sprite as a placeholder tab icon
+  (the item already exists, see DragoNovaItem). A proper dedicated tab icon
+  can come later.
+- **Name:** rename the tab to the mod's real display name ("Tensura
+  MineColonies Integration", or a shorter label like "Tensura
+  MineColonies").
+
+Part of the broader MDK-rename housekeeping debt (see CLAUDE.md "Known
+housekeeping debt" — `com.example.examplemod` package + `ExampleMod` class
+names + the `examplemod` asset-namespace lang file). The creative tab's
+title/icon are likely defined alongside that placeholder naming; tidy them
+together with that pass, or do this small cosmetic fix standalone.
