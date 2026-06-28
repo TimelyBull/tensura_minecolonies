@@ -91,10 +91,12 @@ ambiguity below).
 | falmuth | ✅ | ✅ `cov_falmuth` | ✅ | ✅ Strength | ✅ |
 | milim | ✅ | ✅ `cov_milim` | ✅ | ✅ Strength | ✅ |
 | eurazania | ✅ | ✅ `cov_carrion` | ✅ | ✅ Speed | ✅ |
-| clayman | ✅ | ✅ `cov_clayman` | ❌ **missing** | ❌ **missing** | ✅ |
-| **leon** | ✅ | ❌ **no `cov_` deal** | ❌ **missing** | ❌ **missing** | ✅ |
-| **eastern_empire** | ✅ | ❌ **no `cov_` deal** | ❌ **missing** | ❌ **missing** | ✅ |
-| shizu (dep) | ✅ | ❌ | ❌ | ❌ | ✅ |
+| clayman | ✅ | ✅ `cov_clayman` | ✅ ¹ Night Vision | ✅ ¹ Ender Pearls | ✅ |
+| **leon** | ✅ | ✅ ¹ `cov_leon` | ✅ ¹ Fire Resist | ✅ ¹ gold + blaze | ✅ |
+| **eastern_empire** | ✅ | ✅ ¹ `cov_eastern_empire` | ✅ ¹ Absorption | ✅ ¹ iron + amethyst | ✅ |
+| shizu (dep) | ⛔ purged ¹ | ❌ | ❌ | ❌ | ✅ |
+
+¹ = added/changed in Phase 1 (2026-06-27).
 
 ---
 
@@ -106,6 +108,8 @@ ambiguity below).
    `ow_specialists`) and a deal catalog, but a player who allies them gets no
    caravan and no alliance buff — strictly worse than the other four towns.
    **Highest priority** (player-facing on both axes).
+   → **RESOLVED (Phase 1):** added `cov_leon` / `cov_eastern_empire`, plus
+   `FACTION_GOODS` + `ALLIANCE_BUFFS` for both.
 2. **Clayman (abstract) lacks caravan goods + alliance buff.** Lower priority
    (no settlement), but for parity its PACT perks should exist or be a
    deliberate "this faction gives intel instead" choice.
@@ -168,11 +172,26 @@ Phase 0 decisions (2026-06-27)":
   `ALLIANCE_BUFFS`), not generic parity and not nothing. Exact item list +
   MobEffect chosen in Phase 1.
 
-**Phase 1 — Close the structural gaps (highest player impact):**
-- Add `FACTION_GOODS` + `ALLIANCE_BUFFS` + a `cov_*` capstone deal for **Leon**
-  and **Eastern Empire** (bring them to parity with the other four towns).
-- Add (or deliberately decline) `FACTION_GOODS` + `ALLIANCE_BUFFS` for
-  **Clayman**.
+**Phase 1 — Close the structural gaps: ✅ DONE (2026-06-27)**
+- **Leon** + **Eastern Empire** brought to parity with the other towns:
+  - `cov_leon` ("Tribute to the Platinum Saber", SupplyBundle gold+blaze+
+    netherite) and `cov_eastern_empire` ("The Imperial Compact", SupplyBundle
+    diamond+amethyst+redstone) added to `COVENANT_DEALS` → their alliances can
+    now reach COVENANT.
+  - `ALLIANCE_BUFFS`: Leon → Fire Resistance (fire knights); Eastern Empire →
+    Absorption (imperial shields).
+  - `FACTION_GOODS`: Leon → gold + blaze rods; Eastern Empire → iron + amethyst.
+  - (Their conquest skill already worked via `le_flamebearers` /
+    `ow_specialists` in `SKILL_REWARDS`.)
+- **Clayman** themed spy/manipulation PACT perks added: `ALLIANCE_BUFFS` →
+  Night Vision (insight); `FACTION_GOODS` → emeralds + ender pearls.
+- **Shizu** purged (Phase 0 decision): removed its `ConquestPayoff.PROFILES`
+  entry, its `FACTION_DEALS` catalog table, and its `sh_pupils` `SKILL_REWARDS`
+  mapping. Enum value + auto-built mending kept.
+- **Tempest** skill disambiguated (Phase 0 decision): dropped the
+  `ja_sages → Thought Communication` `SKILL_REWARDS` mapping; Self-Regeneration
+  (`tp_joyful`) is now its sole capstone/conquest skill.
+- Effect/item choices are BALANCE-GUESS first passes — Phase 3 tunes them.
 
 **Phase 2 — Conquest balance pass (6 raidable factions):**
 - Walk each through the raid checklist; retune `PROFILES` counts/skills, the

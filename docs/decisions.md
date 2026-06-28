@@ -2249,6 +2249,46 @@ factions, while keeping Clayman distinct — it already trades in intel + summon
 at the Covenant tier, so its PACT perks should read as "information/edge," not
 "more bread." Exact item list + MobEffect chosen in Phase 1.
 
+## Faction rewards review — Phase 1 (close structural gaps) (2026-06-27)
+
+Implemented the Phase 0 decisions + the Leon/Eastern Empire parity gaps. All
+effect/item picks are FIRST-PASS balance guesses (Phase 3 tunes them). Faction
+system is OFF by default, so none of this reaches a default player yet.
+
+**Leon + Eastern Empire — raidable towns, were "aloof" with no Covenant.**
+Both had a catalog + a capstone skill (`le_flamebearers` → Flame-Attack
+Resistance, `ow_specialists` → Eye of Truth) but no `cov_*` milestone, no
+caravan, no alliance buff. Added:
+- `COVENANT_DEALS`: `cov_leon` ("Tribute to the Platinum Saber" — SupplyBundle
+  16 Gold Block + 16 Blaze Rod + 1 Netherite Ingot) and `cov_eastern_empire`
+  ("The Imperial Compact" — SupplyBundle 4 Diamond Block + 32 Amethyst Shard +
+  16 Redstone Block). Both ALLIED-tier milestones, 48-emerald reward, mirroring
+  the other towns' covenant shape. The generic offer logic
+  (`DiplomacyManager` `COVENANT_DEALS.get(id)`) needed no per-faction wiring.
+- `ALLIANCE_BUFFS`: Leon → Fire Resistance (fire-knight theme); Eastern Empire
+  → Absorption (disciplined/armored imperial legion — a new effect not used by
+  another faction).
+- `FACTION_GOODS`: Leon → 8 Gold Ingot + 4 Blaze Rod; Eastern Empire → 12 Iron
+  Ingot + 6 Amethyst Shard.
+The catalog `cov_*` deals do NOT grant skills (consistent with every other
+faction — the skill comes from the catalog deal in `SKILL_REWARDS`, which these
+two already have).
+
+**Clayman — themed spy perks.** `ALLIANCE_BUFFS` → Night Vision (the spy's
+insight); `FACTION_GOODS` → 6 Emerald + 4 Ender Pearl (ill-gotten wealth +
+infiltrator mobility). Distinct from the generic "food/ingots" caravans.
+
+**Shizu — purged (Phase 0).** Removed `ConquestPayoff.PROFILES["shizu"]`, the
+`FACTION_DEALS["shizu"]` catalog table, and the `sh_pupils` `SKILL_REWARDS`
+mapping. KEPT: the `BossFaction.SHIZU` enum (old saves), the baseline-standing
+entry, and the auto-built `MENDING_DEALS` entry (loop over all factions).
+`tableFor("shizu")` now returns empty; `isActive("shizu")` already false.
+
+**Tempest — single skill (Phase 0).** Dropped `ja_sages → Thought
+Communication` from `SKILL_REWARDS`; `tp_joyful → Self-Regeneration` is the
+sole capstone/conquest skill. The `ja_sages` deal stays in the catalog (still a
+lend deal with item rewards) — it just no longer grants a skill.
+
 **Barrier push is purely horizontal; render uses a depth-write-off type.** The
 old radial push pointed partly upward and flung mobs up the dome → now always
 horizontal (`pushFromShell`, Y preserved). Coincident translucent panels

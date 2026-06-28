@@ -247,6 +247,23 @@ public record DealSpec(
                         "villagers (their souls feed the Charybdis core)"),
                 List.of(),
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
+        // Phase 1 (faction-rewards roadmap) — Leon + Eastern Empire were
+        // raidable towns with NO Covenant milestone; add one each so their
+        // alliance can reach COVENANT like the other towns.
+        map.put("leon", new DealSpec("cov_leon", "Tribute to the Platinum Saber",
+                new SupplyBundle(List.of(
+                        new ItemStack(Items.GOLD_BLOCK, 16),
+                        new ItemStack(Items.BLAZE_ROD, 16),
+                        new ItemStack(Items.NETHERITE_INGOT, 1))),
+                List.of(new ItemStack(Items.EMERALD, 48)),
+                10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
+        map.put("eastern_empire", new DealSpec("cov_eastern_empire", "The Imperial Compact",
+                new SupplyBundle(List.of(
+                        new ItemStack(Items.DIAMOND_BLOCK, 4),
+                        new ItemStack(Items.AMETHYST_SHARD, 32),
+                        new ItemStack(Items.REDSTONE_BLOCK, 16))),
+                List.of(new ItemStack(Items.EMERALD, 48)),
+                10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
         return Map.copyOf(map);
     }
 
@@ -349,14 +366,18 @@ public record DealSpec(
                 new LinkedHashMap<>();
         m.put("dw_grand_forge", io.github.manasmods.tensura.registry.skill.IntrinsicSkills.BODY_ARMOR);
         m.put("tp_joyful", io.github.manasmods.tensura.registry.skill.CommonSkills.SELF_REGENERATION);
-        m.put("ja_sages", io.github.manasmods.tensura.registry.skill.CommonSkills.THOUGHT_COMMUNICATION);
+        // Phase 0 decision: Tempest grants ONLY Self-Regeneration (tp_joyful).
+        // The leftover ja_sages → Thought Communication mapping is dropped so
+        // the conquest/Covenant skill grant is unambiguous. The ja_sages deal
+        // itself remains in the catalog; it just no longer grants a skill.
         m.put("lu_devout", io.github.manasmods.tensura.registry.skill.ResistanceSkills.HOLY_ATTACK_RESISTANCE);
         m.put("fa_fortress", io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
         m.put("mi_warriors", io.github.manasmods.tensura.registry.skill.CommonSkills.STRENGTH);
         m.put("ca_wild_haven", io.github.manasmods.tensura.registry.skill.IntrinsicSkills.GIANTIFICATION);
         m.put("cl_enforcers", io.github.manasmods.tensura.registry.skill.IntrinsicSkills.CHARM);
         m.put("le_flamebearers", io.github.manasmods.tensura.registry.skill.ResistanceSkills.FLAME_ATTACK_RESISTANCE);
-        m.put("sh_pupils", io.github.manasmods.tensura.registry.skill.ResistanceSkills.HEAT_RESISTANCE);
+        // Phase 0 decision: Shizu is soft-retired — its sh_pupils skill mapping
+        // is purged along with its catalog table + conquest profile.
         m.put("ow_specialists", io.github.manasmods.tensura.registry.skill.IntrinsicSkills.EYE_OF_TRUTH);
         return Map.copyOf(m);
     }
@@ -764,7 +785,8 @@ public record DealSpec(
                                 new ItemStack(Items.DIAMOND, 4)),
                         8.0, 5.0, 3 * DAY, 0, FactionTier.ALLIED, false)));
 
-        // 🔥 LEON — fire/flame (aloof; small set, no Covenant milestone).
+        // 🔥 LEON — fire/flame. Small catalog; Covenant milestone added in
+        // Phase 1 (cov_leon, see buildCovenantDeals).
         map.put("leon", List.of(
                 new DealSpec("le_magma", "Stones of Fire",
                         new SupplyItems(Items.MAGMA_BLOCK, 32),
@@ -784,28 +806,14 @@ public record DealSpec(
                         List.of(new ItemStack(Items.BLAZE_ROD, 4), new ItemStack(Items.DIAMOND, 4)),
                         6.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false)));
 
-        // 🕯 SHIZU — teaching & Ifrit-lore (aloof; small set).
-        map.put("shizu", List.of(
-                new DealSpec("sh_records", "Records of the Past",
-                        new SupplyItems(Items.BOOK, 32),
-                        List.of(new ItemStack(Items.BOOK, 16), new ItemStack(Items.PAPER, 8)),
-                        4.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
-                new DealSpec("sh_lessons", "Lessons for the Children",
-                        new BuildingLevel("school", 3),
-                        List.of(new ItemStack(Items.BOOKSHELF, 8), new ItemStack(Items.EXPERIENCE_BOTTLE, 8)),
-                        5.0, 5.0, 12 * DAY, 0, FactionTier.NEUTRAL, false),
-                new DealSpec("sh_gentle_town", "A Gentle Town",
-                        new Happiness(7.0),
-                        List.of(new ItemStack(Items.EXPERIENCE_BOTTLE, 8), new ItemStack(Items.LAPIS_LAZULI, 8),
-                                new ItemStack(ten("magic_tome"), 1)),
-                        6.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
-                new DealSpec("sh_pupils", "Pupils Abroad",
-                        new LendCitizens(Skill.Knowledge, 6, 2, 3 * DAY, 2),
-                        List.of(new ItemStack(Items.BOOKSHELF, 8), new ItemStack(Items.LAPIS_LAZULI, 8)),
-                        6.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false)));
+        // 🕯 SHIZU — soft-retired (Phase 0 decision): its catalog table,
+        // conquest profile (ConquestPayoff) and sh_pupils skill mapping were
+        // PURGED. The enum value + auto-built mending deal are kept for
+        // old-save compatibility. No settlement generates for it.
 
         // 🌐 EASTERN EMPIRE (re-themed from otherworlders) — exotic magitech
-        // goods (small set; deal ids keep the ow_ prefix).
+        // goods. Covenant milestone added in Phase 1 (cov_eastern_empire,
+        // see buildCovenantDeals). Deal ids keep the ow_ prefix.
         map.put("eastern_empire", List.of(
                 new DealSpec("ow_curios", "Curios from Your World",
                         new SupplyItems(Items.GLASS, 32),

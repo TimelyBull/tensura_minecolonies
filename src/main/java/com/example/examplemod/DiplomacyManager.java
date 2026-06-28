@@ -228,7 +228,11 @@ public final class DiplomacyManager {
                     "luminous", net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE,
                     "falmuth", net.minecraft.world.effect.MobEffects.DAMAGE_BOOST,
                     "milim", net.minecraft.world.effect.MobEffects.DAMAGE_BOOST,
-                    "eurazania", net.minecraft.world.effect.MobEffects.MOVEMENT_SPEED);
+                    "eurazania", net.minecraft.world.effect.MobEffects.MOVEMENT_SPEED,
+                    // Phase 1 (faction-rewards roadmap) — parity perks.
+                    "leon", net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE,           // fire knights
+                    "eastern_empire", net.minecraft.world.effect.MobEffects.ABSORPTION,      // imperial shields
+                    "clayman", net.minecraft.world.effect.MobEffects.NIGHT_VISION);          // spy's insight
 
     /** Daily caravan goods per PACT faction (trade access — faction
      *  wares without a shop UI; the authoring seam for more). */
@@ -238,7 +242,11 @@ public final class DiplomacyManager {
             "luminous", List.of(new ItemStack(Items.GOLD_INGOT, 6), new ItemStack(Items.DIAMOND, 2)),
             "falmuth", List.of(new ItemStack(Items.IRON_INGOT, 16), new ItemStack(Items.EMERALD, 4)),
             "milim", List.of(new ItemStack(Items.COOKED_PORKCHOP, 16), new ItemStack(Items.EMERALD, 4)),
-            "eurazania", List.of(new ItemStack(Items.LEATHER, 12), new ItemStack(Items.EMERALD, 4)));
+            "eurazania", List.of(new ItemStack(Items.LEATHER, 12), new ItemStack(Items.EMERALD, 4)),
+            // Phase 1 (faction-rewards roadmap) — parity caravans.
+            "leon", List.of(new ItemStack(Items.GOLD_INGOT, 8), new ItemStack(Items.BLAZE_ROD, 4)),
+            "eastern_empire", List.of(new ItemStack(Items.IRON_INGOT, 12), new ItemStack(Items.AMETHYST_SHARD, 6)),
+            "clayman", List.of(new ItemStack(Items.EMERALD, 6), new ItemStack(Items.ENDER_PEARL, 4)));
 
     // --- the alliance prompt (replaces the pact milestone deal) ---
     /** Re-send an unanswered alliance prompt after this long (covers a

@@ -8,7 +8,20 @@ Copy the relevant version's section into the CurseForge release notes on each up
 
 ## [Unreleased]
 
-_Nothing yet._
+### Changed
+- **Allying with Leon or the Eastern Empire now gives the same perks as the
+  other factions.** Both were missing their alliance rewards. Now each offers a
+  daily caravan, an alliance buff while you're allied (Leon → Fire Resistance,
+  Eastern Empire → Absorption), and a final "Covenant" milestone deal so the
+  alliance can reach its highest tier like the others.
+- **The Moderate Harlequin Alliance now sends caravans and grants an alliance
+  buff too** — themed to its spy/manipulation streak (Night Vision, plus
+  emeralds and ender pearls in its caravan).
+- **Retired faction tidy-up.** Shizu (long since soft-retired and not part of
+  normal play) no longer carries leftover deal/reward data.
+
+_(All faction features are off by default — turn on the faction system in the
+config to see any of this.)_
 
 ## [0.1.21] - 2026-06-28
 

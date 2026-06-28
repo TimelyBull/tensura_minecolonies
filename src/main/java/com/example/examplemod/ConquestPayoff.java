@@ -78,8 +78,7 @@ public final class ConquestPayoff {
         PROFILES.put("falmuth", new CitizenProfile(16, Skill.Stamina, 22, Skill.Strength, 14, "soldiers"));
         // Luminous — the Holy Empire: clergy-mages & scholars.
         PROFILES.put("luminous", new CitizenProfile(12, Skill.Mana, 22, Skill.Knowledge, 14, "clergy"));
-        // Shizu — fire-mage pupils (her teacher's lineage).
-        PROFILES.put("shizu", new CitizenProfile(10, Skill.Mana, 22, Skill.Focus, 12, "pupils"));
+        // (Shizu profile PURGED — Phase 0 decision: soft-retired, not raidable.)
         // Leon — a demon lord's elite retinue.
         PROFILES.put("leon", new CitizenProfile(12, Skill.Strength, 22, Skill.Mana, 14, "retainers"));
         // Eastern Empire (re-themed from otherworlders) — magitech military
