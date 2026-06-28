@@ -1,12 +1,11 @@
 package com.example.examplemod.mixin;
 
-import com.example.examplemod.ExampleMod;
+import com.example.examplemod.Config;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.mojang.logging.LogUtils;
 import io.github.manasmods.tensura.entity.ai.behaviour.TensuraBehaviourHelper;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.level.Level;
 import org.slf4j.Logger;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -37,9 +36,14 @@ import java.util.function.Predicate;
  * subordinate has a non-null owner UUID matching the citizen's colony
  * owner. Mutually exclusive code paths.
  *
+ * Aggression level is config-gated ({@code citizenAggression}: OFF / MEDIUM /
+ * HIGH, default OFF — replaces the old {@code tensuraHostileToCitizens}
+ * gamerule). OFF = citizens never added as prey; HIGH = unconditional prey;
+ * MEDIUM = a stable ~50% split per (mob, citizen) pair.
+ *
  * Verification: the first invocation logs once at INFO so we can confirm
- * the mixin applied and weaved. Look for "[TM] hostile-prey mixin applied"
- * in the log after spawning any innately-hostile Tensura mob.
+ * the mixin applied and weaved. Look for "[TM] citizen-aggression mixin
+ * applied" in the log after spawning any innately-hostile Tensura mob.
  */
 @Mixin(TensuraBehaviourHelper.class)
 public abstract class TensuraBehaviourHelperMixin {
@@ -52,23 +56,40 @@ public abstract class TensuraBehaviourHelperMixin {
             method = "getAnimalPreyPredicate",
             at = @At("RETURN")
     )
-    private static Predicate<LivingEntity> tensura$includeCitizens(Predicate<LivingEntity> original) {
+    private static Predicate<LivingEntity> tensura$includeCitizens(Predicate<LivingEntity> original, LivingEntity mob) {
         if (!TM$LOGGED_APPLY) {
             TM$LOGGED_APPLY = true;
-            TM$LOG.info("[TM] hostile-prey mixin applied — citizens added as prey for innately-hostile Tensura mobs (gamerule-gated)");
+            TM$LOG.info("[TM] citizen-aggression mixin applied — citizens added as prey for innately-hostile Tensura mobs (config-gated)");
         }
         return original.or(target -> {
             if (!(target instanceof AbstractEntityCitizen)) return false;
-            // Gamerule gate. Null Key means commonSetup hasn't run yet
-            // (shouldn't happen on a live server, but be defensive).
-            if (ExampleMod.RULE_HOSTILE_TO_CITIZENS == null) return true;
-            Level level = target.level();
-            if (!level.getGameRules().getBoolean(ExampleMod.RULE_HOSTILE_TO_CITIZENS)) return false;
-            if (!TM$LOGGED_HIT) {
-                TM$LOGGED_HIT = true;
-                TM$LOG.info("[TM] hostile-prey mixin: first citizen accepted as prey ({})", target.getType());
+            // Config gate (single source of truth — replaces the old
+            // tensuraHostileToCitizens gamerule). OFF = no added aggression;
+            // HIGH = unconditional prey; MEDIUM = about half.
+            Config.AggressionLevel level = Config.citizenAggression();
+            switch (level) {
+                case OFF:
+                    return false;
+                case HIGH:
+                    if (!TM$LOGGED_HIT) {
+                        TM$LOGGED_HIT = true;
+                        TM$LOG.info("[TM] citizen-aggression (HIGH): first citizen accepted as prey ({})", target.getType());
+                    }
+                    return true;
+                case MEDIUM:
+                default:
+                    // Stable ~50% split per (mob, citizen) pair from their
+                    // entity ids — deterministic, so a given mob consistently
+                    // sees a given citizen as prey-or-not (no per-tick
+                    // re-roll / flicker). Across the population this halves
+                    // how often mobs lock onto colonists.
+                    boolean prey = ((mob.getId() * 31 + target.getId()) & 1) == 0;
+                    if (prey && !TM$LOGGED_HIT) {
+                        TM$LOGGED_HIT = true;
+                        TM$LOG.info("[TM] citizen-aggression (MEDIUM): first citizen accepted as prey ({})", target.getType());
+                    }
+                    return prey;
             }
-            return true;
         });
     }
 }

@@ -32,7 +32,10 @@ full A–E as-built records. Remaining deferred follow-ons:
   loot-chest pool) wants a rebalance/redesign pass. Decide what a conquest
   should actually award per faction and retune the `CitizenProfile` counts /
   skill grants / `factionRewardPool` accordingly. Separate from the worldgen
-  rework.
+  rework. **NOW SCOPED (2026-06-27):** folded into the broader per-faction
+  reward review — see [docs/faction-rewards-roadmap.md](faction-rewards-roadmap.md),
+  which covers BOTH the raid/conquest payoff and the diplomacy rewards on one
+  per-faction checklist (this conquest retune is its Phase 2).
 - **Settlement placement polish — Stage 6 (IMPLEMENTED 2026-06-27, pending more
   visual tuning).** Part A laid one continuous flat plateau (`levelTownFoundation`);
   on user feedback ("looks better but cuts some land, generates at tree height,
@@ -195,7 +198,107 @@ Open questions for the eventual design pass:
 - PvP-safety + consent (opt-in, server config) so the faction/war
   machinery can't grief a non-participating player's colony.
 
-## Creative-tab polish — name + icon (2026-06-27)
+## Custom items need real uses — Masterwork Forging Core etc. (2026-06-27)
+
+The mod ships several custom items that are craftable / obtainable but have
+**no functional use** — they're dead-end trophies. They need a purpose
+(ingredient in a recipe, a consumable effect, a building/block input, etc.).
+
+- **Masterwork Forging Core** (`ExampleMod.MASTERWORK_FORGING_CORE`,
+  recipe `CDC / DPD / CDC` of High Quality Magic Crystal + Diamond Block +
+  Pure Magisteel Ingot). Currently it's craftable AND given as the Dwargon
+  Covenant reward (`cov_dwargon` "The Masterwork Commission"), but **nothing
+  consumes it** — you can make/receive one and then do nothing with it.
+  - NOTE (2026-06-27): it was DELIBERATELY left OUT of the new Barrier Core
+    recipes (those mirror the Magicule Storage progression instead — silver
+    frame + tiered magisteel + tiered magic crystal). A good future home for
+    the Forging Core would be a premium/endgame craft (e.g. the top Barrier
+    tier, a Covenant-only upgrade, or a Tensura-gear masterwork recipe) so the
+    Dwargon reward and the craft both matter.
+- **Apito Nectar / Apito's Jelly** (`APITO_NECTAR`, `APITOS_JELLY`) — Apito's
+  Jelly is a deal `SupplyItems` input (Milim `cov_milim`), but otherwise these
+  are also under-used; review whether they need consumable effects or further
+  recipe roles.
+
+General task: audit every custom item for "can the player actually USE this?"
+and give the trophy items a real sink.
+
+## Citizen aggression — a "Progressive" level (2026-06-27)
+
+Idea (user-requested 2026-06-27): add a fourth value to the `citizenAggression`
+config (today `OFF` / `MEDIUM` / `HIGH`, default OFF — see
+`Config.AggressionLevel` + `TensuraBehaviourHelperMixin`, and decisions in the
+CHANGELOG). **PROGRESSIVE** would SCALE how aggressive innately-hostile Tensura
+mobs are toward colonists based on how powerful / developed the colony is —
+weak/young colonies are mostly left alone, strong/established ones draw more
+aggression. Makes the threat ramp with the player instead of being a flat
+on/off.
+
+What it could scale on (pick one or a blend, all already reachable):
+- **Total colony EP** — sum of named race-citizens' / colony strength (the raid
+  system already computes a colony-strength EP figure in `TensuraRaids`; reuse
+  that math so raids and aggression share one "how strong is this colony"
+  number).
+- **Hut / building levels** — sum or max building level (MineColonies
+  `IBuildingManager`), a proxy for development.
+- **Citizen count** — simplest proxy; already used for envoy unlocks.
+
+Implementation sketch:
+- The mixin's MEDIUM branch already computes a stable per-(mob, citizen)
+  acceptance coin. PROGRESSIVE would replace the fixed ~50% with a
+  colony-derived probability `p` (e.g. `p = clamp(strength / THRESHOLD, 0..1)`),
+  still hashed to a stable per-pair decision so it doesn't flicker.
+- Resolve the citizen's colony in the predicate (citizen → `getCitizenColonyHandler`
+  / colony id) to read its strength. Cache per-colony so it isn't recomputed
+  every targeting check (the per-second schedulers are a natural home to
+  refresh a cached `colonyId → aggressionProbability` map).
+- Tunable threshold(s) as named constants; decide the curve (linear vs. eased)
+  and a floor so brand-new colonies aren't instantly hunted.
+
+Open question: which input feels best (EP vs. hut levels vs. count) — EP tracks
+actual power, hut levels track investment/visibility. EP is the most
+thematically "they notice strong magicule signatures," and reuses existing raid
+math.
+
+## Barrier projectile blocking — close the cheese gap (2026-06-27)
+
+Balance change (user-requested 2026-06-27): the barrier field should also
+stop **projectiles** from passing through, in BOTH directions, to prevent
+cheesing a defended position. Today the field pushes back / drains
+barrier_blocked-tagged hostiles and raiders (entity contact), but
+projectiles fly straight through, so a player (or their citizens /
+subordinates) can stand safely behind a barrier and shoot out, and ranged
+attackers can shoot in.
+
+Specifically block (do not let pass the active wall):
+- **Player** projectiles (arrows, thrown items, Tensura ranged skill
+  projectiles the player fires).
+- **Colonist** projectiles (e.g. archer guards firing out).
+- **Subordinate** projectiles (named Tensura mobs firing out).
+- (Already-intended) hostile / raider projectiles firing IN.
+
+Notes / unknowns to resolve when scoped:
+- The existing spherical/sectional barrier already does some
+  **projectile blocking** for the spinning shell (see commits
+  `07303b8 feat(barrier): spherical sectional barrier redesign + projectile
+  blocking` and `54d3f5a` "block enemy skills"). Confirm what that path
+  already catches and whether it's direction-aware — this may be
+  extending existing logic rather than net-new.
+- Decide the rule cleanly: block ANY projectile crossing an active wall
+  layer regardless of owner (simplest, symmetric, hardest to cheese), vs.
+  owner-aware exceptions. User intent = block player/colonist/subordinate
+  outbound too, so the simple "block all crossing projectiles" rule
+  matches.
+- Implementation likely a per-tick AABB/segment test against the active
+  wall footprint in `BarrierBlockEntity`, consuming barrier pool on a
+  block (mirror the contact-drain idiom), or a projectile-impact hook.
+
+## Creative-tab polish — name + icon (2026-06-27) — ✅ DONE (2026-06-27)
+
+Implemented: tab title key switched to `itemGroup.tensura_minecolonies`
+("Tensura MineColonies") and the icon switched from the MDK `EXAMPLE_ITEM`
+to `DRAGO_NOVA` in `ExampleMod.EXAMPLE_TAB`. The broader MDK-rename debt
+(package / class / asset-namespace) is still outstanding (see below).
 
 Cosmetic housekeeping (user-reported 2026-06-27): the mod's creative-menu
 tab still shows the **MDK placeholder** — title "Example Mod Tab" and the

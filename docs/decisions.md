@@ -2213,6 +2213,42 @@ health scales ×6 across tiers (10k→60k) but pool capacity only ×2.5
 spent solely on layer upkeep + repairs (a repair costs exactly the health it
 restores, 1:1). Whole-barrier fall still gated on pool 0; refuel resets sections.
 
+## Faction rewards review — Phase 0 decisions (2026-06-27)
+
+Decisions locked before the per-faction reward build (full plan:
+docs/faction-rewards-roadmap.md). Three ambiguities resolved:
+
+**Shizu — purge reward data, keep the enum.** Shizu is soft-retired: no
+settlement generates and it can't be raided, yet it still carried a
+`ConquestPayoff.PROFILES` entry, a full `DealSpec.FACTION_DEALS` table, and an
+`sh_pupils → Heat Resistance` `SKILL_REWARDS` mapping. Decision: REMOVE those
+three (profile, deal table, skill mapping) so Shizu is truly dormant and stops
+polluting future reward reviews. KEEP the `BossFaction.SHIZU` enum value (old
+saves reference the id) and the auto-built `MENDING_DEALS` entry (built by a
+loop over all factions; harmless). Why: dead reward data on a retired faction
+is pure confusion with no gameplay reach.
+
+**Tempest — Self-Regeneration is the single capstone/conquest skill.** Tempest
+had TWO deals mapped to skills: `tp_joyful → Self-Regeneration` and
+`ja_sages → Thought Communication` (a leftover from the Jura-Alliance→Tempest
+merge). `covenantSkillFor` returns the first match in deal order, which is
+`tp_joyful` (Self-Regeneration). Decision: KEEP Self-Regeneration as the one
+skill and DROP the `ja_sages` entry from `SKILL_REWARDS` (the deal itself
+stays; it just no longer grants a skill). Why: a strong passive combat reward
+beats a utility/comms skill as a player payout, and Tempest's mental/sage angle
+was already de-emphasized post-merge (the Jura Sage training deal was dropped).
+Removes the first-match ambiguity.
+
+**Clayman — gets THEMED PACT perks (spy/manipulation), not parity or nothing.**
+Clayman (Moderate Harlequin Alliance) was the only abstract faction missing
+`FACTION_GOODS` + `ALLIANCE_BUFFS` (Milim and Eurazania already have them).
+Decision: ADD both, flavored to its intel/manipulation identity (shady
+valuables as caravan goods + a stealth/insight-flavored alliance buff) rather
+than a generic copy or leaving it empty. Why: parity with the other abstract
+factions, while keeping Clayman distinct — it already trades in intel + summon
+at the Covenant tier, so its PACT perks should read as "information/edge," not
+"more bread." Exact item list + MobEffect chosen in Phase 1.
+
 **Barrier push is purely horizontal; render uses a depth-write-off type.** The
 old radial push pointed partly upward and flung mobs up the dome → now always
 horizontal (`pushFromShell`, Y preserved). Coincident translucent panels

@@ -111,16 +111,6 @@ public class ExampleMod {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     /**
-     * Gamerule: when {@code true}, innately-hostile Tensura mobs treat colony
-     * citizens as valid prey alongside players (the Option B / mixin behaviour).
-     * When {@code false}, citizens are invisible to Tensura's hostile-prey
-     * predicate and the mob's normal player/animal targeting is unaffected.
-     * Default {@code true} so existing worlds keep working as before.
-     * Registered in {@link #commonSetup}; the mixin reads this Key.
-     */
-    public static net.minecraft.world.level.GameRules.Key<net.minecraft.world.level.GameRules.BooleanValue> RULE_HOSTILE_TO_CITIZENS;
-
-    /**
      * Gamerule: maximum distinct non-COLONIST envoy races a single player can
      * ever receive across all their colonies. Default {@code 2} — so out of
      * the (eventually) three+ non-colonist races, each player only ever sees
@@ -309,9 +299,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> EXAMPLE_TAB =
             CREATIVE_MODE_TABS.register("example_tab", () -> CreativeModeTab.builder()
-                    .title(Component.translatable("itemGroup.examplemod"))
+                    .title(Component.translatable("itemGroup.tensura_minecolonies"))
                     .withTabsBefore(CreativeModeTabs.COMBAT)
-                    .icon(() -> EXAMPLE_ITEM.get().getDefaultInstance())
+                    .icon(() -> DRAGO_NOVA.get().getDefaultInstance())
                     .displayItems((parameters, output) -> {
                         output.accept(EXAMPLE_ITEM.get());
                         output.accept(BARRIER_BLOCK_ITEM.get());
@@ -7503,16 +7493,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         FactionProfile.validateWeb();
         // Subscribe to MineColonies' own event bus (separate from NeoForge's).
         event.enqueueWork(() -> {
-            // Register the hostility gamerule. GameRules.register mutates a
-            // static map and must happen on the main thread before any world
-            // loads — enqueueWork gives us both. Default TRUE preserves the
-            // current behaviour for existing worlds.
-            RULE_HOSTILE_TO_CITIZENS = net.minecraft.world.level.GameRules.register(
-                    "tensuraHostileToCitizens",
-                    net.minecraft.world.level.GameRules.Category.MOBS,
-                    net.minecraft.world.level.GameRules.BooleanValue.create(true));
-            LOGGER.info("[TM] gamerule 'tensuraHostileToCitizens' registered (default true)");
-
+            // Citizen-aggression is now a config option (Config.CITIZEN_AGGRESSION,
+            // OFF / MEDIUM / HIGH, default OFF) read by TensuraBehaviourHelperMixin —
+            // the old tensuraHostileToCitizens gamerule was removed.
             RULE_MAX_NON_COLONIST_ENVOYS = net.minecraft.world.level.GameRules.register(
                     "tensuraMaxNonColonistEnvoys",
                     net.minecraft.world.level.GameRules.Category.PLAYER,

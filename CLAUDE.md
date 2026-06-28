@@ -13,6 +13,7 @@ Planning documents live in `docs/` and should be kept current as work progresses
 - [docs/dependencies.md](docs/dependencies.md) — exact jar versions in `libs/` and confirmed registry IDs; update when new deps are added
 - [docs/future-ideas.md](docs/future-ideas.md) — recorded (not scheduled) design ideas / deferred follow-ons
 - [docs/user-suggestions.md](docs/user-suggestions.md) — community feature requests captured for future consideration
+- [docs/faction-rewards-roadmap.md](docs/faction-rewards-roadmap.md) — per-faction review of raid/conquest + diplomacy rewards (status matrix, gaps, checklist, phased plan)
 - [CHANGELOG.md](CHANGELOG.md) — player-facing, Keep-a-Changelog style, versioned (Added/Changed/Fixed). **MAINTAIN IT:** every change-set appends an entry (new version heading, or under `[Unreleased]`), written in plain player terms (it's copied into CurseForge release notes) — no API names/class names. Bump `mod_version` in `gradle.properties` to match the version heading on a release.
 
 ## Player wiki (`wiki/` + `mkdocs.yml`)

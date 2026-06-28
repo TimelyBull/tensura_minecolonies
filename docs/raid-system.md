@@ -210,9 +210,11 @@ biome-hardcoded scheduler are the closed parts; we don't use them.
 ### #2 Spawning + threatening the colony — mostly already built
 
 - **Raiders → citizens:** the existing hostility work
-  (`tensuraHostileToCitizens` gamerule, see
+  (the `citizenAggression` config — OFF/MEDIUM/HIGH, default OFF; was the
+  `tensuraHostileToCitizens` gamerule — see
   [hostile-mob-targets-citizens.md](hostile-mob-targets-citizens.md))
-  already makes innately-hostile Tensura mobs target citizens. Belt and
+  can make innately-hostile Tensura mobs target citizens. Note it now
+  defaults OFF, so raids rely on the assist below regardless. Belt and
   braces: a per-second target assist sets the SmartBrain `ATTACK_TARGET`
   (via SmartBrainLib's `BrainUtils.setTargetOfEntity`) to the nearest
   citizen when a raider has no target.

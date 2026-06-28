@@ -8,7 +8,31 @@ Copy the relevant version's section into the CurseForge release notes on each up
 
 ## [Unreleased]
 
-_Nothing yet — 0.1.3 open for development._
+_Nothing yet._
+
+## [0.1.21] - 2026-06-28
+
+### Added
+- **The four Barrier Cores are now craftable.** Each tier is built like its
+  matching Magicule Storage block — a silver-ingot frame with a vertical
+  magic-crystal core and magisteel sides — and uses the same materials that
+  climb tier by tier: Tier 1 Low Quality Magic Crystal + Low Magisteel, Tier 2
+  Medium Crystal + High Magisteel, Tier 3 High Crystal + Pure Magisteel, Tier 4
+  High Crystal + Hihiirokane. (Previously the Barrier Cores had no recipe.)
+
+### Changed
+- **Hostile Tensura mobs no longer hunt your colonists by default, and you can
+  now tune how aggressive they are.** A new "Citizen aggression" config option
+  controls it: **Off** (the new default) means Tensura monsters add no extra
+  aggression toward colonists; **Medium** is about half as aggressive; **High**
+  is the old behaviour (they treat colonists as prey on sight). Existing worlds
+  switch to Off too — set it to Medium or High in the config if you want the
+  monsters to threaten your colony. (This replaces the old
+  `tensuraHostileToCitizens` gamerule.)
+- **The mod's creative-menu tab now shows its real name and icon.** It was
+  still showing the template placeholder ("Example Mod Tab" with a
+  missing-texture checkerboard square). It's now titled "Tensura MineColonies"
+  with the Drago Nova item as its icon.
 
 ## [0.1.2] - 2026-06-27
 

@@ -229,6 +229,24 @@ MC's monster set — fix is a 6-line tag JSON.
 
 ---
 
+## UPDATE (2026-06-27) — now a 3-level config, default OFF
+
+Player feedback was that citizen aggression was too high. The mixin's gate
+changed from the boolean `tensuraHostileToCitizens` gamerule (default true) to
+the `Config.CITIZEN_AGGRESSION` enum config (`citizenAggression`:
+**OFF / MEDIUM / HIGH, default OFF**):
+- **OFF** — the prey branch returns false; citizens are never added as prey
+  (back to vanilla-Tensura behaviour, no added aggression).
+- **HIGH** — the original Option-B behaviour (unconditional prey on sight).
+- **MEDIUM** — a stable ~50% split per `(mob, citizen)` pair derived from their
+  entity ids: deterministic (no per-tick re-roll / flicker), so a given mob
+  consistently treats a given citizen as prey-or-not; across the population
+  mobs lock on about half as often.
+
+The handler captures the mob via `@ModifyReturnValue`'s param-capture so the
+MEDIUM coin can key on both ids. Everything below is the original
+investigation that landed Option B.
+
 ## SCOPE confirmation — clean cut
 
 For the first pass:
