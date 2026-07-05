@@ -439,6 +439,21 @@ public class BarrierBlockEntity extends BlockEntity {
      *  the mob field sweep AND the projectile-owner check. */
     static boolean isBlockableHostile(Entity e) {
         if (e == null) return false;
+        // A TAMED, owned creature is the OWNER's own subordinate — never treat it
+        // as a raider. This covers BOTH the named ISubordinate goblins/orcs AND
+        // tamed Tensura mounts/beasts (direwolves, etc.): they all extend
+        // TamableAnimal / OwnableEntity, so a non-null owner UUID = tamed. Without
+        // this, a tamed mob whose entity TYPE is in the hostile-monster tag (a
+        // direwolf is) gets classified hostile and the field pushes it, drains
+        // fuel, and drives the swing-at-block animation — i.e. the player's own
+        // pet "attacks the barrier on its own." A WILD (untamed) one has a null
+        // owner and still counts as a genuine threat. See docs/user-bug-reports.md
+        // (2026-07-04). This exclusion is checked FIRST, but raid mobs / MC
+        // raiders are never tamed, so it can't accidentally spare a real raider.
+        if (e instanceof net.minecraft.world.entity.OwnableEntity ownable
+                && ownable.getOwnerUUID() != null) {
+            return false;
+        }
         if (e instanceof com.minecolonies.api.entity.mobs.AbstractEntityMinecoloniesRaider) return true;
         if (e.hasData(Attachments.RAID_TAG.get())) return true;
         return e.getType().builtInRegistryHolder().is(TensuraRaids.HOSTILE_MONSTER_TAG);
