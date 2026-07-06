@@ -8,7 +8,81 @@ Copy the relevant version's section into the CurseForge release notes on each up
 
 ## [Unreleased]
 
+### Added
+- **New setting: "Citizens Transform to Defend Raids"** (on by default). When a
+  colony is raided, strong non-guard Tensura-race citizens transform into their
+  monster body and fight with skills, then change back when the raid ends. If you
+  don't want your residents turning into monsters mid-raid, turn this off — they
+  flee like ordinary colonists instead (guards still guard). Turning it off also
+  reverts anyone currently transformed. (Per-world setting — reload the world
+  after changing it.)
+- **Race colonies now breed their own kind.** A goblin/orc/dwarf/lizardman
+  colony that grows a new resident through normal colony growth now produces a
+  **baby of that race**, born to its actual colony parents, that grows up like
+  any citizen — instead of a plain human villager. The whole colony stays true
+  to its race as it grows, with no naming step required for each newcomer.
+
+### Fixed
+- **Your own tamed creatures no longer attack the magicule barrier.** A tamed
+  Tensura creature (a dire wolf, for example) standing near your barrier could be
+  mistaken for a raider — the barrier would shove it back, make it swing at the
+  block, and lose fuel doing so. The barrier now ignores any creature you've
+  tamed, so your pets and subordinates can wander through your own barrier
+  freely. Wild, untamed monsters are still blocked as before.
+- **Defending citizens no longer slaughter your livestock.** When a strong
+  citizen transformed to help fight off a raid, it could run off and kill every
+  passive animal (and other harmless mobs) in the area instead of sticking to the
+  attackers. Transformed defenders now only ever target the raiders and other
+  genuine hostiles — never pigs, cows, villagers, or your own creatures. (They
+  also proactively engage other hostile mobs near the colony now, not just the
+  specific raid party, but stay tethered to your colony instead of chasing a
+  stray monster off across the map.)
+- **Subordinates no longer stay in "attack everything" mode after patrolling.**
+  Taking a creature off the "Patrol Colony Outskirts" command (by cycling its
+  command back to Follow, or changing its command any other way) left it stuck in
+  the aggressive stance patrol puts it in — so it would then attack every mob
+  around you, peaceful or not. Leaving patrol now returns the creature to its
+  calm stance: it follows you and only fights back when attacked.
+- **Rival faction towns no longer generate in the wrong place.** Automatically
+  generated rival settlements are now built only in the Overworld. Previously
+  they could try to generate in the Nether, where the code mistook the bedrock
+  roof for the ground — burying the town in the ceiling and spawning its
+  defenders and citizens on top of the roof. Faction towns are Overworld
+  content, so generation (and the `/rivalcolony spawn` debug command) is now
+  refused elsewhere with a clear message.
+- **Your colonists can no longer be scared to death.** Colony citizens are now
+  immune to the Fear effect, so using a fear-inducing skill near your own town
+  won't slowly kill your residents. This only protects citizens living in the
+  colony — a named follower out in its monster form (and hostile boss-type
+  enemies like a betrayer) can still be feared as normal.
+- **Race colonies no longer fill up with ordinary human villagers.** In a
+  goblin/orc colony, once the colony grew past its first few residents it
+  started adding plain colonists (with random names) straight into the town
+  hall, and naming a mob couldn't replace them. Normal colony growth now stays
+  on-race (see "breed their own kind" above).
+- **The "Enable Faction System" setting now works from the in-game config
+  menu.** Previously, changing it in the Mods → Config screen appeared to do
+  nothing and you had to edit the config file by hand. It's now a per-world
+  setting: change it in the menu and reload the world to apply (the menu will
+  prompt you to). Note this moves the setting out of the global config file into
+  each world's own config, so existing setups will show it back at its default
+  (off) and can re-enable it per world.
+
 ### Changed
+- **Rival faction towns are bigger and better built.** Their buildings now
+  generate at their level-4 (well-established) size instead of level-1 starters,
+  so a conquered town looks like a proper city (taverns cap at level 3, the
+  largest the game provides). The Eastern Empire now builds in a heavy stone
+  style, and the Jura-Tempest Federation builds as a normal medieval-oak town
+  instead of a jungle treehouse village. Towns are also spaced out more so the
+  larger buildings don't overlap. (Only affects newly generated settlements.)
+- **Leon and the Eastern Empire now offer a full slate of alliance deals.** Both
+  had only a handful of quests; each now has a complete set (about ten),
+  themed to the faction (fire/martial for Leon, magitech/imperial for the
+  Eastern Empire), with rewards on par with the other major factions.
+- **The Moderate Harlequin Alliance's final alliance deal now gives a reward.**
+  Its Covenant milestone previously paid out nothing; it now grants emeralds
+  like the others.
 - **Allying with Leon or the Eastern Empire now gives the same perks as the
   other factions.** Both were missing their alliance rewards. Now each offers a
   daily caravan, an alliance buff while you're allied (Leon → Fire Resistance,

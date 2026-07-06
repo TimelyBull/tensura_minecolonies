@@ -214,7 +214,7 @@ public record DealSpec(
                                 net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
                                         "tensura", "pure_magisteel_ingot")), 8),
                         new ItemStack(ExampleMod.MASTERWORK_FORGING_CORE.get(), 1))),
-                List.of(new ItemStack(Items.EMERALD, 64)),
+                List.of(new ItemStack(Items.EMERALD, 48)),
                 10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
         map.put("tempest", new DealSpec("cov_tempest", "A Thriving Metropolis",
                 new Population(25),
@@ -245,7 +245,8 @@ public record DealSpec(
         map.put("clayman", new DealSpec("cov_clayman", "Souls for the Core",
                 new SlayEntities(java.util.Set.of("minecraft:villager"), 10,
                         "villagers (their souls feed the Charybdis core)"),
-                List.of(),
+                // Phase 3: was empty; Clayman is TIER I (minor) → 32 emeralds.
+                List.of(new ItemStack(Items.EMERALD, 32)),
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         // Phase 1 (faction-rewards roadmap) — Leon + Eastern Empire were
         // raidable towns with NO Covenant milestone; add one each so their
@@ -398,43 +399,44 @@ public record DealSpec(
         map.put("dwargon", List.of(
                 new DealSpec("dw_iron_tribute", "Iron for the Forges",
                         new SupplyItems(Items.IRON_INGOT, 64),
-                        List.of(new ItemStack(Items.IRON_INGOT, 16), new ItemStack(Items.GOLD_INGOT, 8)),
+                        List.of(new ItemStack(ten("medium_quality_magic_crystal"), 15)),
                         4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("dw_coal", "Fuel for the Forges",
                         new SupplyItems(Items.COAL, 64),
-                        List.of(new ItemStack(Items.COAL, 32), new ItemStack(Items.IRON_INGOT, 8)),
+                        List.of(new ItemStack(ten("monster_leather_b"), 12)),
                         4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("dw_silver", "Silver for the Smiths",
                         new SupplyItems(ten("silver_ingot"), 32),
-                        List.of(new ItemStack(ten("low_magisteel_ingot"), 6),
-                                new ItemStack(ten("magic_stone"), 8)),
+                        List.of(new ItemStack(ten("magic_stone"), 2),
+                                new ItemStack(ten("low_magisteel_nugget"), 6)),
                         5.0, 5.0, 4 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("dw_magisteel_quota", "Magisteel Quota",
-                        new SupplyItems(ten("low_magisteel_ingot"), 16),
+                        new SupplyItems(ten("low_magisteel_ingot"), 8),
                         List.of(new ItemStack(ten("high_magisteel_ingot"), 3),
                                 new ItemStack(Items.IRON_BLOCK, 8)),
                         7.0, 5.0, 6 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("dw_blacksmith", "A Proper Smithy",
                         new BuildingLevel("blacksmith", 3),
                         List.of(new ItemStack(Items.IRON_BLOCK, 8), new ItemStack(Items.COAL, 16),
-                                new ItemStack(Items.STONE_BRICKS, 16)),
+                                new ItemStack(ten("short_sword_schematic"), 1)),
                         6.0, 5.0, 12 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("dw_smeltery", "Fires of Industry",
                         new BuildingLevel("smeltery", 3),
-                        List.of(new ItemStack(Items.IRON_BLOCK, 12),
-                                new ItemStack(ten("low_magisteel_ingot"), 4)),
+                        List.of(new ItemStack(ten("magic_staff_schematic"), 1),
+                                new ItemStack(Items.COAL_BLOCK, 6),
+                                new ItemStack(ten("low_magisteel_ingot"), 2)),
                         6.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("dw_grand_forge", "The Grand Forge",
                         new BuildingLevel("blacksmith", 5),
-                        List.of(new ItemStack(ten("pure_magisteel_ingot"), 1),
-                                new ItemStack(ten("high_quality_magic_crystal"), 2),
-                                new ItemStack(Items.DIAMOND, 4)),
+                        List.of(new ItemStack(ten("great_sword_schematic"), 1),
+                                new ItemStack(ten("high_magisteel_ingot"), 4)),
                         8.0, 5.0, 20 * DAY, 0, FactionTier.ALLIED, false),
-                new DealSpec("dw_industrious", "An Industrious People",
-                        new Population(18),
-                        List.of(new ItemStack(Items.IRON_BLOCK, 8), new ItemStack(Items.COAL, 16),
-                                new ItemStack(Items.STONE_BRICKS, 16)),
-                        6.0, 5.0, 20 * DAY, 0, FactionTier.FRIENDLY, false),
+                new DealSpec("dw_blades", "A Blade for Every Hand",
+                        new SupplyItems(ten("pure_magisteel_ingot"), 2),
+                        List.of(new ItemStack(ten("long_sword_schematic"), 1),
+                                new ItemStack(ten("kunai_schematic"), 1),
+                                new ItemStack(ten("magic_stone"), 8)),
+                        6.0, 5.0, 6 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("dw_strong_backs", "Strong Backs for the Mines",
                         new LendCitizens(Skill.Strength, 8, 3, 3 * DAY, 3),
                         List.of(new ItemStack(Items.GOLD_INGOT, 16),
@@ -442,10 +444,31 @@ public record DealSpec(
                         8.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("dw_artisans", "Master Artisans Abroad",
                         new LendCitizens(Skill.Creativity, 8, 2, 3 * DAY, 3),
-                        List.of(new ItemStack(ten("high_quality_magic_crystal"), 2),
-                                new ItemStack(ten("high_magisteel_ingot"), 4),
+                        List.of(new ItemStack(ten("spatial_blade_schematic"), 1),
+                                new ItemStack(ten("mithril_ingot"), 1),
+                                new ItemStack(ten("orichalcum_ingot"), 1),
                                 new ItemStack(ten("magic_tome_earth"), 1)),
-                        8.0, 5.0, 3 * DAY, 0, FactionTier.ALLIED, false)));
+                        8.0, 5.0, 3 * DAY, 0, FactionTier.ALLIED, false),
+                new DealSpec("dw_staff", "Staff of the Smiths",
+                        new SupplyItems(ten("magic_stone"), 8),
+                        List.of(new ItemStack(ten("medium_magic_staff"), 1)),
+                        6.0, 5.0, 6 * DAY, 0, FactionTier.FRIENDLY, false),
+                new DealSpec("dw_steel_thread", "Threads of Steel",
+                        new SupplyBundle(List.of(new ItemStack(Items.IRON_INGOT, 16),
+                                new ItemStack(Items.STRING, 16))),
+                        List.of(new ItemStack(ten("steel_thread"), 8)),
+                        4.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("dw_mountains_heart", "The Mountain's Heart",
+                        new SupplyBundle(List.of(new ItemStack(Items.GOLD_INGOT, 30),
+                                new ItemStack(Items.DIAMOND, 20), new ItemStack(Items.EMERALD, 10))),
+                        List.of(new ItemStack(ten("element_core_earth"), 1),
+                                new ItemStack(ten("magic_stone"), 6)),
+                        8.0, 5.0, 20 * DAY, 0, FactionTier.ALLIED, false),
+                new DealSpec("dw_sentinel", "Forge a Sentinel",
+                        new SupplyBundle(List.of(new ItemStack(ten("high_magisteel_ingot"), 4),
+                                new ItemStack(ten("magic_stone"), 1), new ItemStack(Items.BONE, 32))),
+                        List.of(new ItemStack(ten("high_magisteel_bone_golem"), 1)),
+                        8.0, 5.0, 20 * DAY, 0, FactionTier.ALLIED, false)));
 
         // 🌿 TEMPEST — building blocks, food, scrolls, water tome.
         map.put("tempest", List.of(
@@ -785,8 +808,9 @@ public record DealSpec(
                                 new ItemStack(Items.DIAMOND, 4)),
                         8.0, 5.0, 3 * DAY, 0, FactionTier.ALLIED, false)));
 
-        // 🔥 LEON — fire/flame. Small catalog; Covenant milestone added in
-        // Phase 1 (cov_leon, see buildCovenantDeals).
+        // 🔥 LEON — fire/flame. Phase 3 (faction-rewards roadmap): expanded
+        // from 4 to 10 deals at TIER II (Major) value, matching Falmuth.
+        // Covenant milestone is cov_leon (see buildCovenantDeals).
         map.put("leon", List.of(
                 new DealSpec("le_magma", "Stones of Fire",
                         new SupplyItems(Items.MAGMA_BLOCK, 32),
@@ -796,15 +820,41 @@ public record DealSpec(
                         new SupplyItems(Items.BLAZE_POWDER, 32),
                         List.of(new ItemStack(Items.BLAZE_ROD, 8), new ItemStack(Items.GLOWSTONE, 16)),
                         5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("le_coal", "Fuel for the Furnaces",
+                        new SupplyItems(Items.COAL, 64),
+                        List.of(new ItemStack(Items.BLAZE_POWDER, 16), new ItemStack(Items.IRON_INGOT, 8)),
+                        4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("le_obsidian", "Obsidian for the Keep",
+                        new SupplyItems(Items.OBSIDIAN, 16),
+                        List.of(new ItemStack(Items.GOLD_INGOT, 16), new ItemStack(Items.DIAMOND, 4)),
+                        5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("le_hearth", "A Hearth of Flame",
                         new BuildingLevel("smeltery", 3),
                         List.of(new ItemStack(Items.BLAZE_ROD, 6), new ItemStack(Items.GOLD_INGOT, 16),
                                 new ItemStack(ten("magic_tome_fire"), 1)),
                         6.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
+                new DealSpec("le_legion", "The Flame Legion",
+                        new Population(20),
+                        List.of(new ItemStack(Items.DIAMOND, 6), new ItemStack(Items.GOLD_BLOCK, 1),
+                                new ItemStack(Items.BLAZE_ROD, 8)),
+                        6.0, 5.0, 20 * DAY, 0, FactionTier.FRIENDLY, false),
+                new DealSpec("le_zealots", "A Burning Devotion",
+                        new Happiness(8.0),
+                        List.of(new ItemStack(Items.DIAMOND, 6), new ItemStack(Items.BLAZE_ROD, 8)),
+                        7.0, 5.0, 16 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("le_flamebearers", "Flamebearers Abroad",
                         new LendCitizens(Skill.Mana, 6, 2, 3 * DAY, 2),
                         List.of(new ItemStack(Items.BLAZE_ROD, 4), new ItemStack(Items.DIAMOND, 4)),
-                        6.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false)));
+                        6.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false),
+                new DealSpec("le_greater_forge", "The Greater Forge",
+                        new BuildingLevel("smeltery", 5),
+                        List.of(new ItemStack(ten("high_magisteel_ingot"), 3), new ItemStack(Items.DIAMOND, 8),
+                                new ItemStack(ten("magic_tome_enhancement"), 1)),
+                        8.0, 5.0, 20 * DAY, 0, FactionTier.ALLIED, false),
+                new DealSpec("le_knights", "Flame Knights Abroad",
+                        new LendCitizens(Skill.Strength, 8, 2, 3 * DAY, 3),
+                        List.of(new ItemStack(ten("high_magisteel_ingot"), 3), new ItemStack(Items.DIAMOND, 8)),
+                        8.0, 5.0, 3 * DAY, 0, FactionTier.ALLIED, false)));
 
         // 🕯 SHIZU — soft-retired (Phase 0 decision): its catalog table,
         // conquest profile (ConquestPayoff) and sh_pupils skill mapping were
@@ -812,8 +862,9 @@ public record DealSpec(
         // old-save compatibility. No settlement generates for it.
 
         // 🌐 EASTERN EMPIRE (re-themed from otherworlders) — exotic magitech
-        // goods. Covenant milestone added in Phase 1 (cov_eastern_empire,
-        // see buildCovenantDeals). Deal ids keep the ow_ prefix.
+        // goods. Phase 3 (faction-rewards roadmap): expanded from 4 to 10
+        // deals at TIER II (Major) value, matching Falmuth. Covenant milestone
+        // is cov_eastern_empire (see buildCovenantDeals). Deal ids keep ow_.
         map.put("eastern_empire", List.of(
                 new DealSpec("ow_curios", "Curios from Your World",
                         new SupplyItems(Items.GLASS, 32),
@@ -823,16 +874,42 @@ public record DealSpec(
                         new SupplyItems(Items.REDSTONE_BLOCK, 16),
                         List.of(new ItemStack(Items.REDSTONE, 24), new ItemStack(Items.IRON_INGOT, 8)),
                         5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("ow_amethyst", "Resonant Crystals",
+                        new SupplyItems(Items.AMETHYST_SHARD, 32),
+                        List.of(new ItemStack(Items.DIAMOND, 4), new ItemStack(Items.REDSTONE, 24)),
+                        5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("ow_copper", "Copper for the Engines",
+                        new SupplyItems(Items.COPPER_BLOCK, 16),
+                        List.of(new ItemStack(Items.REDSTONE, 24), new ItemStack(Items.IRON_INGOT, 16)),
+                        4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("ow_settlers", "Settlers from Afar",
                         new Population(15),
                         List.of(new ItemStack(Items.IRON_INGOT, 8), new ItemStack(Items.EMERALD, 8),
                                 new ItemStack(mc("scroll_area_tp"), 1)),
                         6.0, 5.0, 20 * DAY, 0, FactionTier.FRIENDLY, false),
+                new DealSpec("ow_foundry", "The Magitech Foundry",
+                        new BuildingLevel("smeltery", 3),
+                        List.of(new ItemStack(Items.IRON_BLOCK, 8), new ItemStack(Items.AMETHYST_SHARD, 8),
+                                new ItemStack(Items.REDSTONE, 16)),
+                        6.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
+                new DealSpec("ow_order", "A Well-Ordered City",
+                        new Happiness(8.0),
+                        List.of(new ItemStack(Items.DIAMOND, 4), new ItemStack(Items.AMETHYST_SHARD, 16)),
+                        7.0, 5.0, 16 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("ow_specialists", "Specialists Abroad",
                         new LendCitizens(Skill.Intelligence, 6, 2, 3 * DAY, 2),
                         List.of(new ItemStack(Items.AMETHYST_SHARD, 8), new ItemStack(Items.DIAMOND, 4),
                                 new ItemStack(ten("magic_tome_summoning"), 1)),
-                        6.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false)));
+                        6.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false),
+                new DealSpec("ow_garrison", "An Imperial Garrison",
+                        new BuildingLevel("barracks", 4),
+                        List.of(new ItemStack(Items.DIAMOND, 6), new ItemStack(Items.IRON_BLOCK, 8),
+                                new ItemStack(Items.AMETHYST_SHARD, 8)),
+                        8.0, 5.0, 20 * DAY, 0, FactionTier.ALLIED, false),
+                new DealSpec("ow_engineers", "Engineers Abroad",
+                        new LendCitizens(Skill.Dexterity, 8, 2, 3 * DAY, 3),
+                        List.of(new ItemStack(Items.DIAMOND, 8), new ItemStack(ten("high_quality_magic_crystal"), 1)),
+                        8.0, 5.0, 3 * DAY, 0, FactionTier.ALLIED, false)));
 
         return Map.copyOf(map);
     }

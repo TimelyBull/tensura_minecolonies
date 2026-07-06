@@ -343,6 +343,43 @@ adds and expects persistence. The clean fix is the mixin path above;
 it's deferred future-proofing, not worth the coremod cost until empirically
 needed.
 
+**Growth path is eventless — reproduction needs a mixin (2026-06-29).**
+`CitizenAddedModEvent` covers only INITIAL (town-hall top-up to
+`initialCitizenAmount`, default 4), RESURRECTED, HIRED, and COMMANDS. The
+actual ongoing population growth — `ReproductionManager.trySpawnChild()` →
+`createAndRegisterCivilianData()` + `spawnOrCreateCitizen()` — fires NO event
+(decompile-verified, 1.1.1319). So the event-based `onCitizenAdded`
+interception silently missed every grown citizen: a race colony filled up with
+plain human colonists once it passed `initialCitizenAmount`, and naming a wild
+mob (a separate new CitizenData) couldn't displace them. Reported as a player
+bug (docs/user-bug-reports.md). Fixed with `ReproductionManagerMixin` (the
+coremod path the note above anticipated — now empirically needed, so built).
+
+**Integrated child route over wild-mob substitution (2026-06-29).** Two shapes
+were considered for what reproduction should produce in a race colony:
+1. *Substitute a wild mob* — cancel the birth, spawn an unnamed wild race-mob at
+   the town hall, player names it (mirrors the INITIAL hook). Smaller change.
+2. *Breed a race child* — let MC create the child, then CONVERT it into a
+   citizen of the colony's race (a baby tied to its real colony parents that
+   grows up). Keeps MC's reproduction/family system intact, no per-newcomer
+   naming step.
+
+Picked (2) at the developer's direction — more integrated and more lore-true (a
+goblin village grows goblins; naming is reserved for evolution). Mechanism:
+`@WrapOperation` around `createAndRegisterCivilianData()` in `trySpawnChild`
+(gives the fresh child reference; the original is still called so MC's flow is
+untouched) → `ExampleMod.onReproductionChild` → `mintRaceChildCitizen`, which
+mints an IN_COLONY `RaceIdentity` with a randomised variant + body snapshot from
+a transient `finalizeSpawn`'d wild mob (never world-added), persists a `RaceTag`
+snapshot (the body-join / reconcile pass stamps it), and applies the race skill
+profile + named happiness. Race-gated by `pickRandomMember` (pending / legacy /
+COLONIST draw → ordinary human child). All four races; mixed colonies breed in
+proportion. Bred children are AUTO-NAMED for now (full race citizens
+immediately); leaving them unnamed-for-evolution is recorded in
+docs/future-ideas.md. Evolved (hobgoblin) appearance is not applied — Tensura's
+`evolutionState` is NBT-only with no public setter, so children render the base
+race form (correct for babies regardless).
+
 ## Stage G — race system foundation
 
 **Sealed `RaceVariantData` interface, NOT one-mega-record-fits-all or
@@ -2289,6 +2326,52 @@ Communication` from `SKILL_REWARDS`; `tp_joyful → Self-Regeneration` is the
 sole capstone/conquest skill. The `ja_sages` deal stays in the catalog (still a
 lend deal with item rewards) — it just no longer grants a skill.
 
+## Faction rewards review — Phase 3 (diplomacy balance pass) (2026-06-28)
+
+**Done out of order, BEFORE Phase 2 (conquest balance), on purpose.** The
+peaceful (diplomacy) route is the REFERENCE: raid/conquest rewards (Phase 2)
+will be tuned to MATCH each faction's peaceful value, so the peaceful value has
+to be locked first.
+
+**Philosophy: TIERED by difficulty** (user decision), not flat parity. A
+faction harder to conquer (raid) / more powerful in lore gives MORE on BOTH
+routes. For raidable factions "difficulty" = boss EP (the garrison already
+scales to it); for abstract factions it = lore power / diplomatic demand.
+
+**Tier assignment** (updated 2026-06-28 — Dwargon + Tempest moved III→II, Leon
+moved II→III). These are DOCS-ONLY design labels; nothing in code reads them.
+- **Tier III — Apex (premium rewards; Covenant 64 emeralds):** Luminous, Milim,
+  Leon.
+- **Tier II — Major (solid rewards; Covenant 48 emeralds):** Falmuth, Dwargon,
+  Tempest, Eastern Empire, Eurazania.
+- **Tier I — Minor (modest rewards; Covenant 32 emeralds):** Clayman.
+  (Shizu retired — no tier.)
+- Reconciliation the manual pass owes the new tiers: Dwargon covenant 64→48;
+  Milim + Leon covenant 48→64. (Emerald amounts are independent numbers in
+  code — the tier is just the target.)
+
+**Per-tier reward guideline** (the magnitude each faction's catalog + covenant
+should hit):
+- Tier III: top deals give diamond blocks / netherite / enchanted golden apples
+  / premium tomes; ~10 deals; Covenant 64 emeralds.
+- Tier II: top deals give diamonds (4–8) + magisteel/metals + a tome; ~10
+  deals; Covenant 48 emeralds.
+- Tier I: deals give crystals / gold / redstone + one tome; Covenant 32
+  emeralds.
+
+**Done this pass:**
+- Leon catalog expanded 4 → 10 deals at Tier II (fire/martial theme).
+- Eastern Empire catalog expanded 4 → 10 deals at Tier II (magitech/imperial).
+- `cov_clayman` reward fixed (was empty) → 32 emeralds (Tier I).
+
+**Remaining Phase 3 — catalog deals reworked MANUALLY (user-led, 2026-06-28).**
+The user is sorting through the catalog deals by hand against the updated tiers
+(full inventory: `docs/faction-rewards-roadmap.md` §7). Reconcile as part of
+that pass: Milim + Leon up to Tier III value (incl. covenant 48→64); Dwargon
+down to Tier II value (covenant 64→48); Leon's Phase-1 catalog was authored at
+Tier II and now wants a lift to III. Then Phase 2 mirrors each faction's locked
+tier on the raid side.
+
 **Barrier push is purely horizontal; render uses a depth-write-off type.** The
 old radial push pointed partly upward and flung mobs up the dome → now always
 horizontal (`pushFromShell`, Y preserved). Coincident translucent panels
@@ -2301,3 +2384,97 @@ point projectiles), so the projectile-crossing blocker missed them. A
 `LivingIncomingDamageEvent` handler cancels hostile damage to a victim inside
 the barrier when the attacker is outside an intact section in its direction,
 chipping that section.
+
+## Citizens immune to the Fear effect (2026-07-04)
+
+**Problem.** Tensura's FEAR mob effect deals fear DAMAGE every tick
+(`FearEffect.applyEffectTick`). A player casting a fear-inducing skill (Mortal
+Fear haki, etc.) anywhere near their own colony would tick their citizens down
+and kill them — an accidental self-inflicted wipe with no intent to harm.
+
+**Decision.** Block the FEAR effect from ever landing on colony citizens.
+
+**Mechanism — a NeoForge event, not a mixin.** `MobEffectEvent.Applicable`
+fires from `LivingEntity.addEffect` before the effect is added. The handler
+(`ExampleMod.onFearApplicableToCitizen`) returns `Result.DO_NOT_APPLY` when the
+target is an `AbstractEntityCitizen` and the effect is
+`TensuraMobEffects.FEAR`. No tick, no damage — the effect simply never lands.
+Chosen over a mixin because the event is the intended vanilla/NeoForge seam and
+needs no bytecode weaving. Nothing else about the citizen's effects changes;
+only FEAR is intercepted.
+
+**Scope — citizen BODY only, on purpose.** The exemption keys on
+`AbstractEntityCitizen`, the in-colony body. A named follower swapped OUT to its
+Tensura mob form (GoblinEntity/OrcEntity/…) is a different entity type, not a
+citizen, so it is fully feareable. The assassin's "Betrayer" body and any
+subordinate fighting in the field are Tensura mobs and get NO exemption — the
+mutually-exclusive entity types give this for free, no extra guard needed.
+
+**Not the `tensura:no_fear` tag.** That entity-type tag only controls whether a
+mob gains the `AvoidFearedEntityGoal` (fleeing feared entities) — it does NOT
+gate receiving the effect. Adding citizens to it would not have stopped the
+damage.
+
+## Faction settlements are Overworld-only (2026-07-04)
+
+**Problem.** Auto-generated rival towns were being placed in the Nether: buried
+in the bedrock roof, with defenders/citizens spawned above the roof (the
+2026-06-30 bug report). Root cause: every placement helper in `RivalColonies`
+resolves Y from an open-sky Overworld lookup (`groundSurfaceY` scans down from
+`Heightmap.WORLD_SURFACE`; the boss/garrison use `getHeightmapPos(WORLD_SURFACE)`),
+and `RivalColonies.tick` runs generation over `server.getAllLevels()` with **no
+dimension gate**. In a roofed dimension `WORLD_SURFACE` resolves to the bedrock
+ceiling, so buildings anchored on the roof and entities spawned on top of it.
+
+**Decision.** Gate all settlement generation to the vanilla Overworld rather
+than teach the placement code to find a floor under a roof. The worldgen
+faction-anchor structures already only target Overworld biomes, so this aligns
+the runtime with the data; and MineColonies town schematics aren't suited to
+Nether/End terrain anyway (chosen over the "make Nether placement work" option
+after asking the developer).
+
+**Mechanism.** `RivalColonies.isOverworld(level)` =
+`level.dimension().equals(Level.OVERWORLD)`, checked at three chokepoints:
+`generateColony` (ALL mode + retries + debug colony spawn) → null + warn log;
+the `tick` generation section skips `tickDwarvenVillages` +
+`tickWorldgenSettlements`; `debugSpawn` → clear player message. `tickGarrison` /
+`tickDiscovery` / `tickAssaults` need no gate — they already filter by
+`s.dimension`, and every settlement is now Overworld.
+
+**Defensive companion.** `isGroundSurface` now also excludes `Blocks.BEDROCK`,
+so a building can never anchor on the world-floor / ceiling bedrock layer even
+if a surface scan falls through to it — hardens the Overworld "below bedrock"
+half of the report independent of the dimension gate.
+
+## `enableFactionSystem` is a per-world SERVER config, not COMMON (2026-07-04)
+
+**Context.** A player reported that toggling the faction system in the in-game
+Mods → Config menu did nothing; only hand-editing the config file worked (see
+docs/user-bug-reports.md, 2026-07-04). Root cause (verified against the
+neoforge-21.1.233 bytecode): the toggle was a COMMON config, and
+`ModConfigSpec.ConfigValue.get()` returns a cached value cleared only on a
+config reload (`afterReload → resetCaches(NONE)`). The config screen's save
+writes the file but never triggers that reload, and a COMMON config is loaded
+only once per game launch — so a running session kept the stale value until a
+full reload/restart.
+
+**Decision.** Move `enableFactionSystem` into a separate per-world SERVER spec
+(`Config.SERVER_SPEC`, registered `ModConfig.Type.SERVER`) and mark it
+`.worldRestart()`. SERVER configs are stored per-world in `serverconfig/` and
+reloaded on every world load, so the in-game edit reliably applies on world
+re-entry; `worldRestart()` makes the screen prompt the player to reload rather
+than silently no-op. Chosen over keeping it COMMON + `worldRestart()` (murky
+cache-clear semantics — COMMON isn't world-reloaded) after presenting both to
+the developer.
+
+**Trade-offs (accepted).** The setting is now per-world instead of global, so
+existing setups see it back at the default (off) and re-enable per world; and on
+a dedicated server the client menu is read-only for it (NeoForge gates SERVER
+configs to single-player / not-open-to-LAN — edit the world's serverconfig
+there). `enableDefenseSwap` — the other player-facing world toggle — moved to
+`SERVER_SPEC` with the same `worldRestart()` treatment for the same reason; the
+remaining toggles (assassins, aggression, rival/Drago, MDK placeholders) stay in
+the COMMON spec. All reads still funnel through
+`WorldReputationManager.isFactionSystemEnabled()` / `Config.enableDefenseSwap()`,
+whose existing not-loaded catches return the defaults at the main menu (SERVER
+configs aren't loaded until a world is).
