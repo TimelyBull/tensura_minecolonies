@@ -36,10 +36,20 @@ import java.util.UUID;
  * <ul>
  *   <li>{@code RaidManager.isRaided()} returns true → MC's citizen
  *       flee/hide raid behaviors activate;</li>
- *   <li>NBT persistence + rehydration across save/reload through MC's
- *       own {@code EventManager};</li>
- *   <li>per-colony-tick {@code onUpdate} safety callbacks.</li>
+ *   <li>in-memory persistence while the world stays loaded, plus
+ *       per-colony-tick {@code onUpdate} safety callbacks.</li>
  * </ul>
+ *
+ * <p><b>⚠ KNOWN LIMITATION — does NOT survive save/reload.</b> Contrary to
+ * an earlier note here, MC's {@code EventManager} does NOT rehydrate this
+ * event across a save/reload: {@code EventManager.readFromNBT} hardcodes the
+ * {@code minecolonies} namespace when looking up the event type
+ * ({@code new ResourceLocation("minecolonies", name)}) and only writes the
+ * type id's PATH, so our {@code tensura_minecolonies:tensura_raid} id misses
+ * the registry lookup and the in-progress raid is silently dropped on reload
+ * (boss bar, tracked raider set and {@code isRaided()} flee state all clear).
+ * See deps/minecolonies.md §"colony-event persistence bug". Fix (own
+ * reload-reconstruction or a mixin) is tracked separately — verify in-game.
  * The mobs are plain Tensura MONSTER-category entities (guard towers
  * auto-list those), marked with {@link RaidTag}; per-second steering /
  * resolution is driven by {@link TensuraRaids#tick}, not colony ticks.

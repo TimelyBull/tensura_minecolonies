@@ -668,6 +668,53 @@ convert to citizens.
 - Existing colonies in a pre-menu world → no entry in either map →
   next spawn tick produces a vanilla MC citizen. No migration.
 
+*B2 — Reproduction-growth interception (integrated child route)* ✅ COMPLETE (2026-06-29)
+
+The B1 `CitizenAddedModEvent(INITIAL)` hook only covers the town-hall
+top-up to `initialCitizenAmount` (default 4). Ongoing population growth
+runs through `ReproductionManager.trySpawnChild()`, which registers a new
+citizen with NO event (decompile-verified, 1.1.1319) — so past the initial
+amount a race colony silently grew plain human colonists (player bug,
+2026-06-29, docs/user-bug-reports.md). Fixed by breeding race children:
+
+- [x] `ReproductionManagerMixin` — `@WrapOperation` around the
+      `createAndRegisterCivilianData()` call in `trySpawnChild`. Calls the
+      original (child created/registered as vanilla), hands the fresh child
+      to `ExampleMod.onReproductionChild`, returns it unchanged so MC's
+      birth flow (parents, name, child flag, body spawn) is untouched.
+      Registered in `tensura_minecolonies.mixins.json`.
+- [x] `onReproductionChild(IColony, ICitizenData)` — race-gates via
+      `pickRandomMember` (pending / legacy / COLONIST draw → leave a human
+      child) then calls `mintRaceChildCitizen`.
+- [x] `mintRaceChildCitizen(...)` — mints an IN_COLONY `RaceIdentity` with a
+      randomised variant + body snapshot from a transient `finalizeSpawn`'d
+      wild mob (never world-added), persists a `RaceTag` snapshot (body-join
+      / reconcile pass stamps it), applies the race skill profile + named
+      happiness ("auto-named"). Child renders as a baby of its race
+      (reproduction flags `isChild`) and grows up.
+- [x] All four races (GOBLIN/ORC/DWARF/LIZARDMAN); mixed colonies breed in
+      proportion via `pickRandomMember`.
+- [x] `/racegrow` debug command — `/racegrow` runs the real `trySpawnChild()`
+      once (mixin + MC gating); `/racegrow force` creates + converts a baby
+      race-citizen bypassing housing/couple gating.
+
+Design note: bred children are AUTO-NAMED (full race citizens immediately)
+and named from MineColonies' citizen name pool (race-agnostic; the natural
+path re-derives from parents). Deferred follow-ons in docs/future-ideas.md:
+leave children UNNAMED for a naming/evolution ceremony; race-themed surnames
++ inherited traits (partial EP transfer, base-EP bump, parent→child skill
+copy). Evolved (hobgoblin) appearance not applied — `evolutionState` is
+NBT-only with no public setter, so children render the base race form.
+
+**B2 test plan (manual):**
+- Goblin colony, `/racegrow force` → a baby goblin appears at the town hall
+  and in the Citizens list (log `[TM] race growth: ... bred a GOBLIN child`).
+- Grow past 4 citizens with a spare bed + adult female → `/racegrow` (no arg)
+  or wait for natural reproduction → new child is a baby of the colony's
+  race, not a human colonist. Citizen count rises by 1 (correct — the baby
+  IS a citizen).
+- Repeat for orc/dwarf/lizardman colonies (envoy-earned races) → same.
+
 ### Stage G6 — Orc lord and orc disaster as separate shadow types ⬜ DEFERRED
 Tensura has two evolved orc EntityTypes (`tensura:orc_lord`,
 `tensura:orc_disaster`) with their own renderers. Currently blocked

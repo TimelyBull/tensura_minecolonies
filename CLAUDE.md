@@ -14,6 +14,7 @@ Planning documents live in `docs/` and should be kept current as work progresses
 - [docs/future-ideas.md](docs/future-ideas.md) — recorded (not scheduled) design ideas / deferred follow-ons
 - [docs/user-suggestions.md](docs/user-suggestions.md) — community feature requests captured for future consideration
 - [docs/faction-rewards-roadmap.md](docs/faction-rewards-roadmap.md) — per-faction review of raid/conquest + diplomacy rewards (status matrix, gaps, checklist, phased plan)
+- [docs/playtesting.md](docs/playtesting.md) — queue of changes that compile but haven't been verified in-game (compiles ≠ works); **add an entry for every nontrivial change** (what changed + concrete test steps), move it to VERIFIED only after a real `runClient` test
 - [CHANGELOG.md](CHANGELOG.md) — player-facing, Keep-a-Changelog style, versioned (Added/Changed/Fixed). **MAINTAIN IT:** every change-set appends an entry (new version heading, or under `[Unreleased]`), written in plain player terms (it's copied into CurseForge release notes) — no API names/class names. Bump `mod_version` in `gradle.properties` to match the version heading on a release.
 
 ## Player wiki (`wiki/` + `mkdocs.yml`)
@@ -234,8 +235,8 @@ MDK-1.21.1-ModDevGradle-main/
                                        # triggered strike, boss manifestation
                                        # (buffs + bar + town-hall tether),
                                        # v2 EP theft (reversible) + skill copy
-                                       # + autocast (Nightmare's Tensura Utils
-                                       # public API, registerAutocaster),
+                                       # + autocast (via the nightmareutils
+                                       # `sentient` skill — deps/nightmares-utils.md),
                                        # reclaim-on-kill, /assassin debug.
         AssassinTag.java               # Boss-body attachment (identity,
                                        # colony, target, stolen amounts).
@@ -365,6 +366,13 @@ MDK-1.21.1-ModDevGradle-main/
 
 ## Dependencies (all in libs/)
 
+**Deep API reference: [`deps/`](deps/README.md)** — source-grounded, version-pinned
+reference docs for MineColonies, Tensura (+ManasCore), Nightmare's Utils, and
+Structurize (registries, events, invariants, gotchas, what we consume vs
+available-but-unused). Consult these before building a new system that might hook
+existing upstream API. Note the three-bus rule (NeoForge vs MineColonies vs
+Architectury) in [deps/README.md](deps/README.md).
+
 **Compile + runtime** (APIs this mod codes against):
 - `minecolonies-1.1.1319-1.21.1.jar`
 - `structurize-1.0.830-1.21.1.jar`
@@ -375,7 +383,9 @@ MDK-1.21.1-ModDevGradle-main/
 - `SmartBrainLib-neoforge-1.21.1-1.16.11.jar`
 - `TerraBlender-neoforge-1.21.1-4.1.0.8.jar`
 - `nightmareutils-0.1.2.jar` (Nightmare's Tensura Utils — mob-skill
-  autocaster; public-API-only integration, no mixins; required dep)
+  autocaster; we integrate by granting its `sentient` skill, which enrols the
+  mob in nightmareutils' own built-in autocaster; no mixins; required dep. See
+  [deps/nightmares-utils.md](deps/nightmares-utils.md))
 
 **Runtime only** (transitive deps, not coded against):
 - `blockui-1.0.209-1.21.1.jar`
@@ -468,6 +478,22 @@ the design rationale and design-choice history.
   login. MC's auto-sent "colony_founded" / "colony_reactivated" chat
   messages suppressed via Mixin; replayed by our race-picker handler
   on DEFAULT pick, race-specific flavour text on GOBLIN/ORC.
+  **B2 — reproduction growth (2026-06-29):** the INITIAL event only
+  covers the town-hall top-up to `initialCitizenAmount`; ongoing growth
+  runs through `ReproductionManager.trySpawnChild()`, which fires NO
+  event. `ReproductionManagerMixin` (`@WrapOperation` on that method's
+  `createAndRegisterCivilianData()` call) hands the fresh child to
+  `ExampleMod.onReproductionChild` → `mintRaceChildCitizen`, which
+  CONVERTS the born child into a citizen of the colony's race (baby
+  goblin/orc/dwarf/lizardman tied to its real colony parents, grows up)
+  rather than a human colonist. Mints an IN_COLONY `RaceIdentity` +
+  randomised variant + body snapshot (transient `finalizeSpawn`'d mob,
+  never world-added) + race skill profile + named happiness
+  ("auto-named"). Race-gated by `pickRandomMember`. Debug: `/racegrow`
+  (real `trySpawnChild` once) / `/racegrow force` (create+convert,
+  gating-free). Deferred (docs/future-ideas.md): unnamed children +
+  naming ceremony; surnames + inherited traits (EP transfer, skill
+  copy).
 - Stage H — envoy system (H1-H3b, all four sub-stages). Diplomatic
   emissaries from COLONIST / GOBLIN / ORC factions periodically arrive
   at each colony offering to add their race to its spawn set.
@@ -676,10 +702,11 @@ profession (latest):**
   (trade + envoys). v2: killing the PLAYER steals half their base max EP
   (reversible stable-id modifiers; slay the boss to reclaim — offline
   reclaim on login) and copies their best skills (1/5/10/≤10 by type);
-  resistances work passively, and actives are cast in combat by the
-  Nightmare's Tensura Utils autocaster (public API, `registerAutocaster`;
-  replaced the old CASTABLE_PRESS/TOGGLE whitelist + hand cast driver
-  2026-06-17). One assassin per colony EVER; `enableAssassins` config
+  resistances work passively, and actives are cast in combat by granting the
+  boss body the nightmareutils `sentient` skill (which drives its own built-in
+  autocaster; replaced the earlier `registerAutocaster` registration
+  2026-06-23, itself replacing the CASTABLE_PRESS/TOGGLE whitelist + hand cast
+  driver — see deps/nightmares-utils.md). One assassin per colony EVER; `enableAssassins` config
   kill-switch; `/assassin state|arm|strike|defuse`. Record:
   docs/assassin-system.md.
 
@@ -699,7 +726,7 @@ profession (latest):**
   (`StructurePacks.getBlueprintFuture` → `CreativeBuildingStructureHandler
   .loadAndPlaceStructureWithRotation`). Physical factions + packs:
   6 TOWN factions + packs: Luminous=Ancient Athens, Falmuth=Fortress,
-  Shizu=Pagoda, Leon=Caledonia, Otherworlders=Space Wars, Jura-Tempest Federation (id `tempest`)=Jungle Treehouse. Abstract (no settlement):
+  Shizu=Pagoda, Leon=Caledonia, Eastern Empire (id `eastern_empire`)=Fortress (stone; 2026-07-04, was Space Wars), Jura-Tempest Federation (id `tempest`)=Medieval Oak (2026-07-04, was Jungle Treehouse). Abstract (no settlement):
   Carrion, Milim, Clayman. (2026-06-21 MERGE: the former `jura_alliance`
   was folded into `tempest` → "Jura-Tempest Federation"; tempest is now the
   physical forest faction. See docs/faction-model.md.) (2026-06-21 RENAME:

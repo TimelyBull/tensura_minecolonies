@@ -1,5 +1,17 @@
 # Future ideas (recorded, not scheduled)
 
+## Raid wave staggering (2026-07-10, from the in-colony-spawn bug report)
+
+The 2026-07-10 raid-placement fix moved the wave spawn to the colony edge
+(see docs/raid-system.md + user-bug-reports.md). The report's secondary ask —
+staggering the wave over time instead of all mobs in one tick — was
+deliberately NOT done: with the wave at the perimeter, all-at-once matches
+MineColonies' own raid behaviour. If raids still feel too abrupt in play, a
+follow-on could spawn the wave in 2–3 pulses (e.g. a third of the budget every
+~20 s) driven from the existing per-second `TensuraRaids` scheduler; the
+budget loop in `startRaid` would need to persist its remaining budget on the
+event instead of spending it all at trigger time.
+
 ## The RIVAL-COLONY ARC is BUILT (A–E, 2026-06-13) — deferred follow-ons
 
 The rival-colony/settlement arc is complete: A (settlement generation —
@@ -110,6 +122,30 @@ SIEGE — a super-raid above the lore-event class. Sketch:
   the betrayed tier (`Settlement.betrayalTier`) before the standing crash
   shatters relations. A siege pass can key off WAR_DECLARED (and the
   recorded tier) instead of inventing new betrayal detection.
+
+## Quest deadlines by type + a quest bulletin board (2026-07-06)
+
+Two related diplomacy-deal (quest) UX ideas, captured during the faction-reward
+pass:
+
+1. **Per-quest-TYPE time limits scaled to what's reasonable.** Today each
+   `DealSpec` carries a hand-set `deadlineTicks`, but they're not consistently
+   tuned to the task's nature. Fetch/deliver quests should be QUICK (a few
+   in-game days max — you either have the items or you go get them), while
+   building-level-up quests should have a VERY long window (leveling a hut to
+   L5 takes real time). Do a pass that sets deadlines by requirement type:
+   Supply/SupplyBundle → short; SlayEntities → medium; Population/Happiness →
+   long; BuildingLevel → very long; LendCitizens → matches the lend duration.
+   Could be a helper that derives a sensible default deadline from the
+   `Requirement` variant (with per-deal overrides still allowed).
+
+2. **A quest "bulletin board" menu of accepted quests + due dates.** A UI
+   panel listing every deal the player has ACCEPTED across all factions, with
+   each one's task, faction, progress, and its DUE DATE / time remaining. Today
+   the active deals live in `DiplomacySavedData` (`ActiveDeal` with a deadline)
+   but there's no single screen to review them — the player has to open each
+   faction. A bulletin-board screen (or a tab on the Diplomacy window) would
+   surface all commitments and their countdowns in one place.
 
 ## The faction quest catalog — the 10+ per-faction content pass
 
@@ -317,3 +353,82 @@ housekeeping debt" — `com.example.examplemod` package + `ExampleMod` class
 names + the `examplemod` asset-namespace lang file). The creative tab's
 title/icon are likely defined alongside that placeholder naming; tidy them
 together with that pass, or do this small cosmetic fix standalone.
+
+## Bred race children: leave them UNNAMED (2026-06-29)
+
+Race colonies now breed their own kind — a goblin/orc/dwarf/lizardman colony
+that grows via MineColonies reproduction produces a baby of that race (see
+`ExampleMod.onReproductionChild` / `mintRaceChildCitizen`, driven by
+`ReproductionManagerMixin`). Per the implementation decision, bred children are
+currently **auto-named**: they get the same starting skill bias + named-citizen
+happiness modifier a hand-named citizen receives, so they are full race
+citizens immediately with no naming step.
+
+**Idea (deferred):** make bred children **unnamed** instead — born as ordinary
+goblins/etc. that the player can later choose to *name* (in Tensura, naming is
+the evolution event that turns a goblin into a hobgoblin and empowers it). This
+is closer to the source material — Rimuru's village is mostly unnamed goblins
+with a chosen few named into hobgoblins — and would make the naming ceremony
+meaningful for colony-born members, not just wild intake.
+
+Implications to work through if pursued:
+- A born-unnamed child needs a render variant (base race form, not evolved) and
+  should NOT get the named skill bias / happiness until named.
+- A path to *name an existing colony-born citizen* (today naming runs on a wild
+  mob via `onRaceNamed`; a born citizen has no wild body unless summoned first).
+  Likely: summon the subordinate body, name it, then the existing pipeline
+  applies — or a dedicated "name this citizen" UI action.
+- The evolved (hobgoblin) appearance: `evolutionState` is NBT-only with no
+  public setter (see `applyGoblinVariant`), so faithfully rendering the
+  post-naming evolved form needs Tensura's evolution mechanism, not just a
+  variant field flip. Auto-named children today therefore render as the base
+  race form regardless; this is the same gap.
+
+## Bred race children: surnames + inherited traits (2026-06-29)
+
+Follow-on to the integrated child-growth work (`ExampleMod.onReproductionChild`
+/ `mintRaceChildCitizen`) and pairs with the "leave them UNNAMED" idea above.
+Today a bred race child gets a MineColonies pool name (race-agnostic) and a
+freshly-randomised variant with no link to its parents beyond MC's family tree.
+Idea: make lineage MEAN something — a child should carry its parents' name and
+inherit a slice of their power.
+
+**Surnames / lineage.**
+- Give bred children a **surname drawn from their colony parents** (MC already
+  passes both parent names into `generateName`; the hook point is the same
+  `trySpawnChild` naming path — note MC overrides our name after the
+  `@WrapOperation`, so a themed/inherited name needs a second wrap/skip of the
+  `generateName` call). Optionally a race-themed given name + inherited surname
+  so a family reads as one house (e.g. all "…of the Rigur line").
+- Ties into the naming-ceremony idea: an UNNAMED child keeps a plain lineage
+  name until the player names/evolves it.
+
+**Inherited power (the interesting part).** All EP = Tensura magicule + aura;
+read/write via the existing `IExistence` / EnergyHelper idioms already used by
+the assassin EP-theft and stat-sync code.
+- **Partial EP transfer** — a child is born with a fraction of the *average of
+  its parents'* base max EP (e.g. 10–25%), so a colony of strong named parents
+  produces stronger children. Cap it so it can't runaway-compound across
+  generations.
+- **Base EP increase / heterosis** — small flat or percentage bump when both
+  parents are named (hobgoblin-tier), rewarding investment in naming.
+- **Skill transfer / copying** — a chance to pass one or more parent skills to
+  the child (mirror the assassin skill-copy path: `SkillAPI.getSkillsFrom`,
+  learn intrinsic/resistance skills). Weight by parent mastery; maybe a low
+  chance for a strong active, higher for passives/resistances. Could gate rare
+  skills behind BOTH parents having them.
+- **Skill-profile bias inheritance** — instead of (or on top of) the flat
+  per-race `RaceSkillProfiles` bias, nudge the child's MC skill init toward the
+  parents' strong stats (a builder couple → craftier kids).
+
+**Design cautions to work through if pursued.**
+- Anti-runaway: cap generational compounding (EP and skills) so a colony doesn't
+  breed itself into invincibility. Diminishing returns or hard ceilings.
+- Balance vs. the naming ceremony: naming should still be the *big* power step;
+  inheritance is a gentle nudge, not a replacement.
+- Where the parent snapshot comes from: bred children currently mint their
+  body/variant from a transient wild mob, NOT from the parents — inheritance
+  would need to read the parents' `RaceIdentity` / EP at birth (both parents are
+  known in `trySpawnChild`; thread them through `onReproductionChild`).
+- Persistence + reload safety: any inherited EP/skills live on the child's
+  `RaceIdentity` snapshot like the rest of the two-bodies state.

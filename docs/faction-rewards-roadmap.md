@@ -249,27 +249,43 @@ unlock by relations tier (NEUTRAL → FRIENDLY → ALLIED). This catalog is ALSO
 conquest loot pool — the raid route (Phase 2) samples these same reward stacks,
 which is exactly why the peaceful values are being locked first.
 
+**Coin layer (Tensura currency; added 2026-07-06).** Tensura's currency is
+Bronze → Silver → Gold → Stellar Gold Coin (+ Coin Pouches). Deals pay a "cash"
+layer on top of their themed items, scaled by relations tier — a RANGE, so the
+exact amount varies per deal:
+- **NEUTRAL** → 6–35 **Bronze Coin**
+- **FRIENDLY** → 3–20 **Silver Coin**
+- **ALLIED** → 1–6 **Gold Coin**
+- **Covenant / capstone** → 1 **Stellar Gold Coin** or a **Coin Pouch**
+
+Coins are NOT mandatory on every deal — signature-reward deals (a schematic, a
+golem) can skip them — and coins may also appear in REQUIREMENTS (commission
+fees: pay coin to have something forged). Tempest (the trade capital) should
+sit at the generous end of each range.
+
 **Dwargon** (Tier II — craft/industry; reworked 2026-06-28 to give Tensura
 weapon/tool SCHEMATICS + smith-craft items — the smith-kingdom teaches the
 smithing tree and forges staves, steel thread, earth cores, and metal golems.
 Ingot-gear schematics are omitted since they auto-unlock with the metal.
-14 deals):
+Coins backfilled 2026-07-06 per the coin ladder [NEUTRAL Bronze / FRIENDLY
+Silver / ALLIED Gold]; coins are skipped on signature-reward deals and used as
+COMMISSION FEES in a couple of requirements. 14 deals):
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
-| Iron for the Forges | Deliver 64 Iron Ingot | 15 Medium Magic Crystal | NEUTRAL |
-| Fuel for the Forges | Deliver 64 Coal | 12 Monster Leather (B) | NEUTRAL |
-| Silver for the Smiths | Deliver 32 Silver Ingot | 2 Magic Stone + 6 Low Magisteel Nugget | FRIENDLY |
-| Magisteel Quota | Deliver 8 Low Magisteel | 3 High Magisteel + 8 Iron Block | FRIENDLY |
-| A Proper Smithy | Build blacksmith 3 | 8 Iron Block + 16 Coal + **Short Sword Schematic** | NEUTRAL |
-| Fires of Industry | Build smeltery 3 | **Magic Staff Schematic** + 6 Coal Block + 2 Low Magisteel | FRIENDLY |
-| The Grand Forge | Build blacksmith 5 | **Great Sword Schematic** + 4 High Magisteel | ALLIED |
-| A Blade for Every Hand | Deliver 2 Pure Magisteel Ingot | **Long Sword + Kunai Schematics** + 8 Magic Stone | FRIENDLY |
-| Strong Backs for the Mines | Lend 3 × Strength≥8 | 16 Gold + 4 Low Magisteel | FRIENDLY |
-| Master Artisans Abroad ★ | Lend 2 × Creativity≥8 | **Spatial Blade Schematic** + 1 Mithril Ingot + 1 Orichalcum Ingot + Earth Tome | ALLIED |
-| Staff of the Smiths | Deliver 8 Magic Stone | **Medium Magic Staff** | FRIENDLY |
-| Threads of Steel | Deliver 16 Iron + 16 String | 8 Steel Thread | NEUTRAL |
-| The Mountain's Heart | Deliver 30 Gold + 20 Diamond + 10 Emerald | **Element Core (Earth)** + 6 Magic Stone | ALLIED |
-| Forge a Sentinel | Deliver 4 High Magisteel + 1 Magic Stone + 32 Bone | **High Magisteel Bone Golem** | ALLIED |
+| Iron for the Forges | Deliver 64 Iron Ingot | 15 Medium Magic Crystal + 20 Bronze Coin | NEUTRAL |
+| Fuel for the Forges | Deliver 64 Coal | 12 Monster Leather (B) + 12 Bronze Coin | NEUTRAL |
+| Silver for the Smiths | Deliver 32 Silver Ingot | 2 Magic Stone + 6 Low Magisteel Nugget + 8 Silver Coin | FRIENDLY |
+| Magisteel Quota | Deliver 8 Low Magisteel | 3 High Magisteel + 8 Iron Block + 10 Silver Coin | FRIENDLY |
+| A Proper Smithy | Build blacksmith 3 | 8 Iron Block + 16 Coal + **Short Sword Schematic** + 15 Bronze Coin | NEUTRAL |
+| Fires of Industry | Build smeltery 3 | **Magic Staff Schematic** + 6 Coal Block + 2 Low Magisteel *(no coin)* | FRIENDLY |
+| The Grand Forge | Build blacksmith 5 | **Great Sword Schematic** + 4 High Magisteel *(no coin)* | ALLIED |
+| A Blade for Every Hand | Deliver 2 Pure Magisteel Ingot | **Long Sword + Kunai Schematics** + 8 Magic Stone + 6 Silver Coin | FRIENDLY |
+| Strong Backs for the Mines | Lend 3 × Strength≥8 | 16 Gold + 4 Low Magisteel + 12 Silver Coin | FRIENDLY |
+| Master Artisans Abroad ★ | Lend 2 × Creativity≥8 | **Spatial Blade Schematic** + 1 Mithril Ingot + 1 Orichalcum Ingot + Earth Tome *(no coin)* | ALLIED |
+| Staff of the Smiths | Deliver 8 Magic Stone **+ 10 Silver Coin** (commission fee) | **Medium Magic Staff** | FRIENDLY |
+| Threads of Steel | Deliver 16 Iron + 16 String | 8 Steel Thread + 10 Bronze Coin | NEUTRAL |
+| The Mountain's Heart | Deliver 30 Gold + 20 Diamond + 10 Emerald | **Element Core (Earth)** + 6 Magic Stone + 4 Gold Coin | ALLIED |
+| Forge a Sentinel | Deliver 4 High Magisteel + 1 Magic Stone + 32 Bone **+ 2 Gold Coin** (forging fee) | **High Magisteel Bone Golem** *(no coin back)* | ALLIED |
 
 **Tempest** (Tier II — community + academy; merged tp_ + ja_, 19 deals):
 | Deal | Task | Reward | Tier |

@@ -228,6 +228,13 @@ public final class SubordinatePatrol {
     public static void exitPatrolToFollow(Mob mob, Player player) {
         mob.removeData(Attachments.PATROL_ORDER.get());
         mob.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        // Reset the AGGRESSIVE combat stance that beginPatrol forced (behaviour
+        // and the follow/wander/stay command are independent axes — setFollow
+        // alone leaves the mob aggressive, which without the patrol-only
+        // hostile veto makes it attack EVERY nearby mob, peaceful ones
+        // included). setNeutral clears behaviour to neutral AND drops the
+        // current target, so the mob just follows and only retaliates.
+        SubordinateHelper.setNeutral(mob);
         SubordinateHelper.setFollow(mob);
         sendPetMessage(player, "tensura.message.pet.follow", mob);
     }
@@ -246,9 +253,15 @@ public final class SubordinatePatrol {
         // Auto-cancel if the player changed the command outside our cycle
         // (e.g. Tensura's native plain-click cycle on a beast moved it to
         // STAY/FOLLOW). beginPatrol leaves the mob wandering-and-not-sitting;
-        // any deviation means the order is no longer in force.
+        // any deviation means the order is no longer in force. Also undo the
+        // aggressive stance beginPatrol forced — otherwise the mob keeps
+        // attacking every nearby mob (peaceful included) now that the
+        // patrol-only hostile veto no longer applies. setNeutral resets the
+        // behaviour axis and drops the current target (the command axis was
+        // already changed by the native cycle).
         if (sub.isOrderedToSit() || !sub.isWandering()) {
             mob.removeData(Attachments.PATROL_ORDER.get());
+            SubordinateHelper.setNeutral(mob);
             return;
         }
 
@@ -444,6 +457,33 @@ public final class SubordinatePatrol {
         if (colony == null) return true; // can't resolve — don't add a restriction
 
         if (!isHostileThreat(mob, candidate)) return false;                       // no pigs / neutrals
+        return isWithinColony(colony, level, candidate.blockPosition(), TARGET_AREA_BUFFER); // tether
+    }
+
+    /**
+     * Public "genuine hostile threat" test with NO colony tether — the raw
+     * hostile predicate (always-hostile mobs, and anything attacking the mob, a
+     * citizen, or an ally; never passive animals / idle neutrals). Callers that
+     * also want the colony tether use {@link #isDefenderTargetAllowed}.
+     */
+    public static boolean isGenuineHostile(Mob mob, LivingEntity candidate) {
+        return isHostileThreat(mob, candidate);
+    }
+
+    /**
+     * Whether a raid form-swapped colony defender may target {@code candidate}:
+     * it must be a genuine hostile threat AND lie within the defended colony's
+     * area (same tether as {@link #isPatrolTargetAllowed}, so the defender
+     * fights the raid instead of chasing a stray hostile off across the map).
+     * Keyed on the {@code COLONY_DEFENDER} colony passed in rather than a
+     * {@code PATROL_ORDER}. When {@code colony} can't be resolved we drop the
+     * tether but keep the hostile-only restriction. (The active raiders are
+     * handled by the caller and are always allowed regardless of the tether.)
+     */
+    public static boolean isDefenderTargetAllowed(Mob mob, LivingEntity candidate, IColony colony) {
+        if (!isGenuineHostile(mob, candidate)) return false;                       // no pigs / neutrals
+        if (colony == null) return true;                                           // can't tether — hostile-only
+        if (!(mob.level() instanceof ServerLevel level)) return true;
         return isWithinColony(colony, level, candidate.blockPosition(), TARGET_AREA_BUFFER); // tether
     }
 

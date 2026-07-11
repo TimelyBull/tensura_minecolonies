@@ -351,6 +351,24 @@ The structural foundation is built. As-built record:
   | Otherworlders | Mai Furuki | Space Wars (sci-fi) |
   | Jura Alliance | Shin Ryusei | Jungle Treehouse (forest) |
   | Dwargon | Gazel Dwargo | *(no pack — see DESIGN CHANGE 1: uses existing dwarf villages)* |
+
+  **UPDATE (2026-07-04) — building scheme changes.** Three changes to the
+  shared layout / packs (all in `RivalColonies`):
+  - **Buildings now generate at LEVEL 4**, not level 1 (`LAYOUT` paths bumped
+    `…1.blueprint` → `…4.blueprint`) — a well-established town. The **tavern is
+    the sole exception**: MineColonies ships no `tavern4`/`tavern5` in ANY pack,
+    so it uses its level-3 cap (`fundamentals/tavern3.blueprint`).
+  - **`GRID` set to 40** (from the old level-1 value of 32). Level-4 footprints
+    are larger, but only the barracks is oversized (~48 wide in Fortress/
+    Caledonia); everything else is ≤ ~27. 40 is the tightest spacing that still
+    clears the widest barracks (half ≈ 24) next to its neighbours (half ≈ 8),
+    keeping the town compact. (Briefly 56 before tightening back on request.)
+  - **Two pack re-themes:** Eastern Empire `Space Wars` → **`Fortress`** (heavy
+    stone — reads as an imperial stone stronghold; shared with Falmuth, which is
+    fine — no bundled pack is literally "Stoneline"). Jura-Tempest Federation
+    `Jungle Treehouse` → **`Medieval Oak`** (a normal medieval town instead of a
+    jungle village). All level-4 buildings + tavern3 verified present in every
+    pack in use (Ancient Athens, Fortress, Caledonia, Medieval Oak).
 - **ABSTRACT (no anchor → never settle, per the brief):** Tempest,
   Carrion, Milim, **Clayman** (his orcs roam as calamities — the
   marked-boss anchors for the world-rep system are separate from

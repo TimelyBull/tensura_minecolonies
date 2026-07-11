@@ -2478,3 +2478,113 @@ the COMMON spec. All reads still funnel through
 `WorldReputationManager.isFactionSystemEnabled()` / `Config.enableDefenseSwap()`,
 whose existing not-loaded catches return the defaults at the main menu (SERVER
 configs aren't loaded until a world is).
+
+## Dependency reference set (`deps/`) (2026-07-10)
+
+**Durable, source-grounded API reference for the upstream mods now lives in a
+dedicated top-level `deps/` directory** — one file each for MineColonies, Tensura
+(+ ManasCore folded in), Nightmare's Utils, and Structurize, plus a `deps/README.md`
+orientation. Written after a full decompile-and-inventory pass so future sessions
+don't re-investigate these mods from zero and don't rebuild systems that already
+exist upstream.
+
+**Why a new dir, not `docs/`:** `docs/` is feature-organized (per-system as-built
+records); dependency knowledge is orthogonal and belongs in its own navigable home
+that any feature doc can point into. `docs/dependencies.md` stays the pure
+version/ID ledger; `deps/` holds the deep API detail. Pointers added from
+`CLAUDE.md`, `STATE.md`, and `dependencies.md`.
+
+**How the source was read:** none of the three mods ship sources — only compiled
+`.class` with official Mojang mappings (readable names). Decompiled with
+**Vineflower 1.10.1** (Gradle-cached); the exact regeneration command is in
+`deps/README.md`. Claims are marked `[READ]` vs `[INFERRED]`.
+
+**Key facts the pass surfaced (captured in `deps/`):**
+- **Three event/registry substrates, don't mix them:** NeoForge (our mod), the
+  MineColonies custom bus (`IMinecoloniesAPI.getInstance().getEventBus().subscribe`,
+  exact-class dispatch, non-cancellable), and the Architectury bus (all of
+  Tensura/ManasCore). `@SubscribeEvent` silently never fires for MC or Tensura
+  events. This is the #1 latent-bug risk.
+- **Confirmed bug:** MC's `EventManager.readFromNBT` hardcodes the `minecolonies`
+  namespace when rehydrating colony events, so our `tensura_minecolonies:tensura_raid`
+  is silently dropped on save/reload — an in-progress raid does NOT survive reload
+  (contra the old javadoc, now corrected in `TensuraRaidEvent`/`RaidSavedData`).
+  Code fix tracked separately.
+- **nightmareutils `registerAutocaster` vs `sentient` resolved:** same machinery
+  at two levels — granting `sentient` enrols the mob in nightmareutils' own
+  built-in autocaster; we correctly grant the skill and never call
+  `registerAutocaster`. Stale CLAUDE.md wording corrected.
+- **Available-but-unused upstream surface** the pass surfaced is tracked in its
+  own index below — see "Available-but-unused upstream surface (adoption index)".
+
+## Available-but-unused upstream surface (adoption index) (2026-07-10)
+
+Tracked index of upstream hooks we could adopt instead of a local workaround,
+surfaced by the dependency-investigation pass. **This is the durable status
+record; the mechanics live in `deps/*` — entries point there, they don't restate
+it.** No duplication.
+
+**Status:** `ADOPTED` (already wired) · `TO-ADOPT` (a workaround exists, hook is
+better) · `INVESTIGATE` (adopt only after scoping) · `NOTED` (intentional
+alternative, not planned).
+
+**Task-linkage convention** (new — no prior convention existed in the repo): a
+scheduled entry carries an inline `→ task_<id>`; that task's prompt references
+this section + the relevant `deps/` file. None are scheduled as tasks yet (index
+first); add the id here when one is spawned. (Precedent: the raid-reload bug is
+tracked as its own task, noted in `deps/minecolonies.md` §7.1.)
+
+Each entry marks intended-usage assumptions `[verify in-game]`.
+
+### 1. Subordinate target veto — `LIVING_CHANGE_TARGET` — ADOPTED
+- **Hook:** ManasCore `EntityEvents.LIVING_CHANGE_TARGET`.
+- **Status:** already wired — `ExampleMod.onSubordinateChangeTarget`
+  (`ExampleMod.java:362`) vetoes a subordinate's target change when the proposed
+  target is a citizen / friendly race (see this file, "Targeting veto extended").
+  Nothing to adopt; listed so the hook isn't re-flagged as unused.
+- **Not to be confused with** the *separate, still-open* case of making hostile
+  mobs *add* citizens as targets during raids — that canNOT use this hook (it
+  gates transitions, can't widen a candidate filter) and is tracked in
+  `docs/hostile-mob-targets-citizens.md` (approach: a `tensura:animal_prey`
+  datapack tag). Ref: `deps/tensura.md` §8.
+
+### 2. Majin side-watch — `RaceEvents.SET_RACE` — TO-ADOPT (low value)
+- **Hook:** `io.github.manasmods.manascore.race.api.RaceEvents.SET_RACE`.
+- **Replaces:** `DiplomacyManager.tickSideWatch` (`DiplomacyManager.java:1666`),
+  which polls `WorldReputationManager.isMajinSide(player)` every 100 ticks to
+  detect a majin flip and downgrade Holy-bloc PACT→OPEN.
+- **Rationale:** cleanliness only (event-driven vs a cheap 5 s poll) — **not**
+  correctness or measurable perf. Low priority. `[verify in-game]` that
+  `SET_RACE` fires on every path that changes a player's effective side.
+- Ref: `deps/tensura.md` §8.
+
+### 3. Raid scheduler convergence — `IRaiderManager` — INVESTIGATE
+- **Hook:** MC `IRaiderManager` (per-colony `RaidManager`).
+- **Current state:** NOT a clean duplication — we already use its utilities
+  (`calculateSpawnLocation`, `willRaidTonight`) and deliberately run our own
+  scheduler on the 1 s tick because ours is **reputation-tier-triggered** with
+  tiered Tensura rosters (see `docs/raid-system.md`). 
+- **Open question:** whether any of our scheduling could hand back to MC's
+  nightfall/difficulty machinery without losing the rep-tier trigger. Scope
+  before changing anything. Refs: `deps/minecolonies.md` §8, `docs/raid-system.md`.
+
+### 4. Non-MC schematic placement — `StructurePlacementUtils` — NOTED
+- **Hook:** `com.ldtteam.structurize.placement.StructurePlacementUtils.loadAndPlaceStructureWithRotation(Level, Blueprint, BlockPos, RotationMirror, boolean, Player)`
+  — a trap-safe one-call helper taking a resolved `Blueprint`.
+- **Why unused (intentional):** for MC blueprints we use MC's
+  `CreativeBuildingStructureHandler` for its per-building block-substitution /
+  domum parity (`RivalColonies.placeBuilding`). The Structurize helper is the
+  right shape only for **non-MC** packs — a documented fallback, not a planned
+  change. Ref: `deps/structurize.md` §8.
+
+### 5. Flying-defender pathing — `tickReflectiveTensuraMobilityAssist` — TO-ADOPT
+- **Hook:** `NightmareUtilsApi.tickReflectiveTensuraMobilityAssist(LivingEntity mob, LivingEntity target)`
+  — drives a Tensura mob's own mobility skills (flight, instant transmission)
+  toward a target.
+- **Replaces / complements:** our raw `WALK_TARGET` steering for defenders /
+  garrison / raiders (`ColonyThreatResponse`, `TensuraRaids`, `RivalColonies`),
+  which paths flying Tensura mobs poorly.
+- **Rationale:** behavior/quality (grounded mobs are unaffected; flyers path
+  better) — an enhancement, not a bug fix. `[verify in-game]` that it improves
+  flyer pursuit without fighting our steer. Ref: `deps/nightmares-utils.md`
+  "Beyond the autocaster".

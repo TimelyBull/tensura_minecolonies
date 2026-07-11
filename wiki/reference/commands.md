@@ -41,4 +41,7 @@ These force or inspect systems for testing.
 
 There are also envoy-system utility commands (`/spawnenvoy`, `/envoystate`,
 `/envoyforce`, `/envoyresetcooldown`) and race utilities (`/summongoblin`,
-`/raceflip`, `/setcolonyrace`) used mainly for testing.
+`/raceflip`, `/setcolonyrace`, `/racegrow`) used mainly for testing.
+`/racegrow` grows one new resident in your colony immediately (add `force` to
+skip the housing requirements), for checking that a race colony raises children
+of its own race.

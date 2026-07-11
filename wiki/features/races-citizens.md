@@ -21,6 +21,23 @@ varies, and normal skill progression from working continues afterward. The
 bias is a head start, not a cap. Ordinary (non-Tensura) colonists keep
 MineColonies' default skills.
 
+## Race colonies
+
+When you found a colony you choose its people: default villagers or a goblin
+colony. The other races — orc, dwarf, lizardman — are added to a colony's mix
+through [diplomacy](diplomacy.md), when an envoy offers to bring their race in.
+
+A colony that has a race grows that race. When it gains a new resident through
+normal colony growth — a child born to its residents — the newcomer is a baby
+of the colony's race: a goblin colony raises goblin children, an orc colony
+raises orc children, and so on. The child is born to its actual colony parents
+and grows up like any citizen. A colony with more than one race raises children
+of each, mixed in proportion.
+
+Grown children join as full citizens right away — they get the same work-skill
+head start named citizens get, so you don't need to name each one. Naming stays
+for monsters you bring in yourself.
+
 ## Naming a monster
 
 Name a goblin, orc, dwarf, or lizardman through Tensura's naming. Once

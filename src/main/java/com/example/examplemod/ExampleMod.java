@@ -336,6 +336,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         NeoForge.EVENT_BUS.register(new SubordinatePatrol());
         modEventBus.addListener(this::addCreative);
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        // Faction master switch lives in a per-world SERVER config so the
+        // in-game config menu can actually change it (COMMON loads once per
+        // game launch — the menu edit silently no-op'd; see
+        // docs/user-bug-reports.md 2026-07-04).
+        modContainer.registerConfig(ModConfig.Type.SERVER, Config.SERVER_SPEC);
 
         // Tensura uses Architectury's event system — register via .register(), NOT @SubscribeEvent.
         TensuraEntityEvents.NAMING_EVENT.register(this::onRaceNamed);
@@ -379,6 +384,35 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         LivingEntity proposed = target.get();
         if (proposed == null) return EventResult.pass();
+
+        // (0) Colony defenders (raid form-swap, COLONY_DEFENDER tag) may ONLY
+        // target the active raiders or genuine hostiles WITHIN the defended
+        // colony's area — never passive animals, idle neutrals, citizens,
+        // friendly races, or a hostile lured off across the map. The defending
+        // body is put in an aggressive stance so it proactively engages threats,
+        // and that stance otherwise makes Tensura's shouldTarget accept ANY
+        // attackable entity (pigs included) — this veto is what keeps it fighting
+        // enemies near the colony instead of slaughtering the local wildlife or
+        // wandering off. The active raiders are always allowed (the colony's job
+        // is to kill them wherever they are); other hostiles are tethered to the
+        // colony. Checked BEFORE owner resolution so it still applies if the
+        // reconstructed body's owner can't be resolved. Allowed targets fall
+        // through to the remaining vetoes below (so a defender still never
+        // targets a citizen).
+        if (entity instanceof net.minecraft.world.entity.Mob defender
+                && defender.hasData(Attachments.COLONY_DEFENDER.get())) {
+            boolean allowed;
+            if (proposed.hasData(Attachments.RAID_TAG.get())) {
+                allowed = true; // an active raider — always fair game
+            } else {
+                ColonyDefenderTag dtag = defender.getData(Attachments.COLONY_DEFENDER.get());
+                IColony defColony = defender.level() instanceof ServerLevel sl
+                        ? IColonyManager.getInstance().getColonyByWorld(dtag.colonyId(), sl)
+                        : null;
+                allowed = SubordinatePatrol.isDefenderTargetAllowed(defender, proposed, defColony);
+            }
+            if (!allowed) return EventResult.interruptFalse();
+        }
 
         UUID ownerUuid = SubordinateHelper.getSubordinateOwnerUUID(entity);
         if (ownerUuid == null) return EventResult.pass();
@@ -945,6 +979,143 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
     }
 
+    /**
+     * Stage B — integrated race-aware population growth.
+     *
+     * The {@link #onCitizenAdded} hook above only catches the INITIAL spawn
+     * path (the town hall topping a colony up to {@code initialCitizenAmount}),
+     * because that's the only growth path MineColonies fires
+     * {@code CitizenAddedModEvent} from. The REAL ongoing population growth —
+     * {@code ReproductionManager.trySpawnChild()} — creates and registers a new
+     * citizen with NO event at all. Without handling it, a race colony grows
+     * plain human colonists the moment it passes {@code initialCitizenAmount}
+     * (the reported bug: a random human colonist appears in the town hall and
+     * naming a mob can't override it).
+     *
+     * {@code ReproductionManagerMixin} calls this with the freshly-created child
+     * {@code CitizenData} (right after MineColonies registers it, while the rest
+     * of {@code trySpawnChild} — parents, name, child flag, body spawn — still
+     * runs). For a race colony we CONVERT that child into a citizen of the
+     * colony's race so a goblin/orc/dwarf/lizardman colony breeds its own kind
+     * (tied to its real MineColonies parents) instead of a human colonist.
+     *
+     * No-ops (leaves the vanilla human child) for: pending colonies, legacy /
+     * no-entry colonies, an explicit {@code COLONIST} colony, or a COLONIST
+     * member drawn this tick from a mixed set (e.g. {@code {COLONIST, GOBLIN}}).
+     */
+    public static void onReproductionChild(IColony colony, ICitizenData child) {
+        if (child == null) return;
+        if (!(colony.getWorld() instanceof ServerLevel serverLevel)) return;
+
+        ColonyRaceConfigSavedData config = ColonyRaceConfigSavedData.get(serverLevel);
+        int colonyId = colony.getID();
+
+        // Pending colonies have no race chosen yet — leave the child vanilla
+        // (normally unreachable: a pending colony has 0 citizens, so
+        // trySpawnChild's own count gate returns before any birth).
+        if (config.isPending(colonyId)) return;
+
+        // Same per-spawn random draw the INITIAL hook uses — a mixed
+        // {COLONIST, GOBLIN} colony breeds humans and goblins in proportion.
+        ColonyMember picked = config.pickRandomMember(colonyId, serverLevel.getRandom());
+        if (picked == null) return;                  // legacy / no entry → human child
+        java.util.Optional<Race> raceOpt = picked.toRace();
+        if (raceOpt.isEmpty()) return;               // COLONIST drawn → human child
+        Race race = raceOpt.get();
+
+        mintRaceChildCitizen(serverLevel, colony, child, race);
+    }
+
+    /**
+     * Turn an existing colony child {@code CitizenData} into a citizen of
+     * {@code race}: mint a durable {@link RaceIdentitySavedData.RaceIdentity}
+     * (with a randomised appearance + a body snapshot for later summon/send),
+     * persist a {@link RaceTag} snapshot so the body renders the captured
+     * variant, and apply the race's starting skill bias + the named-citizen
+     * happiness modifier ("auto-named" treatment). The child renders as a baby
+     * of that race (reproduction flags it {@code isChild}) and grows up.
+     *
+     * The appearance + snapshot come from a TRANSIENT wild mob of the race
+     * ({@code EntityType.create} + {@code finalizeSpawn} for Tensura's variant
+     * randomisation) that is NEVER added to the world — the same idiom the
+     * send/summon paths use to (de)serialise a subordinate body.
+     *
+     * Shared by {@link #onReproductionChild} (natural growth) and the
+     * {@code /racegrow force} debug command.
+     */
+    static void mintRaceChildCitizen(ServerLevel level, IColony colony,
+                                     ICitizenData child, Race race) {
+        ResourceLocation typeId = Races.idFor(race);
+        EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(typeId);
+        if (type == null) {
+            LOGGER.error("[TM] race growth: EntityType '{}' for race {} not registered — child {} left vanilla",
+                    typeId, race, child.getId());
+            return;
+        }
+        Entity created = type.create(level);
+        if (!(created instanceof net.minecraft.world.entity.Mob mob)) {
+            LOGGER.error("[TM] race growth: factory for '{}' returned non-Mob — child {} left vanilla",
+                    typeId, child.getId());
+            return;
+        }
+
+        // Anchor the transient mob at the town hall so finalizeSpawn has a sane
+        // difficulty/biome context. It is never added to the world.
+        net.minecraft.core.BlockPos anchor =
+                colony.getServerBuildingManager().hasTownHall()
+                        ? colony.getServerBuildingManager().getTownHall().getPosition()
+                        : colony.getCenter();
+        mob.moveTo(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5,
+                level.getRandom().nextFloat() * 360f, 0f);
+        mob.finalizeSpawn(level, level.getCurrentDifficultyAt(anchor),
+                net.minecraft.world.entity.MobSpawnType.SPAWN_EGG, null);
+
+        // Capture the randomised appearance + a full entity snapshot (with the
+        // "id" field — goblin.save(tag) writes it) for later summon/send.
+        RaceVariantData variant = captureRaceVariant(mob, race);
+        net.minecraft.nbt.CompoundTag snapshot = new net.minecraft.nbt.CompoundTag();
+        if (!mob.save(snapshot)) {
+            LOGGER.warn("[TM] race growth: mob.save() returned false for {} — child {} left vanilla",
+                    typeId, child.getId());
+            return;
+        }
+
+        UUID owner = colony.getPermissions().getOwner();
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
+        RaceIdentitySavedData.RaceIdentity identity = new RaceIdentitySavedData.RaceIdentity(
+                UUID.randomUUID(),
+                child.getId(),
+                colony.getID(),
+                mob.getUUID(),
+                RaceIdentitySavedData.Mode.IN_COLONY,
+                snapshot,
+                owner,
+                race);
+        saved.addIdentity(identity);
+
+        // Persist the captured appearance so the body-join / reconcile pass
+        // stamps the real (varied) variant immediately instead of the generic
+        // default. (applyRaceTagToCitizen does the same when a live body exists;
+        // here the body hasn't spawned yet, so we write the snapshot directly.)
+        try {
+            RaceTag tag = RaceTag.of(identity.identityId, race, variant);
+            saved.setRaceTagSnapshot(identity,
+                    RaceTag.SERIALIZER.write(tag, level.registryAccess()));
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] race growth: could not persist race-tag snapshot for child {} (identity {})",
+                    child.getId(), identity.identityId, t);
+        }
+
+        // "Auto-named" treatment — same starting bias + happiness a hand-named
+        // citizen gets. (Future idea: leave bred children UNNAMED so the player
+        // chooses which to evolve — see docs/future-ideas.md.)
+        RaceSkillProfiles.applyForRace(child, race, level.getRandom());
+        applyNamedAcquisitionPenalty(child);
+
+        LOGGER.info("[TM] race growth: colony '{}' bred a {} child (citizen {} identity {})",
+                colony.getName(), race, child.getId(), identity.identityId);
+    }
+
     // ------------------------------------------------------------------
     // Envoy system — Stages 1-3a:
     //   1: spawn + marker + naming suppression
@@ -1475,6 +1646,42 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (colony != null) {
             ReputationManager.modifyReputation(colony, REP_CITIZEN_ATTACKED, ReputationReason.CITIZEN_ATTACKED);
         }
+    }
+
+    /**
+     * Colony citizens are immune to Tensura's FEAR effect.
+     *
+     * Why — the FEAR effect deals fear DAMAGE every tick (see Tensura's
+     * {@code FearEffect.applyEffectTick}), so a player who casts a fear
+     * skill (Mortal Fear haki, etc.) near their own colony would kill
+     * their citizens over a few seconds without meaning to. Blocking the
+     * effect from ever landing on a citizen removes that accidental-death
+     * trap entirely.
+     *
+     * Scope — the exemption keys on {@link AbstractEntityCitizen}, i.e. the
+     * in-colony citizen BODY only. A named subordinate that has swapped OUT
+     * to its Tensura mob form is a different entity type (GoblinEntity,
+     * OrcEntity, …), NOT a citizen, so it stays fully feareable. That's
+     * deliberate: the assassin's "Betrayer" body and any subordinate
+     * fighting in the field are Tensura mobs and get NO exemption — exactly
+     * as requested.
+     *
+     * Hook — {@code MobEffectEvent.Applicable} fires from
+     * {@code LivingEntity.addEffect} before the effect lands; returning
+     * {@code DO_NOT_APPLY} stops it from being added at all (no tick, no
+     * damage). Only the FEAR effect is touched; every other effect on
+     * citizens is left to vanilla/Tensura behaviour.
+     */
+    @SubscribeEvent
+    public void onFearApplicableToCitizen(
+            net.neoforged.neoforge.event.entity.living.MobEffectEvent.Applicable event) {
+        if (!(event.getEntity() instanceof AbstractEntityCitizen)) return;
+        if (event.getEffectInstance().getEffect().value()
+                != io.github.manasmods.tensura.registry.effect.TensuraMobEffects.FEAR.get()) {
+            return;
+        }
+        event.setResult(
+                net.neoforged.neoforge.event.entity.living.MobEffectEvent.Applicable.Result.DO_NOT_APPLY);
     }
 
     /**
@@ -4390,6 +4597,23 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         .then(Commands.argument("race", StringArgumentType.word())
                                 .executes(this::handleSetColonyRaceCommand))
         );
+        // Stage B debug — exercise integrated race-aware growth
+        // (ReproductionManagerMixin) without waiting for the ~minutes-long
+        // reproduction timer + housing prerequisites.
+        //   /racegrow        — run the REAL ReproductionManager.trySpawnChild()
+        //                      once (runs the mixin + MC's full gating: needs a
+        //                      spare bed + adult female). The new child should
+        //                      be a baby of the colony's race.
+        //   /racegrow force  — create + convert a race child directly, bypassing
+        //                      MC's gating, and spawn its body (deterministic
+        //                      visual confirmation of a baby race-citizen).
+        event.getDispatcher().register(
+                Commands.literal("racegrow")
+                        .requires(src -> src.hasPermission(0))
+                        .executes(ctx -> handleRaceGrowCommand(ctx, false))
+                        .then(Commands.literal("force")
+                                .executes(ctx -> handleRaceGrowCommand(ctx, true)))
+        );
         // Envoy Stage 1 test handle: /spawnenvoy <goblin|orc|colonist>.
         // No unlock conditions; spawns an envoy at the player's owned-colony
         // town hall. Removed when the scheduler lands in Stage 3.
@@ -5153,6 +5377,95 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         } else {
             src.sendSuccess(() -> Component.literal(
                     "colony '" + resolvedColony.getName() + "' members: " + members), false);
+        }
+        return 1;
+    }
+
+    /**
+     * Debug command behind the Stage B reproduction-growth fix. See the
+     * registration block for the two modes.
+     *
+     * {@code force == false}: invoke the REAL
+     * {@code ReproductionManager.trySpawnChild()} once. This runs our
+     * {@code ReproductionManagerMixin} inside MineColonies' own method WITH all
+     * of MC's gating (auto-spawn setting, count below max, count at/above
+     * initial, an adult couple, a house with a spare bed). On success the count
+     * rises by one — and in a race colony that new child should be a race child
+     * (it gets a RaceIdentity), NOT a plain human colonist.
+     *
+     * {@code force == true}: create a child {@code CitizenData} and convert it
+     * via {@link #mintRaceChildCitizen} directly, bypassing MC's gating, then
+     * spawn its body — a deterministic check that a race colony breeds a baby
+     * of its race independent of housing.
+     */
+    private int handleRaceGrowCommand(CommandContext<CommandSourceStack> ctx, boolean force) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/racegrow must be run by a player"));
+            return 0;
+        }
+        IColony colony = resolveCommandColony(src, player);
+        if (colony == null) return 0;
+        final IColony c = colony;
+        ServerLevel level = player.serverLevel();
+
+        ColonyRaceConfigSavedData config = ColonyRaceConfigSavedData.get(level);
+        EnumSet<ColonyMember> members = config.getMembers(c.getID());
+        src.sendSuccess(() -> Component.literal(
+                "colony '" + c.getName() + "' members=" + members
+                + " pending=" + config.isPending(c.getID())
+                + " citizens=" + c.getCitizenManager().getCurrentCitizenCount()
+                + "/" + c.getCitizenManager().getMaxCitizens()), false);
+
+        if (force) {
+            ColonyMember picked = config.pickRandomMember(c.getID(), level.getRandom());
+            java.util.Optional<Race> raceOpt = picked == null
+                    ? java.util.Optional.empty() : picked.toRace();
+            if (raceOpt.isEmpty()) {
+                src.sendFailure(Component.literal(
+                        "this colony has no race members (or COLONIST drawn) — nothing to breed. "
+                        + "Set a race with /setcolonyrace first."));
+                return 0;
+            }
+            Race race = raceOpt.get();
+            ICitizenData child = c.getCitizenManager().createAndRegisterCivilianData();
+            mintRaceChildCitizen(level, c, child, race);
+            child.setIsChild(true);   // render as a baby, like a bred child
+            net.minecraft.core.BlockPos pos =
+                    c.getServerBuildingManager().hasTownHall()
+                            ? c.getServerBuildingManager().getTownHall().getPosition()
+                            : c.getCenter();
+            c.getCitizenManager().spawnOrCreateCitizen(child, level, pos);
+            src.sendSuccess(() -> Component.literal(
+                    "bred a " + race + " baby (citizen " + child.getId()
+                    + ") at the town hall — it should render as a baby " + race
+                    + " and appear in the Citizens list"), false);
+            return 1;
+        }
+
+        // Faithful path: run MC's real growth method (mixin included).
+        if (!(c.getReproductionManager() instanceof com.minecolonies.core.colony.managers.ReproductionManager repro)) {
+            src.sendFailure(Component.literal(
+                    "could not access the reproduction manager — use /racegrow force instead"));
+            return 0;
+        }
+        int before = c.getCitizenManager().getCurrentCitizenCount();
+        repro.trySpawnChild();
+        int after = c.getCitizenManager().getCurrentCitizenCount();
+        if (after > before) {
+            src.sendSuccess(() -> Component.literal(
+                    "a child was born (count " + before + "→" + after + "). In a race colony "
+                    + "it should be a baby of the colony's race (look for the log line "
+                    + "\"[TM] race growth: ... bred a <RACE> child\"); a plain human colonist "
+                    + "means it was NOT converted."), false);
+        } else {
+            src.sendSuccess(() -> Component.literal(
+                    "no child born (count unchanged at " + before + "). MC's gating blocked "
+                    + "growth (needs a spare bed + an adult female citizen + room below max). "
+                    + "Use /racegrow force for a gating-free check."), false);
         }
         return 1;
     }
@@ -6633,6 +6946,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (mob instanceof LivingEntity living) {
             living.setData(Attachments.COLONY_DEFENDER.get(),
                     new ColonyDefenderTag(identity.colonyId));
+            // Put the defender in an aggressive stance so it proactively engages
+            // ALL hostiles near the colony (raiders AND other hostile mobs), not
+            // only the raider we steer it onto. The COLONY_DEFENDER veto in
+            // onSubordinateChangeTarget restricts this aggression to genuine
+            // hostiles, so it fights enemies without hunting passive animals or
+            // colonists. Set BEFORE grantSentient so the body is combat-ready.
+            io.github.manasmods.tensura.util.SubordinateHelper.setAggressive(living);
             // Sentient driver (replaces the colony-defender autocaster) — the
             // defending body fights with its own learned active skills. Removed
             // on swap-back (defenseSwapToColony) BEFORE the snapshot is captured,
@@ -6671,6 +6991,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // into the identity (it was a defense-only grant, mirroring the old
         // tag-scoped COLONY_DEFENDER autocaster).
         removeSentient(goblin);
+
+        // Same hygiene for the aggressive stance we forced on swap-in: reset it
+        // to neutral so a later PLAYER-summoned subordinate doesn't inherit the
+        // defense-only aggression (which, on a non-defender body, would make it
+        // proactively hunt anything attackable). Neutral still retaliates when
+        // hit — the sane default for a summoned companion.
+        if (goblin instanceof net.minecraft.world.entity.Mob goblinMob) {
+            io.github.manasmods.tensura.util.SubordinateHelper.setNeutral(goblinMob);
+        }
 
         sendGoblinToColony(goblin, null, identity, goblinLevel, saved);
 

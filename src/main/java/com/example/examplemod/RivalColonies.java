@@ -108,16 +108,21 @@ public final class RivalColonies {
         // Eastern Empire (re-themed from otherworlders) — the major eastern
         // military power. Anchor MAI_FURUKI is a DELIBERATE PLACEHOLDER (no
         // real Empire-leadership entity exists yet — swap when one does). The
-        // "Space Wars" pack's futuristic look reads as Empire magitech.
+        // "Fortress" pack is a heavy stone-brick style — reads as an imperial
+        // stone stronghold. (Shared with Falmuth; duplicate packs are fine.
+        // No bundled MineColonies pack is literally "Stoneline"; Fortress is
+        // the closest true-stone town style.)
         ANCHORS.put("eastern_empire", HumanEntityTypes.MAI_FURUKI);
-        PACKS.put("eastern_empire", "Space Wars");
+        PACKS.put("eastern_empire", "Fortress");
         // Jura-Tempest Federation — the forest nation (merged tempest +
         // jura_alliance; the body is the old Jura settlement). The anchor
         // boss is a buffed BOSS-TIER SLIME (Rimuru's kin) — it casts natively
         // (verified), so it gets a strong kit + heavy buff, NOT an autocaster.
         // (Shin Ryusei moved to the Eastern Empire roster.)
         ANCHORS.put("tempest", MonsterEntityTypes.SLIME);
-        PACKS.put("tempest", "Jungle Treehouse");
+        // A plain "Medieval Oak" town — a normal-looking settlement rather
+        // than the old jungle-treehouse style.
+        PACKS.put("tempest", "Medieval Oak");
         // Dwargon — DWARVEN_VILLAGE type: anchor exists (Gazel) but NO
         // town pack; SOME existing dwarf villages become its settlements.
         ANCHORS.put(DWARGON, HumanEntityTypes.GAZEL_DWARGO);
@@ -387,20 +392,29 @@ public final class RivalColonies {
     // Pack-relative blueprint paths — MUST include the ".blueprint"
     // extension: StructurePacks resolves packRoot.resolve(path) and the
     // path normalizer does NOT append it.
-    // Widened from 22 → 32 so adjacent/diagonal buildings can't intersect
-    // (the MC schematics here run ~16–20 wide; 32 leaves clear margin). #3
-    private static final int GRID = 32;
+    // Buildings generate at their LEVEL 4 schematic (a well-established town,
+    // not a level-1 starter) — EXCEPT the tavern, which MineColonies only
+    // ships up to level 3 (there is no tavern4/tavern5 in ANY pack), so it
+    // uses its level-3 cap.
+    // Grid spacing (center-to-center of adjacent slots). Level-4 footprints are
+    // larger than level-1, but only ONE building is oversized: the barracks
+    // (~48 wide in Fortress / Caledonia). Everything else is ≤ ~27. 40 is the
+    // tightest spacing that still clears the widest barracks (half ≈ 24) next
+    // to its neighbours (half ≈ 8) with a little margin, keeping the town
+    // compact rather than sprawling. (History: 22 → 32 for level-1; briefly 56
+    // for level-4 before tightening back to 40.)
+    private static final int GRID = 40;
     private static final List<Building> LAYOUT = List.of(
-            new Building("fundamentals/townhall1.blueprint", 0, 0),
-            new Building("fundamentals/builder1.blueprint", -GRID, 0),
-            new Building("fundamentals/tavern1.blueprint", GRID, 0),
-            new Building("craftsmanship/metallurgy/blacksmith1.blueprint", 0, -GRID),
-            new Building("education/library1.blueprint", 0, GRID),
-            new Building("military/barracks1.blueprint", -GRID, -GRID),
-            new Building("fundamentals/residence1.blueprint", GRID, -GRID),
-            new Building("fundamentals/residence1.blueprint", -GRID, GRID),
-            new Building("fundamentals/residence1.blueprint", GRID, GRID),
-            new Building("fundamentals/residence1.blueprint", 0, GRID * 2));
+            new Building("fundamentals/townhall4.blueprint", 0, 0),
+            new Building("fundamentals/builder4.blueprint", -GRID, 0),
+            new Building("fundamentals/tavern3.blueprint", GRID, 0), // tavern caps at L3
+            new Building("craftsmanship/metallurgy/blacksmith4.blueprint", 0, -GRID),
+            new Building("education/library4.blueprint", 0, GRID),
+            new Building("military/barracks4.blueprint", -GRID, -GRID),
+            new Building("fundamentals/residence4.blueprint", GRID, -GRID),
+            new Building("fundamentals/residence4.blueprint", -GRID, GRID),
+            new Building("fundamentals/residence4.blueprint", GRID, GRID),
+            new Building("fundamentals/residence4.blueprint", 0, GRID * 2));
 
     // (Stage 4) The old proximity-scatter natural-gen tuning constants
     // (NATURAL_GEN_CHANCE_PER_DAY / NATURAL_GEN_DISTANCE / MIN_SETTLEMENT_SPACING
@@ -449,10 +463,30 @@ public final class RivalColonies {
     // wanted (e.g. roll at populate time). The debug command + ALL/colony
     // callers use generateColony directly.
 
+    /**
+     * True only in the vanilla OVERWORLD. Faction settlements are overworld
+     * towns — their worldgen structures target overworld biomes, and every
+     * placement helper here uses open-sky {@code WORLD_SURFACE} height lookups.
+     * In a roofed dimension (the Nether) those lookups return the BEDROCK
+     * CEILING instead of the floor, which buried whole towns in the roof and
+     * spawned the boss/garrison/citizens above it (the 2026-06-30 bug report).
+     * So generation is gated to the overworld everywhere below.
+     */
+    private static boolean isOverworld(ServerLevel level) {
+        return level.dimension().equals(Level.OVERWORLD);
+    }
+
     /** Force the COLONY version (the debug command + ALL mode). */
     static Settlement generateColony(ServerLevel level, ServerPlayer placer, String factionId,
                                      BlockPos rawCenter) {
         if (!WorldReputationManager.isFactionSystemEnabled() || !isTownFaction(factionId)) return null;
+        // Overworld-only: WORLD_SURFACE lookups resolve to the bedrock roof in
+        // the Nether, so a town generated there lands in/above the ceiling.
+        if (!isOverworld(level)) {
+            LOGGER.warn("[TM] rival: refusing to generate {} settlement in {} — "
+                    + "faction towns are overworld-only", factionId, level.dimension().location());
+            return null;
+        }
         String pack = PACKS.get(factionId);
         // PACK-READINESS GUARD. Structurize registers/indexes its structure
         // packs ASYNC on a worker thread (and reloads them on relog). Generating
@@ -709,10 +743,13 @@ public final class RivalColonies {
     }
 
     /** A solid terrain block to stand a building on (excludes air, fluids,
-     *  replaceable plants/snow-layers, leaves and logs). */
+     *  replaceable plants/snow-layers, leaves and logs, and bedrock — so a
+     *  building never anchors on the world-floor / ceiling bedrock layer even
+     *  if the surface scan falls through to it). */
     private static boolean isGroundSurface(net.minecraft.world.level.block.state.BlockState st) {
         if (st.isAir() || !st.getFluidState().isEmpty() || st.canBeReplaced()) return false;
         if (st.is(net.minecraft.tags.BlockTags.LEAVES) || st.is(net.minecraft.tags.BlockTags.LOGS)) return false;
+        if (st.is(Blocks.BEDROCK)) return false;
         return true;
     }
 
@@ -859,6 +896,13 @@ public final class RivalColonies {
             tickDiscovery(level);
 
             if (!settlementsOn) continue;
+
+            // Overworld-only: skip the whole generation scan in the Nether/End
+            // (and any other dimension). Faction towns are overworld content;
+            // their WORLD_SURFACE placement lookups break under a bedrock roof.
+            // (tickGarrison / tickDiscovery / tickAssaults above already no-op
+            // in other dimensions because every settlement is overworld.)
+            if (!isOverworld(level)) continue;
 
             // Dwargon: poll for players standing in an unevaluated dwarf
             // village (a structure lookup per player).
@@ -2148,6 +2192,10 @@ public final class RivalColonies {
             return faction.displayName() + " is ABSTRACT — it has no anchor mob, no settlement.";
         }
         ServerLevel level = player.serverLevel();
+        if (!isOverworld(level)) {
+            return "faction settlements are overworld-only — stand in the overworld "
+                    + "to spawn one (they'd bury in the bedrock roof in the Nether).";
+        }
 
         // Dwargon is DWARVEN_VILLAGE-type: it adopts the dwarf village the
         // player is standing in, rather than generating a faux-town.

@@ -74,6 +74,12 @@ public final class ColonyThreatResponse {
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(server.overworld());
         int swapsThisTick = 0;
 
+        // Master toggle. When the defense form-swap is disabled we still run
+        // the swap-BACK path below (so a citizen already transformed when the
+        // player flips the config off reverts cleanly), but never swap anyone
+        // NEW in — treated exactly like "not raided".
+        boolean swapEnabled = Config.enableDefenseSwap();
+
         for (ServerLevel level : server.getAllLevels()) {
             for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
                 // A town hall is required for both swap directions (the body
@@ -94,7 +100,7 @@ public final class ColonyThreatResponse {
                     continue; // defensive — a malformed colony shouldn't break the pass
                 }
 
-                if (raided) {
+                if (raided && swapEnabled) {
                     List<Mob> raiders = scanRaiders(level, colony);
                     for (RaceIdentitySavedData.RaceIdentity id : ids) {
                         if (id.defendingColony
@@ -112,7 +118,8 @@ public final class ColonyThreatResponse {
                         }
                     }
                 } else {
-                    // Threat over — bring every defender home.
+                    // Threat over (or the feature is disabled) — bring every
+                    // defender home.
                     for (RaceIdentitySavedData.RaceIdentity id : ids) {
                         if (id.defendingColony) {
                             ExampleMod.defenseSwapToColony(level, saved, id);

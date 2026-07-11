@@ -3,9 +3,30 @@
 **Purpose of this file:** the single source-of-truth "where things stand right now." Read this
 first in any new session to catch up. Update it at the END of each work session. Keep it in git.
 Pair with: `decisions.md` (why things are the way they are), `CHANGELOG.md` (what changed),
-`roadmap.md` / TODO (what's next), and the per-system docs in `docs/`.
+`roadmap.md` / TODO (what's next), the per-system docs in `docs/`, and
+[`deps/`](../deps/README.md) (source-grounded reference for the upstream mods —
+MineColonies / Tensura / Nightmare's Utils / Structurize: their APIs, events,
+invariants, and what we consume vs available-but-unused; read before building a
+new system that might hook existing upstream API).
 
-_Last updated: 2026-06-27 — update this every session._
+_Last updated: 2026-07-10 — update this every session._
+
+_**Session 2026-07-10 — raid spawn placement fix (branch `patrol-colony-outskirts`,
+uncommitted).** Fixed the 2026-07-10 bug report "Tensura raids spawn ~10 monsters
+instantly inside a house": MC's `calculateSpawnLocation()` is perimeter-safe when
+it succeeds (bytecode-verified) but returns null in common cases, and our old
+fallback was colony-center+32 — inside the built-up area. `TensuraRaids` now falls
+back to a claimed-border march (border + 16 blocks; the SubordinatePatrol
+outskirts technique), and every candidate + the per-raider scatter rejects fueled
+barrier footprints (an inside-spawned raider would be trapped in the shield).
+Single chokepoint — covers generic raids, the Orc Disaster lore raid, and
+`/tensuraraid`. Compiles green; **NOT playtested** (needs: `/tensuraraid` at a
+built colony → wave appears at the territory edge, not among houses; repeat with
+a fueled barrier → wave appears outside the field — full recipe in the NEW
+**docs/playtesting.md**, the standing built-green-but-unverified queue). Wave
+staggering deliberately deferred (future-ideas.md). Records: user-bug-reports.md (RESOLVED entry, awaiting
+player confirmation), raid-system.md (dated section), deps/minecolonies.md
+(gotcha #9), CHANGELOG `[Unreleased]`, wiki raids page._
 
 _Version: **0.1.2 finalized for release** (`mod_version=0.1.2`; CHANGELOG `[0.1.2] - 2026-06-27`
 cut, `[Unreleased]` reopened for 0.1.3). 0.1.2 = gold-pillar marker removed + faction settlements

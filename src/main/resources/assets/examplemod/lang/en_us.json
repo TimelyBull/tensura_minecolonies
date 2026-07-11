@@ -18,10 +18,13 @@
   "tensura_minecolonies.configuration.title": "Tensura MineColonies Integration",
   "tensura_minecolonies.configuration.section.tensura_minecolonies.common.toml": "Tensura MineColonies Settings",
   "tensura_minecolonies.configuration.section.tensura_minecolonies.common.toml.title": "Tensura MineColonies Settings",
+  "tensura_minecolonies.configuration.section.tensura_minecolonies.server.toml": "Tensura MineColonies Settings (Per-World)",
+  "tensura_minecolonies.configuration.section.tensura_minecolonies.server.toml.title": "Tensura MineColonies Settings (Per-World)",
 
   "tensura_minecolonies.configuration.citizenAggression": "Mob Aggression",
   "tensura_minecolonies.configuration.enableFactionSystem": "Enable Faction System",
   "tensura_minecolonies.configuration.enableAssassins": "Enable Assassins",
+  "tensura_minecolonies.configuration.enableDefenseSwap": "Citizens Transform to Defend Raids",
   "tensura_minecolonies.configuration.rivalSettlementMode": "Rival Settlement Mode",
   "tensura_minecolonies.configuration.rivalSettlementSomeChance": "Rival Settlement Chance (SOME mode)",
   "tensura_minecolonies.configuration.rivalNaturalGeneration": "Rival Settlements Generate Naturally",

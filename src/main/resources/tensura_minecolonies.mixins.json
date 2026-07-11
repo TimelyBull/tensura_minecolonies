@@ -6,6 +6,7 @@
   "mixins": [
     "CreateColonyMessageMixin",
     "ISubordinateCommandMixin",
+    "ReproductionManagerMixin",
     "TensuraBehaviourHelperMixin"
   ],
   "injectors": {

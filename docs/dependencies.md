@@ -3,6 +3,11 @@
 All jars live in `libs/` and are NOT committed to git. If you need to reproduce
 the build, source these versions manually from CurseForge / Modrinth / GitHub.
 
+> **This file is the version/ID ledger only.** For the deep, source-grounded API
+> reference (registries, events, invariants, gotchas, what we consume vs
+> available-but-unused) see [`deps/`](../deps/README.md) — one file per major
+> dependency, pinned to the versions below.
+
 ## Platform
 
 | Dependency | Version |

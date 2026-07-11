@@ -16,8 +16,12 @@ import java.util.Map;
  * One global instance per server on the overworld's data storage, same
  * pattern as {@link ColonyRaceConfigSavedData} / {@link ReputationSavedData}.
  *
- * Only the cooldown lives here; the active raid itself is an
- * {@link TensuraRaidEvent} persisted by MineColonies' own event manager.
+ * Only the cooldown lives here; the active raid itself is a
+ * {@link TensuraRaidEvent} held in MineColonies' event manager. ⚠ Note that
+ * the live event does NOT survive save/reload — MC's {@code EventManager}
+ * only rehydrates events in the {@code minecolonies} namespace, so an
+ * in-progress {@link TensuraRaidEvent} is dropped on reload. See
+ * {@link TensuraRaidEvent} header and deps/minecolonies.md for detail.
  *
  * NBT: {@code raids: [{colonyId:int, lastResolveTick:long}]}.
  * Missing key → never raided (cooldown passes).

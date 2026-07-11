@@ -17,6 +17,14 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 public class Config {
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
+    /** SERVER-side config spec (per-world). Lives in
+     *  {@code saves/<world>/serverconfig/tensura_minecolonies-server.toml} and
+     *  is (re)loaded on every world load, so the in-game config menu can
+     *  actually change it — unlike the COMMON spec, which loads once per game
+     *  launch. Holds the per-world gameplay master switches (faction system,
+     *  defense form-swap) — see below. */
+    private static final ModConfigSpec.Builder SERVER_BUILDER = new ModConfigSpec.Builder();
+
     /** Master switch for the ENTIRE faction + diplomacy system. This is the
      *  single source of truth — there is no gamerule or command for it.
      *  When false (the DEFAULT), the whole layer is dormant and inaccessible:
@@ -31,15 +39,25 @@ public class Config {
      *  reputation raids, the barrier, assassins (own toggle), the threat-
      *  response defenders, and festivals. The gates sit at the faction
      *  layer's entry points only (read via
-     *  {@link WorldReputationManager#isFactionSystemEnabled()}). */
-    public static final ModConfigSpec.BooleanValue ENABLE_FACTION_SYSTEM = BUILDER
+     *  {@link WorldReputationManager#isFactionSystemEnabled()}).
+     *  <p>This is a per-world SERVER config marked {@code worldRestart()}:
+     *  changing it in the in-game config menu prompts the player to reload the
+     *  world, and the new value takes effect on world (re)entry. (It used to be
+     *  a COMMON config, where the in-game menu silently did nothing because the
+     *  running session kept the value cached — players had to edit the file by
+     *  hand. See docs/user-bug-reports.md, 2026-07-04.) Because it isn't loaded
+     *  at the main menu, {@link WorldReputationManager#isFactionSystemEnabled()}
+     *  catches the not-loaded case and returns false. */
+    public static final ModConfigSpec.BooleanValue ENABLE_FACTION_SYSTEM = SERVER_BUILDER
             .comment("Enable the ENTIRE faction + diplomacy system (rival colonies,",
                      "settlement generation, diplomacy envoys/deals/trades, warfare and",
                      "conquest, lore raids like the Orc Disaster, and marked-boss world",
                      "reputation). This is the only switch — there is no gamerule/command.",
                      "DEFAULT false = the whole faction layer is off and inaccessible;",
                      "the core mod (Tensura mobs as citizens, race envoys, colony",
-                     "reputation, generic raids, barrier, assassins) is unaffected.")
+                     "reputation, generic raids, barrier, assassins) is unaffected.",
+                     "This is a per-world setting: after changing it, reload the world to apply.")
+            .worldRestart()
             .define("enableFactionSystem", false);
 
     /** Master switch for the assassin system. When false: no
@@ -51,6 +69,42 @@ public class Config {
                      "false = no new plots; existing lurking/armed plots defuse;",
                      "an already-active assassin boss remains until slain.")
             .define("enableAssassins", true);
+
+    /** Master switch for the colony threat-response defense form-swap. When a
+     *  colony is raided, strong (EP ≥ 10k) non-guard Tensura-race citizens
+     *  place-swap into their full Tensura monster body and fight with skills,
+     *  then swap back when the raid ends ({@link ColonyThreatResponse} /
+     *  {@link ExampleMod#defenseSwapToSubordinate}). Some players don't want
+     *  their citizens transforming into rampaging monsters mid-raid. When
+     *  false: no citizen ever swaps to fight (guards still guard, everyone else
+     *  uses MineColonies' native flee), and any citizen currently swapped-in is
+     *  swapped back on the next tick. DEFAULT true = current behaviour. Read via
+     *  {@link #enableDefenseSwap()}.
+     *  <p>Per-world SERVER config marked {@code worldRestart()} (same reasoning
+     *  as {@link #ENABLE_FACTION_SYSTEM}): the in-game config menu applies it on
+     *  world reload, instead of the COMMON-config cache trap where the menu
+     *  silently does nothing until the file is hand-edited. */
+    public static final ModConfigSpec.BooleanValue ENABLE_DEFENSE_SWAP = SERVER_BUILDER
+            .comment("Enable the colony defense form-swap: during a raid, strong non-guard",
+                     "Tensura-race citizens transform into their monster body and fight with",
+                     "skills, then change back when the raid ends. false = citizens never",
+                     "transform to fight (guards still guard; others flee as MineColonies",
+                     "normally handles it); any citizen already transformed reverts next tick.",
+                     "This is a per-world setting: after changing it, reload the world to apply.")
+            .worldRestart()
+            .define("enableDefenseSwap", true);
+
+    /** Safe read of the defense-swap toggle. Returns true (the default) if the
+     *  config isn't loaded yet (e.g. at the main menu — SERVER configs load per
+     *  world). The scheduler only reads this while a world is loaded, so the
+     *  fallback effectively only matters very early in startup. */
+    public static boolean enableDefenseSwap() {
+        try {
+            return ENABLE_DEFENSE_SWAP.get();
+        } catch (IllegalStateException e) {
+            return true;
+        }
+    }
 
     /** How aggressive innately-hostile Tensura mobs are toward colony
      *  citizens — the extra targeting this compat mod adds on top of vanilla
@@ -130,6 +184,12 @@ public class Config {
             .defineListAllowEmpty("items", List.of("minecraft:iron_ingot"), () -> "", Config::validateItemName);
 
     static final ModConfigSpec SPEC = BUILDER.build();
+
+    /** Built from {@link #SERVER_BUILDER} — the per-world SERVER spec holding the
+     *  world-gameplay toggles that must be changeable from the in-game config
+     *  menu ({@link #ENABLE_FACTION_SYSTEM}, {@link #ENABLE_DEFENSE_SWAP}).
+     *  Registered as {@code ModConfig.Type.SERVER} in {@code ExampleMod}. */
+    static final ModConfigSpec SERVER_SPEC = SERVER_BUILDER.build();
 
     private static boolean validateItemName(final Object obj) {
         return obj instanceof String itemName && BuiltInRegistries.ITEM.containsKey(ResourceLocation.parse(itemName));
