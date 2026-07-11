@@ -79,10 +79,13 @@ tier's sphere is colour-coded:
 | 4 | 60 | 60,000 | (all of the above) | Gold |
 
 While fueled, a barrier also **prevents hostile mobs from spawning** inside its
-footprint, and stops enemy arrows, spells, and breath attacks at its panels
-(these still pass through an open hole). Raid waves never appear inside a
-fueled barrier either — raiders always show up outside it and have to break
-through.
+footprint — both vanilla monsters and Tensura hostiles, whether from night-time
+wild spawns, mob spawners, trial spawners, pillager patrols, or reinforcements.
+Mobs you place on purpose (spawn eggs, commands, dispensers) and your own tamed
+or summoned creatures are not affected. It also stops enemy arrows, spells, and
+breath attacks at its panels (these still pass through an open hole). Raid waves
+never appear inside a fueled barrier either — raiders always show up outside it
+and have to break through.
 
 ### Fuel
 

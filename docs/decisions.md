@@ -2588,3 +2588,39 @@ Each entry marks intended-usage assumptions `[verify in-game]`.
   better) — an enhancement, not a bug fix. `[verify in-game]` that it improves
   flyer pursuit without fighting our steer. Ref: `deps/nightmares-utils.md`
   "Beyond the autocaster".
+
+## Barrier in-field spawn suppression — environmental spawn types (2026-07-10)
+
+**Decision:** a fueled barrier suppresses hostile spawns inside its footprint
+across the whole *environmental* spawn set, not just `NATURAL` +
+`CHUNK_GENERATION`. The scope was a genuine design choice (user-suggestion
+2026-07-10 #3); the user picked "block involuntary/world spawns, leave
+deliberate placement alone."
+
+- **In (blocked):** NATURAL, CHUNK_GENERATION, SPAWNER, TRIAL_SPAWNER, PATROL,
+  REINFORCEMENT, JOCKEY, STRUCTURE, EVENT, TRIGGERED — the set
+  `ExampleMod.BARRIER_BLOCKED_SPAWN_TYPES`.
+- **Out (allowed):** SPAWN_EGG, COMMAND, DISPENSER, MOB_SUMMONED, BREEDING,
+  CONVERSION, BUCKET — so a player can still deliberately place a mob inside the
+  field, and the mod's own SPAWN_EGG raid/envoy/garrison/defense spawns are never
+  self-blocked.
+- **Two hooks, one predicate.** Only NATURAL/CHUNK_GENERATION/SPAWNER reach
+  `MobSpawnEvent.PositionCheck` (verified in NeoForge 21.1.233 sources:
+  `NaturalSpawner` + `BaseSpawner`). The rest reach `finalizeSpawn` only, so a
+  second hook on `FinalizeSpawnEvent` (`setSpawnCancelled(true)`) is required —
+  neither hook alone covers the set. Both call the shared
+  `shouldBarrierBlockSpawn` (type in set AND in the `barrier_blocked` tag AND
+  inside a fueled footprint).
+- **Why the `barrier_blocked` tag, not `MobCategory.MONSTER`:** Tensura
+  registers goblins/orcs as MONSTER despite being passive-aggressive, so the
+  category over-blocks. The tag = Tensura's curated `#tensura:hostile_monster` +
+  the vanilla hostiles it omits — the same tag the field pushback uses, so "a
+  mob the barrier repels" == "a mob it won't let spawn." This is also why TENSURA
+  hostiles are covered (they're in that tag) rather than only vanilla monsters.
+- **Raids stay orthogonal.** Raiders spawn via direct `finalizeSpawn(SPAWN_EGG)`
+  (exempt) + `addFreshEntity` (posts neither event), and the raid placement fix
+  already keeps them outside the field. Two independent belts.
+- **Rationale:** correctness/coverage — closes the "dungeon spawner / patrol pops
+  a hostile inside my dome" gap without breaking intentional spawns. `[verify
+  in-game]` — playtesting.md §1b. Ref: raid-system.md "IN-FIELD SPAWN
+  SUPPRESSION — BROADENED".

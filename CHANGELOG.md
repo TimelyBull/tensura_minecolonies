@@ -9,6 +9,16 @@ Copy the relevant version's section into the CurseForge release notes on each up
 ## [Unreleased]
 
 ### Added
+- **A fueled magicule barrier now stops hostile mobs from spawning inside it.**
+  While your Barrier Core has fuel, hostile monsters — vanilla ones and Tensura
+  ones (spiders, direwolves, daemons, orcs, and the rest of Tensura's hostile
+  list) — can no longer appear anywhere inside the protected area. This covers
+  wild night-time spawns as well as pillager patrols, mob spawners, trial
+  spawners, and zombie reinforcements that would otherwise pop up inside your
+  walls. It does NOT block things you place on purpose (spawn eggs, `/summon`,
+  dispensers, breeding, your own tamed/summoned creatures), and it leaves raids
+  alone — raiders still spawn OUTSIDE the field and have to break through, as
+  before. An empty barrier protects nothing: refuel it to keep the area clear.
 - **New setting: "Citizens Transform to Defend Raids"** (on by default). When a
   colony is raided, strong non-guard Tensura-race citizens transform into their
   monster body and fight with skills, then change back when the raid ends. If you

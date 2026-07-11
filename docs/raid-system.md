@@ -10,6 +10,48 @@ Class references confirmed by `javap` against the jars in `libs/`.
 
 ---
 
+## IN-FIELD SPAWN SUPPRESSION — BROADENED (2026-07-10)
+
+Answers user-suggestion 2026-07-10 #3 ("barrier should stop hostile + Tensura
+mobs SPAWNING inside it"). The suppression was already shipped but only covered
+`NATURAL` + `CHUNK_GENERATION`; it now covers the whole *environmental* spawn
+set. Two hooks in `ExampleMod`, sharing one type set + one predicate:
+
+- **Type set** `BARRIER_BLOCKED_SPAWN_TYPES` (EnumSet): NATURAL,
+  CHUNK_GENERATION, SPAWNER, TRIAL_SPAWNER, PATROL, REINFORCEMENT, JOCKEY,
+  STRUCTURE, EVENT, TRIGGERED. Deliberately EXCLUDES the intentional-placement
+  types (SPAWN_EGG, COMMAND, DISPENSER, MOB_SUMMONED, BREEDING, CONVERSION,
+  BUCKET) — so players (and this mod's own SPAWN_EGG raid/envoy/garrison/defense
+  spawns) can still place mobs inside the field on purpose.
+- **Predicate** `shouldBarrierBlockSpawn(level, type, spawnType, x, z)`: type in
+  the set AND type in the `tensura_minecolonies:barrier_blocked` tag (= Tensura's
+  `#tensura:hostile_monster` + the vanilla hostiles it omits — this is why
+  TENSURA mobs are covered, not just `MobCategory.MONSTER`) AND inside a fueled
+  barrier's 2D footprint (`TensuraRaids.isInsideFueledBarrier`).
+- **Hook 1 — `onMobSpawnPositionCheck`** (`MobSpawnEvent.PositionCheck`): the
+  only types that reach PositionCheck are NATURAL / CHUNK_GENERATION (vanilla
+  `NaturalSpawner`) and SPAWNER (`BaseSpawner` mob-spawner blocks). Denies early
+  with `Result.FAIL`.
+- **Hook 2 — `onBarrierBlockFinalizeSpawn`** (`FinalizeSpawnEvent`, NEW): the
+  finalize-only environmental types (PATROL / TRIAL_SPAWNER / REINFORCEMENT /
+  JOCKEY / STRUCTURE / EVENT / TRIGGERED) never fire PositionCheck — they reach
+  `finalizeSpawn`. Cancels with `setSpawnCancelled(true)`.
+- **Active whenever FUELED, not raid-gated** — `reportActiveBarrier` fires every
+  second while `poolStoredCache > 0`, so the block works in peacetime (the main
+  use case: nothing spawns in your base at night).
+- **Raids unaffected** — our raid/envoy/garrison mobs spawn via direct
+  `finalizeSpawn(SPAWN_EGG)` (exempt type) + `addFreshEntity` (which posts
+  neither event), and the raid placement fix (below) already keeps them outside
+  the field. Both belts hold independently.
+- Footprint stays **2D** (`isWithinFootprint`, square, X/Z only) — same as the
+  render/field. A mob would-be-spawning within the X/Z square at any Y is denied
+  (covers caves under the base too).
+
+Verification is still in-game-pending (compiles green). Recipe in
+docs/playtesting.md.
+
+---
+
 ## WAVE SPAWN PLACEMENT FIX (2026-07-10) — edge spawns, barrier rejection
 
 Fixes the 2026-07-10 bug report ("raids spawn 10 monsters instantly inside a

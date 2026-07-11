@@ -59,6 +59,39 @@ SPAWN PLACEMENT FIX").
 **Status:** OPEN — built green 2026-07-10, never run in-game. Reporter
 confirmation also pending (see user-bug-reports.md).
 
+### 1b. Barrier blocks hostile/Tensura spawns inside its field (2026-07-10)
+
+**What changed:** the fueled-barrier in-field spawn suppression was broadened
+from `NATURAL` + `CHUNK_GENERATION` to the whole *environmental* spawn set (now
+also SPAWNER / TRIAL_SPAWNER / PATROL / REINFORCEMENT / JOCKEY / STRUCTURE /
+EVENT / TRIGGERED), via a new `FinalizeSpawnEvent` hook alongside the existing
+`PositionCheck` hook (both share `ExampleMod.BARRIER_BLOCKED_SPAWN_TYPES` +
+`shouldBarrierBlockSpawn`). Deliberate placement (spawn eggs, `/summon`,
+dispensers, breeding, our own SPAWN_EGG mob spawns) is intentionally NOT blocked.
+Full record: `docs/raid-system.md` ("IN-FIELD SPAWN SUPPRESSION — BROADENED").
+
+**How to test:**
+1. Build/fuel a Barrier Core with a decent radius (T2+ is easiest to see) over
+   open ground near your base. Confirm the wall is up (fuel > 0).
+2. **Natural spawns:** `/time set night`, stand inside the footprint, and watch.
+   **Expect:** no zombies/skeletons/spiders/Tensura hostiles (black spiders,
+   direwolves, giant ants, etc.) appear anywhere inside the square footprint —
+   they only spawn beyond it. Compare by draining the barrier to 0 fuel
+   (`MIN` in the core menu) → hostiles start appearing inside again.
+3. **Mob spawner:** place a vanilla monster spawner (or find a dungeon) inside
+   the footprint while fueled. **Expect:** it ticks but no mob materializes.
+4. **Patrol / reinforcement (optional):** a pillager patrol wandering into the
+   footprint should not complete its spawn; a zombie calling reinforcements
+   inside should get none.
+5. **Deliberate placement still works:** inside the fueled footprint, use a
+   hostile spawn egg or `/summon minecraft:zombie` — **expect it to spawn**
+   (we only block environmental spawns). Your own tamed/summoned creatures are
+   unaffected.
+6. **Raids unaffected:** `/tensuraraid` with the barrier fueled — raiders still
+   appear OUTSIDE the field and press in (covered by test #1 above too).
+
+**Status:** OPEN — built green 2026-07-10, never run in-game.
+
 ### 2. Carried over from STATE.md (older, still unverified)
 
 Pointers only — full context in `docs/STATE.md` ("Immediate next steps") and

@@ -1685,38 +1685,98 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     }
 
     /**
-     * Hostile-only spawn prevention inside a fueled barrier.
+     * The spawn TYPES a fueled barrier suppresses inside its footprint —
+     * the "environmental / involuntary arrival" set. Deliberate spawns are
+     * deliberately ABSENT (SPAWN_EGG, COMMAND, DISPENSER, MOB_SUMMONED,
+     * BREEDING, CONVERSION, BUCKET), so a player (or this mod) can still
+     * intentionally place a mob inside the field — and our own raid / envoy
+     * / garrison / defense spawns (all {@code MobSpawnType.SPAWN_EGG} via a
+     * direct {@code finalizeSpawn}, which doesn't post these events anyway)
+     * are never touched. Raids are unaffected regardless: they bypass the
+     * spawn events and are placed OUTSIDE the field by construction.
      *
-     * Classification — "only hostile" = the {@code tensura:hostile_monster}
-     * ENTITY TYPE TAG, not {@code MobCategory.MONSTER}. Tensura registers
+     * Only a subset of these actually reach {@code PositionCheck}
+     * (NATURAL / CHUNK_GENERATION / SPAWNER); the rest (PATROL /
+     * TRIAL_SPAWNER / REINFORCEMENT / JOCKEY / STRUCTURE / EVENT /
+     * TRIGGERED) only reach {@code FinalizeSpawnEvent}. Both hooks share
+     * this one set, so listing all of them here is correct for each hook.
+     */
+    private static final java.util.EnumSet<net.minecraft.world.entity.MobSpawnType>
+            BARRIER_BLOCKED_SPAWN_TYPES = java.util.EnumSet.of(
+                    net.minecraft.world.entity.MobSpawnType.NATURAL,
+                    net.minecraft.world.entity.MobSpawnType.CHUNK_GENERATION,
+                    net.minecraft.world.entity.MobSpawnType.SPAWNER,
+                    net.minecraft.world.entity.MobSpawnType.TRIAL_SPAWNER,
+                    net.minecraft.world.entity.MobSpawnType.PATROL,
+                    net.minecraft.world.entity.MobSpawnType.REINFORCEMENT,
+                    net.minecraft.world.entity.MobSpawnType.JOCKEY,
+                    net.minecraft.world.entity.MobSpawnType.STRUCTURE,
+                    net.minecraft.world.entity.MobSpawnType.EVENT,
+                    net.minecraft.world.entity.MobSpawnType.TRIGGERED);
+
+    /**
+     * Shared test for both barrier spawn-suppression hooks: true when a mob
+     * of {@code type}, arriving via {@code spawnType} at (x, z), should be
+     * denied because it is a barrier-blocked hostile inside a fueled
+     * barrier's footprint.
+     *
+     * Classification — "hostile" = the {@code tensura_minecolonies:barrier_blocked}
+     * ENTITY TYPE TAG (which pulls in Tensura's curated
+     * {@code tensura:hostile_monster} list PLUS the vanilla hostiles that
+     * tag omits), NOT {@code MobCategory.MONSTER}: Tensura registers
      * goblins/orcs/etc. as MONSTER even though they're passive-aggressive,
-     * so the category over-blocks; the tag is Tensura's own curated
-     * attacks-on-sight list (vanilla zombies/skeletons/creepers + Tensura's
-     * genuine hostiles, with neutral mobs like endermen and the nameable
-     * races deliberately absent). Same tag the patrol targeting uses.
-     *
-     * Hook — {@code MobSpawnEvent.PositionCheck}, fired by vanilla's
-     * NaturalSpawner / spawner placement checks. Our raid spawns go
-     * through {@code EntityType.create + addFreshEntity} directly, which
-     * never posts this event — raids are unaffected by construction (and
-     * spawn at the colony perimeter anyway). Only NATURAL-style spawns
-     * are denied; the barrier must be FUELED (the active-barrier registry
-     * only carries barriers with stored magicule > 0).
+     * so the category over-blocks. Same tag the field pushback uses, so a
+     * mob the barrier would repel is exactly a mob it won't let spawn.
+     * "Fueled" is implicit — the active-barrier registry only carries
+     * barriers with stored magicule > 0.
+     */
+    private static boolean shouldBarrierBlockSpawn(
+            ServerLevel level,
+            net.minecraft.world.entity.EntityType<?> type,
+            net.minecraft.world.entity.MobSpawnType spawnType,
+            double x, double z) {
+        if (!BARRIER_BLOCKED_SPAWN_TYPES.contains(spawnType)) return false;
+        if (!type.builtInRegistryHolder().is(TensuraRaids.HOSTILE_MONSTER_TAG)) return false;
+        return TensuraRaids.isInsideFueledBarrier(level, x, z);
+    }
+
+    /**
+     * Barrier spawn-suppression hook #1 — {@code MobSpawnEvent.PositionCheck},
+     * fired by vanilla's NaturalSpawner (NATURAL / CHUNK_GENERATION) and by
+     * mob-spawner blocks (SPAWNER). Denies the spawn early, before the mob
+     * is finalized. The companion {@link #onBarrierBlockFinalizeSpawn} hook
+     * covers the environmental spawn types that never reach PositionCheck.
      */
     @SubscribeEvent
     public void onMobSpawnPositionCheck(
             net.neoforged.neoforge.event.entity.living.MobSpawnEvent.PositionCheck event) {
         if (!(event.getLevel() instanceof ServerLevel serverLevel)) return;
-        net.minecraft.world.entity.MobSpawnType type = event.getSpawnType();
-        if (type != net.minecraft.world.entity.MobSpawnType.NATURAL
-                && type != net.minecraft.world.entity.MobSpawnType.CHUNK_GENERATION) {
-            return;
+        if (shouldBarrierBlockSpawn(serverLevel, event.getEntity().getType(),
+                event.getSpawnType(), event.getX(), event.getZ())) {
+            event.setResult(
+                    net.neoforged.neoforge.event.entity.living.MobSpawnEvent.PositionCheck.Result.FAIL);
         }
-        if (!event.getEntity().getType().builtInRegistryHolder().is(TensuraRaids.HOSTILE_MONSTER_TAG)) {
-            return;
-        }
-        if (TensuraRaids.isInsideFueledBarrier(serverLevel, event.getX(), event.getZ())) {
-            event.setResult(net.neoforged.neoforge.event.entity.living.MobSpawnEvent.PositionCheck.Result.FAIL);
+    }
+
+    /**
+     * Barrier spawn-suppression hook #2 — {@code FinalizeSpawnEvent}, the
+     * catch for the environmental spawn paths that DON'T fire PositionCheck:
+     * pillager patrols, trial spawners, zombie reinforcements, jockeys, and
+     * structure / event spawns all reach {@code finalizeSpawn} instead.
+     * Cancelling here stops them materialising inside a fueled barrier.
+     * (NATURAL / CHUNK_GENERATION / SPAWNER are already denied earlier by
+     * PositionCheck, so this only ends up firing for the finalize-only
+     * types — but sharing the same set keeps it robust if any of those ever
+     * skips PositionCheck.)
+     */
+    @SubscribeEvent
+    public void onBarrierBlockFinalizeSpawn(
+            net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent event) {
+        if (event.isSpawnCancelled()) return;
+        if (!(event.getLevel() instanceof ServerLevel serverLevel)) return;
+        if (shouldBarrierBlockSpawn(serverLevel, event.getEntity().getType(),
+                event.getSpawnType(), event.getX(), event.getZ())) {
+            event.setSpawnCancelled(true);
         }
     }
 

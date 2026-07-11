@@ -57,6 +57,21 @@ into `docs/future-ideas.md` / `docs/roadmap.md` and a decision into
      the `tensura_minecolonies:barrier_blocked` tag, which does cover
      Tensura's hostile types) was already shipped; only its in-game
      verification remains open.
+   - *IMPLEMENTED (2026-07-10) — coverage broadened, built green:* verified at
+     the code level that (b) TENSURA mobs ARE covered — `barrier_blocked` pulls
+     in `#tensura:hostile_monster` (all real Tensura hostiles), and Tensura's
+     wild spawns use standard `neoforge:add_spawns` → vanilla `NaturalSpawner` →
+     posts `PositionCheck`. The old hook only accepted `NATURAL` +
+     `CHUNK_GENERATION`, so dungeon/mob spawners, pillager patrols, trial
+     spawners, and reinforcements could still pop hostiles inside a fueled
+     barrier. Fixed: the shared `BARRIER_BLOCKED_SPAWN_TYPES` set now covers the
+     whole *environmental* set (chosen scope: block involuntary/world spawns,
+     leave deliberate player placement alone), split across the existing
+     `PositionCheck` hook (NATURAL/CHUNK/SPAWNER) and a NEW `FinalizeSpawnEvent`
+     hook (patrol/trial/reinforcement/jockey/structure/event). Works whenever
+     the barrier is fueled (peacetime included). Raids stay outside, unaffected.
+     Full as-built in docs/raid-system.md ("IN-FIELD SPAWN SUPPRESSION —
+     BROADENED"). (a) In-game verification still OPEN — see docs/playtesting.md.
 
 4. **Lightweight kingdom-conquest system (expand rival settlements into a kingdom
    with continuing purpose).** A large design proposal to give conquered

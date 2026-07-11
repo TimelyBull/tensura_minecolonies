@@ -11,6 +11,21 @@ new system that might hook existing upstream API).
 
 _Last updated: 2026-07-10 — update this every session._
 
+_**Session 2026-07-10 (later) — barrier in-field spawn suppression BROADENED (branch
+`patrol-colony-outskirts`, uncommitted).** Implements user-suggestion 2026-07-10 #3.
+Verified at the code level that the existing suppression already covers TENSURA hostiles
+(the `barrier_blocked` tag pulls in `#tensura:hostile_monster`; Tensura's wild spawns use
+vanilla `NaturalSpawner` → `PositionCheck`) and already runs whenever FUELED (not raid-gated).
+The real gap: the hook only accepted `NATURAL` + `CHUNK_GENERATION`, so dungeon/mob spawners,
+pillager patrols, trial spawners, and reinforcements could still pop hostiles inside. Fixed by a
+shared `BARRIER_BLOCKED_SPAWN_TYPES` EnumSet (the environmental set — deliberate placement like
+spawn eggs/`/summon`/dispensers left alone) + `shouldBarrierBlockSpawn` predicate, driving the
+existing `PositionCheck` hook AND a NEW `FinalizeSpawnEvent` hook (catches the finalize-only
+types that never fire PositionCheck). Raids stay outside + unaffected (SPAWN_EGG exempt + direct
+`finalizeSpawn` posts neither event). Compiles green; **NOT playtested** (recipe: playtesting.md
+§1b). Records: raid-system.md ("IN-FIELD SPAWN SUPPRESSION — BROADENED"), user-suggestions.md
+(#3 status → IMPLEMENTED), CHANGELOG `[Unreleased]` Added, playtesting.md §1b._
+
 _**Session 2026-07-10 — raid spawn placement fix (branch `patrol-colony-outskirts`,
 uncommitted).** Fixed the 2026-07-10 bug report "Tensura raids spawn ~10 monsters
 instantly inside a house": MC's `calculateSpawnLocation()` is perimeter-safe when
