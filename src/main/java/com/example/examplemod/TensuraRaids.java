@@ -5,7 +5,6 @@ import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.colony.colonyEvents.EventStatus;
 import com.minecolonies.api.colony.colonyEvents.IColonyEvent;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
-import com.minecolonies.api.util.EntityUtils;
 import io.github.manasmods.tensura.registry.entity.MonsterEntityTypes;
 import io.github.manasmods.tensura.storage.ep.ExistenceStorage;
 import net.minecraft.core.BlockPos;
@@ -96,6 +95,23 @@ public final class TensuraRaids {
     /** EP assumed for a spawned raider whose existence can't be read
      *  (budget accounting fallback). */
     static final double FALLBACK_SPAWN_EP = 1_000.0;
+    // ------------------------------------------------------------------
+    // Wave spawn placement — the wave must appear at the colony EDGE,
+    // never inside the built-up area (bug report 2026-07-10).
+    // ------------------------------------------------------------------
+
+    /** How far OUTSIDE the colony's claimed border the fallback spawn
+     *  ring sits. Claims always extend past the buildings, so border +
+     *  margin is open ground at the walls, with room to walk in. */
+    static final int EDGE_SPAWN_MARGIN = 16;
+    /** Random bearings tried when picking a fallback edge spawn point. */
+    static final int EDGE_SPAWN_BEARINGS = 8;
+    /** Cap on the outward border march (chunks) — matches the patrol's
+     *  outskirts search. */
+    static final int EDGE_SPAWN_MAX_CHUNKS = 16;
+    /** Claim radius assumed when the border march finds no claimed chunk
+     *  at all (shouldn't happen for a real colony). */
+    static final int EDGE_SPAWN_ASSUMED_CLAIM = 80;
     // ------------------------------------------------------------------
     // Orc Disaster — the first lore-event ENCOUNTER (the raid-engine
     // plug-in behind LoreEvents' EncounterFactory seam). Constants per
@@ -571,7 +587,25 @@ public final class TensuraRaids {
         return exist != null && exist.getEP() > 0 ? exist.getEP() : FALLBACK_SPAWN_EP;
     }
 
-    /** MC's own raid spawn-point math, with fallbacks. */
+    /**
+     * Where the wave materializes. Primary: MC's own raid spawn-point
+     * math ({@code calculateSpawnLocation()} — walks outward from the
+     * edge-most building and keeps every candidate at least ~35 blocks
+     * from every built building, so it genuinely lands at the
+     * perimeter). But that call returns null in several real situations
+     * (no loaded buildings, no valid direction found), and the old
+     * fallback here was a point 32 blocks from the colony CENTER — deep
+     * inside the built-up area, which is how a whole wave could
+     * materialize inside a house (bug report 2026-07-10). The fallback
+     * is now a point just OUTSIDE the colony's claimed border, so a
+     * failed primary lookup degrades to "at the walls", never "in the
+     * living room".
+     *
+     * <p>Every candidate (MC's included) also rejects any fueled
+     * barrier's footprint: the barrier field only blocks hostiles from
+     * ENTERING, so a raider that materialized inside it would be
+     * trapped in there with the citizens.
+     */
     private static BlockPos computeSpawnPos(ServerLevel level, IColony colony) {
         BlockPos pos = null;
         try {
@@ -579,14 +613,76 @@ public final class TensuraRaids {
         } catch (Throwable t) {
             LOGGER.warn("[TM] raid: calculateSpawnLocation threw, falling back", t);
         }
-        if (pos == null) {
-            pos = EntityUtils.getSpawnPoint(level, colony.getCenter().offset(32, 0, 32));
+        if (pos != null && !isInsideFueledBarrier(level, pos.getX() + 0.5, pos.getZ() + 0.5)) {
+            return pos;
         }
-        if (pos == null) {
-            pos = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE,
-                    colony.getCenter().offset(32, 0, 32));
+        return computeEdgeSpawnPos(level, colony);
+    }
+
+    /**
+     * Fallback spawn point at the colony PERIMETER. Colonies claim whole
+     * chunks, so marching outward from the center in one-chunk steps
+     * while {@code isCoordInColony} still holds finds the real claimed
+     * border in that direction (the same technique SubordinatePatrol
+     * uses for its outskirts ring) — the spawn point then sits
+     * {@link #EDGE_SPAWN_MARGIN} blocks past that border. Claimed chunks
+     * always extend beyond the buildings themselves, so a border-plus-
+     * margin point can never be inside the built-up area.
+     *
+     * <p>Several random bearings are tried so open water or a barrier
+     * field on one side doesn't force a bad spot. Preference order:
+     * dry land outside any barrier → water outside any barrier → the
+     * last barrier-covered candidate (only reachable if fueled barriers
+     * cover the entire perimeter, which real barrier radii can't).
+     */
+    private static BlockPos computeEdgeSpawnPos(ServerLevel level, IColony colony) {
+        BlockPos center = colony.getCenter();
+        BlockPos wetCandidate = null;
+        BlockPos shieldedCandidate = null;
+        for (int attempt = 0; attempt < EDGE_SPAWN_BEARINGS; attempt++) {
+            double angle = level.getRandom().nextDouble() * Math.PI * 2.0;
+            double dx = Math.cos(angle);
+            double dz = Math.sin(angle);
+
+            // March outward chunk by chunk to find the claimed border.
+            int boundary = 0;
+            for (int step = 1; step <= EDGE_SPAWN_MAX_CHUNKS; step++) {
+                int r = step * 16;
+                BlockPos probe = new BlockPos(
+                        center.getX() + (int) Math.round(dx * r),
+                        center.getY(),
+                        center.getZ() + (int) Math.round(dz * r));
+                if (colony.isCoordInColony(level, probe)) {
+                    boundary = r;
+                } else {
+                    break;
+                }
+            }
+            // A colony always claims at least the chunks around its town
+            // hall; if the march found nothing this bearing is broken
+            // (e.g. center oddly placed) — assume a modest claim instead.
+            int radius = (boundary >= 16 ? boundary : EDGE_SPAWN_ASSUMED_CLAIM) + EDGE_SPAWN_MARGIN;
+
+            BlockPos surface = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE,
+                    new BlockPos(center.getX() + (int) Math.round(dx * radius), 0,
+                            center.getZ() + (int) Math.round(dz * radius)));
+            if (isInsideFueledBarrier(level, surface.getX() + 0.5, surface.getZ() + 0.5)) {
+                shieldedCandidate = surface;
+                continue;
+            }
+            if (!level.getFluidState(surface.below()).isEmpty()) {
+                wetCandidate = surface;
+                continue;
+            }
+            return surface;
         }
-        return pos;
+        if (wetCandidate != null) return wetCandidate;
+        if (shieldedCandidate != null) return shieldedCandidate;
+        // Unreachable in practice (every bearing failed the march AND the
+        // assumed-claim candidates were all shielded/wet) — surface point
+        // a full assumed claim east of center, still not the interior.
+        return level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE,
+                center.offset(EDGE_SPAWN_ASSUMED_CLAIM + EDGE_SPAWN_MARGIN, 0, 0));
     }
 
     /**
@@ -711,6 +807,12 @@ public final class TensuraRaids {
         int dx = level.getRandom().nextInt(9) - 4;
         int dz = level.getRandom().nextInt(9) - 4;
         BlockPos pos = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, around.offset(dx, 0, dz));
+        // The scatter must not tip an edge spawn into a fueled barrier's
+        // field — a raider materializing INSIDE the shield is trapped in
+        // there with the citizens. Fall back to the validated wave point.
+        if (isInsideFueledBarrier(level, pos.getX() + 0.5, pos.getZ() + 0.5)) {
+            pos = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, around);
+        }
         mob.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5,
                 level.getRandom().nextFloat() * 360f, 0f);
         // SPAWN_EGG (not EVENT/NATURAL): triggers Tensura's variant

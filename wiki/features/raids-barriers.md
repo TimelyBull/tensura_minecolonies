@@ -17,8 +17,9 @@ The chance scales with how low it sits:
 There's a cooldown of a few in-game days between raids on a colony, and only
 one raid runs at a time. Raise reputation above Neutral and raids stop.
 
-A raid spawns a wave of Tensura monsters that head for your colony and
-attack citizens. Your guards engage them. **Win** by killing the whole wave
+A raid spawns a wave of Tensura monsters at the edge of your colony's
+territory; they march in toward your colony and attack citizens. Your
+guards engage them. **Win** by killing the whole wave
 before the night ends (this raises reputation); if the night ends first, the
 survivors withdraw.
 
@@ -79,7 +80,9 @@ tier's sphere is colour-coded:
 
 While fueled, a barrier also **prevents hostile mobs from spawning** inside its
 footprint, and stops enemy arrows, spells, and breath attacks at its panels
-(these still pass through an open hole).
+(these still pass through an open hole). Raid waves never appear inside a
+fueled barrier either — raiders always show up outside it and have to break
+through.
 
 ### Fuel
 

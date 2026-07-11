@@ -10,6 +10,36 @@ Class references confirmed by `javap` against the jars in `libs/`.
 
 ---
 
+## WAVE SPAWN PLACEMENT FIX (2026-07-10) — edge spawns, barrier rejection
+
+Fixes the 2026-07-10 bug report ("raids spawn 10 monsters instantly inside a
+house" — full root cause + fix record in
+[user-bug-reports.md](user-bug-reports.md)). `TensuraRaids.computeSpawnPos`
+(shared by generic raids, the Orc Disaster lore raid, and `/tensuraraid`):
+
+- **Primary unchanged:** MC's `IRaiderManager.calculateSpawnLocation()` —
+  verified perimeter-safe by bytecode (≥ 35 blocks from every building), but
+  it returns null in real cases (no loaded buildings / no valid direction).
+- **Fallback reworked:** the old center+32 fallbacks (which put the wave
+  inside the built-up area — `EntityUtils.getSpawnPoint` could even pick a
+  house interior) are replaced by `computeEdgeSpawnPos`: the SubordinatePatrol
+  claimed-border march (outward one-chunk steps while `isCoordInColony`),
+  spawn placed `EDGE_SPAWN_MARGIN` (16) blocks past the border, surface
+  heightmap, 8 bearings, water kept only as last resort.
+- **Fueled-barrier footprints rejected at every step** (MC's result, fallback
+  bearings, and the per-raider ±4 scatter in `spawnRaider`) — the field only
+  blocks ENTRY, so an inside-spawned raider would be trapped with the
+  citizens. Raiders now always materialize outside the shield. (Raid spawns
+  still bypass `MobSpawnEvent.PositionCheck` by construction — the rejection
+  is in our own placement, not the event.)
+- Wave staggering (secondary QoL from the report) deliberately not done —
+  perimeter + all-at-once matches MC's own raids; recorded in
+  future-ideas.md.
+- Tuning knobs: `EDGE_SPAWN_MARGIN` 16, `EDGE_SPAWN_BEARINGS` 8,
+  `EDGE_SPAWN_MAX_CHUNKS` 16, `EDGE_SPAWN_ASSUMED_CLAIM` 80.
+
+---
+
 ## SPHERE REDESIGN (2026-06-20) — supersedes the slice/standing/terrain/eject notes below
 
 The barrier is now a faceted **SPHERE per concentric layer**, divided into

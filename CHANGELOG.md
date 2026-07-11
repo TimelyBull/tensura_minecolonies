@@ -23,6 +23,14 @@ Copy the relevant version's section into the CurseForge release notes on each up
   to its race as it grows, with no naming step required for each newcomer.
 
 ### Fixed
+- **Raid monsters no longer appear in the middle of your colony.** When a
+  Tensura raid started, the whole wave could materialize deep inside the
+  built-up area — even inside a house — leaving no time to react. Raiding
+  monsters now always appear at the edge of your colony's territory and march
+  in, so you can meet them at the walls. They also never appear inside an
+  active magicule barrier's field anymore (they'd have been trapped in there
+  with your citizens); they show up outside it and have to break through like
+  any other attacker.
 - **Your own tamed creatures no longer attack the magicule barrier.** A tamed
   Tensura creature (a dire wolf, for example) standing near your barrier could be
   mistaken for a raider — the barrier would shove it back, make it swing at the
