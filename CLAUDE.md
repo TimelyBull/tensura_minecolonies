@@ -636,10 +636,10 @@ the design rationale and design-choice history.
   (`setGender/setSkin/.../setVariant/...`) from the citizen's
   current `RaceTag` onto the freshly reconstructed wild mob. The
   NBT round-trip via `readAdditionalSaveData` was usually correct
-  but the snapshot is older than the RaceTag (snapshot captured at
-  first send; RaceTag refreshed on every send), so drift produced
-  the reported "summoned mob's skin doesn't match the citizen"
-  symptom. Per-race apply methods: `applyGoblinVariant`,
+  but the snapshot can be older than the RaceTag (snapshot captured
+  at naming + refreshed periodically while loaded + on each send;
+  RaceTag refreshed on every send), so drift produced the reported
+  "summoned mob's skin doesn't match the citizen" symptom. Per-race apply methods: `applyGoblinVariant`,
   `applyOrcVariant`, `applyLizardmanVariant`,
   `applyDwarfVariant` (the dwarf one also restores the per-mob
   `Attributes.SCALE`).

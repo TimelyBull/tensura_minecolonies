@@ -1364,8 +1364,10 @@ the snapshot NBT (`EntityType.create(snapshot, level)`). In
 principle that round-trips cleanly because the snapshot was
 captured with `goblin.save(snapshot)` at send time, which calls
 the corresponding `addAdditionalSaveData`. In practice the
-snapshot is older than the RaceTag — the snapshot is written ONCE
-at first send (and updated on each subsequent send), while the
+snapshot can be older than the RaceTag — the snapshot is written
+at naming time, refreshed periodically while the subordinate is
+loaded, and re-saved on each send (2026-07-13; it used to be
+written only at first send), while the
 RaceTag is refreshed on every send via `captureRaceVariant`, AND
 is the source of truth for what the player has been watching the
 citizen wear. Any drift (e.g. a re-send that captures a new
@@ -2158,6 +2160,36 @@ chunk unloads, so a too-eager handler could mistake an unload for a capture and
 destroy valid identities — needs separate careful work. `/recoverorphans` is the
 manual, fail-safe stand-in.
 
+**FIX 3 follow-up (2026-07-13) — snapshot earlier + `/recoverorphans purge`.**
+Two additions closing the gaps in the original FIX 3:
+
+- **Snapshot is now captured at naming time, not only at first send.**
+  `captureSnapshotFromLiveMob(saved, identity, mob)` runs right after
+  `addIdentity` in BOTH identity-creation sites (`onRaceNamed` and the
+  pending-pool drain), and a per-`AMBIENT_PERIOD_TICKS` (5 s) pass
+  `tickRefreshSubordinateSnapshots` re-saves every LOADED subordinate. Rationale:
+  the send-only capture meant a subordinate that vanished before it was ever
+  sent had no snapshot and was permanently unrecoverable. Capturing at naming +
+  refreshing while loaded means such a body is recoverable, and the snapshot
+  tracks EP/leveling instead of freezing at naming. The tag is identical in form
+  to the send-time one (`Entity.save`). No behaviour reads
+  `entitySnapshot == null` for a SUBORDINATE in a way this breaks — restock
+  Pass A reads the live mob, Pass B is IN_COLONY-only, and every summon/trade
+  path is strictly more capable with a snapshot present. Net effect: the
+  identity-only bucket now only holds legacy pre-update records (or a body gone
+  the same tick it was named).
+
+- **`/recoverorphans purge`** — the destructive counterpart to `confirm`.
+  `confirm` restores the recoverable ones; `purge` DELETES the identity-only
+  ones (`removeCivilian` to free the housing/count slot the CitizenData still
+  occupies, then `removeIdentity`), mirroring the death-hook cleanup. Purge only
+  ever touches the identity-only bucket, owner-matched; recoverable and live
+  subordinates are never purged. The dry run now lists identity-only records as
+  "purge?" and points at the follow-up. Handler refactored from a
+  `boolean confirm` to an `OrphanAction {DRY_RUN, CONFIRM, PURGE}` enum sharing
+  the one scan. This is the "free housing held by a truly-gone body" path that
+  FIX 3 originally lacked (it deliberately never deleted).
+
 ## Enemy/mob skill casting — Sentient skill replaces our hand-built autocasters (2026-06-23)
 
 **Decision:** removed ALL four of our `NightmareUtilsApi.registerReflectiveManascoreAutocaster`
@@ -2338,14 +2370,20 @@ faction harder to conquer (raid) / more powerful in lore gives MORE on BOTH
 routes. For raidable factions "difficulty" = boss EP (the garrison already
 scales to it); for abstract factions it = lore power / diplomatic demand.
 
-**Tier assignment** (updated 2026-06-28 — Dwargon + Tempest moved III→II, Leon
-moved II→III). These are DOCS-ONLY design labels; nothing in code reads them.
-- **Tier III — Apex (premium rewards; Covenant 64 emeralds):** Luminous, Milim,
-  Leon.
-- **Tier II — Major (solid rewards; Covenant 48 emeralds):** Falmuth, Dwargon,
-  Tempest, Eastern Empire, Eurazania.
-- **Tier I — Minor (modest rewards; Covenant 32 emeralds):** Clayman.
-  (Shizu retired — no tier.)
+**Tier assignment** (2026-07-10 — expanded to a FOUR-tier ladder; the COMBAT
+side reads these via `difficultyTierFor`, reward magnitudes are still docs-driven
+/ user-managed). The old Covenant-emerald guides [64/48/32] were tied to the
+3-tier scheme — re-space them across the four tiers in the reward pass.
+**KEY PRINCIPLE (user, 2026-07-10):** tiers are keyed to the CANON power of the
+KINGDOM, NOT the current boss mob's strength. The current bosses (Hinata,
+Ifrit, Mai) are PLACEHOLDERS for the true leaders and will be swapped as the
+mod updates — so a placeholder being weaker/stronger than its tier is expected
+and temporary.
+- **Tier IV — Apex:** Luminous, Leon, **Dwargon** (Gazel's Armed Nation is a
+  canon great power; moved III→IV 2026-07-10), Milim.
+- **Tier III — High:** Eastern Empire, Eurazania.
+- **Tier II — Major:** Falmuth, Tempest.
+- **Tier I — Minor:** Moderate Harlequin Alliance (Clayman). (Shizu retired.)
 - Reconciliation the manual pass owes the new tiers: Dwargon covenant 64→48;
   Milim + Leon covenant 48→64. (Emerald amounts are independent numbers in
   code — the tier is just the target.)
@@ -2371,6 +2409,88 @@ that pass: Milim + Leon up to Tier III value (incl. covenant 48→64); Dwargon
 down to Tier II value (covenant 64→48); Leon's Phase-1 catalog was authored at
 Tier II and now wants a lift to III. Then Phase 2 mirrors each faction's locked
 tier on the raid side.
+
+## Faction combat — tier-keyed garrison difficulty (2026-07-10)
+
+Follows the stats/EP audit in `docs/faction-combat-audit.md`. The old garrison
+scaler drove difficulty purely off boss EP vs a 5,000 baseline; real boss EP is
+110k–1M, so every faction pinned to the count cap (20) at stat× ~3 — no
+differentiation. **Decision: difficulty is now PRESCRIBED by the faction's
+reward tier, and boss EP only NUDGES it within a clamped band.** Nothing read
+the reward-tier labels before; the combat side now does.
+
+- New `RivalColonies.DifficultyTier {IV(16, 2.8), III(14, 2.4), II(11, 2.0),
+  I(7, 1.5)}` = (baseCount, baseStat) — a FOUR-tier ladder (revised the same day
+  from the first 3-tier cut, per user; Tier IV inherits the old top stats, Tier
+  III is the new middle). `difficultyTierFor(factionId)`: Luminous/Leon/**Dwargon**
+  → IV (Dwargon moved III→IV 2026-07-10 — canon-power principle, see above);
+  Eastern Empire → III; Falmuth/Tempest → II; Clayman → I. (Milim IV /
+  Eurazania III / Clayman I are ABSTRACT — reward mapping only, no garrison.)
+  `epF = clamp((bossEP/150 000)^0.5, 0.80, 1.30)`;
+  `count = clamp(round(baseCount×epF), 4, 20)`,
+  `stat× = clamp(baseStat×epF, 1, 4)`.
+- **Why a band, not pure EP:** keeps "difficulty ≈ reward" as the primary rule
+  (user's Phase-3 philosophy) while letting canon show through — a legend
+  (Gazel, 1M EP) tops its tier's band but can't cross into another tier. **Two
+  same-tier factions are deliberately NOT identical** (user): they vary by boss
+  EP (the nudge) + roster + boss kit.
+- **Tier ladder (final):** IV Luminous/Leon/**Dwargon** (+ Milim) · III Eastern
+  Empire (+ Eurazania) · II Falmuth/Tempest · I Moderate Harlequin Alliance.
+  Reward-catalog reconciliation for the moved factions is owed to the user-led
+  reward pass — combat only here. (Per-faction garrisons: IV Luminous/Leon 20 @
+  ×3.64 / Dwargon 20 @ ×3.64 · III EE 15 @ ×2.55 · II Falmuth 11 @ ×1.93 /
+  Tempest 9 @ ×1.71.)
+- **Bosses are placeholders (user):** the current boss MOBS (Hinata/Ifrit/Mai)
+  don't represent their kingdoms' true leaders — they're placeholders to be
+  swapped later, so a boss weaker/stronger than its tier is expected. Mai
+  (Eastern Empire) buffed 2026-07-10: HP ×5 (~1500) but ATTACK only ×1.8 (~54,
+  kept BELOW Gazel's 80) — the old flat ×3.5 `EMPIRE_BOSS_BUFF` made her out-hit
+  Gazel. Now `EMPIRE_HP_MULT`/`EMPIRE_DMG_MULT`.
+- **Leon boss upgraded** (user): `buffIfritBoss` (mirrors `buffRimuruBoss`)
+  raises Ifrit to ~2800 HP / EP ~380k so apex-tier Leon has a real boss. Applied
+  in `spawnAnchorBoss` before the garrison reads EP (the buffRimuruBoss precedent).
+- **Eastern Empire's 1.6× `factionPowerMultiplier` REMOVED** (the audit's
+  "triple-dip"). EE is a hard Tier III on its lieutenants' own high stats/EP;
+  Mai keeps her `EMPIRE_BOSS_BUFF`.
+- **Dwargon rank strengthened** (user: buff dwarves a lot + give skills/magic +
+  more of them, add ≤1 War Gnome lieutenant): roster = `DWARF + WAR_GNOME`,
+  War Gnome added to `isUniqueGarrisonMob` (exactly one, Gazel's earth-magic
+  lieutenant). `strengthenDwarfDefender`: HP ×2.5 / ATK ×6.0 on top of the tier
+  stat× (→ ~187 HP / ~28 ATK at Tier III) + Body Armor. Dwarves remain the base
+  troop; population = the Tier III count.
+- **Every garrison now gets an active elemental ATTACK** (2026-07-10, user):
+  `assignFactionDefenderSkills` grants each non-untouched defender one Aspectual
+  attack **Magic** + the matching low-tier element **Manipulation**. KEY FINDING:
+  Tensura `Magic` is a `ManasSkill` (`Magic → TensuraSkill → ManasSkill`) with an
+  attacking `onPressed`, so the Sentient autocaster FIRES it — whereas a bare
+  Manipulation's onPressed is element control that does nothing offensive alone
+  (the user's point). So the Manipulation is only granted as the support skill
+  ALONGSIDE the magic, never as the attack. Element themes: Leon/Luminous
+  `FIRE_BALL`, Falmuth `WIND_CUTTER`, Eastern Empire/Dwargon `STONE_SHOT`,
+  Tempest `WATER_CUTTER` (+ each element's Manipulation). Earth has NO attack
+  *skill* (only Magic), which is exactly why the old dwarf/bone-golem
+  `EARTH_MANIPULATION` "attack" did nothing; `boneGolemElementSkill` earth case
+  fixed to `STONE_SHOT` too. ⚠ Playtest-unverified: whether the autocaster
+  completes magic *cast-times* on mobs (mechanism is sound — Magic is a ManasSkill).
+- **Garrison rank splits into CASTER / WARRIOR roles** (2026-07-10, user).
+  Generic rank only (NOT bosses/lieutenants — they keep the full elite kit +
+  native behaviour). ~40% casters / 60% warriors, assigned at spawn, role
+  INFERRED later from the held weapon (`isCasterDefender`: staff = caster) so no
+  new persisted storage. CASTER = faction attack magic (+25% chance of a 2nd
+  same-element magic) + Magic Resistance (not Physical) + tiered magic staff +
+  0.65× speed + a best-effort per-second retreat (`applyCasterRetreat`); melees
+  within 2 blocks. WARRIOR = elemental resistances + Physical Resistance + Shadow
+  Motion (flash-step) + tiered long sword (Diamond I → High Magisteel IV) + NO
+  magic (native rush/melee). ⚠ KEY LIMITATION: these are SmartBrainLib brain
+  mobs and the steering runs PER-SECOND, so true ranged kiting isn't achievable
+  via the WALK_TARGET idiom — the caster "stay back" is a speed-reduction + a
+  per-second retreat nudge, best-effort only. A real kite would need a per-tick
+  `EntityTickEvent` driver or a brain-behaviour mixin (deferred). Also unproven:
+  Shadow Motion autocasting as a "flash step".
+- **All values are BALANCE GUESSES** — no combat playtest yet (playtesting.md).
+  Deferred: Tempest rank buff (still weakest II), same-tier boss-stat
+  normalisation, betrayal-stack re-check post-rework, real caster kiting AI,
+  and the Form Hide / concealment check (future-ideas.md 2026-07-10).
 
 **Barrier push is purely horizontal; render uses a depth-write-off type.** The
 old radial push pointed partly upward and flung mobs up the dome → now always

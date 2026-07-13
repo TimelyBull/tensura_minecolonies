@@ -119,13 +119,17 @@ into `docs/future-ideas.md` / `docs/roadmap.md` and a decision into
 1. **Patrol team only circles the town hall, not the whole colony (reported as a
    bug).** When the "Patrol Colony Outskirts" command is on duty, the NPCs only
    walk around the town hall area instead of patrolling the colony's edges.
-   - *Status: likely a real bug, not just a suggestion.* The patrol is supposed
-     to walk the OUTER RING of the colony's claimed chunks
-     (`SubordinatePatrol` — outskirts = outermost claimed chunks, water
-     avoided). If they're staying near the town hall, the outskirts-ring
-     targeting or the colony-bounds lookup may be resolving to the colony
-     center rather than the perimeter. Needs investigation in
-     `SubordinatePatrol` (the WALK_TARGET steering + outskirts computation).
+   - *Status: FIXED 2026-07-10 (compiles; awaiting in-game verification — see
+     docs/playtesting.md §0a).* Root cause was NOT the bounds lookup — the
+     boundary march (`isCoordInColony` on claimed chunks, from `getCenter()` =
+     town hall) resolves the real edge correctly. The bug was in the movement:
+     `computeOutskirtsTarget` picked an INDEPENDENT random bearing every leg, so
+     the mob walked straight-line chords back and forth across the middle (past
+     the town hall) instead of following the border. Fix: `PatrolOrder` now
+     carries a persisted `bearing`; the new `nextPerimeterTarget` advances it by
+     a fixed step (25°) around the ring each leg, so the mob loops the
+     perimeter. Water/unreachable sectors are skipped by turning further the
+     same way.
    - *Related ask below — the player wants a stationary "guard a spot" mode too.*
 
 2. **A "stand and guard" / sentry command.** A command that makes NPCs stand

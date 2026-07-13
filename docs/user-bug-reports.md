@@ -8,6 +8,89 @@ are broken.
 
 ---
 
+## 2026-07-10 — A Hihiirokane sword does almost no damage to Ifrit (reported as "Ifrit won't take damage from a late-game weapon")
+
+**Status:** NOT A BUG — WORKING AS DESIGNED (Tensura mechanic). Verified against
+the `tensura-neoforge-2.0.1.0.jar` bytecode + datapack tags. **We are keeping
+the mechanic** (decision 2026-07-10). Recorded here so it isn't re-triaged as a
+bug; the war-boss *compounding* it (below) is the only part worth a future
+balance pass. Player originally hit this on Ifrit-as-a-faction-boss (Leon's
+anchor); the underlying cause is independent of the faction system.
+
+### ROOT CAUSE (verified against the Tensura jar bytecode + tags)
+
+Ifrit is a **spiritual** entity, and Tensura makes spiritual entities take only
+**1% of ordinary physical-weapon damage**. A Hihiirokane sword is an ordinary
+physical weapon, so it deals ~1% — its huge base damage doesn't matter because
+the reduction is *multiplicative*.
+
+The chain, each link confirmed:
+
+1. **Ifrit is tagged spiritual.** `data/tensura/tags/entity_type/spiritual.json`
+   lists `tensura:ifrit` (+ `ifrit_clone`). Its class extends
+   `GreaterSpiritEntity`, which implements the `ISpiritual` interface.
+2. **Spiritual entities gut physical-attack damage.** Damage path:
+   `hurt()` → `getDamageReductionMultiplier()` →
+   `GreaterSpiritEntity.getPhysicalAttackInput()` →
+   `RaceUtils.getPhysicalAttackInputMultiplier()`. That method returns:
+   - `1.0` (full) if the damage is **not** a physical attack — i.e. magic /
+     elemental / spiritual / mental damage hurts Ifrit normally;
+   - `1.0` if the **attacker** has Divine Ki Release, Anti-Skill active, or
+     Haki Coat (amplifier ≥ 1);
+   - `0.5` if the attacker has Haki Coat (amp 0), the Magic Aura effect, or Cook
+     toggled;
+   - **`0.01` otherwise** — the catch-all a plain weapon falls into.
+   Note the multiplier keys off the **attacker's** aura/skill state, not the
+   weapon.
+3. **Every vanilla-style weapon hit is a "physical attack."**
+   `data/tensura/tags/damage_type/is_physical.json` includes
+   `minecraft:player_attack`, `mob_attack`, `arrow`, `trident`, `thrown`, plus
+   Tensura's own kunai/spear/severer_blade/bullet.
+4. **The Hihiirokane sword is a plain `SwordItem`.** Traced through
+   `TensuraToolItems`: `hihiirokane_sword` / `_long_sword` / `_katana` /
+   `_great_sword` / `_odachi` etc. are constructed as `SimpleSwordItem` /
+   `SimpleLongSwordItem` / `SimpleKatanaItem` — vanilla `SwordItem` subclasses.
+   None override `hurtEnemy`; none apply aura or convert the damage type. (Only
+   IceBlade / SpiderDagger / CentipedeDagger override `hurtEnemy` in the whole
+   mod — Hihiirokane is not among them.) Hihiirokane is just the top metal
+   *tier* = big raw physical damage. The `*_inactive` item models are the
+   sheathed/drawn cosmetic state, not an aura mode.
+
+Result: `Hihiirokane hit → player_attack → isPhysicalAttack = true → attacker
+has no aura/Haki/Ki → ×0.01 → Ifrit takes 1%.` Also for context, Ifrit is fully
+**immune to fire** damage and reduces **heat** to 5% (`isInvulnerableTo` + the
+heat branch of `getDamageReductionMultiplier`), and it **evaporates**
+projectiles tagged `CAN_EVAPORATE`.
+
+**Intended way to damage a spirit:** attack with magic / spiritual / elemental /
+mental damage, OR give the *player* aura (Magic Aura effect, Haki Coat, Divine
+Ki Release, or Anti-Skill). The weapon's metal tier is irrelevant to that gate.
+
+### WHY OUR WAR SYSTEM MAKES IT WORSE (the only part worth a future balance pass)
+
+When Ifrit is Leon's garrison/anchor boss (`RivalColonies.java`) we stack three
+things on top of the 1%-physical floor:
+- `buffDefender` → `multiplyAttribute(boss, MAX_HEALTH, …, statFactor)` (up to
+  ~4×) plus `MAX_SPIRITUAL_HEALTH` scaling — the 1%-damage grind now runs
+  against a much larger health pool;
+- for `"leon"` we grant `FLAME_ATTACK_NULLIFICATION` + `HEAT_NULLIFICATION` +
+  `SELF_REGENERATION` (RivalColonies.java ~1157–1163) — the regen heals back the
+  trickle a physical attacker manages.
+
+Net effect for a player with only physical gear: effectively unkillable.
+
+### DECISION (2026-07-10) — keep the mechanic
+
+Spiritual physical-immunity is core Tensura identity and we are keeping it as-is
+(no vulnerability floor, no boss swap). Deferred / optional follow-ons (NOT
+scheduled): ease the war-boss HP scaling and/or drop-or-cap the
+`SELF_REGENERATION` grant on Leon's Ifrit so end-game players aren't hitting an
+unwinnable wall, and signpost to players (wiki + maybe an in-game hint) that
+spirit bosses need aura or magic rather than raw weapons. Until then this stays
+recorded as "working as designed."
+
+---
+
 ## 2026-07-10 — Tensura raids spawn ~10 monsters instantly INSIDE the colony (inside a house), leaving the player unable to respond
 
 **Status:** RESOLVED (2026-07-10) — fix implemented in `TensuraRaids`

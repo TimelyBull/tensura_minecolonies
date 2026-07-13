@@ -1,5 +1,21 @@
 # Future ideas (recorded, not scheduled)
 
+## Verify Form Hide (and similar concealment) still hides the player (2026-07-10)
+
+Check whether Tensura's **Form Hide** — and other identity/aura-concealment
+skills/effects that hide the player from mobs (e.g. presence/aura masking,
+"hide EP", disguise) — still work as intended given this mod's additions. Our
+faction garrisons, raids, threat-response, and assassin systems do a lot of
+explicit targeting (`setTarget` / persistent-anger / brain WALK_TARGET steering
++ the nightmareutils Sentient autocaster reading `mob.getTarget()`). Explicit
+targeting can BYPASS the normal "can this mob see/sense the player" gate that
+Form Hide relies on, so a hidden player might still be found/attacked by our
+garrison defenders, steered raiders, or a manifested assassin. Audit the
+targeting entry points (`RivalColonies.steerGarrisonToInvaders`,
+`TensuraRaids` steering, `ColonyThreatResponse`, `Assassins`) against whatever
+"is the player concealed" check Tensura exposes, and gate our targeting on it
+where appropriate.
+
 ## Raid wave staggering (2026-07-10, from the in-colony-spawn bug report)
 
 The 2026-07-10 raid-placement fix moved the wave spawn to the colony edge

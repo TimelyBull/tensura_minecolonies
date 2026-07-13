@@ -19,7 +19,7 @@ import net.neoforged.neoforge.attachment.IAttachmentSerializer;
  * area of the recorded colony; cycling the command away (PATROL → FOLLOW)
  * removes it.
  *
- * Two fields pin the patrol to the colony that was nearest to the PLAYER at
+ * Three fields pin the patrol to the colony that was nearest to the PLAYER at
  * the moment the order was issued, so the subordinate keeps patrolling that
  * colony even after the player walks away:
  * <ul>
@@ -28,6 +28,14 @@ import net.neoforged.neoforge.attachment.IAttachmentSerializer;
  *   <li>{@link #dimension} — the colony's dimension, so a subordinate that
  *       wanders / is summoned across dimensions doesn't try to patrol a
  *       colony that isn't in its level.</li>
+ *   <li>{@link #bearing} — the compass angle (radians, measured from the
+ *       colony centre) of the LAST patrol point that was handed out. Each new
+ *       leg advances this by a fixed step so the mob walks AROUND the ring
+ *       (the perimeter) instead of picking a fresh random direction each time
+ *       and cutting back and forth across the middle past the town hall. It is
+ *       stored on the order (not derived from the mob's live position) so the
+ *       patrol keeps advancing around the ring even when the mob is
+ *       momentarily stuck on an unreachable sector.</li>
  * </ul>
  *
  * Persists across save/load, entity unload/reload, and relog via the NBT
@@ -39,11 +47,18 @@ import net.neoforged.neoforge.attachment.IAttachmentSerializer;
  * {@code entity.hasData(Attachments.PATROL_ORDER.get())} is the authoritative
  * presence check (default value supplier returns null).
  */
-public record PatrolOrder(int colonyId, ResourceLocation dimension) {
+public record PatrolOrder(int colonyId, ResourceLocation dimension, float bearing) {
 
     /** @return the colony's dimension as a level {@link ResourceKey}. */
     public ResourceKey<Level> dimensionKey() {
         return ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, dimension);
+    }
+
+    /** @return a copy of this order with the patrol bearing updated (colony and
+     *  dimension unchanged). Used when the patrol advances to the next point
+     *  around the ring. */
+    public PatrolOrder withBearing(float newBearing) {
+        return new PatrolOrder(colonyId, dimension, newBearing);
     }
 
     public static final IAttachmentSerializer<CompoundTag, PatrolOrder> SERIALIZER =
@@ -54,7 +69,11 @@ public record PatrolOrder(int colonyId, ResourceLocation dimension) {
                     int colonyId = tag.getInt("colonyId");
                     ResourceLocation dim = ResourceLocation.tryParse(tag.getString("dimension"));
                     if (dim == null) dim = Level.OVERWORLD.location();
-                    return new PatrolOrder(colonyId, dim);
+                    // Legacy orders (saved before the perimeter-walk fix) have no
+                    // "bearing" tag; getFloat returns 0, which is a fine starting
+                    // angle — the patrol just begins its loop from due east.
+                    float bearing = tag.getFloat("bearing");
+                    return new PatrolOrder(colonyId, dim, bearing);
                 }
 
                 @Override
@@ -62,6 +81,7 @@ public record PatrolOrder(int colonyId, ResourceLocation dimension) {
                     CompoundTag tag = new CompoundTag();
                     tag.putInt("colonyId", value.colonyId);
                     tag.putString("dimension", value.dimension.toString());
+                    tag.putFloat("bearing", value.bearing);
                     return tag;
                 }
             };

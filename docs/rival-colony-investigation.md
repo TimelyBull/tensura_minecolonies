@@ -752,6 +752,19 @@ Defender rosters (CURRENT — 2026-06-21):
 
 ## Boss-EP scaling formula (⚠ ALL BALANCE GUESSES — need a siege playtest)
 
+> **SUPERSEDED 2026-07-10 — the garrison scaler was REWORKED from "difficulty =
+> boss EP" to "difficulty = REWARD TIER, nudged by boss EP".** The old model
+> below (5,000 baseline) pinned every faction to count 20 / stat× ~3 (real boss
+> EP is 110k–1M). The current model + resulting per-faction numbers live in
+> `docs/faction-combat-audit.md` §6b and `docs/decisions.md` → "Faction combat —
+> tier-keyed garrison difficulty (2026-07-10)". In short:
+> `tier = difficultyTierFor(factionId)` → `(baseCount, baseStat)` [III (16,2.8) /
+> II (11,2.0) / I (7,1.5)]; `epF = clamp((bossEP/150 000)^0.5, 0.80, 1.30)`;
+> `count = clamp(round(baseCount×epF),4,20)`; `stat× = clamp(baseStat×epF,1,4)`.
+> Dwargon → III; Leon's Ifrit boss buffed (`buffIfritBoss`); EE's 1.6× power
+> multiplier removed; Dwargon rank = buffed dwarf-soldiers + 1 War Gnome. The
+> constant table below is the OLD model, kept for history.
+
 Scale to the BOSS, not the player — a strong-boss faction = a tough
 settlement. Read `readExistence(boss).getEP()`, then:
 

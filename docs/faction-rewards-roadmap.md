@@ -198,14 +198,25 @@ Phase 0 decisions (2026-06-27)":
   forced skill, and `factionRewardPool` so the conquest of each faction feels
   distinct and worth it. (This is the "warfare rewards need editing" TODO from
   future-ideas.md.)
+- **Fight-difficulty side of this axis** is audited in
+  [faction-combat-audit.md](faction-combat-audit.md): real boss/rank EP + stats
+  vs reward tier, the garrison scaling pipeline, the confirmed difficulty↔reward
+  mismatches (Eastern Empire / Dwargon / Tempest / Leon), and tuning
+  recommendations (baseline EP, per-faction difficulty tier, rank normalisation).
 
 **Phase 3 — Diplomacy balance pass (all factions): 🔄 IN PROGRESS (2026-06-28)**
 Done BEFORE Phase 2 on purpose — the peaceful route is the REFERENCE raids will
 match. Philosophy: **TIERED by difficulty** (user decision). Full record in
 `docs/decisions.md` → "Faction rewards review — Phase 3".
-- Tiers (updated 2026-06-28): **III/Apex** Luminous, Milim, Leon (Covenant 64
-  emeralds) · **II/Major** Falmuth, Dwargon, Tempest, Eastern Empire, Eurazania
-  (48) · **I/Minor** Clayman (32).
+- Tiers (updated 2026-07-10 — expanded to a **FOUR-tier ladder**; combat side
+  landed in [faction-combat-audit.md](faction-combat-audit.md) §6b):
+  **IV/Apex** Luminous, Leon, Dwargon, Milim · **III/High** Eastern Empire,
+  Eurazania · **II/Major** Falmuth, Tempest · **I/Minor** Clayman. (Tiers = canon
+  KINGDOM power, not the placeholder boss mob; Dwargon → IV 2026-07-10.)
+  ⚠ Reward reconciliation owed: re-space the Covenant-emerald guides
+  (were 64/48/32 for 3 tiers) across the four tiers, and lift/adjust each moved
+  faction's catalog to its new tier — the per-faction tables in §7 still show
+  the OLD tier labels.
 - ✅ Leon + Eastern Empire catalogs expanded 4 → 10 deals.
 - ✅ `cov_clayman` reward fixed (empty → 32 emeralds).
 - ⬜ Catalog deals being reworked MANUALLY (user-led) against the updated tiers.
@@ -229,8 +240,11 @@ The full review reference, split into the five reward styles. Reflects the
 **current code** (post Phase 1 + the Phase 3 structural edits: Leon/Eastern
 Empire expanded, `cov_clayman` reward fixed). Catalog magnitudes are being
 reworked MANUALLY against the tiers below, so some deals don't yet match their
-faction's tier. Tiers (updated 2026-06-28): **III** Luminous/Milim/Leon ·
-**II** Falmuth/Dwargon/Tempest/Eastern Empire/Eurazania · **I** Clayman.
+faction's tier. Tiers (updated 2026-07-10 — FOUR-tier ladder): **IV**
+Luminous/Leon/Dwargon/Milim · **III** Eastern Empire/Eurazania · **II**
+Falmuth/Tempest · **I** Clayman. (The per-faction tables below still show the
+OLD tier labels pending the manual reward reconciliation — the COMBAT tiers are
+as listed here.)
 
 **Task shorthand:** *Deliver N X* = hand over the items via the deal's deliver
 button · *Build <hut> N* = own that hut at level N · *Pop N* = colony reaches N

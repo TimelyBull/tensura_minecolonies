@@ -9,6 +9,63 @@ Copy the relevant version's section into the CurseForge release notes on each up
 ## [Unreleased]
 
 ### Added
+- **`/recoverorphans purge` — delete lost subordinates that can't be rescued
+  and free their housing.** Some vanished subordinates can be restored as
+  colonists with `/recoverorphans confirm`, but ones that were lost before the
+  game ever saved a copy of them have nothing to restore from — they just sit
+  there occupying a house forever. The new `/recoverorphans purge` permanently
+  deletes those (and only those), freeing the housing slot. Run
+  `/recoverorphans` first to see which of your lost subordinates are
+  recoverable versus purge-only; it changes nothing until you run `confirm` or
+  `purge`.
+
+### Fixed
+- **Named subordinates can no longer become permanently un-rescuable.** The
+  game now saves a copy of a named subordinate as soon as you name it (and
+  keeps that copy up to date while it's near you), instead of waiting until the
+  first time you send it to your colony. So if a subordinate vanishes — for
+  example, scooped up by another mod's mob-catching item — before you ever sent
+  it to the colony, `/recoverorphans` can now bring it back as a colonist
+  instead of it being lost for good.
+
+### Changed
+- **Higher-tier Barrier Cores are now crafted by upgrading the tier below.**
+  Each Barrier Core above the first now requires the previous tier's Barrier
+  Core placed in the center of the crafting grid (surrounded by the same
+  materials as before), instead of building from raw materials alone. Tier 2
+  needs a Tier 1 core, Tier 3 needs a Tier 2 core, and so on. The Tier 1 recipe
+  is unchanged.
+- **Rival-faction settlements now defend at a strength that matches their
+  reward.** A faction's garrison (how many defenders it fields and how tough
+  they are) is now set by how valuable that faction is to conquer, on a
+  four-step ladder, rather than swinging wildly off its leader. Apex settlements
+  — Luminous and Leon — field the largest, strongest garrisons (about 20
+  defenders); the next step — Dwargon and the Eastern Empire — a bit fewer;
+  Falmuth and Tempest fewer still. Each still feels distinct (their leaders and
+  troops differ). **Leon's boss (Ifrit) is now a proper apex threat** — much
+  tougher, to match the fight to the reward. The Eastern Empire is no longer
+  over-stacked.
+- **Dwargon is now a top-tier power.** Dwargon (King Gazel's realm) has been
+  moved up to the highest difficulty/reward tier to match its standing in the
+  story, so its settlement fields a full apex garrison.
+- **Dwargon's dwarves are now real soldiers.** Instead of near-harmless miners,
+  a Dwargon settlement is defended by hardened dwarven troops — far more health
+  and damage, plus tough hide — led by Gazel and a single War Gnome lieutenant.
+- **Faction defenders now sling elemental magic.** Each faction's garrison casts
+  an attack spell that fits its theme — fireballs for Leon and Luminous, wind
+  blades for Falmuth, stone shots for Dwargon and the Eastern Empire, water
+  cutters for Tempest — so settlement fights aren't just melee.
+- **Settlement defenders now fight as mages and warriors.** A faction's rank
+  splits into spellcasters — who wield staves, hang back, sling their element's
+  magic, and only resort to fists when you close in — and warriors, who carry
+  tier-appropriate swords (diamond up to high-magisteel), charge in, and dash
+  with a quick step. Casters ward against magic; warriors shrug off physical
+  blows. Defenders of the same settlement can't harm each other, so their
+  spellcasters can throw area magic without wiping out their own side. (All of
+  the above is part of the faction system, which is off by default; combat
+  values are a first pass and may be tuned.)
+
+### Added
 - **A fueled magicule barrier now stops hostile mobs from spawning inside it.**
   While your Barrier Core has fuel, hostile monsters — vanilla ones and Tensura
   ones (spiders, direwolves, daemons, orcs, and the rest of Tensura's hostile
@@ -33,6 +90,13 @@ Copy the relevant version's section into the CurseForge release notes on each up
   to its race as it grows, with no naming step required for each newcomer.
 
 ### Fixed
+- **"Patrol Colony Outskirts" now actually walks the colony's edge.** Patrolling
+  creatures used to pick a fresh random spot on the border each time and walk
+  straight to it, which meant they kept cutting back and forth across the middle
+  of the colony past the town hall instead of guarding the perimeter. They now
+  circle the colony — moving a short way around the border to the next point
+  each time — so they trace the outer edge in a loop. If part of the border is
+  water or blocked, they turn past it and keep going the same way around.
 - **Raid monsters no longer appear in the middle of your colony.** When a
   Tensura raid started, the whole wave could materialize deep inside the
   built-up area — even inside a house — leaving no time to react. Raiding

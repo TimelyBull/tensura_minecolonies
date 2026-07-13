@@ -51,7 +51,11 @@ public class RaceIdentitySavedData extends SavedData {
                                             // type, position, attributes,
                                             // inventory, appearance, evolution
                                             // state, and ManasCoreStorage.
-                                            // Null until first send.
+                                            // Captured at naming time, refreshed
+                                            // periodically while the subordinate
+                                            // is loaded and on each send. Null
+                                            // only for legacy pre-2026-07-13
+                                            // records that never sent.
         public final UUID ownerPlayerUUID;  // player who named the mob; matches
                                             // IExistence.permanentOwner.
         public Race race;                   // which worker race this identity is —

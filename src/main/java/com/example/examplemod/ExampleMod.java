@@ -543,8 +543,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         LOGGER.info("[TM] citizen {} marked travelling — no body will auto-spawn", citizenData.getId());
 
         // --- Create persistent identity record ---
-        // No snapshot at naming time — the goblin is alive at the player's side.
-        // The full entity NBT is captured at send time (before discard).
+        // Snapshot is captured NOW from the live body (see below), then
+        // refreshed on every send and by the periodic refresh pass. Capturing
+        // at naming time (rather than only at first send) means the subordinate
+        // is recoverable via /recoverorphans even if its body vanishes before
+        // it is ever sent to a colony.
 
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(serverLevel);
         RaceIdentitySavedData.RaceIdentity identity = new RaceIdentitySavedData.RaceIdentity(
@@ -553,11 +556,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 colony.getID(),
                 entity.getUUID(),           // current mob entity UUID
                 RaceIdentitySavedData.Mode.SUBORDINATE,
-                null,                       // entitySnapshot — populated at first send
+                null,                       // entitySnapshot — populated immediately below
                 player.getUUID(),           // owner — matches IExistence.permanentOwner
                 race
         );
         saved.addIdentity(identity);
+        captureSnapshotFromLiveMob(saved, identity, entity);
 
         LOGGER.info("[TM] identity {} stored: citizen={} mob={} race={} mode=SUBORDINATE",
                 identity.identityId, identity.citizenId, identity.mobEntityUUID, race);
@@ -741,11 +745,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     colony.getID(),
                     p.mobEntityUUID,
                     RaceIdentitySavedData.Mode.SUBORDINATE,
-                    null,                                           // entitySnapshot — populated at first send
+                    null,                                           // entitySnapshot — populated immediately below
                     p.ownerPlayerUUID,                              // propagate from pending entry
                     p.race                                          // propagate race so renderer picks correctly
             );
             saved.addIdentity(identity);
+            // Capture the snapshot now from the live body (the goblin is
+            // guaranteed loaded here — findLivingEntityAcrossLevels above found
+            // it), so it's recoverable even if it vanishes before its first send.
+            captureSnapshotFromLiveMob(saved, identity, goblin);
             saved.removePending(p);
 
             LOGGER.info("[TM] pending '{}' promoted: citizen id={} race={} in '{}' (now {} citizens)",
@@ -1787,6 +1795,22 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      * cancel the hit and chip the facing section. Complements the
      * projectile-entity blocker, which only catches moving point projectiles.
      */
+    /**
+     * No FRIENDLY FIRE within a rival-colony garrison. Cancels any hit whose
+     * attacker (or the caster behind a spell/projectile) shares a settlement
+     * garrison with the victim — so a caster's AoE magic (Fire Ball, Stone Shot)
+     * can't wipe out its own defenders. Invaders (player + war-party) are
+     * unaffected. See {@link RivalColonies#isGarrisonFriendlyFire}.
+     */
+    @SubscribeEvent
+    public void onGarrisonFriendlyFire(
+            net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent event) {
+        if (!(event.getEntity().level() instanceof ServerLevel)) return;
+        if (RivalColonies.isGarrisonFriendlyFire(event.getSource().getEntity(), event.getEntity())) {
+            event.setCanceled(true);
+        }
+    }
+
     @SubscribeEvent
     public void onBarrierBlockIncomingDamage(
             net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent event) {
@@ -4133,6 +4157,56 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         return null;
     }
 
+    /**
+     * Capture (or refresh) an identity's full-entity snapshot from a live mob
+     * body. Best-effort: logs and no-ops on failure, leaving any prior
+     * snapshot intact.
+     *
+     * <p>Called at naming time, on pending-pool promotion, and by the periodic
+     * refresh pass ({@link #tickRefreshSubordinateSnapshots}). Previously the
+     * snapshot was only taken on the first send-to-colony, which meant a
+     * subordinate that vanished before it was ever sent (e.g. scooped by a
+     * third-party mob-storage item) had no snapshot and could never be
+     * recovered — only purged. Capturing early makes such subordinates
+     * recoverable via {@code /recoverorphans}; refreshing periodically keeps
+     * the snapshot tracking EP/leveling rather than freezing at naming time.
+     *
+     * <p>The tag is identical in form to the send-time snapshot
+     * ({@code Entity.save}): type, position, attributes, inventory, appearance,
+     * evolution state, and all ManasCore storages.
+     */
+    private static void captureSnapshotFromLiveMob(RaceIdentitySavedData saved,
+                                                   RaceIdentitySavedData.RaceIdentity identity,
+                                                   LivingEntity mob) {
+        try {
+            CompoundTag snap = new CompoundTag();
+            if (mob.save(snap)) {
+                saved.updateEntitySnapshot(identity, snap);
+            }
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] snapshot capture threw for identity {} — leaving prior snapshot",
+                    identity.identityId, t);
+        }
+    }
+
+    /**
+     * Periodic pass — re-save the snapshot of every SUBORDINATE-mode identity
+     * whose live mob is currently loaded, so a subordinate that later vanishes
+     * is recoverable from a recent form (see {@link #captureSnapshotFromLiveMob}).
+     * Bounded by the number of loaded subordinate mobs; unloaded/gone ones are
+     * skipped (nothing to read).
+     */
+    private static void tickRefreshSubordinateSnapshots(MinecraftServer server) {
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(server.overworld());
+        for (RaceIdentitySavedData.RaceIdentity identity : saved.all()) {
+            if (identity.mode != RaceIdentitySavedData.Mode.SUBORDINATE) continue;
+            if (identity.mobEntityUUID == null) continue;
+            LivingEntity mob = findLivingEntityAcrossLevels(server, identity.mobEntityUUID);
+            if (mob == null) continue; // unloaded or gone — nothing to snapshot
+            captureSnapshotFromLiveMob(saved, identity, mob);
+        }
+    }
+
     // ------------------------------------------------------------------
     // Stage D — death hooks
     //
@@ -4613,9 +4687,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         event.getDispatcher().register(
                 Commands.literal("recoverorphans")
                         .requires(src -> src.hasPermission(2))
-                        .executes(ctx -> handleRecoverOrphans(ctx, false))
+                        .executes(ctx -> handleRecoverOrphans(ctx, OrphanAction.DRY_RUN))
                         .then(Commands.literal("confirm")
-                                .executes(ctx -> handleRecoverOrphans(ctx, true)))
+                                .executes(ctx -> handleRecoverOrphans(ctx, OrphanAction.CONFIRM)))
+                        .then(Commands.literal("purge")
+                                .executes(ctx -> handleRecoverOrphans(ctx, OrphanAction.PURGE)))
         );
         // Harvest Festival debug/testing + the prestige-reset entry point.
         //   /festival run    — run the once-per-colony festival on your colonies
@@ -5659,8 +5735,25 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     // mob-storage item, or a summon that rolled back before FIX 1), the
     // identity record is left stuck in SUBORDINATE pointing at a mob UUID that
     // resolves to nothing — so the subordinate can never re-join the colony.
-    // This tool finds those records and (on explicit confirm) restores them as
-    // colonists, reusing the CitizenData that always existed.
+    // This tool finds those records. On "confirm" it restores the snapshot-
+    // backed ones as colonists (reusing the CitizenData that always existed);
+    // on "purge" it DELETES the snapshot-less ones and frees their housing.
+    //
+    // Three forms (OrphanAction):
+    //   • DRY_RUN (no arg) — reports and mutates nothing. Splits the orphans
+    //     into recoverable (has a snapshot) and identity-only (no snapshot),
+    //     and points at the confirm/purge follow-ups.
+    //   • CONFIRM — restores the RECOVERABLE ones as colonists. Never deletes.
+    //   • PURGE — deletes the IDENTITY-ONLY ones (removeCivilian + removeIdentity)
+    //     so their occupied housing slot is freed. Destructive; only ever
+    //     touches snapshot-less, body-less, owner-matched records.
+    //
+    // Note: since snapshots are now also captured at naming time and refreshed
+    // periodically while a subordinate is loaded (see captureSnapshotFromLiveMob
+    // + tickRefreshSubordinateSnapshots), the identity-only bucket only holds
+    // subordinates that vanished before their FIRST snapshot was ever taken
+    // (e.g. legacy pre-update records, or a body removed the same tick it was
+    // named). Those are the ones purge is for.
     //
     // SAFETY:
     //   • Scope = the RUNNING player's own identities only. The owner is online
@@ -5668,13 +5761,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     //     an unresolvable mob is therefore a strong signal it was genuinely
     //     removed, not merely in an unloaded chunk.
     //   • DRY RUN by default — it reports and mutates nothing. Only "confirm"
-    //     changes state.
-    //   • Records are NEVER deleted. On any uncertainty (missing colony /
-    //     citizen / exception) the record is left intact and reported as skipped.
-    //   • Snapshot-less ("named but never sent") records are reported separately
-    //     as identity-only and left untouched — their stats/appearance can't be
-    //     reconstructed, so we don't fabricate them.
-    private int handleRecoverOrphans(CommandContext<CommandSourceStack> ctx, boolean confirm) {
+    //     or "purge" changes state.
+    //   • CONFIRM never deletes. On any uncertainty (missing colony / citizen /
+    //     exception) the record is left intact and reported as skipped.
+    //   • PURGE only ever targets the identity-only bucket (never a recoverable
+    //     or live subordinate), and only for records the running player owns.
+    /** Which form of the /recoverorphans command was run. */
+    private enum OrphanAction { DRY_RUN, CONFIRM, PURGE }
+
+    private int handleRecoverOrphans(CommandContext<CommandSourceStack> ctx, OrphanAction action) {
         CommandSourceStack src = ctx.getSource();
         ServerPlayer player;
         try {
@@ -5708,7 +5803,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             return 1;
         }
 
-        if (!confirm) {
+        if (action == OrphanAction.DRY_RUN) {
             final int rec = recoverable.size();
             final int idOnly = identityOnly.size();
             src.sendSuccess(() -> Component.literal(
@@ -5719,7 +5814,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     .withStyle(ChatFormatting.GREEN), false);
             src.sendSuccess(() -> Component.literal(
                     "  " + idOnly + " identity-only (never sent to a colony / no snapshot) — "
-                    + "cannot restore stats or appearance; will be left untouched.")
+                    + "cannot restore stats or appearance.")
                     .withStyle(ChatFormatting.YELLOW), false);
             for (RaceIdentitySavedData.RaceIdentity id : recoverable) {
                 final String nm = resolveOrphanName(cm, level, id);
@@ -5730,12 +5825,60 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             for (RaceIdentitySavedData.RaceIdentity id : identityOnly) {
                 final String nm = resolveOrphanName(cm, level, id);
                 final Race race = id.race;
-                src.sendSuccess(() -> Component.literal("    skip:    " + nm + " (" + race + ", no snapshot)")
+                src.sendSuccess(() -> Component.literal("    purge?:  " + nm + " (" + race + ", no snapshot)")
                         .withStyle(ChatFormatting.DARK_GRAY), false);
             }
             src.sendSuccess(() -> Component.literal(
                     "Run \"/recoverorphans confirm\" to restore the " + rec + " recoverable subordinate(s).")
                     .withStyle(ChatFormatting.AQUA), false);
+            if (idOnly > 0) {
+                src.sendSuccess(() -> Component.literal(
+                        "Run \"/recoverorphans purge\" to DELETE the " + idOnly + " unrecoverable "
+                        + "identity-only subordinate(s) and free their housing. This is permanent.")
+                        .withStyle(ChatFormatting.RED), false);
+            }
+            return 1;
+        }
+
+        if (action == OrphanAction.PURGE) {
+            // Destructive — delete the identity-only orphans (no snapshot, no
+            // live body, so /recoverorphans can never restore them) and free
+            // the housing/citizen slot their CitizenData still occupies. Only
+            // ever touches identity-only, owner-matched records; recoverable
+            // ones are left for "confirm". Mirrors the death-hook cleanup:
+            // removeCivilian (drops the count, unassigns buildings) then
+            // removeIdentity.
+            int purged = 0, skipped = 0;
+            for (RaceIdentitySavedData.RaceIdentity id : identityOnly) {
+                try {
+                    IColony colony = cm.getColonyByWorld(id.colonyId, level);
+                    if (colony != null) {
+                        ICitizenData cd = colony.getCitizenManager().getCivilian(id.citizenId);
+                        if (cd != null) {
+                            colony.getCitizenManager().removeCivilian(cd);
+                            LOGGER.info("[TM] purgeorphan: removed citizen {} from colony {} (housing freed)",
+                                    id.citizenId, id.colonyId);
+                        }
+                    }
+                    // Drop the record regardless — a missing colony/citizen just
+                    // means the housing is already gone; the dead record isn't.
+                    saved.removeIdentity(id);
+                    purged++;
+                    LOGGER.info("[TM] purgeorphan: deleted identity-only record {} (citizen {} race {})",
+                            id.identityId, id.citizenId, id.race);
+                } catch (Throwable t) {
+                    LOGGER.error("[TM] purgeorphan: purge threw for identity {} — leaving record intact",
+                            id.identityId, t);
+                    skipped++;
+                }
+            }
+            final int fPurged = purged, fSkipped = skipped, fRecoverable = recoverable.size();
+            src.sendSuccess(() -> Component.literal(
+                    "Orphan purge complete: " + fPurged + " deleted (housing freed); "
+                    + fSkipped + " skipped (error — records kept). "
+                    + fRecoverable + " recoverable subordinate(s) were left untouched — "
+                    + "use \"/recoverorphans confirm\" for those.")
+                    .withStyle(ChatFormatting.GREEN), false);
             return 1;
         }
 
@@ -6672,6 +6815,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (now > 0 && now % AMBIENT_PERIOD_TICKS == 0) {
             runEnvoyScheduler(server);
             tickReputationDrift(server);
+            // Refresh the stored snapshot of every loaded subordinate so a
+            // vanished body can be recovered from a recent form (and never
+            // lands in the unrecoverable "identity-only" bucket).
+            tickRefreshSubordinateSnapshots(server);
         }
 
         // Dawn-restock pass — refresh every named subordinate merchant's
