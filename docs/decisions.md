@@ -2744,3 +2744,36 @@ deliberate placement alone."
   a hostile inside my dome" gap without breaking intentional spawns. `[verify
   in-game]` — playtesting.md §1b. Ref: raid-system.md "IN-FIELD SPAWN
   SUPPRESSION — BROADENED".
+
+## Barrier centers on the town hall; cores network per colony; layer-3 buff splits DL/Hero (2026-07-13)
+
+**Decisions** (user-directed, options confirmed via Q&A):
+
+1. **Field center = town hall** when the core sits inside a colony's CLAIMED
+   area (claimed-chunk lookup, not closest-colony; colony center used until a
+   town hall exists). Core outside any claim keeps the old self-centered
+   behavior. Rationale: the barrier protects the colony, so it should wrap the
+   colony's heart regardless of where the core physically fits.
+2. **One barrier per colony, cores pool.** Multiple cores claimed by the same
+   colony merge: highest tier (tie-break lowest BlockPos) is the elected
+   PRIMARY driving field/sections/layers/render/menu at ITS radius; the rest
+   are tank-only secondaries. Capacity/pool = all member tanks + the DEDUPED
+   union of their storage networks. Chosen over per-core concentric spheres
+   (visual mess, unclear section semantics) and over summing radii (unbounded).
+3. **Layer-3 buff moved off tier, split by the raiser's status.** The old
+   tier-3+ "+10% player magicule regen for anyone" is gone; raising the THIRD
+   layer (already DL/Hero-gated) now grants: Demon Lord → the +10% magicule
+   regen (unchanged mechanics), Hero → citizens inside get Regeneration II +
+   Absorption (user picked "citizen blessing" over an aura-regen mirror, guard
+   buffs, or citizen damage reduction). DL wins if a player somehow holds both
+   titles. Buff type persists and is re-derived on the per-second gate check.
+4. **Magicule Storage kept, fate deferred.** Core pooling overlaps storage's
+   capacity role; options (repurpose as trickle-refill/repair-battery/bank,
+   keep, remove+refund, or lower core base capacities) recorded in
+   future-ideas.md — decide in a balance pass, not by drift.
+5. **Evil barrier variant** (tiered ability-suppression field, EP-limited per
+   enemy) recorded in future-ideas.md as an idea needing a design pass.
+
+**Known consequence:** a core placed near the claim edge can sit OUTSIDE its
+own sphere (radius still per tier) — exposed to attackers. Accepted; the fix
+is player-side (higher tier or better placement).

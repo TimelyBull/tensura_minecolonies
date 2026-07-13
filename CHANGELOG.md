@@ -8,6 +8,22 @@ Copy the relevant version's section into the CurseForge release notes on each up
 
 ## [Unreleased]
 
+### Changed
+- **Barriers now protect your colony, not just the block.** A Barrier Core
+  placed anywhere inside your colony's claimed land projects its sphere around
+  your **town hall** instead of around the block itself. A core placed out in
+  the wild still centres on itself, as before.
+- **Multiple Barrier Cores in one colony merge into a single barrier.** Extra
+  cores no longer make overlapping spheres — the strongest core sets the
+  barrier's size and panel strength, and every core's fuel tank pools into one
+  shared supply. Opening the menu on any of them shows and controls the shared
+  barrier.
+- **The third barrier layer now grants a buff that depends on who raised it.**
+  A true **Demon Lord** grants players inside 10% faster magicule regeneration;
+  a true **Hero** blesses the citizens inside with stronger healing and extra
+  absorption hearts. (This buff used to come from tier 3+ cores automatically —
+  it now comes from the third layer instead.)
+
 ### Added
 - **`/recoverorphans purge` — delete lost subordinates that can't be rescued
   and free their housing.** Some vanished subordinates can be restored as

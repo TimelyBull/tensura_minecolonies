@@ -10,6 +10,82 @@ Class references confirmed by `javap` against the jars in `libs/`.
 
 ---
 
+## COLONY-CENTERED BARRIER + CORE NETWORKS + LAYER-3 BUFF SPLIT (2026-07-13)
+
+Three coupled changes to `BarrierBlockEntity` (+ `TensuraRaids` registry,
+`BarrierFieldRenderer`, `Networking` menu routing):
+
+**1. The field centers on the TOWN HALL, not the core block.**
+`resolveNetwork` (per-second housekeeping) looks up the colony CLAIMING the
+core's position (`IColonyManager.getColonyByPosFromWorld` — claimed-chunk
+lookup, NOT closest-colony) and sets `fieldCenter` = town hall position
+(`getServerBuildingManager().getTownHall().getPosition()`; colony `getCenter()`
+when no town hall yet). Outside any claim → `fieldCenter` null = the core
+itself (old behavior). Persisted + synced; ALL field math (collision, push,
+projectiles, `tryBlockIncomingAttack`, heal/buff sweeps, render, spawn
+footprint, raid steering) goes through `getFieldCenter()`. The renderer draws
+the sphere offset from the BE (`center − blockPos`); its render bounding box
+follows the center. NOTE: a core near the claim edge can sit OUTSIDE its own
+sphere (radius unchanged per tier) — the core block is then exposed; player's
+tier/placement choice.
+
+**2. Multiple cores in one colony = ONE barrier, pooled capacity.**
+Cores claimed by the same colony report into a static
+`COLONY_CORE_NETWORKS` map (key `dimension#colonyId`, 60-tick staleness — the
+`ACTIVE_BARRIERS` idiom). The member with the HIGHEST TIER (tie-break lowest
+`BlockPos.compareTo`) is elected PRIMARY each second:
+- PRIMARY drives everything: field collision, sections/holes (its own
+  persisted section state), layers, upkeep, regen, alarms, render, the
+  `reportActiveBarrier` entry — using ITS tier's radius/section health.
+- SECONDARIES are tank-only (`linkedSecondary`, synced): `serverTick` early-
+  returns after housekeeping; renderer skips them; `tryBlockIncomingAttack`
+  refuses; their menu opens route to the primary (`resolveMenuTarget`;
+  `Networking` snapshots/acts on the primary while the payload keeps the
+  CLICKED pos so the 8-block reach check stays local).
+- POOL: `refreshPoolCache`/`addToPool`/`drainFromPool` walk `memberCores()`
+  (self + loaded linked cores) — member tanks fill/drain first (self first),
+  then the DEDUPED union of every member's flood-filled storage network
+  (`networkStoragePositions`, a `LinkedHashSet` — a storage block bridging two
+  member cores counts once). Combined capacity cached per second in
+  `networkCapacityCache` (synced; ≤0 falls back to base+own-storage, which
+  covers legacy saves and standalone cores).
+- Consistency: primary demotion/promotion converges within ~1 s (each core
+  resolves independently); an unloaded member's tank simply drops out of the
+  pool until it reloads. `setRemoved` deregisters so survivors re-elect
+  promptly; a demoted core fires `reportBarrierDown` for its old entry.
+- `TensuraRaids.BarrierEntry` now carries the CENTER (key stays the core pos
+  for stable removal); `isInsideFueledBarrier` (spawn suppression) tests the
+  center's footprint, `nearestActiveBarrier` returns the center (raid steering
+  walks raiders at the town hall side, matching where the wall actually is).
+
+**3. Layer-3 buff — Demon Lord vs Hero split (MOVED from core tier 3+).**
+The old `BARRIER_REGEN_BUFF_TIER` (tier-3+ core → +10% player magicule regen
+for anyone inside, no status required) is GONE. The buff now hangs on the
+THIRD LAYER (`BUFF_LAYERS` 3) and is keyed to the layer-raiser's status,
+captured in `trySetLayers` (`layerBuffType`, persisted byte; DL wins when a
+player holds both titles) and refreshed by the per-second gate re-check
+(status change online updates it; losing DL/Hero still collapses to 1 layer +
+clears it):
+- **DEMON LORD** (`LAYER_BUFF_DEMON_LORD`): the existing +10% personal
+  magicule-regen delta-mirror for players inside (renamed
+  `applyDemonLordRegenBuff`; `DL_MAGICULE_REGEN_BONUS`, shared
+  `DL_MAGICULE_BASELINE` dedupe map — mechanics unchanged).
+- **HERO** (`LAYER_BUFF_HERO`): CITIZEN blessing — `AbstractEntityCitizen`s
+  inside get Regeneration II + Absorption (2 hearts), refreshed each second in
+  the T2 heal sweep (which now also runs on tier-1 cores when the blessing is
+  active; non-citizens still need tier ≥ 2 for the base Regen I). No player-
+  side buff on the hero path.
+- Legacy saves with raised layers load `LAYER_BUFF_NONE` (no buff) until the
+  setter is next online, then the re-check restores the right type.
+
+⚠ BALANCE GUESSES (no combat playtest): hero blessing amplifiers
+(`HERO_BLESSING_REGEN_AMPLIFIER` 1 / `HERO_BLESSING_ABSORPTION_AMPLIFIER` 0),
+and the whole "extra cores add capacity but not radius" trade. Follow-on
+recorded in future-ideas.md: Magicule Storage blocks' niche narrowed by core
+stacking (repurpose/keep/remove/rebalance options).
+
+---
+
 ## IN-FIELD SPAWN SUPPRESSION — BROADENED (2026-07-10)
 
 Answers user-suggestion 2026-07-10 #3 ("barrier should stop hostile + Tensura

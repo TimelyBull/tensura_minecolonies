@@ -68,14 +68,12 @@ public class BarrierBlockEntity extends BlockEntity {
     public static final double FALLBACK_ATTACK_DAMAGE = 3.0;
 
     // --- Cumulative tier FUNCTIONS:
-    //     T1 = WALL (blocks/pushes), T2 = wall + HEAL inside,
-    //     T3+ = wall + heal + the +10% player magicule-regen buff inside.
-    //     (The old T3 EJECT was REMOVED in the sphere redesign.) ---
+    //     T1 = WALL (blocks/pushes), T2 = wall + HEAL inside.
+    //     (The old T3 EJECT was REMOVED in the sphere redesign; the old
+    //     T3+ magicule-regen buff MOVED 2026-07-13 to the third LAYER,
+    //     split by the raiser's Demon-Lord/Hero status — see BUFF_LAYERS.) ---
     /** Core tier at which the healing aura activates. */
     public static final int BARRIER_HEAL_TIER = 2;
-    /** Core tier at which the player magicule-regen buff activates (replaces
-     *  the removed eject). */
-    public static final int BARRIER_REGEN_BUFF_TIER = 3;
     /** Boundary band (blocks) the wall acts across — a mob within this band of
      *  an intact section's surface is pushed back out. */
     public static final double WALL_BAND = 1.5;
@@ -102,6 +100,11 @@ public class BarrierBlockEntity extends BlockEntity {
 
     /** Flood-fill cap on a storage network — performance guard. */
     public static final int MAX_STORAGE_NETWORK = 128;
+
+    /** A colony core-network report older than this (ticks) is treated as
+     *  gone (chunk unload / block break without deregistration) — same
+     *  staleness idiom as {@link TensuraRaids}'s active-barrier registry. */
+    public static final long NETWORK_STALE_TICKS = 60L;
 
     /** Section health (and pool) drained when an enemy projectile is absorbed
      *  by an intact section. Flat per shot (projectiles hit once), so sustained
@@ -136,14 +139,47 @@ public class BarrierBlockEntity extends BlockEntity {
     /** When the pool can't pay a regen step, retry this soon. */
     public static final int REGEN_STALL_RETRY_TICKS = 20;
 
-    // --- T3 player magicule-regen buff ---
-    /** Extra fraction of natural magicule regen granted to players inside a
-     *  T3+ barrier (+10%). */
-    public static final double T3_MAGICULE_REGEN_BONUS = 0.10;
-    /** Shared per-player magicule baseline for the delta-mirror buff. Static so
-     *  overlapping T3 barriers can't double-count: the first barrier to process
-     *  a player consumes the natural-gain delta; others see none. */
-    private static final java.util.Map<UUID, Double> T3_MAGICULE_BASELINE = new ConcurrentHashMap<>();
+    // --- Layer-3 colony buff (Demon Lord / Hero split) ---
+    /** Active layer count at which the layer-setter's colony buff activates
+     *  (the third shell). Which buff depends on WHO raised the layers:
+     *  a true DEMON LORD grants players inside +10% magicule regen; a true
+     *  HERO blesses citizens inside with Regeneration II + Absorption.
+     *  (Moved 2026-07-13: this was previously a core-TIER-3+ effect —
+     *  {@code BARRIER_REGEN_BUFF_TIER} — granted regardless of status.) */
+    public static final int BUFF_LAYERS = 3;
+    /** Demon-Lord buff: extra fraction of natural magicule regen granted to
+     *  players inside (+10%). */
+    public static final double DL_MAGICULE_REGEN_BONUS = 0.10;
+    /** Hero blessing: Regeneration amplifier for citizens inside (1 = II). */
+    public static final int HERO_BLESSING_REGEN_AMPLIFIER = 1;
+    /** Hero blessing: Absorption amplifier for citizens inside (0 = 2 hearts). */
+    public static final int HERO_BLESSING_ABSORPTION_AMPLIFIER = 0;
+
+    /** {@code layerBuffType} values — which layer-3 buff is active, decided by
+     *  the layer-setter's status at raise time (re-checked per second). */
+    public static final byte LAYER_BUFF_NONE = 0, LAYER_BUFF_DEMON_LORD = 1, LAYER_BUFF_HERO = 2;
+
+    /** Shared per-player magicule baseline for the Demon-Lord delta-mirror
+     *  buff. Static so overlapping buffed barriers can't double-count: the
+     *  first barrier to process a player consumes the natural-gain delta;
+     *  others see none. */
+    private static final java.util.Map<UUID, Double> DL_MAGICULE_BASELINE = new ConcurrentHashMap<>();
+
+    // ------------------------------------------------------------------
+    // Colony core networks — cores claimed by the same colony form ONE
+    // barrier centered on the town hall. Each colony-anchored core reports
+    // itself here once per second; the member with the HIGHEST TIER
+    // (tie-break: lowest BlockPos) is elected PRIMARY and drives the field;
+    // the rest become tank-only secondaries feeding the shared pool.
+    // ------------------------------------------------------------------
+
+    /** One core's report into its colony network. */
+    private record CoreReport(long lastSeen, int tier) {}
+
+    /** (dimension + colonyId) → member core positions. Server-global, same
+     *  lifecycle pattern as {@link TensuraRaids}'s ACTIVE_BARRIERS. */
+    private static final java.util.Map<String, java.util.Map<BlockPos, CoreReport>> COLONY_CORE_NETWORKS =
+            new ConcurrentHashMap<>();
 
     // ------------------------------------------------------------------
     // State
@@ -166,6 +202,32 @@ public class BarrierBlockEntity extends BlockEntity {
     private int activeLayers = 1;
     /** Who raised the layers above 1 — DL/Hero re-checked once per second. */
     private UUID layerSetterUuid = null;
+    /** Which layer-3 colony buff is active ({@link #LAYER_BUFF_NONE} /
+     *  {@code _DEMON_LORD} / {@code _HERO}) — decided by the layer-setter's
+     *  status when the layers were raised, refreshed on the per-second gate
+     *  re-check. Persisted. */
+    private byte layerBuffType = LAYER_BUFF_NONE;
+    /** Resolved field CENTER. When the core sits inside a colony's claimed
+     *  zone this is the town-hall position (colony center if no town hall);
+     *  null = centered on the core block itself (core outside any colony).
+     *  Persisted + synced — the renderer draws the sphere here. */
+    private BlockPos fieldCenter = null;
+    /** True when this core is a NON-PRIMARY member of a colony core network:
+     *  its tank feeds the shared pool but the PRIMARY core drives the field
+     *  (collision, upkeep, regen, render, menu). Synced. */
+    private boolean linkedSecondary = false;
+    /** PRIMARY only: the other live member cores' positions (re-resolved per
+     *  second, not persisted). */
+    private final java.util.List<BlockPos> linkedCores = new java.util.ArrayList<>();
+    /** SECONDARY only: the elected primary's position (menu routing). */
+    private BlockPos primaryPos = null;
+    /** The network key this core last reported into — for cleanup when the
+     *  core changes/leaves a colony or is removed. */
+    private String lastNetworkKey = null;
+    /** Combined POOL capacity (member core bases + deduped storage bonuses),
+     *  recomputed per second server-side and synced; ≤0 → fall back to the
+     *  standalone base + own storage bonus. */
+    private double networkCapacityCache = -1.0;
     /** Player toggle: render the wall shells or keep them invisible (the field
      *  still works either way). */
     private boolean wallVisible = true;
@@ -207,9 +269,33 @@ public class BarrierBlockEntity extends BlockEntity {
                 ? b.baseCapacity() : BarrierBlock.TIER_BASE_CAPACITY[0];
     }
 
-    /** Total POOL capacity = tier base + connected storage capacities. */
+    /** Total POOL capacity. Standalone: tier base + connected storage. In a
+     *  colony core network the PRIMARY's cache also carries the linked member
+     *  cores' bases + their (deduped) storage capacities. */
     public double getCapacity() {
-        return getBaseCapacity() + storageBonus;
+        return networkCapacityCache > 0 ? networkCapacityCache : getBaseCapacity() + storageBonus;
+    }
+
+    /** The point the field is centered on: the colony's town hall when the
+     *  core sits in a claimed colony zone, else the core block itself. */
+    public BlockPos getFieldCenter() {
+        return fieldCenter != null ? fieldCenter : worldPosition;
+    }
+
+    /** True when this core is a tank-only member of a colony network (the
+     *  elected primary drives the field + render). */
+    public boolean isLinkedSecondary() {
+        return linkedSecondary;
+    }
+
+    /** The core the barrier menu should show/control: the network primary
+     *  when this core is a linked secondary, else this core itself. */
+    public BarrierBlockEntity resolveMenuTarget() {
+        if (linkedSecondary && primaryPos != null && level != null
+                && level.getBlockEntity(primaryPos) instanceof BarrierBlockEntity primary) {
+            return primary;
+        }
+        return this;
     }
 
     public int getActiveLayers() {
@@ -466,8 +552,19 @@ public class BarrierBlockEntity extends BlockEntity {
         return ex != null && (ex.isTrueDemonLord() || ex.isTrueHero());
     }
 
+    /** The layer-3 buff a raiser's status grants: Demon Lord wins when a
+     *  player somehow bears both titles. */
+    static byte layerBuffTypeOf(Player player) {
+        io.github.manasmods.tensura.storage.ep.IExistence ex = ExampleMod.readExistenceSafe(player);
+        if (ex == null) return LAYER_BUFF_NONE;
+        if (ex.isTrueDemonLord()) return LAYER_BUFF_DEMON_LORD;
+        if (ex.isTrueHero()) return LAYER_BUFF_HERO;
+        return LAYER_BUFF_NONE;
+    }
+
     /** Menu request to set the layer count (1..MAX_LAYERS); 2–3 require the
-     *  requester to be a true demon lord or true hero (validated here). */
+     *  requester to be a true demon lord or true hero (validated here). The
+     *  raiser's status also picks the layer-3 colony buff (DL vs Hero). */
     public int trySetLayers(int requested, Player who) {
         int clamped = Math.max(1, Math.min(MAX_LAYERS, requested));
         if (clamped > 1 && !isDemonLordOrHero(who)) {
@@ -476,6 +573,7 @@ public class BarrierBlockEntity extends BlockEntity {
         if (clamped != activeLayers) {
             activeLayers = clamped;
             layerSetterUuid = clamped > 1 ? who.getUUID() : null;
+            layerBuffType = clamped > 1 ? layerBuffTypeOf(who) : LAYER_BUFF_NONE;
             setChanged();
             if (level != null && !level.isClientSide()) {
                 level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
@@ -499,6 +597,116 @@ public class BarrierBlockEntity extends BlockEntity {
 
     public BarrierBlockEntity(BlockPos pos, BlockState state) {
         super(ExampleMod.BARRIER_BLOCK_ENTITY.get(), pos, state);
+    }
+
+    // ------------------------------------------------------------------
+    // Colony network resolution — center + primary election, per second
+    // ------------------------------------------------------------------
+
+    /**
+     * Resolve this core's field center and network role, once per second.
+     * Inside a colony's claimed zone: center = town hall (colony center if
+     * no town hall yet), and all cores of that colony form ONE network —
+     * the highest-tier member (tie-break: lowest BlockPos) is PRIMARY and
+     * drives the shared, centered field; the rest become tank-only
+     * secondaries. Outside any colony: self-centered, standalone.
+     */
+    private void resolveNetwork(ServerLevel level) {
+        com.minecolonies.api.colony.IColony colony =
+                com.minecolonies.api.colony.IColonyManager.getInstance()
+                        .getColonyByPosFromWorld(level, worldPosition);
+        BlockPos newCenter = null;
+        boolean newSecondary = false;
+        BlockPos newPrimary = null;
+        String newKey = null;
+        linkedCores.clear();
+
+        if (colony != null) {
+            newCenter = colony.getServerBuildingManager().hasTownHall()
+                    ? colony.getServerBuildingManager().getTownHall().getPosition()
+                    : colony.getCenter();
+            newKey = level.dimension().location() + "#" + colony.getID();
+            long now = level.getGameTime();
+            java.util.Map<BlockPos, CoreReport> network =
+                    COLONY_CORE_NETWORKS.computeIfAbsent(newKey, k -> new ConcurrentHashMap<>());
+            network.put(worldPosition.immutable(), new CoreReport(now, getTier()));
+
+            // Prune stale reports + elect the primary.
+            BlockPos best = null;
+            int bestTier = -1;
+            for (java.util.Iterator<java.util.Map.Entry<BlockPos, CoreReport>> it =
+                    network.entrySet().iterator(); it.hasNext(); ) {
+                java.util.Map.Entry<BlockPos, CoreReport> e = it.next();
+                if (now - e.getValue().lastSeen() > NETWORK_STALE_TICKS) {
+                    it.remove();
+                    continue;
+                }
+                int t = e.getValue().tier();
+                if (t > bestTier || (t == bestTier
+                        && (best == null || e.getKey().compareTo(best) < 0))) {
+                    bestTier = t;
+                    best = e.getKey();
+                }
+            }
+            if (best != null && !best.equals(worldPosition)) {
+                newSecondary = true;
+                newPrimary = best;
+            } else {
+                for (BlockPos member : network.keySet()) {
+                    if (!member.equals(worldPosition)) linkedCores.add(member);
+                }
+            }
+        }
+
+        // Left / changed colony → drop the old network report.
+        if (lastNetworkKey != null && !lastNetworkKey.equals(newKey)) {
+            java.util.Map<BlockPos, CoreReport> old = COLONY_CORE_NETWORKS.get(lastNetworkKey);
+            if (old != null) old.remove(worldPosition);
+        }
+        lastNetworkKey = newKey;
+        primaryPos = newPrimary;
+
+        boolean changed = !java.util.Objects.equals(fieldCenter, newCenter)
+                || linkedSecondary != newSecondary;
+        fieldCenter = newCenter;
+        linkedSecondary = newSecondary;
+        if (changed) {
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            // Demoted to secondary → hand field duties to the primary: drop
+            // our own active-barrier report (the primary re-reports within
+            // a second under the shared center).
+            if (newSecondary) {
+                TensuraRaids.reportBarrierDown(level, worldPosition);
+            }
+        }
+    }
+
+    /** All LOADED member cores — self first, then the live linked cores.
+     *  Standalone / secondary cores have no links, so this is just self. */
+    private java.util.List<BarrierBlockEntity> memberCores() {
+        if (linkedCores.isEmpty() || !(level instanceof ServerLevel serverLevel)) {
+            return java.util.List.of(this);
+        }
+        java.util.List<BarrierBlockEntity> members = new java.util.ArrayList<>();
+        members.add(this);
+        for (BlockPos p : linkedCores) {
+            if (serverLevel.getBlockEntity(p) instanceof BarrierBlockEntity be && be != this) {
+                members.add(be);
+            }
+        }
+        return members;
+    }
+
+    /** Deduped storage positions across all members' flood-filled networks —
+     *  a storage block adjacent to TWO member cores must count once. */
+    private static java.util.LinkedHashSet<BlockPos> networkStoragePositions(
+            java.util.List<BarrierBlockEntity> members) {
+        java.util.LinkedHashSet<BlockPos> positions = new java.util.LinkedHashSet<>();
+        for (BarrierBlockEntity m : members) {
+            positions.addAll(m.networkStorageCache);
+        }
+        return positions;
     }
 
     // ------------------------------------------------------------------
@@ -541,13 +749,26 @@ public class BarrierBlockEntity extends BlockEntity {
     }
 
     private void refreshPoolCache(ServerLevel level) {
-        double pool = storedMagicule;
-        for (BlockPos sp : networkStorageCache) {
+        java.util.List<BarrierBlockEntity> members = memberCores();
+        double pool = 0.0;
+        double capacity = 0.0;
+        for (BarrierBlockEntity m : members) {
+            pool += m.storedMagicule;
+            capacity += m.getBaseCapacity();
+        }
+        for (BlockPos sp : networkStoragePositions(members)) {
             if (level.getBlockEntity(sp) instanceof StorageBlockEntity sbe) {
                 pool += sbe.getStored();
             }
+            if (level.getBlockState(sp).getBlock() instanceof MagiculeStorageBlock storage) {
+                capacity += storage.capacityBonus();
+            }
         }
         poolStoredCache = pool;
+        if (Math.abs(capacity - networkCapacityCache) > 0.5) {
+            networkCapacityCache = capacity;
+            setChanged();
+        }
     }
 
     /** The 0..3 fill stage of the POOL — drives the core's charge sprite.
@@ -567,14 +788,21 @@ public class BarrierBlockEntity extends BlockEntity {
     public double addToPool(double amount) {
         if (amount <= 0) return 0;
         double remaining = amount;
-        double coreRoom = Math.max(0, getBaseCapacity() - storedMagicule);
-        double toCore = Math.min(remaining, coreRoom);
-        if (toCore > 0) {
-            storedMagicule += toCore;
-            remaining -= toCore;
+        java.util.List<BarrierBlockEntity> members = memberCores();
+        // Member core tanks fill FIRST (this core, then linked cores)…
+        for (BarrierBlockEntity m : members) {
+            if (remaining <= 0) break;
+            double room = Math.max(0, m.getBaseCapacity() - m.storedMagicule);
+            double toCore = Math.min(remaining, room);
+            if (toCore > 0) {
+                m.storedMagicule += toCore;
+                remaining -= toCore;
+                if (m != this) m.setChanged();
+            }
         }
+        // …then overflow into the (deduped) storage networks.
         if (remaining > 0 && level instanceof ServerLevel serverLevel) {
-            for (BlockPos sp : networkStorageCache) {
+            for (BlockPos sp : networkStoragePositions(members)) {
                 if (remaining <= 0) break;
                 if (serverLevel.getBlockEntity(sp) instanceof StorageBlockEntity sbe) {
                     remaining -= sbe.fill(remaining);
@@ -594,13 +822,20 @@ public class BarrierBlockEntity extends BlockEntity {
     public double drainFromPool(double amount) {
         if (amount <= 0) return 0;
         double remaining = amount;
-        double fromCore = Math.min(remaining, storedMagicule);
-        if (fromCore > 0) {
-            storedMagicule -= fromCore;
-            remaining -= fromCore;
+        java.util.List<BarrierBlockEntity> members = memberCores();
+        // Drain member core tanks first…
+        for (BarrierBlockEntity m : members) {
+            if (remaining <= 0) break;
+            double fromCore = Math.min(remaining, m.storedMagicule);
+            if (fromCore > 0) {
+                m.storedMagicule -= fromCore;
+                remaining -= fromCore;
+                if (m != this) m.setChanged();
+            }
         }
+        // …then the (deduped) storage reserves.
         if (remaining > 0 && level instanceof ServerLevel serverLevel) {
-            for (BlockPos sp : networkStorageCache) {
+            for (BlockPos sp : networkStoragePositions(members)) {
                 if (remaining <= 0) break;
                 if (serverLevel.getBlockEntity(sp) instanceof StorageBlockEntity sbe) {
                     remaining -= sbe.drain(remaining);
@@ -681,49 +916,68 @@ public class BarrierBlockEntity extends BlockEntity {
 
         // Once-per-second housekeeping.
         if (gameTime % 20 == 0) {
+            be.resolveNetwork(serverLevel);
             be.recomputeStorageBonus(serverLevel);
 
-            // Layer gate re-check: online setter who lost DL/Hero → collapse to 1.
-            if (be.activeLayers > 1 && be.layerSetterUuid != null) {
-                ServerPlayer setter = serverLevel.getServer().getPlayerList()
-                        .getPlayer(be.layerSetterUuid);
-                if (setter != null && !isDemonLordOrHero(setter)) {
-                    be.activeLayers = 1;
-                    be.layerSetterUuid = null;
-                    be.setChanged();
+            if (!be.linkedSecondary) {
+                // Layer gate re-check: online setter who lost DL/Hero →
+                // collapse to 1; still qualified → refresh the buff type
+                // (covers a status change between the two titles).
+                if (be.activeLayers > 1 && be.layerSetterUuid != null) {
+                    ServerPlayer setter = serverLevel.getServer().getPlayerList()
+                            .getPlayer(be.layerSetterUuid);
+                    if (setter != null) {
+                        if (!isDemonLordOrHero(setter)) {
+                            be.activeLayers = 1;
+                            be.layerSetterUuid = null;
+                            be.layerBuffType = LAYER_BUFF_NONE;
+                            be.setChanged();
+                            serverLevel.sendBlockUpdated(pos, state, state, 3);
+                            setter.sendSystemMessage(Component.literal(
+                                    "Your barrier collapses to a single layer — the power that "
+                                    + "sustained the outer rings is gone.")
+                                    .withStyle(net.minecraft.ChatFormatting.RED));
+                        } else {
+                            byte fresh = layerBuffTypeOf(setter);
+                            if (fresh != be.layerBuffType) {
+                                be.layerBuffType = fresh;
+                                be.setChanged();
+                            }
+                        }
+                    }
+                }
+
+                // Passive layer upkeep (layer 1 free; +LAYER_UPKEEP_PER_SECOND per
+                // extra configured layer), once per second from the pool.
+                double upkeep = (be.activeLayers - 1) * LAYER_UPKEEP_PER_SECOND;
+                if (upkeep > 0) {
+                    be.drainFromPool(upkeep);
+                }
+
+                // Section regen (paid from the pool).
+                be.regenSections(gameTime);
+
+                // Drain readout latch.
+                be.lastContactDrainPerSecond = be.contactDrainAccumulator;
+                be.contactDrainAccumulator = 0.0;
+
+                be.syncChargeState();
+                if (Math.abs(be.poolStoredCache - be.lastSyncedMagicule) > be.getCapacity() * 0.005) {
+                    be.lastSyncedMagicule = be.poolStoredCache;
                     serverLevel.sendBlockUpdated(pos, state, state, 3);
-                    setter.sendSystemMessage(Component.literal(
-                            "Your barrier collapses to a single layer — the power that "
-                            + "sustained the outer rings is gone.")
-                            .withStyle(net.minecraft.ChatFormatting.RED));
+                }
+                if (be.poolStoredCache > 0) {
+                    TensuraRaids.reportActiveBarrier(serverLevel, pos,
+                            be.getFieldCenter(), be.getEffectiveRadius());
+                } else {
+                    TensuraRaids.reportBarrierDown(serverLevel, pos);
                 }
             }
-
-            // Passive layer upkeep (layer 1 free; +LAYER_UPKEEP_PER_SECOND per
-            // extra configured layer), once per second from the pool.
-            double upkeep = (be.activeLayers - 1) * LAYER_UPKEEP_PER_SECOND;
-            if (upkeep > 0) {
-                be.drainFromPool(upkeep);
-            }
-
-            // Section regen (paid from the pool).
-            be.regenSections(gameTime);
-
-            // Drain readout latch.
-            be.lastContactDrainPerSecond = be.contactDrainAccumulator;
-            be.contactDrainAccumulator = 0.0;
-
-            be.syncChargeState();
-            if (Math.abs(be.poolStoredCache - be.lastSyncedMagicule) > be.getCapacity() * 0.005) {
-                be.lastSyncedMagicule = be.poolStoredCache;
-                serverLevel.sendBlockUpdated(pos, state, state, 3);
-            }
-            if (be.poolStoredCache > 0) {
-                TensuraRaids.reportActiveBarrier(serverLevel, pos, be.getEffectiveRadius());
-            } else {
-                TensuraRaids.reportBarrierDown(serverLevel, pos);
-            }
         }
+
+        // A linked secondary is tank-only: the network primary drives the
+        // field (collision, heal, buffs, alarms) around the shared center.
+        if (be.linkedSecondary) return;
 
         boolean fieldUp = be.poolStoredCache > 0;
 
@@ -750,7 +1004,7 @@ public class BarrierBlockEntity extends BlockEntity {
         be.fieldWasUp = fieldUp;
         if (!fieldUp) return;
 
-        Vec3 center = Vec3.atCenterOf(pos);
+        Vec3 center = Vec3.atCenterOf(be.getFieldCenter());
         double outerR = be.getEffectiveRadius();
         double reach = outerR + CONTACT_BAND;
 
@@ -849,8 +1103,18 @@ public class BarrierBlockEntity extends BlockEntity {
         // Push section opacity changes (break/fade/regen) to clients, change-only.
         be.maybeSyncStages(serverLevel, pos, state);
 
+        // Layer-3 colony buffs — active only with the third shell raised,
+        // keyed to the layer-raiser's status (see BUFF_LAYERS).
+        boolean heroBlessing = be.activeLayers >= BUFF_LAYERS
+                && be.layerBuffType == LAYER_BUFF_HERO;
+        boolean demonLordBuff = be.activeLayers >= BUFF_LAYERS
+                && be.layerBuffType == LAYER_BUFF_DEMON_LORD;
+
         // T2+ HEALING — friendlies inside get gentle regeneration each second.
-        if (be.getTier() >= BARRIER_HEAL_TIER && gameTime % 20 == 0) {
+        // The HERO blessing (layer 3, hero raiser) upgrades CITIZENS inside to
+        // Regeneration II + Absorption, on any core tier.
+        if ((be.getTier() >= BARRIER_HEAL_TIER || heroBlessing) && gameTime % 20 == 0) {
+            boolean baseHeal = be.getTier() >= BARRIER_HEAL_TIER;
             for (net.minecraft.world.entity.LivingEntity living
                     : serverLevel.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class,
                             AABB.ofSize(center, outerR * 2, outerR * 2, outerR * 2))) {
@@ -861,15 +1125,30 @@ public class BarrierBlockEntity extends BlockEntity {
                 if (living.hasData(Attachments.RAID_TAG.get())) continue;
                 if (living.getType().builtInRegistryHolder().is(TensuraRaids.HOSTILE_MONSTER_TAG)) continue;
                 if (living instanceof com.minecolonies.api.entity.mobs.AbstractEntityMinecoloniesRaider) continue;
-                living.addEffect(new net.minecraft.world.effect.MobEffectInstance(
-                        net.minecraft.world.effect.MobEffects.REGENERATION,
-                        BARRIER_HEAL_DURATION_TICKS, 0, true, false, false));
+                boolean blessedCitizen = heroBlessing
+                        && living instanceof com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
+                if (blessedCitizen) {
+                    living.addEffect(new net.minecraft.world.effect.MobEffectInstance(
+                            net.minecraft.world.effect.MobEffects.REGENERATION,
+                            BARRIER_HEAL_DURATION_TICKS, HERO_BLESSING_REGEN_AMPLIFIER,
+                            true, false, false));
+                    living.addEffect(new net.minecraft.world.effect.MobEffectInstance(
+                            net.minecraft.world.effect.MobEffects.ABSORPTION,
+                            BARRIER_HEAL_DURATION_TICKS, HERO_BLESSING_ABSORPTION_AMPLIFIER,
+                            true, false, false));
+                } else if (baseHeal) {
+                    living.addEffect(new net.minecraft.world.effect.MobEffectInstance(
+                            net.minecraft.world.effect.MobEffects.REGENERATION,
+                            BARRIER_HEAL_DURATION_TICKS, 0, true, false, false));
+                }
             }
         }
 
-        // T3+ buff — players inside get +10% personal Tensura magicule regen.
-        if (be.getTier() >= BARRIER_REGEN_BUFF_TIER) {
-            applyT3RegenBuff(serverLevel, center, outerR);
+        // DEMON LORD buff (layer 3, demon-lord raiser) — players inside get
+        // +10% personal Tensura magicule regen. (Moved 2026-07-13 from core
+        // tier 3+ to the third layer.)
+        if (demonLordBuff) {
+            applyDemonLordRegenBuff(serverLevel, center, outerR);
         }
     }
 
@@ -884,8 +1163,9 @@ public class BarrierBlockEntity extends BlockEntity {
      */
     public boolean tryBlockIncomingAttack(Vec3 attackerPos, Vec3 victimPos, long gameTime) {
         ensureSections();
+        if (linkedSecondary) return false; // the network primary handles it
         if (poolStoredCache <= 0) return false;
-        Vec3 c = Vec3.atCenterOf(worldPosition);
+        Vec3 c = Vec3.atCenterOf(getFieldCenter());
         double outerR = getEffectiveRadius();
         if (victimPos.distanceToSqr(c) >= outerR * outerR) return false; // victim not inside
         double ax = attackerPos.x - c.x, ay = attackerPos.y - c.y, az = attackerPos.z - c.z;
@@ -928,10 +1208,11 @@ public class BarrierBlockEntity extends BlockEntity {
         mob.setDeltaMovement(0, Math.min(0, vel.y), 0);
     }
 
-    /** Delta-mirror T3 buff: for each player inside the outer sphere, add 10%
-     *  of whatever natural magicule they gained since last tick. The shared
-     *  baseline map self-dedupes across overlapping T3 barriers. */
-    private static void applyT3RegenBuff(ServerLevel serverLevel, Vec3 center, double outerR) {
+    /** Delta-mirror Demon-Lord buff (layer 3, DL raiser): for each player
+     *  inside the outer sphere, add 10% of whatever natural magicule they
+     *  gained since last tick. The shared baseline map self-dedupes across
+     *  overlapping buffed barriers. */
+    private static void applyDemonLordRegenBuff(ServerLevel serverLevel, Vec3 center, double outerR) {
         double r2 = outerR * outerR;
         for (ServerPlayer player : serverLevel.players()) {
             double dx = player.getX() - center.x;
@@ -941,10 +1222,10 @@ public class BarrierBlockEntity extends BlockEntity {
             ExistenceStorage exist = ExampleMod.readExistence(player);
             if (exist == null) continue;
             double cur = exist.getMagicule();
-            Double prev = T3_MAGICULE_BASELINE.get(player.getUUID());
+            Double prev = DL_MAGICULE_BASELINE.get(player.getUUID());
             if (prev != null && cur > prev) {
                 double gain = cur - prev;
-                double bonus = gain * T3_MAGICULE_REGEN_BONUS;
+                double bonus = gain * DL_MAGICULE_REGEN_BONUS;
                 double max = EnergyHelper.getMaxMagicule(player);
                 double newVal = Math.min(max, cur + bonus);
                 if (newVal > cur) {
@@ -953,7 +1234,7 @@ public class BarrierBlockEntity extends BlockEntity {
                     cur = newVal;
                 }
             }
-            T3_MAGICULE_BASELINE.put(player.getUUID(), cur);
+            DL_MAGICULE_BASELINE.put(player.getUUID(), cur);
         }
     }
 
@@ -977,7 +1258,11 @@ public class BarrierBlockEntity extends BlockEntity {
         tag.putDouble("poolStored", poolStoredCache);
         tag.putInt("activeLayers", activeLayers);
         if (layerSetterUuid != null) tag.putUUID("layerSetter", layerSetterUuid);
+        tag.putByte("layerBuffType", layerBuffType);
         tag.putBoolean("wallVisible", wallVisible);
+        if (fieldCenter != null) tag.putLong("fieldCenter", fieldCenter.asLong());
+        tag.putBoolean("linkedSecondary", linkedSecondary);
+        tag.putDouble("networkCapacity", networkCapacityCache);
 
         // Per-section state.
         ensureSections();
@@ -997,7 +1282,14 @@ public class BarrierBlockEntity extends BlockEntity {
         activeLayers = tag.contains("activeLayers") ? Math.max(1,
                 Math.min(MAX_LAYERS, tag.getInt("activeLayers"))) : 1;
         layerSetterUuid = tag.hasUUID("layerSetter") ? tag.getUUID("layerSetter") : null;
+        // Legacy saves (no buff type) load as NONE; the per-second gate
+        // re-check restores the right buff when the setter is online.
+        layerBuffType = tag.contains("layerBuffType") ? tag.getByte("layerBuffType") : LAYER_BUFF_NONE;
         wallVisible = !tag.contains("wallVisible") || tag.getBoolean("wallVisible");
+        fieldCenter = tag.contains("fieldCenter") ? BlockPos.of(tag.getLong("fieldCenter")) : null;
+        linkedSecondary = tag.getBoolean("linkedSecondary");
+        networkCapacityCache = tag.contains("networkCapacity")
+                ? tag.getDouble("networkCapacity") : -1.0;
 
         // Per-section state — pre-redesign saves have none → init all full.
         int n = MAX_LAYERS * SECTION_COUNT;
@@ -1033,6 +1325,11 @@ public class BarrierBlockEntity extends BlockEntity {
     public void setRemoved() {
         if (level instanceof ServerLevel serverLevel) {
             TensuraRaids.reportBarrierDown(serverLevel, worldPosition);
+        }
+        // Leave the colony core network so the survivors re-elect promptly.
+        if (lastNetworkKey != null) {
+            java.util.Map<BlockPos, CoreReport> network = COLONY_CORE_NETWORKS.get(lastNetworkKey);
+            if (network != null) network.remove(worldPosition);
         }
         super.setRemoved();
     }

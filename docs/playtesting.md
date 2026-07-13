@@ -15,6 +15,39 @@ test** (concrete steps + what you should see), **status**.
 
 ## OPEN — needs playtesting
 
+### 0. Colony-centered barrier + core networks + layer-3 DL/Hero buff (2026-07-13)
+
+**What changed** (`BarrierBlockEntity`, `TensuraRaids`, `BarrierFieldRenderer`,
+`Networking`): (1) a Barrier Core inside a colony's claimed land centers its
+sphere on the TOWN HALL (core outside any claim = self-centered, as before);
+(2) multiple cores in one colony merge into ONE barrier — highest-tier core is
+elected primary (drives field/render/menu at its radius), all member tanks +
+deduped storage networks pool together; (3) the +10% magicule-regen buff MOVED
+from core tier 3+ to the THIRD LAYER, split by the raiser: Demon Lord = +10%
+player magicule regen, Hero = citizens get Regen II + Absorption. Full record:
+docs/raid-system.md → "COLONY-CENTERED BARRIER…".
+
+**How to test:**
+1. Found a colony, place a T1 core at the claim edge, fuel it → the sphere
+   should appear around the TOWN HALL, not the core. Break/replace the core
+   outside the claim → sphere around the core block.
+2. Place a SECOND core (higher tier) elsewhere in the same colony → within a
+   second there should be ONE sphere (the higher tier's radius/colour);
+   right-click either core → same shared fuel/capacity numbers; channeling
+   into the T1 core raises the shared pool.
+3. Break the primary (higher-tier) core → the T1 takes over (sphere shrinks to
+   T1 radius) within a second.
+4. As a true Demon Lord raise 3 layers → stand inside, magicule regen visibly
+   faster; as a true Hero (or a second player) raise 3 layers → citizens
+   inside get Regen II + Absorption hearts (particle-less; check the extra
+   yellow hearts). Tier-3/4 core WITHOUT 3 layers → no regen buff any more.
+5. Hostile-spawn suppression + raid steering should track the town hall
+   footprint (spawn-proof area follows the sphere, raiders walk toward it).
+6. Reload mid-everything: centering, network membership, layers + buff type
+   survive (legacy saves: buff restores when the layer-raiser next logs in).
+
+**Status:** OPEN.
+
 ### 0. Barrier Core tiers 2–4 upgrade from the tier below (2026-07-13)
 
 **What changed** (`data/tensura_minecolonies/recipe/magicule_barrier_tier{2,3,4}.json`):

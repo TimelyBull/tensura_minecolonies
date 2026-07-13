@@ -66,6 +66,7 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
     @Override
     public void render(BarrierBlockEntity be, float partialTick, PoseStack poseStack,
                        MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
+        if (be.isLinkedSecondary()) return;        // the network primary draws
         if (!be.isWallVisible()) return;          // player toggled the render off
         if (be.getFillRatio() <= 0f) return;       // whole barrier down (pool 0)
 
@@ -77,8 +78,13 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
         VertexConsumer vc = bufferSource.getBuffer(WALL_RENDER_TYPE);
         Matrix4f pose = poseStack.last().pose();
 
-        // PoseStack origin = block corner; the sphere centres on the block.
-        final float cx = 0.5f, cy = 0.5f, cz = 0.5f;
+        // PoseStack origin = block corner; the sphere centres on the FIELD
+        // CENTER (the town hall when colony-anchored, else this block).
+        net.minecraft.core.BlockPos center = be.getFieldCenter();
+        net.minecraft.core.BlockPos own = be.getBlockPos();
+        final float cx = 0.5f + (center.getX() - own.getX());
+        final float cy = 0.5f + (center.getY() - own.getY());
+        final float cz = 0.5f + (center.getZ() - own.getZ());
 
         // One full sphere per CONFIGURED layer (layers don't shed from drain;
         // only individual sections break, and only the whole barrier falls at
@@ -175,6 +181,6 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
     @Override
     public net.minecraft.world.phys.AABB getRenderBoundingBox(BarrierBlockEntity be) {
         double r = be.getEffectiveRadius() + 2; // outermost sphere
-        return new net.minecraft.world.phys.AABB(be.getBlockPos()).inflate(r, r, r);
+        return new net.minecraft.world.phys.AABB(be.getFieldCenter()).inflate(r, r, r);
     }
 }

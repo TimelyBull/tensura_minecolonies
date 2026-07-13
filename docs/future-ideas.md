@@ -448,3 +448,80 @@ the assassin EP-theft and stat-sync code.
   known in `trySpawnChild`; thread them through `onReproductionChild`).
 - Persistence + reload safety: any inherited EP/skills live on the child's
   `RaceIdentity` snapshot like the rest of the two-bodies state.
+
+## Magicule Storage blocks: possibly redundant after core-pool stacking (2026-07-13)
+
+The colony core-network change (multiple Barrier Cores in one colony share one
+centered barrier and POOL THEIR CAPACITY) overlaps the Magicule Storage block's
+whole job: extra capacity is now available by just placing another core, which
+also brings its own tank AND raises nothing extra (the network uses the highest
+tier core's radius/sections). Storage blocks are KEPT for now, but their niche
+has narrowed to "cheaper capacity per block than a full core." Options recorded
+for a future pass (pick one deliberately, don't drift):
+
+1. **Repurpose (preferred candidate)** — give storage a job cores can't do:
+   e.g. passive trickle-refill (storage slowly recharges from ambient/area
+   magicule, cores don't), or act as the REPAIR battery (section repairs must
+   be paid from storage, cores only power upkeep), or player-withdrawable bank
+   (a colony magicule ATM; cores stay barrier-only).
+2. **Keep as-is** — cheaper capacity/block is a real (if thin) niche; recipes
+   already climb by tier. Zero work.
+3. **Remove** — delete the blocks + recipes, migrate existing placed storage by
+   refunding contents into the adjacent core network. Cleanest world model, but
+   invalidates crafted items in existing saves.
+4. **Rebalance instead** — lower the cores' base capacities (100k–250k) so
+   storage is *needed* again for a deep tank; makes multi-core stacking a
+   radius/redundancy choice rather than a capacity one.
+
+## Evil barrier variant — ability-suppression field (2026-07-13, needs expanding)
+
+A craftable EVIL counterpart to the Barrier Core (its own tier ladder) that
+doesn't wall enemies out but SUPPRESSES what they can do inside the field —
+anti-magic / sealing-barrier flavour (Tensura's holy-field/anti-magic ward
+imagery). Recorded early; needs a full design pass before any build.
+
+Sketch of the idea as given + first open questions:
+- Prevents "factions from using certain things" inside the field — candidate
+  suppressions per tier: block skill/magic casting (hook the same
+  LivingIncomingDamageEvent / skill-cost seams the barrier already uses),
+  silence resistances, slow EP regen, disable teleports, weaken specific
+  elements.
+- **EP-limited**: each enemy/boss resists suppression based on its EP vs the
+  field's strength — a weak field can't silence an Orc Disaster; scale like the
+  existing EP-scaled drain (attacker EP × multiplier). Tier raises the EP
+  ceiling the field can suppress.
+- Tiered like the core (radius + suppression ceiling + upkeep climb); evil
+  aesthetic (dark sprites/tint) and possibly an alignment/repute cost to run it
+  (colony reputation or faction standing penalty while active?).
+- Open questions: does it affect OUR citizens/subordinates too (double-edged)?
+  fuel type (magicule, or something darker — soul points?); does running one
+  flip Holy-bloc dispositions (ties into the majin side-watch); interaction
+  with raids (suppressing a raid boss's skills trivializes lore events?).
+
+## Barrier main-thread cost — throttle the per-tick entity scans (2026-07-13)
+
+Recorded from an optimization discussion. NOT async — Minecraft's world state
+(entities, block entities, EP storage, colony data) is single-threaded and
+moving barrier work off the main thread would race the save. The real lever is
+LESS main-thread work.
+
+`BarrierBlockEntity.serverTick` runs two `getEntitiesOfClass` AABB scans (mobs
++ projectiles) EVERY tick, per active barrier. MC buckets entities by
+chunk-section so the cost is ~"entities near the barrier," not sphere volume —
+but every tick is more often than the effect needs. Options, all main-thread,
+all safe, do them only if a `runClient` profiling pass shows the barrier
+actually costs something (don't optimize on a guess):
+
+1. **Throttle the mob/projectile scans to every 2–3 ticks**, accumulating
+   section damage across the interval — visually indistinguishable, cuts that
+   scan cost by half to two-thirds.
+2. **Cache the per-second colony lookup** in `resolveNetwork`
+   (`getColonyByPosFromWorld` every second per core → refresh every few
+   seconds; a core's claiming colony rarely changes).
+3. **Stagger the per-second schedulers** (`TensuraRaids`, `ColonyThreatResponse`,
+   garrison, diplomacy, envoy, rival-colony) so they don't all fire on the same
+   tick — spread work across the 20-tick second.
+
+Already banked (not a future idea, just context): multi-core networking made
+only the elected PRIMARY run the field driver, so a colony with N cores went
+from N per-tick entity scans to 1.
