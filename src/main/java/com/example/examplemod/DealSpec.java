@@ -2,6 +2,7 @@ package com.example.examplemod;
 
 import com.minecolonies.api.entity.citizen.Skill;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.Item;
@@ -9,6 +10,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -70,8 +72,18 @@ public record DealSpec(
             ItemStack stack = new ItemStack(item, count);
             HolderLookup.RegistryLookup<Enchantment> lookup =
                     registries.lookupOrThrow(Registries.ENCHANTMENT);
-            for (EnchantSpec spec : enchants) {
-                stack.enchant(lookup.getOrThrow(spec.enchantment()), spec.level());
+            if (item == Items.ENCHANTED_BOOK) {
+                // Enchanted books hold their enchantments in STORED_ENCHANTMENTS
+                // (anvil-applyable), NOT the live ENCHANTMENTS component.
+                ItemEnchantments.Mutable stored = new ItemEnchantments.Mutable(ItemEnchantments.EMPTY);
+                for (EnchantSpec spec : enchants) {
+                    stored.set(lookup.getOrThrow(spec.enchantment()), spec.level());
+                }
+                stack.set(DataComponents.STORED_ENCHANTMENTS, stored.toImmutable());
+            } else {
+                for (EnchantSpec spec : enchants) {
+                    stack.enchant(lookup.getOrThrow(spec.enchantment()), spec.level());
+                }
             }
             return stack;
         }
@@ -422,7 +434,9 @@ public record DealSpec(
         Map<String, java.util.function.Supplier<
                 ? extends io.github.manasmods.manascore.skill.api.ManasSkill>> m =
                 new LinkedHashMap<>();
-        m.put("dw_grand_forge", io.github.manasmods.tensura.registry.skill.IntrinsicSkills.BODY_ARMOR);
+        // Dwargon's Body Armor skill rides "Forge a Sentinel" (dw_sentinel),
+        // moved 2026-07-06 from The Grand Forge per user direction.
+        m.put("dw_sentinel", io.github.manasmods.tensura.registry.skill.IntrinsicSkills.BODY_ARMOR);
         // Tempest grants ONLY Self-Regeneration. It rides the CATALOG capstone
         // deal "Rimuru's Blessing" (tp_slime_pact) — the slime deal (Slime Core +
         // Slime Balls → Staff of Slime + gold). (Phase 0: the leftover
@@ -478,24 +492,28 @@ public record DealSpec(
                                 new ItemStack(ten("silver_coin"), 6)),
                         7.0, 5.0, 6 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("dw_blacksmith", "A Proper Smithy",
-                        new BuildingLevel("blacksmith", 3),
+                        new SupplyItems(Items.GOLD_BLOCK, 8),
                         List.of(new ItemStack(Items.IRON_BLOCK, 8), new ItemStack(Items.COAL, 16),
                                 new ItemStack(ten("short_sword_schematic"), 1),
                                 new ItemStack(ten("bronze_coin"), 15)),
-                        6.0, 5.0, 12 * DAY, 0, FactionTier.NEUTRAL, false),
+                        6.0, 5.0, 6 * DAY, 0, FactionTier.NEUTRAL, false),
                 // Fires of Industry: schematic + fuel, no coin (signature reward).
                 new DealSpec("dw_smeltery", "Fires of Industry",
-                        new BuildingLevel("smeltery", 3),
+                        new SupplyBundle(List.of(new ItemStack(ten("low_magisteel_ingot"), 2),
+                                new ItemStack(ten("magic_stone"), 2))),
                         List.of(new ItemStack(ten("magic_staff_schematic"), 1),
                                 new ItemStack(ten("battlewill_manual"), 1),
                                 new ItemStack(ten("low_magisteel_ingot"), 2)),
-                        6.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
-                // The Grand Forge: schematic reward, no coin (signature).
+                        6.0, 5.0, 6 * DAY, 0, FactionTier.FRIENDLY, false),
+                // The Grand Forge — Great Sword Schematic + an ENGRAVED forged
+                // blade (High Magisteel Katana with the Crushing engraving).
                 new DealSpec("dw_grand_forge", "The Grand Forge",
-                        new BuildingLevel("blacksmith", 5),
-                        List.of(new ItemStack(ten("great_sword_schematic"), 1),
-                                new ItemStack(ten("high_magisteel_ingot"), 4)),
-                        8.0, 5.0, 20 * DAY, 0, FactionTier.ALLIED, false),
+                        new SupplyBundle(List.of(new ItemStack(ten("pure_magisteel_ingot"), 1),
+                                new ItemStack(ten("high_quality_magic_crystal"), 2))),
+                        List.of(new ItemStack(ten("great_sword_schematic"), 1)),
+                        8.0, 5.0, 8 * DAY, 0, FactionTier.ALLIED, false,
+                        List.of(new EnchantedReward(ten("high_magisteel_katana"), 1, List.of(
+                                new EnchantSpec(engraving("crushing"), 1))))),
                 new DealSpec("dw_blades", "A Blade for Every Hand",
                         new SupplyItems(ten("pure_magisteel_ingot"), 2),
                         List.of(new ItemStack(ten("long_sword_schematic"), 1),
@@ -524,6 +542,14 @@ public record DealSpec(
                                 new ItemStack(ten("silver_coin"), 10))),
                         List.of(new ItemStack(ten("medium_magic_staff"), 1)),
                         6.0, 5.0, 6 * DAY, 0, FactionTier.FRIENDLY, false),
+                // A Master's Tools — an ENCHANTED Diamond Pickaxe (mining kingdom).
+                new DealSpec("dw_tools", "A Master's Tools",
+                        new SupplyItems(ten("low_magisteel_ingot"), 3),
+                        List.of(),
+                        6.0, 5.0, 6 * DAY, 0, FactionTier.FRIENDLY, false,
+                        List.of(new EnchantedReward(Items.DIAMOND_PICKAXE, 1, List.of(
+                                new EnchantSpec(Enchantments.EFFICIENCY, 3),
+                                new EnchantSpec(Enchantments.FORTUNE, 2))))),
                 new DealSpec("dw_steel_thread", "Threads of Steel",
                         new SupplyBundle(List.of(new ItemStack(Items.IRON_INGOT, 16),
                                 new ItemStack(Items.STRING, 16))),
@@ -537,12 +563,13 @@ public record DealSpec(
                                 new ItemStack(ten("magic_stone"), 6),
                                 new ItemStack(ten("gold_coin"), 4)),
                         8.0, 5.0, 20 * DAY, 0, FactionTier.ALLIED, false),
-                // Forge a Sentinel: COMMISSION — pay a forging fee (gold coin) in
-                // the requirement; the golem is the whole reward (no coin back).
+                // Forge a Sentinel ★ — grants Dwargon's Body Armor skill (moved
+                // here from The Grand Forge). Commission: pay a gold-coin forging
+                // fee + 3 anvils; the golem + manual are the reward.
                 new DealSpec("dw_sentinel", "Forge a Sentinel",
                         new SupplyBundle(List.of(new ItemStack(ten("high_magisteel_ingot"), 4),
                                 new ItemStack(ten("magic_stone"), 1), new ItemStack(Items.BONE, 32),
-                                new ItemStack(ten("gold_coin"), 2))),
+                                new ItemStack(Items.ANVIL, 3), new ItemStack(ten("gold_coin"), 2))),
                         List.of(new ItemStack(ten("high_magisteel_bone_golem"), 1),
                                 new ItemStack(ten("battlewill_manual"), 1)),
                         8.0, 5.0, 20 * DAY, 0, FactionTier.ALLIED, false)));
@@ -611,6 +638,7 @@ public record DealSpec(
                 new DealSpec("tp_joyful", "A Joyful Haven",
                         new SupplyItems(Items.GOLDEN_APPLE, 8),
                         List.of(new ItemStack(ten("slime_in_a_bucket"), 1),
+                                new ItemStack(Items.DIAMOND, 8),
                                 new ItemStack(ten("gold_coin"), 4)),
                         7.0, 5.0, 8 * DAY, 0, FactionTier.ALLIED, false),
                 // tp_slime_pact — the CATALOG capstone deal: grants Tempest's
@@ -674,7 +702,31 @@ public record DealSpec(
                                 new ItemStack(Items.DIAMOND, 4),
                                 new ItemStack(mc("ancienttome"), 1),
                                 new ItemStack(ten("gold_coin"), 1)),
-                        8.0, 5.0, 3 * DAY, 0, FactionTier.ALLIED, false)));
+                        8.0, 5.0, 3 * DAY, 0, FactionTier.ALLIED, false),
+                // Added 2026-07-06 — enchant/engrave rewards.
+                // Forbidden Knowledge — an academy ENCHANTED BOOK (Mending).
+                new DealSpec("tp_forbidden", "Forbidden Knowledge",
+                        new SupplyItems(ten("grimoire_a"), 1),
+                        List.of(new ItemStack(ten("silver_coin"), 8)),
+                        8.0, 5.0, 8 * DAY, 0, FactionTier.ALLIED, false,
+                        List.of(new EnchantedReward(Items.ENCHANTED_BOOK, 1, List.of(
+                                new EnchantSpec(Enchantments.MENDING, 1))))),
+                // A Scholar's Reward — task is a Grade-C Grimoire (NOT "32 Book",
+                // to avoid duplicating "A Library's Worth"). Book: Unbreaking III.
+                new DealSpec("ja_scholars_reward", "A Scholar's Reward",
+                        new SupplyItems(ten("grimoire_c"), 1),
+                        List.of(new ItemStack(ten("silver_coin"), 6)),
+                        6.0, 5.0, 6 * DAY, 0, FactionTier.FRIENDLY, false,
+                        List.of(new EnchantedReward(Items.ENCHANTED_BOOK, 1, List.of(
+                                new EnchantSpec(Enchantments.UNBREAKING, 3))))),
+                // KATANA?!? — Hakurou's blade: an engraved Pure Magisteel Katana.
+                new DealSpec("tp_katana", "KATANA?!?",
+                        new SupplyBundle(List.of(new ItemStack(ten("pure_magisteel_ingot"), 2),
+                                new ItemStack(ten("high_quality_magic_crystal"), 4))),
+                        List.of(new ItemStack(ten("gold_coin"), 2)),
+                        8.0, 5.0, 10 * DAY, 0, FactionTier.ALLIED, false,
+                        List.of(new EnchantedReward(ten("pure_magisteel_katana"), 1, List.of(
+                                new EnchantSpec(engraving("swift"), 1)))))));
 
         // ✦ LUMINOUS (Holy Empire) — Tier III premium/holy. Reworked 2026-07-06:
         // the Building/Happiness milestone deals converted to ACTIVE deals
@@ -750,7 +802,30 @@ public record DealSpec(
                         List.of(new ItemStack(Items.DIAMOND_BLOCK, 2),
                                 new ItemStack(ten("magic_tome_recovery"), 1),
                                 new ItemStack(ten("gold_coin"), 2)),
-                        8.0, 5.0, 10 * DAY, 0, FactionTier.ALLIED, false)));
+                        8.0, 5.0, 10 * DAY, 0, FactionTier.ALLIED, false),
+                // Added 2026-07-06 — enchanted holy gear + a holy enchanted book.
+                new DealSpec("lu_crusaders_blade", "The Crusader's Blade",
+                        new SupplyBundle(List.of(new ItemStack(Items.DIAMOND_BLOCK, 4),
+                                new ItemStack(Items.GOLD_BLOCK, 16))),
+                        List.of(),
+                        10.0, 5.0, 12 * DAY, 0, FactionTier.ALLIED, false,
+                        List.of(new EnchantedReward(Items.NETHERITE_SWORD, 1, List.of(
+                                new EnchantSpec(Enchantments.SMITE, 5),
+                                new EnchantSpec(Enchantments.LOOTING, 3),
+                                new EnchantSpec(Enchantments.UNBREAKING, 3))))),
+                new DealSpec("lu_blessed_aegis", "Blessed Aegis",
+                        new SupplyItems(Items.DIAMOND_BLOCK, 8),
+                        List.of(),
+                        8.0, 5.0, 10 * DAY, 0, FactionTier.ALLIED, false,
+                        List.of(new EnchantedReward(Items.DIAMOND_CHESTPLATE, 1, List.of(
+                                new EnchantSpec(Enchantments.PROTECTION, 4),
+                                new EnchantSpec(Enchantments.UNBREAKING, 3))))),
+                new DealSpec("lu_sacred_verse", "A Sacred Verse",
+                        new SupplyItems(ten("grimoire_c"), 1),
+                        List.of(new ItemStack(ten("silver_coin"), 6)),
+                        6.0, 5.0, 6 * DAY, 0, FactionTier.FRIENDLY, false,
+                        List.of(new EnchantedReward(Items.ENCHANTED_BOOK, 1, List.of(
+                                new EnchantSpec(Enchantments.SMITE, 5)))))));
 
         // ⚔ FALMUTH — war metal, magisteel, battlewill manual, enhancement tome.
         map.put("falmuth", List.of(

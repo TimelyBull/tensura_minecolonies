@@ -302,21 +302,23 @@ COMMISSION FEES in a couple of requirements. 14 deals):
 | Fuel for the Forges | Deliver 64 Coal | 12 Monster Leather (B) + 12 Bronze Coin | NEUTRAL |
 | Silver for the Smiths | Deliver 32 Silver Ingot | 2 Magic Stone + 6 Low Magisteel Nugget + 8 Silver Coin | FRIENDLY |
 | Magisteel Quota | Deliver 8 Low Magisteel | **Spear Schematic** + 8 Medium Magic Crystal + 6 Silver Coin | FRIENDLY |
-| A Proper Smithy | Build blacksmith 3 | 8 Iron Block + 16 Coal + **Short Sword Schematic** + 15 Bronze Coin | NEUTRAL |
-| Fires of Industry | Build smeltery 3 | **Magic Staff Schematic** + Battlewill Manual + 2 Low Magisteel *(no coin)* | FRIENDLY |
-| The Grand Forge | Build blacksmith 5 | **Great Sword Schematic** + 4 High Magisteel *(no coin)* | ALLIED |
+| A Proper Smithy | Deliver 8 Gold Block | 8 Iron Block + 16 Coal + **Short Sword Schematic** + 15 Bronze Coin | NEUTRAL |
+| Fires of Industry | Deliver 2 Low Magisteel + 2 Magic Stone | **Magic Staff Schematic** + Battlewill Manual + 2 Low Magisteel *(no coin)* | FRIENDLY |
+| The Grand Forge | Deliver 1 Pure Magisteel + 2 High Crystal | **Great Sword Schematic** + **Engraved High Magisteel Katana (Crushing)** | ALLIED |
+| A Master's Tools | Deliver 3 Low Magisteel | **Enchanted Diamond Pickaxe (Efficiency III + Fortune II)** | FRIENDLY |
 | A Blade for Every Hand | Deliver 2 Pure Magisteel Ingot | **Long Sword + Kunai Schematics** + 8 Magic Stone + 6 Silver Coin | FRIENDLY |
 | Strong Backs for the Mines | Lend 3 × Strength≥8 | 16 Gold + 4 Low Magisteel + 12 Silver Coin | FRIENDLY |
-| Master Artisans Abroad ★ | Lend 2 × Creativity≥8 | **Spatial Blade Schematic** + 1 Mithril Ingot + 1 Orichalcum Ingot + Earth Tome *(no coin)* | ALLIED |
+| Master Artisans Abroad | Lend 2 × Creativity≥8 | **Spatial Blade Schematic** + 1 Mithril Ingot + 1 Orichalcum Ingot + Earth Tome *(no coin)* | ALLIED |
 | Staff of the Smiths | Deliver 8 Magic Stone **+ 10 Silver Coin** (commission fee) | **Medium Magic Staff** | FRIENDLY |
 | Threads of Steel | Deliver 16 Iron + 16 String | 8 Steel Thread + 10 Bronze Coin | NEUTRAL |
 | The Mountain's Heart | Deliver 30 Gold + 20 Diamond + 10 Emerald | **Element Core (Earth)** + 6 Magic Stone + 4 Gold Coin | ALLIED |
-| Forge a Sentinel | Deliver 4 High Magisteel + 1 Magic Stone + 32 Bone **+ 2 Gold Coin** (forging fee) | **High Magisteel Bone Golem** + Battlewill Manual *(no coin back)* | ALLIED |
+| Forge a Sentinel ★ | Deliver 4 High Magisteel + 1 Magic Stone + 32 Bone + **3 Anvil** **+ 2 Gold Coin** (forging fee) | **High Magisteel Bone Golem** + Battlewill Manual *(no coin back)* | ALLIED |
 
 **Tempest** (Tier II — trade capital + academy; reworked 2026-07-06 to ACTIVE
 DEALS ONLY — no Population/Happiness/Building "milestone" reqs. Milestone deals
 were reincarnated as delivery/slay/lend deals; adds hipokute medicine, a serpent
-hunt, coin/caravan trade, and a slime capstone. 21 deals):
+hunt, coin/caravan trade, a slime capstone, and (2026-07-06) enchanted books +
+an engraved katana. 24 deals):
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
 | Provisions for Travellers | Deliver 32 Bread | 8 Iron + 20 Bronze Coin | NEUTRAL |
@@ -329,7 +331,7 @@ hunt, coin/caravan trade, and a slime capstone. 21 deals):
 | Content People | Deliver 8 Cake + 32 Cookie | Full Potion + 8 Silver Coin | FRIENDLY |
 | Caravan Tolls | Deliver 32 Emerald + 8 Gold | 1 Coin Pouch (A) + 12 Silver Coin | FRIENDLY |
 | Tempest Serpents | Slay 8 Tempest Serpent | 4 Cooked Serpent Meat + 2 Low Magisteel + 2 Gold Coin | ALLIED |
-| A Joyful Haven | Deliver 8 Golden Apple | Bucket of Slime + 4 Gold Coin | ALLIED |
+| A Joyful Haven | Deliver 8 Golden Apple | Bucket of Slime + 8 Diamond + 4 Gold Coin | ALLIED |
 | **Rimuru's Blessing ★** | Deliver 1 Slime Core + 8 Slime Ball | **Staff of Slime** + 16 Diamond *(grants Self-Regeneration)* | ALLIED |
 | A Share of the Harvest | Deliver 4 Carrot + 4 Bread + 4 Beetroot | 16 Book + 4 Sugar Cane | NEUTRAL |
 | Food for the Mind | Deliver 8 Bookshelf | 1 Golden Apple + 24 Lapis | NEUTRAL |
@@ -340,6 +342,9 @@ hunt, coin/caravan trade, and a slime capstone. 21 deals):
 | Focused Minds Abroad | Lend 2 × Focus≥6 | 8 XP + 1 Ancient Tome | FRIENDLY |
 | Sages for the Academy | Lend 2 × Intelligence≥8 | 16 XP + 16 Lapis + 4 Diamond + Ancient Tome | ALLIED |
 | Higher Learning | Lend 2 × Knowledge≥6 | 16 XP Bottle + 4 Diamond + Ancient Tome + 1 Gold Coin | ALLIED |
+| Forbidden Knowledge | Deliver 1 Grimoire (A) | **Enchanted Book: Mending** + 8 Silver Coin | ALLIED |
+| A Scholar's Reward | Deliver 1 Grimoire (C) | **Enchanted Book: Unbreaking III** + 6 Silver Coin | FRIENDLY |
+| KATANA?!? | Deliver 2 Pure Magisteel + 4 High Crystal | **Engraved Pure Magisteel Katana (`swift`)** + 2 Gold Coin | ALLIED |
 
 *Skill note:* the ★ = Tempest's capstone skill (Self-Regeneration) now rides
 **Rimuru's Blessing** (the catalog slime deal), moved off Medicine for the Realm.
@@ -362,6 +367,9 @@ deals 2026-07-06 — grimoires, holy healing, the Orc-Disaster crusade):
 | Blessed Grass | Deliver 32 Hipokute Grass | High Arcane Potion ×2 + Full Potion + 8 Silver Coin | FRIENDLY |
 | Grimoire of Light | Deliver 1 Grimoire (B) | Barrier Tome + 8 Diamond + 6 Silver Coin | FRIENDLY |
 | The Purest Offering | Deliver 4 Enchanted Golden Apple | 2 Diamond Block + Recovery Tome + 2 Gold Coin | ALLIED |
+| The Crusader's Blade | Deliver 4 Diamond Block + 16 Gold Block | **Netherite Sword (Smite V + Looting III + Unbreaking III)** | ALLIED |
+| Blessed Aegis | Deliver 8 Diamond Block | **Diamond Chestplate (Protection IV + Unbreaking III)** | ALLIED |
+| A Sacred Verse | Deliver 1 Grimoire (C) | **Enchanted Book: Smite V** + 6 Silver Coin | FRIENDLY |
 
 *(Deferred: "Crusader's Trial" — slay 24 undead in one night → Anti-Magic Mask
 Schematic — needs the time-windowed-slay mechanic; see future-ideas.md.)*
@@ -494,7 +502,7 @@ capstone skill.
 
 | Faction | Granting deal | Skill | Skill type |
 |---|---|---|---|
-| Dwargon | The Grand Forge | Body Armor | Intrinsic |
+| Dwargon | Forge a Sentinel | Body Armor | Intrinsic |
 | Tempest | A Joyful Haven | Self-Regeneration | Common |
 | Luminous | A Devout Congregation | Holy Attack Resistance | Resistance |
 | Falmuth | A Mighty Defense | Physical Attack Resistance | Resistance |

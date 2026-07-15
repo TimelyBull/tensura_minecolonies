@@ -172,6 +172,20 @@ do, beyond the existing marked-boss-kill fan-out:
    time. Makes the starting-race choice a lasting diplomatic identity, not just
    a cosmetic/spawn choice.
 
+## Code cleanup / good-practices pass (2026-07-06)
+
+A dedicated hygiene pass over the codebase (not tied to a feature): remove
+UNNECESSARY / dead code and make what's left read nicely and follow good
+practices. Candidates already known: the MDK-rename leftovers (`ExampleMod`/
+`ExampleModClient`/`Config` names, `com.example.examplemod` package, the
+`examplemod` lang-namespace file, vestigial placeholder config options + example
+block/item), superseded-but-still-present classes (e.g. the unregistered
+`SubordinateTradeButtonHandler`), any remaining `[DIAG]`/debug logging, and the
+one very large file (`ExampleMod.java`) that could be split. Also a consistency
+sweep: naming, comment density, dead imports, small dup helpers. Do it in
+reviewable chunks (rename ≠ behavior change) with a compile + ideally a runClient
+check per chunk. Low urgency, high readability payoff.
+
 ## Enchanted / engraved equipment as deal rewards (2026-07-06)
 
 **✅ MECHANIC BUILT (2026-07-06, approach B).** `DealSpec` now has an
@@ -181,10 +195,25 @@ constructor (plain deals untouched), and `resolvedRewards(HolderLookup.Provider)
 which all reward consumers use — so enchanted/engraved stacks are materialised
 via the world registry everywhere (grant + conquest loot + UI summary). Helper
 `DealSpec.engraving("holy_weapon")` builds a Tensura engraving key. First use:
-Falmuth "I Need More Steel!" (enchanted Diamond Sword). See decisions.md.
-**Remaining as future content:** the Dwargon/Tempest/Luminous enchant+engrave
-REVIEW (now unblocked — add real engraved gear), and Tensura engraving *level*
-semantics / rarity-weighted rolls via `EngravingHelper` if wanted.
+Falmuth "I Need More Steel!" (enchanted Diamond Sword). Extended 2026-07-06 for
+ENCHANTED BOOKS (`item == ENCHANTED_BOOK` → writes `STORED_ENCHANTMENTS`) — used
+by Tempest's Forbidden Knowledge (Mending) + A Scholar's Reward. See decisions.md.
+**Enchant/engrave review DONE for Dwargon + Tempest + Luminous (2026-07-06):**
+Dwargon — engraved High Magisteel Katana (Grand Forge) + enchanted Diamond
+Pickaxe (A Master's Tools); Tempest — 2 enchanted books + engraved Pure
+Magisteel Katana; Luminous — enchanted Netherite Sword (Crusader's Blade),
+Diamond Chestplate (Blessed Aegis), Smite book (A Sacred Verse). Still open:
+Milim/Eurazania/Clayman/Leon/Eastern Empire (not yet reworked at all), Tensura
+engraving *level* semantics / rarity-weighted rolls via `EngravingHelper`, and
+runtime-verifying that engravings actually FUNCTION on the chosen weapons.
+
+**Parked engraved-weapon DEALS (deferred, maybe for other factions/colonies):**
+- **A Masterwork Blade** — deliver premium mats → an engraved forged sword
+  (`severance` + `crushing` + Unbreaking).
+- **The Living Blade** — deliver 1 Hihi'irokane Ingot → an engraved weapon
+  (`growth` + `magic_weapon`; strengthens with EP).
+These were reviewed for Dwargon but NOT added (Dwargon looks good as-is); keep
+them as ready-made engraved-gear deals to drop onto a fitting faction later.
 
 Idea: give ENCHANTED / ENGRAVED gear as catalog-deal rewards so martial/smith
 factions can hand out real weapons/armor.
