@@ -204,7 +204,7 @@ public final class ConquestPayoff {
     // --- 3. loot chest(s) from the faction's reward catalog ------------
 
     private static void spawnLootChests(ServerLevel level, Settlement s, String factionName) {
-        List<ItemStack> pool = DealSpec.factionRewardPool(s.factionId);
+        List<ItemStack> pool = DealSpec.factionRewardPool(s.factionId, level.registryAccess());
         if (pool.isEmpty()) {
             LOGGER.info("[TM] rival: {} has no reward pool — no loot chest", s.factionId);
             return;

@@ -139,6 +139,123 @@ SIEGE — a super-raid above the lore-event class. Sketch:
   shatters relations. A siege pass can key off WAR_DECLARED (and the
   recorded tier) instead of inventing new betrayal detection.
 
+## INVESTIGATE — are Tensura coins actually "barrier fuel"? (2026-07-06)
+
+`deps/tensura.md` §1 claims `BRONZE_COIN`/`SILVER_COIN` are "merchant currency
++ barrier fuel." The **merchant-currency** half is verified (Goblin/merchant
+`OneForOneTrade` uses `BRONZE_COIN`). The **barrier-fuel** half could NOT be
+substantiated on a quick check: our own Barrier Core is fueled by player
+magicule + Tensura magic CRYSTALS (`BarrierBlock.crystalValue`), not coins, and
+Tensura's own "barriers" are all magic spells/skills, not coin-fueled blocks.
+TODO: full-decompile Tensura to find whether coins have any hidden magicule
+value / fuel use anywhere; if not, CORRECT the `deps/tensura.md` line (drop or
+qualify "barrier fuel"). Low priority, but the deps docs are meant to be
+source-grounded, so an unverifiable claim should be fixed.
+
+## Faction standing reacts to the player's race choices/actions (2026-07-06)
+
+Two related ideas for making factions respond to WHO the player is / what they
+do, beyond the existing marked-boss-kill fan-out:
+
+1. **Certain actions LOWER standing with certain factions.** e.g. naming a
+   majin, or choosing Goblins as the starting race for the colony, should anger
+   the human/holy factions (Luminous, Falmuth) — a standing hit when the action
+   happens. Hook points: the naming event (majin detection via the existing
+   race-side classifier), the race-picker choice (`onRaceChoice`), etc. Ties
+   into the faction-model's per-faction disposition already keyed on the
+   player's race side.
+2. **Starting race changes quest DIFFICULTY per faction.** If the player starts
+   Goblin (or Human), certain factions' catalog quests get harder — MUCH harder
+   for the factions that dislike that choice (bigger delivery counts, tougher
+   slays, higher building/lend bars). A per-faction difficulty multiplier keyed
+   on the player's starting race, applied to the deal requirements at offer
+   time. Makes the starting-race choice a lasting diplomatic identity, not just
+   a cosmetic/spawn choice.
+
+## Enchanted / engraved equipment as deal rewards (2026-07-06)
+
+**✅ MECHANIC BUILT (2026-07-06, approach B).** `DealSpec` now has an
+`enchantedRewards` component (`EnchantedReward(item, count, List<EnchantSpec>)`
++ `EnchantSpec(ResourceKey<Enchantment>, level)`), a delegating 10-arg
+constructor (plain deals untouched), and `resolvedRewards(HolderLookup.Provider)`
+which all reward consumers use — so enchanted/engraved stacks are materialised
+via the world registry everywhere (grant + conquest loot + UI summary). Helper
+`DealSpec.engraving("holy_weapon")` builds a Tensura engraving key. First use:
+Falmuth "I Need More Steel!" (enchanted Diamond Sword). See decisions.md.
+**Remaining as future content:** the Dwargon/Tempest/Luminous enchant+engrave
+REVIEW (now unblocked — add real engraved gear), and Tensura engraving *level*
+semantics / rarity-weighted rolls via `EngravingHelper` if wanted.
+
+Idea: give ENCHANTED / ENGRAVED gear as catalog-deal rewards so martial/smith
+factions can hand out real weapons/armor.
+
+**INVESTIGATED (2026-07-06) — one small mechanic covers BOTH:**
+- **Engravings ARE enchantments.** Tensura engravings are registry enchantments
+  tagged `#tensura:engraving` (`EngravingHelper`, `EngraveCommand`,
+  `EngraveEvent`). ~30 of them, many super-thematic: `holy_weapon` (holy dmg),
+  `magic_weapon`, `severance`, `crushing`, `energy_steal`, `soul_eater`,
+  `barrier_piercing`, `swift`, `sturdy`, `vitality`, `magic_capacity`,
+  `elemental_boost`, `transcendence`, `growth`, `restoration`, … So a vanilla
+  enchant and a Tensura engraving are applied the **same way** (an
+  `ItemStack.enchant(Holder<Enchantment>, level)` off `Registries.ENCHANTMENT`).
+- **Do we need a SEPARATE grant mechanic? NO.** The normal reward path is a
+  single chokepoint — `DiplomacyManager.giveItems(ServerPlayer, List<ItemStack>)`
+  — and it already has the player → `registryAccess`. The only reason we can't
+  bake enchants into the reward at `DealSpec` static-load is that enchantment
+  Holders need a loaded registry (unavailable at class-load). Fix = carry the
+  intended enchant/engraving list on the reward (e.g. a `CUSTOM_DATA` marker, or
+  a tiny parallel structure) and APPLY it inside `giveItems` (resolve holders,
+  `enchant()`, strip the marker). ~15 lines, one method, handles vanilla enchants
+  AND engravings together. `EngravingHelper` also offers rarity-weighted random
+  engraving if we want "roll an engraving" rewards.
+- **Parked example waiting on this:** Falmuth's **"I Need More Steel!"** → Diamond
+  Sword w/ Sharpness III + Looting + Unbreaking (plain for now).
+- **TODO once it lands — review these for enchant/engrave gear:** Dwargon
+  (smith-forged engraved blades: `magic_weapon`/`severance`/`crushing`; the
+  Masterwork Trade below), Luminous (holy: `holy_weapon` blade, Protection
+  armor), Tempest (enchanted BOOKS for the academy), Falmuth (the sword).
+
+## Dwargon "Masterwork Trade" at Covenant (2026-07-06)
+
+Idea (user): once the player reaches **Covenant** with Dwargon, unlock a
+standing **Masterwork Trade** (a shop, per the "Covenant = a standing SHOP"
+idea) that sells **"Masterwork" versions of every metal tier — Low Magisteel →
+High → Pure Magisteel → Mithril → Orichalcum → Adamantite → Hihi'irokane**.
+"Masterwork" isn't an existing Tensura item tier (no `masterwork_*` gear
+exists), so it = the base gear of that tier pre-ENGRAVED / pre-enchanted with
+strong Tensura engravings (`severance`, `crushing`, `magic_weapon`, `growth`,
+etc.) — the master-smith's finest work. Depends on: the covenant-shop mechanic +
+the enchant/engrave-at-grant mechanic above. Naturally Dwargon-exclusive and a
+great capstone reason to reach Covenant with the smith kingdom.
+
+## Time-windowed / conditional slay quests — e.g. "in one night" (2026-07-06)
+
+The `SlayEntities` requirement currently just ACCUMULATES total kills over the
+deal's whole lifetime (`ActiveDeal.progress++` in `DiplomacyManager.onPlayerKill`);
+there's no time window. To support quests like "slay 24 undead **in one night**"
+(or "within X in-game days", "without dying", "before dawn"), add a condition to
+`SlayEntities` (e.g. a `window` enum / `oneNight` flag) plus reset logic in
+`onPlayerKill`: track the game-time of the streak's first kill and RESET
+`progress` to 0 (or 1) if the window lapses (new dawn / not night / too long).
+Needs a small persisted field on `ActiveDeal` for the streak anchor.
+**Parked deal that wants this:** a Luminous **"Crusader's Trial"** — *slay 24
+undead in one night* → **Anti-Magic Mask Schematic** + diamonds + coins. Left
+out of the catalog for now; add it (if at all) once time-windowed slays exist.
+
+## Covenant = a standing SHOP instead of deals (2026-07-06)
+
+Idea: once a player reaches **Covenant** (or a sufficiently high standing) with a
+faction, the deal/quest flow is REPLACED by a standing trade — they can buy (in
+some fashion — coins? materials?) the items they'd otherwise have earned through
+that faction's catalog deals. At Covenant, they **no longer see any deals** from
+that faction; the relationship graduates from "do quests for rewards" to "you're
+a trusted partner, just shop." Design notes: the item pool is naturally the
+faction's `factionRewardPool` (already computed for conquest loot); the trade
+currency is a natural fit for the coin economy (bronze/silver/gold coins); needs
+a shop UI (or reuse the merchant/`MerchantMenu` path); gate on
+`RelationsState.COVENANT` in the deal-offer loop (suppress offers, open the shop
+instead). Complements the "quest bulletin board" idea below.
+
 ## Quest deadlines by type + a quest bulletin board (2026-07-06)
 
 Two related diplomacy-deal (quest) UX ideas, captured during the faction-reward

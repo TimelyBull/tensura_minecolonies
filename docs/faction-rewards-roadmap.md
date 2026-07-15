@@ -277,6 +277,18 @@ golem) can skip them — and coins may also appear in REQUIREMENTS (commission
 fees: pay coin to have something forged). Tempest (the trade capital) should
 sit at the generous end of each range.
 
+**No task-duplicate rewards.** A deal's reward should NOT hand back the same
+item its task asked for (e.g. "Deliver 64 Iron → 16 Iron" reads as pointless).
+Swap the duplicate for coins, a tier-up of the material, or a themed item.
+
+**Tome & manual guidance.** When a deal rewards a Tensura **spell tome**
+(`magic_tome_*`), pick the element that matches the faction's theme — earth
+(Dwargon), fire (Leon), illusion (Clayman), enhancement (Falmuth), gravity
+(Milim), summoning (Eastern Empire), recovery/barrier i.e. holy (Luminous),
+water (Tempest). **Battlewill Manuals** (physical combat aura) may **replace or
+accompany** a tome when the deal is martial/combat-themed (e.g. holy-warrior /
+war-faction deals) — use whichever fits the faction's flavor.
+
 **Dwargon** (Tier II — craft/industry; reworked 2026-06-28 to give Tensura
 weapon/tool SCHEMATICS + smith-craft items — the smith-kingdom teaches the
 smithing tree and forges staves, steel thread, earth cores, and metal golems.
@@ -289,9 +301,9 @@ COMMISSION FEES in a couple of requirements. 14 deals):
 | Iron for the Forges | Deliver 64 Iron Ingot | 15 Medium Magic Crystal + 20 Bronze Coin | NEUTRAL |
 | Fuel for the Forges | Deliver 64 Coal | 12 Monster Leather (B) + 12 Bronze Coin | NEUTRAL |
 | Silver for the Smiths | Deliver 32 Silver Ingot | 2 Magic Stone + 6 Low Magisteel Nugget + 8 Silver Coin | FRIENDLY |
-| Magisteel Quota | Deliver 8 Low Magisteel | 3 High Magisteel + 8 Iron Block + 10 Silver Coin | FRIENDLY |
+| Magisteel Quota | Deliver 8 Low Magisteel | **Spear Schematic** + 8 Medium Magic Crystal + 6 Silver Coin | FRIENDLY |
 | A Proper Smithy | Build blacksmith 3 | 8 Iron Block + 16 Coal + **Short Sword Schematic** + 15 Bronze Coin | NEUTRAL |
-| Fires of Industry | Build smeltery 3 | **Magic Staff Schematic** + 6 Coal Block + 2 Low Magisteel *(no coin)* | FRIENDLY |
+| Fires of Industry | Build smeltery 3 | **Magic Staff Schematic** + Battlewill Manual + 2 Low Magisteel *(no coin)* | FRIENDLY |
 | The Grand Forge | Build blacksmith 5 | **Great Sword Schematic** + 4 High Magisteel *(no coin)* | ALLIED |
 | A Blade for Every Hand | Deliver 2 Pure Magisteel Ingot | **Long Sword + Kunai Schematics** + 8 Magic Stone + 6 Silver Coin | FRIENDLY |
 | Strong Backs for the Mines | Lend 3 × Strength≥8 | 16 Gold + 4 Low Magisteel + 12 Silver Coin | FRIENDLY |
@@ -299,58 +311,78 @@ COMMISSION FEES in a couple of requirements. 14 deals):
 | Staff of the Smiths | Deliver 8 Magic Stone **+ 10 Silver Coin** (commission fee) | **Medium Magic Staff** | FRIENDLY |
 | Threads of Steel | Deliver 16 Iron + 16 String | 8 Steel Thread + 10 Bronze Coin | NEUTRAL |
 | The Mountain's Heart | Deliver 30 Gold + 20 Diamond + 10 Emerald | **Element Core (Earth)** + 6 Magic Stone + 4 Gold Coin | ALLIED |
-| Forge a Sentinel | Deliver 4 High Magisteel + 1 Magic Stone + 32 Bone **+ 2 Gold Coin** (forging fee) | **High Magisteel Bone Golem** *(no coin back)* | ALLIED |
+| Forge a Sentinel | Deliver 4 High Magisteel + 1 Magic Stone + 32 Bone **+ 2 Gold Coin** (forging fee) | **High Magisteel Bone Golem** + Battlewill Manual *(no coin back)* | ALLIED |
 
-**Tempest** (Tier II — community + academy; merged tp_ + ja_, 19 deals):
+**Tempest** (Tier II — trade capital + academy; reworked 2026-07-06 to ACTIVE
+DEALS ONLY — no Population/Happiness/Building "milestone" reqs. Milestone deals
+were reincarnated as delivery/slay/lend deals; adds hipokute medicine, a serpent
+hunt, coin/caravan trade, and a slime capstone. 21 deals):
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
-| Provisions for Travellers | Deliver 32 Bread | 16 Bread + 8 Iron | NEUTRAL |
-| Meat for the Market | Deliver 64 Cooked Beef | 8 Gold + 8 Emerald | NEUTRAL |
-| Timber for Expansion | Deliver 48 Oak Log | 32 Oak Planks + 16 Stone Bricks | NEUTRAL |
-| A Place to Gather | Build tavern 3 | 16 Glass + 16 Bricks | NEUTRAL |
-| A Growing Town | Pop 15 | 16 Bread + 16 Stone Bricks | NEUTRAL |
-| A Bustling Town | Pop 20 | 4 Diamond + 32 Stone Bricks + 8 Iron | FRIENDLY |
-| Content People | Happy ≥ 7 | 8 Gold + 16 Glass + Teleport Scroll | FRIENDLY |
-| A Joyful Haven ★ | Happy ≥ 8 | 6 Diamond + 16 Glass + Area-TP Scroll + Water Tome | ALLIED |
+| Provisions for Travellers | Deliver 32 Bread | 8 Iron + 20 Bronze Coin | NEUTRAL |
+| Meat for the Market | Deliver 64 Cooked Beef | 16 Gold + 8 Emerald | NEUTRAL |
+| Timber for Expansion | Deliver 48 Oak Log | 16 Bread + 8 Cooked Beef | NEUTRAL |
+| A Place to Gather | Deliver 32 Glass + 16 Bricks | 16 Bread + 15 Bronze Coin | NEUTRAL |
 | Helping Hands | Lend 2 × Adaptability≥5 | 12 Iron + 8 Gold + 6 Magic Stone | FRIENDLY |
-| Skilled Hands Abroad | Lend 2 × Dexterity≥6 | 16 Iron | FRIENDLY |
-| A Share of the Harvest | Deliver 64 Wheat | 16 Book + 8 Paper | NEUTRAL |
-| Paper for the Scribes | Deliver 64 Paper | 8 Bookshelf | NEUTRAL |
+| Skilled Hands Abroad | Lend 2 × Dexterity≥6 | 16 Iron + 4 Diamond | FRIENDLY |
+| Medicine for the Realm | Deliver 16 Hipokute Grass | High Potion ×4 + Hipokute Seeds + 12 Silver Coin | FRIENDLY |
+| Content People | Deliver 8 Cake + 32 Cookie | Full Potion + 8 Silver Coin | FRIENDLY |
+| Caravan Tolls | Deliver 32 Emerald + 8 Gold | 1 Coin Pouch (A) + 12 Silver Coin | FRIENDLY |
+| Tempest Serpents | Slay 8 Tempest Serpent | 4 Cooked Serpent Meat + 2 Low Magisteel + 2 Gold Coin | ALLIED |
+| A Joyful Haven | Deliver 8 Golden Apple | Bucket of Slime + 4 Gold Coin | ALLIED |
+| **Rimuru's Blessing ★** | Deliver 1 Slime Core + 8 Slime Ball | **Staff of Slime** + 16 Diamond *(grants Self-Regeneration)* | ALLIED |
+| A Share of the Harvest | Deliver 4 Carrot + 4 Bread + 4 Beetroot | 16 Book + 4 Sugar Cane | NEUTRAL |
+| Food for the Mind | Deliver 8 Bookshelf | 1 Golden Apple + 24 Lapis | NEUTRAL |
 | A Library's Worth | Deliver 32 Book | 16 Lapis + 4 XP Bottle | FRIENDLY |
-| Letters for the Young | Build school 3 | 8 Bookshelf + 16 Book | NEUTRAL |
-| Halls of Knowledge | Build library 3 | 16 Lapis + 8 Book | NEUTRAL |
-| Higher Learning | Build university 4 | 16 XP Bottle + 8 Bookshelf + 4 Diamond + Ancient Tome | FRIENDLY |
+| A Grimoire for the Academy | Deliver 1 Grimoire (D) | 8 XP Bottle + 24 Lapis + 6 Silver Coin | FRIENDLY |
+| Halls of Knowledge | Deliver 16 Bookshelf | Ancient Tome + 8 Silver Coin | FRIENDLY |
 | Scholars Abroad | Lend 2 × Knowledge≥8 | 16 Lapis + 8 XP + 8 Magic Stone | FRIENDLY |
-| Focused Minds Abroad | Lend 2 × Focus≥6 | 8 XP + 8 Book | FRIENDLY |
+| Focused Minds Abroad | Lend 2 × Focus≥6 | 8 XP + 1 Ancient Tome | FRIENDLY |
 | Sages for the Academy | Lend 2 × Intelligence≥8 | 16 XP + 16 Lapis + 4 Diamond + Ancient Tome | ALLIED |
+| Higher Learning | Lend 2 × Knowledge≥6 | 16 XP Bottle + 4 Diamond + Ancient Tome + 1 Gold Coin | ALLIED |
 
-**Luminous** (Tier III — premium holy):
+*Skill note:* the ★ = Tempest's capstone skill (Self-Regeneration) now rides
+**Rimuru's Blessing** (the catalog slime deal), moved off Medicine for the Realm.
+This is the CATALOG capstone, not the `COVENANT_DEALS` milestone (`cov_tempest`).
+
+**Luminous** (Tier III — premium holy; milestone deals converted to active
+deals 2026-07-06 — grimoires, holy healing, the Orc-Disaster crusade):
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
 | Light for the Cathedral | Deliver 64 Glowstone | 16 Glowstone + 8 Gold | NEUTRAL |
 | The Golden Tithe | Deliver 32 Gold Block | 3 Gold Block + 8 Diamond | NEUTRAL |
 | Tribute to the Luminary | Deliver 32 Diamond | 8 Diamond + 16 Gold | NEUTRAL |
 | The Diamond Offering | Deliver 16 Diamond Block | 16 Diamond + 2 Diamond Block | ALLIED |
-| A Light of Learning | Build library 5 | 8 Diamond + 16 Gold + Ancient Tome | NEUTRAL |
-| Sanctified Halls | Build university 4 | 12 Diamond + 2 Gold Block | FRIENDLY |
-| A Cathedral of Light | Build mysticalsite 3 | 8 Diamond + 16 Glowstone + Recovery Tome | FRIENDLY |
-| Sanctuary of Healing | Build hospital 4 | 8 Diamond + 16 Gold + 8 Magic Stone | FRIENDLY |
-| A Devout Congregation ★ | Happy ≥ 9 | 16 Diamond + 1 Enchanted Golden Apple | ALLIED |
+| A Light of Learning | Deliver 2 Grimoire (C) | Recovery Tome + 8 Diamond + 6 Silver Coin | FRIENDLY |
+| Sanctified Halls | Deliver 8 Gold Block | 12 Diamond + 2 Gold Coin | ALLIED |
+| A Cathedral of Light | Deliver 2 Enchanted Golden Apple | Barrier Tome + 16 Diamond + 2 Gold Coin | ALLIED |
+| Sanctuary of Healing | Deliver 16 Hipokute Grass | Revival Elixir + 8 Silver Coin | FRIENDLY |
+| A Devout Congregation ★ | Slay the Orc Disaster | Anti-Magic Mask + Enchanted Golden Apple + 2 Gold Coin | ALLIED |
 | The Faithful Abroad | Lend 2 × Mana≥8 | 8 Diamond + 1 Enchanted Golden Apple | ALLIED |
+| Blessed Grass | Deliver 32 Hipokute Grass | High Arcane Potion ×2 + Full Potion + 8 Silver Coin | FRIENDLY |
+| Grimoire of Light | Deliver 1 Grimoire (B) | Barrier Tome + 8 Diamond + 6 Silver Coin | FRIENDLY |
+| The Purest Offering | Deliver 4 Enchanted Golden Apple | 2 Diamond Block + Recovery Tome + 2 Gold Coin | ALLIED |
+
+*(Deferred: "Crusader's Trial" — slay 24 undead in one night → Anti-Magic Mask
+Schematic — needs the time-windowed-slay mechanic; see future-ideas.md.)*
 
 **Falmuth** (Tier II — war):
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
-| The Iron Quota | Deliver 64 Iron | 16 Iron + 8 Gold | NEUTRAL |
-| Arrows for the Levy | Deliver 64 Arrow | 32 Arrow + 8 Iron | NEUTRAL |
-| The War Levy | Deliver 32 Iron Block | 8 Iron Block + 16 Gold + 1 Diamond Sword | NEUTRAL |
-| Blades of Magisteel | Deliver 16 Low Magisteel | 6 Low Magisteel + 8 Gold + Enhancement Tome | FRIENDLY |
-| Walls and Watchmen | Build barracks 3 | 8 Iron Block + 16 Gold + 4 Diamond | NEUTRAL |
-| Towers and Bowmen | Build archery 3 | 32 Arrow + 8 Iron Block + Guard-Help Scroll | FRIENDLY |
-| A Mighty Fortress ★ | Build barracks 5 | 3 High Magisteel + 8 Diamond + Battlewill Manual | ALLIED |
-| A Standing Garrison | Pop 20 | 12 Iron Block + 8 Gold + 2 Shield | FRIENDLY |
-| Hands for the Fields | Lend 3 × Stamina≥10 | 16 Iron + 8 Gold | FRIENDLY |
+| The Iron Quota | Deliver 64 Iron | 8 Gold + 20 Bronze Coin | NEUTRAL |
+| Arrows for the Levy | Deliver 64 Arrow | 8 Iron + 4 Gold + 15 Bronze Coin | NEUTRAL |
+| I Need More Steel! | Deliver 10 Iron Block | 5 Gold Block + **Diamond Sword (Sharpness III + Looting + Unbreaking)** + 15 Bronze Coin | NEUTRAL |
+| Blades of Magisteel | Deliver 4 Low Magisteel | 4 Gold Block + Enhancement Tome + 8 Silver Coin | FRIENDLY |
+| Powder for the Cannons | Deliver 32 Gunpowder | 8 Gold + 4 Diamond + 20 Bronze Coin | NEUTRAL |
+| Walls and Watchmen | Deliver 32 Iron Block | 3 Low Magisteel | ALLIED |
+| Towers and Bowmen | Deliver 128 Arrow | 1 Short Bow + 8 Gold + 20 Bronze Coin | NEUTRAL |
+| A Mighty Defense ★ | Slay 30 raiders | Long Sword Schematic + Battlewill Manual + 2 Gold Coin | ALLIED |
+| A Standing Garrison | Lend 3 × Stamina≥10 | 3 Iron Block | FRIENDLY |
+| Hands for the Fields | Lend 5 × Stamina≥10 | 16 Iron + 8 Gold | FRIENDLY |
 | Shock Troops Abroad | Lend 3 × Strength≥8 | 3 High Magisteel + 8 Diamond | ALLIED |
+
+(The I Need More Steel! Diamond Sword is granted ENCHANTED — the enchant/engrave
+-at-grant mechanic is now built; see decisions.md "Enchanted/engraved rewards".)
 
 **Milim** (Tier III — feast/brawl):
 | Deal | Task | Reward | Tier |
@@ -465,7 +497,7 @@ capstone skill.
 | Dwargon | The Grand Forge | Body Armor | Intrinsic |
 | Tempest | A Joyful Haven | Self-Regeneration | Common |
 | Luminous | A Devout Congregation | Holy Attack Resistance | Resistance |
-| Falmuth | A Mighty Fortress | Physical Attack Resistance | Resistance |
+| Falmuth | A Mighty Defense | Physical Attack Resistance | Resistance |
 | Milim | Warriors to Spar | Strength | Common |
 | Eurazania | A Wild Haven | Giantification | Intrinsic |
 | Clayman | Enforcers for the Cause | Charm | Intrinsic |

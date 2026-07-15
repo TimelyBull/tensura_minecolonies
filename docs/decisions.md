@@ -2777,3 +2777,32 @@ deliberate placement alone."
 **Known consequence:** a core placed near the claim edge can sit OUTSIDE its
 own sphere (radius still per tier) — exposed to attackers. Accepted; the fix
 is player-side (higher tier or better placement).
+
+## Enchanted / engraved reward stacks — registry-aware rewards (2026-07-06)
+
+Diplomacy deal rewards can now include ENCHANTED / Tensura-ENGRAVED gear.
+Engravings are just enchantments tagged `#tensura:engraving`, so one path
+covers both.
+
+**Why a mechanic was needed at all:** enchantments live in the DYNAMIC
+per-world registry (`Registries.ENCHANTMENT`), reachable only via a
+`RegistryAccess`/`HolderLookup.Provider` at runtime — never at `DealSpec`
+static class-load (where the reward `ItemStack`s are built). So an enchanted
+stack cannot be baked in as a data literal.
+
+**Chose approach B over A (user decision).** A = store enchant INTENT, apply
+only in `giveItems`. B = the reward IS the finished stack for every consumer.
+Picked B because (1) conquest loot (`factionRewardPool`) and the UI summary
+also read rewards, and (2) the planned Dwargon "Masterwork Trade" is a whole
+catalog of pre-engraved gear — B's plumbing is needed there anyway.
+
+**Implementation (low-churn B):** added an 11th `DealSpec` component
+`List<EnchantedReward> enchantedRewards` with a DELEGATING 10-arg constructor,
+so all ~120 plain-reward deal literals are unchanged. `EnchantedReward(item,
+count, List<EnchantSpec>)` builds its stack via `HolderLookup.Provider`;
+`EnchantSpec(ResourceKey<Enchantment>, level)` stores a registry KEY (safe at
+class-load). `DealSpec.resolvedRewards(provider)` = plain rewards + built
+enchanted ones, and is now the SOLE reward accessor (giveItems ×3,
+factionRewardPool). Helper `engraving(path)` → a `tensura:` enchantment key.
+First use: Falmuth "I Need More Steel!" (Diamond Sword: Sharpness III + Looting
++ Unbreaking). ⚠ Compiles; not yet runtime-verified in-game.

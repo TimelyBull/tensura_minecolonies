@@ -1057,7 +1057,7 @@ public final class DiplomacyManager {
         if (deal == null || spec == null || deal.state != ActiveDeal.STATE_READY) {
             return "nothing to collect";
         }
-        giveItems(player, spec.rewardItems());
+        giveItems(player, spec.resolvedRewards(player.level().registryAccess()));
         data.removeDeal(uuid, faction.id());
         player.sendSystemMessage(Component.literal(faction.displayName()
                 + " delivers your payment: " + spec.rewardSummary() + ".")
@@ -1102,7 +1102,7 @@ public final class DiplomacyManager {
         } else if (online != null) {
             // INSTANT reward (user-requested): the payment lands the
             // moment the deal fulfills — no Collect click.
-            giveItems(online, spec.rewardItems());
+            giveItems(online, spec.resolvedRewards(online.level().registryAccess()));
             data.removeDeal(player, faction.id());
         } else {
             // Player offline (a polled milestone completed without them)
@@ -1183,7 +1183,7 @@ public final class DiplomacyManager {
                             data.setLastActivity(player, e.getKey(), now);
                         }
                         if (online != null) {
-                            giveItems(online, spec.rewardItems());
+                            giveItems(online, spec.resolvedRewards(online.level().registryAccess()));
                             data.removeDeal(player, e.getKey());
                             online.sendSystemMessage(Component.literal(
                                     "Your citizens return from "
