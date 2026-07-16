@@ -397,13 +397,16 @@ Schematic — needs the time-windowed-slay mechanic; see future-ideas.md.)*
 |---|---|---|---|
 | A Feast Worthy of Me! | Deliver 64 Cooked Porkchop | 16 Golden Carrot + 8 Gold | NEUTRAL |
 | More Meat! | Deliver 64 Cooked Beef | 16 Golden Carrot | NEUTRAL |
+| Bring Me Fireworks! | Deliver 16 Firework Rocket | 6 Gold + 12 Bronze Coin + 4 Golden Carrot | NEUTRAL |
 | Sweets for Milim | Deliver 64 Cookie | 2 Golden Apple + 8 Gold | NEUTRAL |
 | Cake, and Lots of It! | Deliver 8 Cake | 2 Golden Apple + 8 Gold + Gravity Tome | FRIENDLY |
 | For the Love of the Game | Slay 45 monsters | 8 Diamond + 2 Golden Apple + 8 Silver Coin | FRIENDLY |
 | Oooo Shiny! | Deliver 8 Diamond Block | 4 Silver Apple + Golden Apple + 8 Silver Coin | FRIENDLY |
-| Prove Your Strength | Slay the Wither | **Absolute Annihilator** (custom weapon: 20 dmg, 1.8 spd, +2.5 reach, gold ench; crushing + Sharpness V + Unbreaking III) + 2 Gold Coin | ALLIED |
+| A Dragon's Hoard | Deliver 64 Golden Carrot | 6 Diamond + 8 Gold + Golden Apple + 8 Silver Coin | FRIENDLY |
 | Keep Them Cheerful | Deliver 8 Cake + 64 Cookie | 1 Enchanted Golden Apple + 8 Diamond + 8 Silver Coin | FRIENDLY |
 | Champions for Milim | Lend 2 × Strength≥10 | 6 Diamond + 2 Golden Apple + Battlewill Manual | FRIENDLY |
+| Prove Your Strength | Slay the Wither | **Absolute Annihilator** (custom PLAIN weapon: 20 dmg, 1.8 spd, +2.5 reach, gold ench, netherite-axe durability; earns holy_coat engraving + EP-scaling powers via gear_existence — see future-ideas.md "Absolute Annihilator") + 2 Gold Coin | ALLIED |
+| The Ultimate Brawl | Slay the Warden | 2 Enchanted Golden Apple + 12 Diamond + 4 Gold Coin + Battlewill Manual | ALLIED |
 | Warriors to Spar ★ | Lend 2 × Athletics≥8 | 8 Diamond + 1 Enchanted Golden Apple | ALLIED |
 
 **Eurazania** (Tier II — beast kingdom):
