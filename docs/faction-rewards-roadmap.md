@@ -426,8 +426,8 @@ beast mats + coin ladder; the 4 milestone deals converted to active (supply/hunt
 | The Beast-Horn Spear | Deliver 12 Beast Horn | **Beast Horn Spear** (Sharpness V + Swift) + Battlewill Manual + 3 Gold Coin | ALLIED |
 | Blade Tiger Cull | Slay 10 Blade Tigers | 8 Blade Tiger Steak + 6 Monster Leather B + 10 Silver Coin | FRIENDLY |
 | Armorsaurus Hide | Slay 4 Armorsaurus | 8 Armorsaurus Scale + 6 Monster Leather C + 12 Silver Coin | FRIENDLY |
-| The Tanner's Trade | Deliver 12 Monster Leather A | 1 Gold Coin + 12 Diamond | NEUTRAL |
-| Pack Hunters | Slay 10 Direwolves | 2 Monster Leather Special A + 4 Beast Horn + 2 Golden Apple + 10 Silver Coin | FRIENDLY |
+| The Tanner's Trade | Deliver 12 Monster Leather B | 20 Silver Coin + 4 Diamond | NEUTRAL |
+| Pack Hunters | Slay 10 Direwolves | 2 Monster Leather Special A + 2 Golden Apple + 10 Silver Coin | FRIENDLY |
 
 **Clayman** (Tier I — schemer):
 | Deal | Task | Reward | Tier |
