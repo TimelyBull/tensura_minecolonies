@@ -15,6 +15,33 @@ test** (concrete steps + what you should see), **status**.
 
 ## OPEN — needs playtesting
 
+### 0c. Drago Nova charge-up animation (2026-07-15)
+
+**What changed** (`DragoNovaItem`, `ExampleMod.onServerTickPost`): Drago Nova no
+longer detonates instantly. `use()` (and the Sage-warning confirm path) now call
+`beginCharge`, which spawns a floating no-gravity un-pickable `ItemEntity` orb at
+the caster's waist. A new per-tick driver `tickCharges` (called every tick from
+the server tick handler, cheap early-return when idle) rises the orb ~1.2 blocks
+over `CHARGE_TICKS` (50t = 2.5s) while spawning (a) inward-streaming
+`SOUL_FIRE_FLAME` particles, (b) a growing `GLOW` bubble shell (radius 0 → 2.0),
+(c) a `SOUL` core glow. At the top of the rise `blast` fires the original AoE
+(150 magic dmg in r=12) + optional terrain explosion + unworthy-user backlash,
+now centered on the orb position (not the player's current spot). If the caster
+logs out mid-charge the AoE still fires; only the self-backlash is skipped.
+
+**How to test:**
+1. Get a Drago Nova (creative tab, or Milim Covenant). As a true Demon Lord /
+   Hero, right-click it → the item should leave your hand, float up, pull in
+   blue particles, grow a blue bubble, and after ~2.5s explode at head height
+   (no self-damage). Confirm the item was consumed (1 stack).
+2. As a NON-worthy player → same animation, but the blast should kill YOU at the
+   end.
+3. As a Sage / Great Sage holder → the warning screen still appears first;
+   confirming starts the charge, cancelling consumes nothing.
+4. Walk away during the charge → the orb stays where cast and detonates there.
+5. `dragoNovaBreakBlocks` / `dragoNovaHarmAllies` configs still gate terrain
+   damage and ally damage as before.
+
 ### 0b. Absolute Annihilator — sprite fix + EP capability (2026-07-15)
 
 **What changed** (`absolute_annihilator.png`, `absolute_annihilator.json` model,
@@ -26,8 +53,10 @@ item/generated extrusion produces coarse/clean depth-teeth instead of a fine
 spiky "saw" edge in the 3D in-hand view; the item model parents
 `tensura:item/scythe_handheld` for the oversized Blade-Tiger-Scythe-style
 render. (2) The weapon is now EP-capable via a `tensura:gear_existence` datapack
-entry (minEP 10k / maxEP 1M / epGain 0.01 / attack-damage evolutions
-+4/+8/+13/+18 at 150k/400k/700k/1M).
+entry (minEP 10k / maxEP 1M / epGain 0.01 / cumulative stat evolutions at
+150k/400k/700k/1M: attack damage +4/+8/+13/+18, attack speed +0.2/+0.3/+0.4/+0.5,
+knockback resist +0.2/+0.2/+0.3 from 400k, max health +4/+8 from 700k) PLUS a
+custom effect ladder in `AbsoluteAnnihilatorItem` (see tests 5–7).
 
 **How to test:**
 1. `/give @s tensura_minecolonies:absolute_annihilator` (or grab it from the
@@ -39,6 +68,34 @@ entry (minEP 10k / maxEP 1M / epGain 0.01 / attack-damage evolutions
 3. Complete Milim's "Prove Your Strength" deal → the granted stack should have
    crushing + Sharpness V + Unbreaking III AND be EP-capable (confirm the EP
    line appears once held/equipped, not only when picked up off the ground).
+4. **Charged sprite at 500,000 EP** (`ExampleModClient` item property `charged`
+   + `absolute_annihilator_charged` texture/model): below 500,000 EP it shows the
+   normal sprite; once EP ≥ 500,000 the model override swaps to the charged
+   texture (dark detailing glows electric cyan) and switches back if EP drops
+   below. Fastest check: temporarily lower `AbsoluteAnnihilatorItem.CHARGE_EP`,
+   or farm EP. Cap is 1M so 500k is a clean midpoint.
+5. **Charged nova ability at 500,000 EP** (`AbsoluteAnnihilatorItem.use`): with
+   EP ≥ 500,000, right-click (in air) → the Drago Nova charge-up + blast fires
+   (floating orb, blue particles, explosion) WITHOUT consuming the weapon;
+   cooldown sweep shows on the item. Cooldown is **60s**, dropping to **45s** at
+   ≥700k EP and **30s** at 1M. Below 500k → right-click does nothing. Worthiness
+   applies (unworthy caster is caught in the blast). No Sage warning (that's only
+   the one-use Drago Nova item).
+6. **On-hit effect ladder** (`AbsoluteAnnihilatorItem.hurtEnemy`): melee an enemy
+   and confirm — at ≥150k EP the target gets **Weakness** (~5s); at ≥700k EP you
+   **heal** ~8% of your attack damage per hit; at ≥1M EP each hit spawns a
+   **sonic-boom shockwave** that damages + knocks back nearby HOSTILES only
+   (players, citizens, and ally/race-tagged mobs are spared).
+7. **Stat evolutions** (`gear_existence` uniqueEvolutions): as EP crosses
+   150k/400k/700k/1M, confirm the tooltip attack damage climbs (20 → 38) and the
+   later tiers add attack speed, knockback resistance, and +max health (hearts)
+   while held. ⚠ Tensura applies only the highest-reached tier's cumulative set;
+   verify the numbers match the tier and don't double up (compound vs replace is
+   Tensura-internal — this is the thing to watch).
+8. **EP reaches the milestones** — confirm the weapon climbs to 500k/1M by
+   killing high-EP mobs; EP grows as min(current+gain, maxEP=1M), so 500k is a
+   normal midpoint. If it's too slow to test, raise `epGain` or the
+   `epGainMultiplier` gamerule.
 
 ### 0. Colony-centered barrier + core networks + layer-3 DL/Hero buff (2026-07-13)
 

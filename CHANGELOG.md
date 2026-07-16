@@ -24,13 +24,32 @@ Copy the relevant version's section into the CurseForge release notes on each up
   absorption hearts. (This buff used to come from tier 3+ cores automatically —
   it now comes from the third layer instead.)
 
+### Changed
+- **Drago Nova now has a dramatic charge-up.** Instead of exploding the instant
+  you use it, the Drago Nova lifts out of your hand and hovers in the air while
+  blue energy is drawn into it and a glowing blue sphere swells around it — then,
+  once it rises to head height (about 2.5 seconds), it unleashes the full blast.
+  The explosion now happens where the orb is floating, so stepping away during
+  the wind-up moves the blast with it.
+
 ### Added
 - **The Absolute Annihilator — a new legendary hammer from Milim.** Earned from
   Milim's "Prove Your Strength" pact, this two-headed warhammer hits for heavy
   base damage with extra reach, comes pre-forged with a crushing engraving,
   Sharpness V and Unbreaking III, and — like other Tensura weapons — **gains EP
   as you fight**, growing stronger (up to a much higher attack power) the more it
-  kills. It also appears in the mod's creative tab.
+  kills (up to a 1,000,000 EP cap), and **unlocks new powers at EP milestones**:
+  - **150,000 EP** — its strikes inflict brief Weakness.
+  - **500,000 EP** — it becomes "charged": the dark detailing **lights up with
+    energy**, and right-click **unleashes a Drago Nova blast** (the same floating
+    charge-up and explosion), on a cooldown, without being consumed.
+  - **700,000 EP** — strikes heal you (lifesteal), and the blast recharges faster.
+  - **1,000,000 EP** — strikes burst into a small shockwave that hits nearby
+    enemies, and the blast recharges faster still.
+
+  Alongside these, its raw stats climb with EP too (more attack damage and speed,
+  then knockback resistance, then bonus health). It also appears in the creative
+  tab.
 - **`/recoverorphans purge` — delete lost subordinates that can't be rescued
   and free their housing.** Some vanished subordinates can be restored as
   colonists with `/recoverorphans confirm`, but ones that were lost before the

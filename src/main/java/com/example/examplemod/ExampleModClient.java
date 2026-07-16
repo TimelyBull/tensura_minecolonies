@@ -1,6 +1,8 @@
 package com.example.examplemod;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.item.ItemProperties;
+import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
@@ -27,5 +29,17 @@ public class ExampleModClient {
         // Some client setup code
         ExampleMod.LOGGER.info("HELLO FROM CLIENT SETUP");
         ExampleMod.LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
+
+        // Absolute Annihilator: a "charged" model override. The item model's
+        // override selects the lit-up texture when this property returns 1.0,
+        // which happens once the weapon's Tensura EP reaches the threshold.
+        event.enqueueWork(() -> ItemProperties.register(
+                ExampleMod.ABSOLUTE_ANNIHILATOR.get(),
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "charged"),
+                (stack, level, entity, seed) -> {
+                    Double ep = stack.get(
+                            io.github.manasmods.tensura.registry.item.misc.TensuraDataComponents.EP.get());
+                    return (ep != null && ep >= AbsoluteAnnihilatorItem.CHARGE_EP) ? 1.0f : 0.0f;
+                }));
     }
 }

@@ -7,25 +7,34 @@
     {
       "EP": 150000,
       "attributes": [
-        { "type": "minecraft:generic.attack_damage", "amount": 4.0, "slot": "mainhand" }
+        { "type": "minecraft:generic.attack_damage", "amount": 4.0, "slot": "mainhand" },
+        { "type": "minecraft:generic.attack_speed", "amount": 0.2, "slot": "mainhand" }
       ]
     },
     {
       "EP": 400000,
       "attributes": [
-        { "type": "minecraft:generic.attack_damage", "amount": 8.0, "slot": "mainhand" }
+        { "type": "minecraft:generic.attack_damage", "amount": 8.0, "slot": "mainhand" },
+        { "type": "minecraft:generic.attack_speed", "amount": 0.3, "slot": "mainhand" },
+        { "type": "minecraft:generic.knockback_resistance", "amount": 0.2, "slot": "mainhand" }
       ]
     },
     {
       "EP": 700000,
       "attributes": [
-        { "type": "minecraft:generic.attack_damage", "amount": 13.0, "slot": "mainhand" }
+        { "type": "minecraft:generic.attack_damage", "amount": 13.0, "slot": "mainhand" },
+        { "type": "minecraft:generic.attack_speed", "amount": 0.4, "slot": "mainhand" },
+        { "type": "minecraft:generic.knockback_resistance", "amount": 0.2, "slot": "mainhand" },
+        { "type": "minecraft:generic.max_health", "amount": 4.0, "slot": "mainhand" }
       ]
     },
     {
       "EP": 1000000,
       "attributes": [
-        { "type": "minecraft:generic.attack_damage", "amount": 18.0, "slot": "mainhand" }
+        { "type": "minecraft:generic.attack_damage", "amount": 18.0, "slot": "mainhand" },
+        { "type": "minecraft:generic.attack_speed", "amount": 0.5, "slot": "mainhand" },
+        { "type": "minecraft:generic.knockback_resistance", "amount": 0.3, "slot": "mainhand" },
+        { "type": "minecraft:generic.max_health", "amount": 8.0, "slot": "mainhand" }
       ]
     }
   ]

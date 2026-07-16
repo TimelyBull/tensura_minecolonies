@@ -283,9 +283,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             return net.minecraft.world.item.crafting.Ingredient.of(net.minecraft.world.item.Items.NETHERITE_INGOT);
         }
     };
-    public static final DeferredItem<net.minecraft.world.item.SwordItem> ABSOLUTE_ANNIHILATOR =
+    public static final DeferredItem<AbsoluteAnnihilatorItem> ABSOLUTE_ANNIHILATOR =
             ITEMS.register("absolute_annihilator",
-                    () -> new net.minecraft.world.item.SwordItem(ANNIHILATOR_TIER,
+                    () -> new AbsoluteAnnihilatorItem(ANNIHILATOR_TIER,
                             new net.minecraft.world.item.Item.Properties()
                                     .rarity(net.minecraft.world.item.Rarity.EPIC)
                                     .fireResistant()
@@ -6814,6 +6814,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public void onServerTickPost(ServerTickEvent.Post event) {
         MinecraftServer server = event.getServer();
         long now = server.getTickCount();
+
+        // Drago Nova charge-up ritual — EVERY tick (needs per-tick smoothness for
+        // the rising orb + converging particles). Cheap early-return when idle.
+        DragoNovaItem.tickCharges(server);
 
         // Stage 3a — envoy scheduler fires every ENVOY_SCHEDULER_PERIOD_TICKS
         // (currently 1 s). Cheap per call; the day-based gates inside the

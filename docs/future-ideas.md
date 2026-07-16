@@ -194,8 +194,9 @@ ENTITY_INTERACTION_RANGE (reach), EPIC + fire-resistant.
 Tensura — it's a datapack entry in the `tensura:gear_existence` registry keyed by
 item id. Shipped `data/tensura_minecolonies/gear_existence/absolute_annihilator.json`
 (the registry merges across namespaces): `minEP 10k`, `maxEP 1M`, `epGain 0.01`,
-plus `uniqueEvolutions` that add +4/+8/+13/+18 attack damage at 150k/400k/700k/1M
-EP (grows from 20 → 38). Tensura's `GearHandler` stamps the EP components
+plus `uniqueEvolutions` — cumulative per tier at 150k/400k/700k/1M — adding
+attack damage +4/+8/+13/+18 (grows 20 → 38), attack speed +0.2/+0.3/+0.4/+0.5,
+knockback resist (from 400k) and +max health (from 700k). Tensura's `GearHandler` stamps the EP components
 (`TensuraDataComponents.EP/MAX_EP/EP_GAIN/EP_DURABILITY`) on pickup/equip and
 grows them on kills — no Java change needed. ⚠ Playtest: confirm the EP tooltip
 appears and the evolution ladder fires (esp. that a deal-reward stack given
@@ -225,8 +226,30 @@ hard-binarized alpha, downscaled to 32×32 to tame the extruded-side spikes).
 It's serviceable but not great — the low res muddies detail and the drawn
 silhouette is still spiky edge-on. Replace with a purpose-drawn pixel-art
 sprite (ideally 48×48 to match Tensura scythes, clean silhouette, no reliance
-on the flat image's baked-in spikes). File:
-`assets/tensura_minecolonies/textures/item/absolute_annihilator.png`.
+on the flat image's baked-in spikes). Files:
+`assets/tensura_minecolonies/textures/item/absolute_annihilator.png` AND the
+charged variant `..._charged.png` (the charged one is currently machine-derived
+from the base by lighting up dark pixels to electric cyan — redraw both together
+so the charged look is hand-tuned, not a recolor).
+**Charged sprite (2026-07-15, BUILT; threshold 500,000 EP):** the item swaps to a
+lit-up "charged" texture via a client item property `tensura_minecolonies:charged`
+(reads `TensuraDataComponents.EP`) + a model override. Threshold =
+`AbsoluteAnnihilatorItem.CHARGE_EP` (shared with the ability); glow colour is in
+the texture (regen via the derive-from-base script). Possible follow-on: more
+charge stages (extra override tiers matching the EP ladder), emissive render.
+
+**EFFECT LADDER (2026-07-15, BUILT):** `maxEP` is 1M; the ability unlocks at
+500k. Effects live in `AbsoluteAnnihilatorItem` (`hurtEnemy` + `use`), stats in
+the gear_existence `uniqueEvolutions` (above):
+- 150k — on-hit Weakness (~5s).
+- 500k — charged sprite + Drago Nova nova (right-click, no consume, 60s cd).
+- 700k — lifesteal (heal 8% of attack damage on hit) + nova cd → 45s.
+- 1M — on-hit sonic-boom AoE shockwave (hostiles only, spares players/citizens/
+  ally+race-tagged) + nova cd → 30s.
+Future tuning knobs: shockwave radius/damage (0.3× attack dmg, r=4), lifesteal %,
+Weakness duration, nova cooldown tiers. Engravings: added all-at-stamp (not
+threshold-gated) — could ship an innate
+themed set (e.g. growth to speed EP gain) if wanted.
 
 ## Code cleanup / good-practices pass (2026-07-06)
 
