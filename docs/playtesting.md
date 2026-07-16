@@ -97,6 +97,20 @@ custom effect ladder in `AbsoluteAnnihilatorItem` (see tests 5–7).
    normal midpoint. If it's too slow to test, raise `epGain` or the
    `epGainMultiplier` gamerule.
 
+**Setting EP directly for testing** — there is NO Tensura command for weapon EP.
+Two ways:
+- **Instant, specific value** via vanilla `/give` (or `/item replace`). You MUST
+  set `tensura:max_existence_point` too, because `GearHandler.initiateGearExistence`
+  skips (won't overwrite) any stack that already has MAX_EP — otherwise equipping
+  resets EP to minEP:
+  `/give @s tensura_minecolonies:absolute_annihilator[tensura:existence_point=600000.0,tensura:max_existence_point=1000000.0]`
+  Change `existence_point` to hit each threshold (150k/500k/700k/1M). The
+  charged sprite / nova / on-hit effects (our code) read EP directly and react
+  immediately; Tensura's stat-evolution attribute modifiers only recompute on an
+  EP-changing event, so land one hit/kill after giving to see the stat tier apply.
+- **Natural path, fast:** `/gamerule epGainMultiplier 1000` then kill mobs — this
+  exercises the real stamp + gain + evolution flow, just accelerated.
+
 ### 0. Colony-centered barrier + core networks + layer-3 DL/Hero buff (2026-07-13)
 
 **What changed** (`BarrierBlockEntity`, `TensuraRaids`, `BarrierFieldRenderer`,
