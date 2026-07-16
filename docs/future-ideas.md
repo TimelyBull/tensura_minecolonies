@@ -209,8 +209,14 @@ intent vs. a total of 2.5. Original spec (user):
   1.8.** **Reach/range 2.5** (needs `ENTITY_INTERACTION_RANGE` +
   `BLOCK_INTERACTION_RANGE` attribute modifiers — vanilla Sword/Axe don't add
   these). **Gold enchantability** (custom `Tier`, enchantmentValue 22).
-- **Pre-applied:** `crushing` engraving + Sharpness V + Unbreaking III (via the
-  enchanted-reward path).
+- **Pre-applied enchants/engravings REMOVED (2026-07-15):** the deal now grants
+  the hammer PLAIN (no crushing/Sharpness/Unbreaking). Instead it carries a
+  material-line engraving via `gear_existence` — `tensura:holy_coat` level 3
+  (mithril/adamantite line; force-stamped past holy_coat's anvil max_level 1, as
+  Tensura's own mithril data does at level 2 — bumped to 3 for our higher 1M EP
+  max). Durability lowered to 2031 (a netherite axe). holy_coat = anti-holy
+  damage; swap to `severance`/`crushing` if an always-on offensive engraving is
+  preferred.
 - **"Able to have EP":** Tensura weapon-EP — the `Simple*Item` bases are plain
   vanilla extensions (NOT inherently EP-capable), so weapon EP comes from
   Tensura's item-energy/engraving system (`growth`/`transcendence` engravings
@@ -499,6 +505,46 @@ The mod ships several custom items that are craftable / obtainable but have
 
 General task: audit every custom item for "can the player actually USE this?"
 and give the trophy items a real sink.
+
+## Legendary weapons — ally-forged, player-stat-scaling (2026-07-15)
+
+**Config-optional** (a toggle; off unless enabled). A big system: certain ALLIES
+can FORGE a legendary weapon for you after you complete a special deal / trade
+with them, then wait a few in-game days (the forging takes time — like the envoy
+/ deal cooldowns). The Absolute Annihilator is the first hand-built proof of the
+"weapon that grows" idea; this generalizes it.
+
+**Progresses with PLAYER status, not just weapon EP.** The weapon reads the
+wielder's Tensura standing and levels its abilities/stats off multiple signals:
+- Demon Lord SEED / Hero SEED status.
+- TRUE Demon Lord / TRUE Hero status (bigger unlocks).
+- Named status.
+- Number of skills MASTERED — and this may **BRANCH**: the weapon changes based on
+  WHICH TYPES of skills you've mastered, so it reflects the player's build /
+  preferences (a mostly-Sword/physical masterer gets a different legendary form
+  than a mostly-Spatial/magic masterer). The mastered-skill spread is the "class
+  identity" input.
+
+**Prestige = a DEBUFF, not a reset.** On prestige the weapon is DEBUFFED (its
+current power dips, matching the player's reset progression), BUT the ABILITIES
+it has unlocked are NOT lost — they stay, just temporarily weakened, so prestige
+feels rewarding rather than punishing (you re-earn the numbers, keep the toys).
+
+**Ties into the Masterwork idea.** Fold this into the Masterwork Forging Core
+([above](#custom-items-need-real-uses--masterwork-forging-core-etc-2026-06-27)):
+completing the Covenant deal grants a **Masterwork Forging Core**, which the
+player uses to craft a **masterwork version of ANY weapon Tensura adds** — the
+masterwork variant is the "legendary" one that grows with the player as above.
+This gives the Forging Core its long-missing sink AND makes the legendary system
+apply to the whole Tensura weapon roster, not just one custom item.
+
+Implementation notes / seams: the Annihilator already proves the pieces — EP-gated
+effects in a custom `Item` (`hurtEnemy`/`use`), a client model-override sprite
+swap, and Tensura `gear_existence` stat evolutions. A legendary layer would add:
+a per-player-status read (reuse `ExampleMod.readExistence` for DL/Hero/true
+status; SkillAPI for mastered-skill counts + type breakdown), a branch selector
+keyed on the mastered-skill spread, and a prestige hook that scales-down without
+clearing unlocked abilities. Keep it all behind the config flag.
 
 ## Citizen aggression — a "Progressive" level (2026-06-27)
 

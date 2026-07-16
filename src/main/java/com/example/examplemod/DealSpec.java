@@ -928,16 +928,14 @@ public record DealSpec(
                         List.of(new ItemStack(ten("silver_apple"), 4), new ItemStack(Items.GOLDEN_APPLE, 1),
                                 new ItemStack(ten("silver_coin"), 8)),
                         8.0, 5.0, 8 * DAY, 0, FactionTier.FRIENDLY, false),
-                // Prove Your Strength — rewards the custom ABSOLUTE ANNIHILATOR,
-                // pre-engraved (crushing) + Sharpness V + Unbreaking III.
+                // Prove Your Strength — rewards the custom ABSOLUTE ANNIHILATOR
+                // PLAIN (no pre-applied enchants/engravings): it earns its own
+                // engraving (holy_coat) + growth via its gear_existence entry.
                 new DealSpec("mi_mighty_town", "Prove Your Strength",
                         new SlayEntities(java.util.Set.of("minecraft:wither"), 1, "the Wither"),
-                        List.of(new ItemStack(ten("gold_coin"), 2)),
-                        8.0, 5.0, 20 * DAY, 0, FactionTier.ALLIED, false,
-                        List.of(new EnchantedReward(ExampleMod.ABSOLUTE_ANNIHILATOR.get(), 1, List.of(
-                                new EnchantSpec(engraving("crushing"), 1),
-                                new EnchantSpec(Enchantments.SHARPNESS, 5),
-                                new EnchantSpec(Enchantments.UNBREAKING, 3))))),
+                        List.of(new ItemStack(ten("gold_coin"), 2),
+                                new ItemStack(ExampleMod.ABSOLUTE_ANNIHILATOR.get())),
+                        8.0, 5.0, 20 * DAY, 0, FactionTier.ALLIED, false),
                 new DealSpec("mi_happy_subjects", "Keep Them Cheerful",
                         new SupplyBundle(List.of(new ItemStack(Items.CAKE, 8),
                                 new ItemStack(Items.COOKIE, 64))),

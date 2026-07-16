@@ -1,5 +1,8 @@
 {
   "type": "tensura_minecolonies:absolute_annihilator",
+  "engravings": {
+    "tensura:holy_coat": 3
+  },
   "epGain": 0.01,
   "minEP": 10000,
   "maxEP": 1000000,

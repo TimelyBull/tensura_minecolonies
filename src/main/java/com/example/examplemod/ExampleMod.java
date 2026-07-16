@@ -272,7 +272,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     //     "Prove Your Strength"). Gold enchantability (22), 20 attack damage,
     //     1.8 attack speed, +2.5 reach. EP capability deferred (future-ideas.md).
     public static final net.minecraft.world.item.Tier ANNIHILATOR_TIER = new net.minecraft.world.item.Tier() {
-        @Override public int getUses() { return 3000; }
+        @Override public int getUses() { return 2031; }   // == a netherite axe
         @Override public float getSpeed() { return 9.0f; }
         @Override public float getAttackDamageBonus() { return 0.0f; }
         @Override public net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> getIncorrectBlocksForDrops() {

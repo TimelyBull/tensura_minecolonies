@@ -65,9 +65,11 @@ custom effect ladder in `AbsoluteAnnihilatorItem` (see tests 5–7).
 2. Equip it and check the tooltip → it should show a Tensura EP line (EP / max
    EP). Kill some mobs → EP should tick up; at the evolution thresholds the
    attack-damage should climb (20 → up to 38).
-3. Complete Milim's "Prove Your Strength" deal → the granted stack should have
-   crushing + Sharpness V + Unbreaking III AND be EP-capable (confirm the EP
-   line appears once held/equipped, not only when picked up off the ground).
+3. Complete Milim's "Prove Your Strength" deal → the granted stack should be
+   PLAIN (no crushing/Sharpness/Unbreaking) but EP-capable — confirm the EP line
+   appears once held/equipped (not only when picked up), that it shows a **Holy
+   Coat** engraving (applied by its gear_existence entry on first equip/pickup),
+   and that its durability bar matches a **netherite axe (2031)**.
 4. **Charged sprite at 500,000 EP** (`ExampleModClient` item property `charged`
    + `absolute_annihilator_charged` texture/model): below 500,000 EP it shows the
    normal sprite; once EP ≥ 500,000 the model override swaps to the charged

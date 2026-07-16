@@ -35,9 +35,9 @@ Copy the relevant version's section into the CurseForge release notes on each up
 ### Added
 - **The Absolute Annihilator — a new legendary hammer from Milim.** Earned from
   Milim's "Prove Your Strength" pact, this two-headed warhammer hits for heavy
-  base damage with extra reach, comes pre-forged with a crushing engraving,
-  Sharpness V and Unbreaking III, and — like other Tensura weapons — **gains EP
-  as you fight**, growing stronger (up to a much higher attack power) the more it
+  base damage with extra reach, carries a **Holy Coat engraving** (extra damage
+  against holy foes), and — like other Tensura weapons — **gains EP as you
+  fight**, growing stronger (up to a much higher attack power) the more it
   kills (up to a 1,000,000 EP cap), and **unlocks new powers at EP milestones**:
   - **150,000 EP** — its strikes inflict brief Weakness.
   - **500,000 EP** — it becomes "charged": the dark detailing **lights up with
