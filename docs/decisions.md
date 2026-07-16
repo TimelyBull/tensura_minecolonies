@@ -2806,3 +2806,69 @@ enchanted ones, and is now the SOLE reward accessor (giveItems ×3,
 factionRewardPool). Helper `engraving(path)` → a `tensura:` enchantment key.
 First use: Falmuth "I Need More Steel!" (Diamond Sword: Sharpness III + Looting
 + Unbreaking). ⚠ Compiles; not yet runtime-verified in-game.
+
+## Drago Nova charge-up animation (2026-07-15)
+
+Drago Nova used to detonate instantly. Now `use()` (and the Sage-warning confirm
+path) call `beginCharge` → a ~2.5s (`CHARGE_TICKS` 50) wind-up before the blast.
+
+**Chose a floating `ItemEntity` orb over a custom entity or ItemDisplay.** An
+`ItemEntity` (no-gravity, `setNeverPickUp`, `setUnlimitedLifetime`, invulnerable)
+renders the floating item for free with zero registration and no renderer. It's
+pinned each tick (`setPos` + zero delta) so it can't drift/merge.
+
+**Driven from the existing `ServerTickEvent.Post` handler**, EVERY tick (not the
+per-second block) because the rising orb + converging particles need per-tick
+smoothness. `DragoNovaItem.tickCharges` early-returns when idle (a static list),
+so there's no idle cost. Blast fires at the orb's risen position (not the
+player's) → walking away moves the blast; logout mid-charge still blasts, only
+the self-backlash is skipped.
+
+**Particles version-safe:** deliberately AVOIDED `DustParticleOptions` (its ctor
+is `(Vector3f,float)` in 1.21.1 but `(int,float)` in later mappings — confirmed
+`(int,float)` in the compile jar). Used built-in blue particles instead:
+`SOUL_FIRE_FLAME` streamed inward via `sendParticles(count=0, velocity, speed)`
+(count 0 makes dx/dy/dz the velocity), a growing `GLOW` shell (radius tracks
+progress) for the bubble, `SOUL` core glow.
+
+## Absolute Annihilator — custom item, EP-gated effect ladder, charged sprite (2026-07-15)
+
+The Milim capstone weapon. Design landed over several passes; final state:
+
+**Weapon EP is a datapack thing, not an item interface.** Tensura weapon EP comes
+from a `tensura:gear_existence` registry entry keyed by item id (merges across
+namespaces, so we ship it under our own). `GearHandler` stamps the EP components
+on equip/pickup and grows them on kills. No Java EP code needed. Our entry:
+`minEP 10k`, hard cap `maxEP 1M`, `epGain 0.01`, cumulative `uniqueEvolutions`
+(only the highest-reached tier's set applies — confirmed from GearHandler
+bytecode, matching Tensura's own crossbow's absolute-per-tier values) adding
+attack damage + speed + knockback resist + max health at 150k/400k/700k/1M.
+
+**Charged sprite via an item-model override, not a second item.** A `_charged`
+texture (derived from the base, dark pixels lit to electric cyan) + model, swapped
+by a client `ItemProperties` property `tensura_minecolonies:charged` that reads
+`TensuraDataComponents.EP >= CHARGE_EP`. Mirrors Tensura's own active/inactive
+weapon pattern (e.g. hihiirokane_scythe). Threshold = `AbsoluteAnnihilatorItem.
+CHARGE_EP` (500k), a single constant shared with the ability so they can't drift.
+
+**Non-attribute "effects" live in a custom `AbsoluteAnnihilatorItem` (SwordItem).**
+`use()` fires the Drago Nova blast (shared `DragoNovaItem.triggerAnnihilatorNova`,
+no item consumed) at ≥500k EP on an EP-scaled cooldown (60/45/30s). `hurtEnemy()`
+adds on-hit Weakness (≥150k), lifesteal (≥700k), and a hostiles-only sonic-boom
+AoE shockwave (≥1M, spares players/citizens/ally+race-tagged). Stats stay in the
+gear_existence evolutions; effects stay in code — clean split.
+
+**500k charge / 1M cap (user).** maxEP was briefly 2M (headroom) then set to a
+hard 1M cap with the charge at 500k midpoint. EP grows as `min(current+gain,
+maxEP)` so it reaches the cap exactly; 500k is reachable well before it.
+
+**No hardcoded enchants; earns a material-line engraving instead (user).** Dropped
+the deal's pre-applied crushing + Sharpness V + Unbreaking III `EnchantedReward`;
+the deal now grants the hammer PLAIN. It instead carries `tensura:holy_coat` 3 via
+its gear_existence `engravings` (the mithril/adamantite material line; force-
+stamped past holy_coat's anvil `max_level` 1 exactly as Tensura's mithril data
+does at level 2, bumped to 3 for our 1M EP). Chose holy_coat over the hihiirokane
+line's `tsukumogami` because tsukumogami is penalty-only without an activation
+mechanic we don't drive. Durability lowered to 2031 (== a netherite axe, user).
+⚠ All of the above compiles; NOT yet runtime-verified — esp. the evolution stat
+numbers (compound-vs-replace is Tensura-internal) and the particle look.
