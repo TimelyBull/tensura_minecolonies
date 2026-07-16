@@ -1,0 +1,32 @@
+{
+  "type": "tensura_minecolonies:absolute_annihilator",
+  "epGain": 0.01,
+  "minEP": 10000,
+  "maxEP": 1000000,
+  "uniqueEvolutions": [
+    {
+      "EP": 150000,
+      "attributes": [
+        { "type": "minecraft:generic.attack_damage", "amount": 4.0, "slot": "mainhand" }
+      ]
+    },
+    {
+      "EP": 400000,
+      "attributes": [
+        { "type": "minecraft:generic.attack_damage", "amount": 8.0, "slot": "mainhand" }
+      ]
+    },
+    {
+      "EP": 700000,
+      "attributes": [
+        { "type": "minecraft:generic.attack_damage", "amount": 13.0, "slot": "mainhand" }
+      ]
+    },
+    {
+      "EP": 1000000,
+      "attributes": [
+        { "type": "minecraft:generic.attack_damage", "amount": 18.0, "slot": "mainhand" }
+      ]
+    }
+  ]
+}

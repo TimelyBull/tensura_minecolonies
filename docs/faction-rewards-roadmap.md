@@ -399,10 +399,10 @@ Schematic — needs the time-windowed-slay mechanic; see future-ideas.md.)*
 | More Meat! | Deliver 64 Cooked Beef | 16 Golden Carrot | NEUTRAL |
 | Sweets for Milim | Deliver 64 Cookie | 2 Golden Apple + 8 Gold | NEUTRAL |
 | Cake, and Lots of It! | Deliver 8 Cake | 2 Golden Apple + 8 Gold + Gravity Tome | FRIENDLY |
-| A Place to Brawl | Build barracks 3 | 4 Diamond + 8 Gold | FRIENDLY |
-| Show Me Your Strength | Pop 20 | 6 Diamond + 16 Gold | FRIENDLY |
-| Show Me MORE Strength! | Pop 25 | 12 Diamond + 2 Golden Apple | ALLIED |
-| Keep Them Cheerful | Happy ≥ 8 | 4 Diamond + 16 Golden Carrot | FRIENDLY |
+| For the Love of the Game | Slay 45 monsters | 8 Diamond + 2 Golden Apple + 8 Silver Coin | FRIENDLY |
+| Oooo Shiny! | Deliver 8 Diamond Block | 4 Silver Apple + Golden Apple + 8 Silver Coin | FRIENDLY |
+| Prove Your Strength | Slay the Wither | **Absolute Annihilator** (custom weapon: 20 dmg, 1.8 spd, +2.5 reach, gold ench; crushing + Sharpness V + Unbreaking III) + 2 Gold Coin | ALLIED |
+| Keep Them Cheerful | Deliver 8 Cake + 64 Cookie | 1 Enchanted Golden Apple + 8 Diamond + 8 Silver Coin | FRIENDLY |
 | Champions for Milim | Lend 2 × Strength≥10 | 6 Diamond + 2 Golden Apple + Battlewill Manual | FRIENDLY |
 | Warriors to Spar ★ | Lend 2 × Athletics≥8 | 8 Diamond + 1 Enchanted Golden Apple | ALLIED |
 

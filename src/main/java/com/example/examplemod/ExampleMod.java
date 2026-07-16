@@ -268,6 +268,46 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             ITEMS.register("drago_nova",
                     () -> new DragoNovaItem(new net.minecraft.world.item.Item.Properties().stacksTo(1)));
 
+    // --- Absolute Annihilator — Milim's custom destruction weapon (reward for
+    //     "Prove Your Strength"). Gold enchantability (22), 20 attack damage,
+    //     1.8 attack speed, +2.5 reach. EP capability deferred (future-ideas.md).
+    public static final net.minecraft.world.item.Tier ANNIHILATOR_TIER = new net.minecraft.world.item.Tier() {
+        @Override public int getUses() { return 3000; }
+        @Override public float getSpeed() { return 9.0f; }
+        @Override public float getAttackDamageBonus() { return 0.0f; }
+        @Override public net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> getIncorrectBlocksForDrops() {
+            return net.minecraft.tags.BlockTags.INCORRECT_FOR_NETHERITE_TOOL;
+        }
+        @Override public int getEnchantmentValue() { return 22; }
+        @Override public net.minecraft.world.item.crafting.Ingredient getRepairIngredient() {
+            return net.minecraft.world.item.crafting.Ingredient.of(net.minecraft.world.item.Items.NETHERITE_INGOT);
+        }
+    };
+    public static final DeferredItem<net.minecraft.world.item.SwordItem> ABSOLUTE_ANNIHILATOR =
+            ITEMS.register("absolute_annihilator",
+                    () -> new net.minecraft.world.item.SwordItem(ANNIHILATOR_TIER,
+                            new net.minecraft.world.item.Item.Properties()
+                                    .rarity(net.minecraft.world.item.Rarity.EPIC)
+                                    .fireResistant()
+                                    .attributes(absoluteAnnihilatorAttributes())));
+
+    private static net.minecraft.world.item.component.ItemAttributeModifiers absoluteAnnihilatorAttributes() {
+        var op = net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE;
+        var mainhand = net.minecraft.world.entity.EquipmentSlotGroup.MAINHAND;
+        return net.minecraft.world.item.component.ItemAttributeModifiers.builder()
+                .add(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE,
+                        new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                                net.minecraft.world.item.Item.BASE_ATTACK_DAMAGE_ID, 19.0, op), mainhand)
+                .add(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_SPEED,
+                        new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                                net.minecraft.world.item.Item.BASE_ATTACK_SPEED_ID, -2.2, op), mainhand)
+                .add(net.minecraft.world.entity.ai.attributes.Attributes.ENTITY_INTERACTION_RANGE,
+                        new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "annihilator_reach"),
+                                2.5, op), mainhand)
+                .build();
+    }
+
     public static final java.util.function.Supplier<net.minecraft.world.level.block.entity.BlockEntityType<BarrierBlockEntity>> BARRIER_BLOCK_ENTITY =
             BLOCK_ENTITIES.register("magicule_barrier",
                     () -> net.minecraft.world.level.block.entity.BlockEntityType.Builder
@@ -316,6 +356,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         output.accept(APITO_NECTAR.get());
                         output.accept(APITOS_JELLY.get());
                         output.accept(DRAGO_NOVA.get());
+                        output.accept(ABSOLUTE_ANNIHILATOR.get());
                     })
                     .build());
 

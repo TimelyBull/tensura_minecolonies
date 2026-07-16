@@ -15,6 +15,31 @@ test** (concrete steps + what you should see), **status**.
 
 ## OPEN — needs playtesting
 
+### 0b. Absolute Annihilator — sprite fix + EP capability (2026-07-15)
+
+**What changed** (`absolute_annihilator.png`, `absolute_annihilator.json` model,
+new `data/tensura_minecolonies/gear_existence/absolute_annihilator.json`): (1)
+the item sprite had its black background removed (border flood-fill, true-black
+only) + colors bled outward + hard-binarized alpha so there are no see-through /
+semi-transparent pixels in-hand; texture rebuilt at 32×32 (was 256×256) so the
+item/generated extrusion produces coarse/clean depth-teeth instead of a fine
+spiky "saw" edge in the 3D in-hand view; the item model parents
+`tensura:item/scythe_handheld` for the oversized Blade-Tiger-Scythe-style
+render. (2) The weapon is now EP-capable via a `tensura:gear_existence` datapack
+entry (minEP 10k / maxEP 1M / epGain 0.01 / attack-damage evolutions
++4/+8/+13/+18 at 150k/400k/700k/1M).
+
+**How to test:**
+1. `/give @s tensura_minecolonies:absolute_annihilator` (or grab it from the
+   creative menu) → the hammer should render LARGE (scythe-sized) in-hand and on
+   the ground, fully opaque (no transparent chunks anywhere on the head/handle).
+2. Equip it and check the tooltip → it should show a Tensura EP line (EP / max
+   EP). Kill some mobs → EP should tick up; at the evolution thresholds the
+   attack-damage should climb (20 → up to 38).
+3. Complete Milim's "Prove Your Strength" deal → the granted stack should have
+   crushing + Sharpness V + Unbreaking III AND be EP-capable (confirm the EP
+   line appears once held/equipped, not only when picked up off the ground).
+
 ### 0. Colony-centered barrier + core networks + layer-3 DL/Hero buff (2026-07-13)
 
 **What changed** (`BarrierBlockEntity`, `TensuraRaids`, `BarrierFieldRenderer`,

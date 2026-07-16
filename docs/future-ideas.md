@@ -172,6 +172,62 @@ do, beyond the existing marked-boss-kill fan-out:
    time. Makes the starting-race choice a lasting diplomatic identity, not just
    a cosmetic/spawn choice.
 
+## Higher tiers take MORE deals to advance friendship (2026-07-15)
+
+Idea: make each relations tier require progressively more completed deals to
+climb. Right now standing rises a flat amount per deal regardless of tier, so
+NEUTRAL→FRIENDLY takes about as much work as FRIENDLY→ALLIED→COVENANT. Make the
+higher tiers demand MORE (e.g. scale the standing-per-deal down, or the
+threshold up, as the tier rises) so deep alliances feel earned. Tuning knob on
+the standing/tier math (`WorldReputationManager` / `FactionTier` thresholds +
+`DealSpec.standingReward`).
+
+## Absolute Annihilator — custom Milim weapon (2026-07-15)
+
+**✅ FULLY BUILT (item registered, in creative menu, sprite, given as the "Prove
+Your Strength" reward enchanted with crushing + Sharpness V + Unbreaking III,
+AND now EP-capable).**
+Item `tensura_minecolonies:absolute_annihilator` — a SwordItem on a custom Tier
+(gold enchantability 22), attributes: 20 attack damage, 1.8 attack speed, +2.5
+ENTITY_INTERACTION_RANGE (reach), EPIC + fire-resistant.
+**EP done (2026-07-15):** weapon EP is NOT an item-class/interface thing in
+Tensura — it's a datapack entry in the `tensura:gear_existence` registry keyed by
+item id. Shipped `data/tensura_minecolonies/gear_existence/absolute_annihilator.json`
+(the registry merges across namespaces): `minEP 10k`, `maxEP 1M`, `epGain 0.01`,
+plus `uniqueEvolutions` that add +4/+8/+13/+18 attack damage at 150k/400k/700k/1M
+EP (grows from 20 → 38). Tensura's `GearHandler` stamps the EP components
+(`TensuraDataComponents.EP/MAX_EP/EP_GAIN/EP_DURABILITY`) on pickup/equip and
+grows them on kills — no Java change needed. ⚠ Playtest: confirm the EP tooltip
+appears and the evolution ladder fires (esp. that a deal-reward stack given
+straight to inventory gets stamped on first equip, not only on world-pickup).
+Also worth revisiting: whether "+2.5 reach" (added to the default ~3) matches
+intent vs. a total of 2.5. Original spec (user):
+- **Sprite:** the 1254×1254 PNG download (`ChatGPT Image Jul 15…png`) — usable
+  (square PNG). Fallback if unusable: a plain Netherite Axe.
+- **Name:** "Absolute Annihilator". **20 base attack damage.** **Attack speed
+  1.8.** **Reach/range 2.5** (needs `ENTITY_INTERACTION_RANGE` +
+  `BLOCK_INTERACTION_RANGE` attribute modifiers — vanilla Sword/Axe don't add
+  these). **Gold enchantability** (custom `Tier`, enchantmentValue 22).
+- **Pre-applied:** `crushing` engraving + Sharpness V + Unbreaking III (via the
+  enchanted-reward path).
+- **"Able to have EP":** Tensura weapon-EP — the `Simple*Item` bases are plain
+  vanilla extensions (NOT inherently EP-capable), so weapon EP comes from
+  Tensura's item-energy/engraving system (`growth`/`transcendence` engravings
+  reference weapon "Energy"). NEEDS INVESTIGATION: how a weapon holds/gains EP
+  (ManasCore item storage? a base item class? an engraving?) before claiming it
+  works.
+Build = a new `Item` class + custom `Tier` + attribute modifiers + model +
+texture + registration in `ExampleMod` + lang, then give it via the
+enchanted-reward path on `mi_mighty_town`.
+**TODO — redo the sprite (2026-07-15):** the current texture is an
+AI-generated image machine-processed (background flood-fill + alpha bleed +
+hard-binarized alpha, downscaled to 32×32 to tame the extruded-side spikes).
+It's serviceable but not great — the low res muddies detail and the drawn
+silhouette is still spiky edge-on. Replace with a purpose-drawn pixel-art
+sprite (ideally 48×48 to match Tensura scythes, clean silhouette, no reliance
+on the flat image's baked-in spikes). File:
+`assets/tensura_minecolonies/textures/item/absolute_annihilator.png`.
+
 ## Code cleanup / good-practices pass (2026-07-06)
 
 A dedicated hygiene pass over the codebase (not tied to a feature): remove

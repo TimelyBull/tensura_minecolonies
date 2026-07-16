@@ -25,6 +25,12 @@ Copy the relevant version's section into the CurseForge release notes on each up
   it now comes from the third layer instead.)
 
 ### Added
+- **The Absolute Annihilator — a new legendary hammer from Milim.** Earned from
+  Milim's "Prove Your Strength" pact, this two-headed warhammer hits for heavy
+  base damage with extra reach, comes pre-forged with a crushing engraving,
+  Sharpness V and Unbreaking III, and — like other Tensura weapons — **gains EP
+  as you fight**, growing stronger (up to a much higher attack power) the more it
+  kills. It also appears in the mod's creative tab.
 - **`/recoverorphans purge` — delete lost subordinates that can't be rescued
   and free their housing.** Some vanished subordinates can be restored as
   colonists with `/recoverorphans confirm`, but ones that were lost before the
