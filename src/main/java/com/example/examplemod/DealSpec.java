@@ -1028,7 +1028,40 @@ public record DealSpec(
                         new LendCitizens(Skill.Focus, 6, 2, 2 * DAY, 2),
                         List.of(new ItemStack(Items.DIAMOND, 4), new ItemStack(ten("monster_leather_c"), 6),
                                 new ItemStack(ten("gold_coin"), 2)),
-                        6.0, 5.0, 2 * DAY, 0, FactionTier.ALLIED, false)));
+                        6.0, 5.0, 2 * DAY, 0, FactionTier.ALLIED, false),
+                // The Beast-Horn Spear — the gathered horns forged into the
+                // faction's signature spear (Sharpness V + swift engraving).
+                new DealSpec("ca_horn_spear", "The Beast-Horn Spear",
+                        new SupplyItems(ten("beast_horn"), 12),
+                        List.of(new ItemStack(ten("battlewill_manual"), 1),
+                                new ItemStack(ten("gold_coin"), 3)),
+                        7.0, 5.0, 12 * DAY, 0, FactionTier.ALLIED, false,
+                        List.of(new EnchantedReward(ten("beast_horn_spear"), 1, List.of(
+                                new EnchantSpec(Enchantments.SHARPNESS, 5),
+                                new EnchantSpec(engraving("swift"), 1))))),
+                new DealSpec("ca_tiger_cull", "Blade Tiger Cull",
+                        new SlayEntities(java.util.Set.of("tensura:blade_tiger"), 10, "Blade Tigers"),
+                        List.of(new ItemStack(ten("blade_tiger_steak"), 8),
+                                new ItemStack(ten("monster_leather_b"), 6),
+                                new ItemStack(ten("silver_coin"), 10)),
+                        7.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
+                new DealSpec("ca_armorsaurus", "Armorsaurus Hide",
+                        new SlayEntities(java.util.Set.of("tensura:armorsaurus"), 4, "Armorsaurus"),
+                        List.of(new ItemStack(ten("armorsaurus_scale"), 8),
+                                new ItemStack(ten("monster_leather_c"), 6),
+                                new ItemStack(ten("silver_coin"), 12)),
+                        7.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
+                new DealSpec("ca_tanner", "The Tanner's Trade",
+                        new SupplyItems(ten("monster_leather_a"), 12),
+                        List.of(new ItemStack(ten("gold_coin"), 1), new ItemStack(Items.DIAMOND, 12)),
+                        5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("ca_pack_hunters", "Pack Hunters",
+                        new SlayEntities(java.util.Set.of("tensura:direwolf"), 10, "Direwolves"),
+                        List.of(new ItemStack(ten("monster_leather_special_a"), 2),
+                                new ItemStack(ten("beast_horn"), 4),
+                                new ItemStack(Items.GOLDEN_APPLE, 2),
+                                new ItemStack(ten("silver_coin"), 10)),
+                        7.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false)));
 
         // 🃏 CLAYMAN — schemer: crystals (lean), redstone, illusion tome.
         map.put("clayman", List.of(

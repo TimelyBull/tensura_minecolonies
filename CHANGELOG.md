@@ -31,7 +31,9 @@ Copy the relevant version's section into the CurseForge release notes on each up
   standing. Several deals that just watched your colony's size/happiness were
   replaced with real tasks — including **A Great Hunt** (slay 40 monsters) and a
   new capstone, **A Wild Haven** (hunt down a Charybdis for an Armorsaurus
-  Scalemail schematic + a Battlewill Manual).
+  Scalemail schematic + a Battlewill Manual). Five new deals were added too: **The
+  Beast-Horn Spear** (forge an enchanted Beast Horn Spear), **Blade Tiger Cull**,
+  **Armorsaurus Hide**, **The Tanner's Trade**, and **Pack Hunters**.
 - **Drago Nova now has a dramatic charge-up.** Instead of exploding the instant
   you use it, the Drago Nova lifts out of your hand and hovers in the air while
   blue energy is drawn into it and a glowing blue sphere swells around it — then,
