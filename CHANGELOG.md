@@ -25,6 +25,13 @@ Copy the relevant version's section into the CurseForge release notes on each up
   it now comes from the third layer instead.)
 
 ### Changed
+- **Eurazania (the Beast Kingdom) deals reworked.** Its quest board now pays out
+  in **monster leather, beast horns, meaty stew, a Full Potion, and beast-armor
+  schematics** instead of plain leather, and every deal pays coins scaled to your
+  standing. Several deals that just watched your colony's size/happiness were
+  replaced with real tasks — including **A Great Hunt** (slay 40 monsters) and a
+  new capstone, **A Wild Haven** (hunt down a Charybdis for an Armorsaurus
+  Scalemail schematic + a Battlewill Manual).
 - **Drago Nova now has a dramatic charge-up.** Instead of exploding the instant
   you use it, the Drago Nova lifts out of your hand and hovers in the air while
   blue energy is drawn into it and a glowing blue sphere swells around it — then,

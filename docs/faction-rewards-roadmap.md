@@ -409,19 +409,20 @@ Schematic — needs the time-windowed-slay mechanic; see future-ideas.md.)*
 | The Ultimate Brawl | Slay the Warden | 2 Enchanted Golden Apple + 12 Diamond + 4 Gold Coin + Battlewill Manual | ALLIED |
 | Warriors to Spar ★ | Lend 2 × Athletics≥8 | 8 Diamond + 1 Enchanted Golden Apple | ALLIED |
 
-**Eurazania** (Tier II — beast kingdom):
+**Eurazania** (Tier II — beast kingdom): *reworked 2026-07-16 — monster leather +
+beast mats + coin ladder; the 4 milestone deals converted to active (supply/hunt).*
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
-| Hides for the Beastfolk | Deliver 48 Leather | 16 Leather + 8 Cooked Beef | NEUTRAL |
-| Meat for the Pack | Deliver 64 Cooked Beef | 16 Cooked Beef | NEUTRAL |
-| Bones for the Den | Deliver 64 Bone | 32 Bone Meal + 8 Leather | NEUTRAL |
-| Sinew for Snares | Deliver 48 String | 16 String + 16 Leather | NEUTRAL |
-| Dens for the Beasts | Build stable 3 | 24 Leather + 8 Gold + 4 Compost | FRIENDLY |
-| A Great Pack | Pop 18 | 24 Leather + 16 Cooked Beef + 4 Compost | FRIENDLY |
-| A Thriving Pack | Happy ≥ 8 | 16 Leather + 4 Diamond | FRIENDLY |
-| A Wild Haven ★ | Happy ≥ 9 | 6 Diamond + 24 Leather + Battlewill Manual | ALLIED |
-| Hunters Abroad | Lend 2 × Agility≥8 | 16 Leather + 8 Gold + 4 Magic Stone | FRIENDLY |
-| Keen Trackers | Lend 2 × Focus≥6 | 4 Diamond + 16 Leather | ALLIED |
+| Hides for the Beastfolk | Deliver 32 Leather | 8 Monster Leather B + 12 Bronze Coin | NEUTRAL |
+| Meat for the Pack | Deliver 64 Cooked Beef | 8 Meaty Stew + 10 Bronze Coin | NEUTRAL |
+| Bones for the Den | Deliver 64 Bone | 32 Bone Meal + 2 Beast Horn + 8 Bronze Coin | NEUTRAL |
+| Sinew for Snares | Deliver 48 String | 12 Monster Leather B + 8 Bronze Coin | NEUTRAL |
+| A Proper Den *(was Dens/BuildingLevel)* | Deliver 2 Campfire + 16 Oak Log | 20 Silver Coin | FRIENDLY |
+| A Great Hunt *(was Great Pack/Population)* | Slay 40 monsters | 10 Monster Leather A + 4 Beast Horn + 12 Silver Coin | FRIENDLY |
+| A Thriving Pack *(was Happiness)* | Deliver 20 Monster Leather A | Full Potion + 4 Diamond + 8 Silver Coin | FRIENDLY |
+| A Wild Haven ★ *(was Happiness)* | Slay Charybdis | Armorsaurus Scalemail Schematic + Battlewill Manual + 3 Gold Coin | ALLIED |
+| Hunters Abroad | Lend 2 × Agility≥8 | 8 Monster Leather B + 4 Magic Stone + 6 Silver Coin | FRIENDLY |
+| Keen Trackers | Lend 2 × Focus≥6 | 4 Diamond + 6 Monster Leather C + 2 Gold Coin | ALLIED |
 
 **Clayman** (Tier I — schemer):
 | Deal | Task | Reward | Tier |
