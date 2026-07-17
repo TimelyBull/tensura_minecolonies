@@ -1210,53 +1210,92 @@ public record DealSpec(
                                 new ItemStack(ten("gold_coin"), 4)),
                         10.0, 5.0, 24 * DAY, 0, FactionTier.ALLIED, false)));
 
-        // 🔥 LEON — fire/flame. Phase 3 (faction-rewards roadmap): expanded
-        // from 4 to 10 deals at TIER II (Major) value, matching Falmuth.
+        // 🔥 LEON — the Platinum Saber (Leon Cromwell): a master SWORDSMAN and
+        // spirit SUMMONER whose signature is the fire spirit IFRIT (his anchor
+        // boss). So: fire ELEMENT, but a martial/saber spine (Battlewill, the
+        // Platinum Blade fire-katana) — not a generic flame faction. Tier III.
         // Covenant milestone is cov_leon (see buildCovenantDeals).
         map.put("leon", List.of(
                 new DealSpec("le_magma", "Stones of Fire",
                         new SupplyItems(Items.MAGMA_BLOCK, 32),
                         List.of(new ItemStack(Items.MAGMA_CREAM, 8), new ItemStack(Items.GOLD_INGOT, 8)),
                         4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
-                new DealSpec("le_cinders", "Cinders for the Flame Lord",
+                new DealSpec("le_cinders", "Cinders Needed",
                         new SupplyItems(Items.BLAZE_POWDER, 32),
-                        List.of(new ItemStack(Items.BLAZE_ROD, 8), new ItemStack(Items.GLOWSTONE, 16)),
+                        List.of(new ItemStack(Items.GLOWSTONE, 16), new ItemStack(ten("bronze_coin"), 12)),
                         5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("le_coal", "Fuel for the Furnaces",
                         new SupplyItems(Items.COAL, 64),
-                        List.of(new ItemStack(Items.BLAZE_POWDER, 16), new ItemStack(Items.IRON_INGOT, 8)),
+                        List.of(new ItemStack(Items.BLAZE_POWDER, 16), new ItemStack(ten("bronze_coin"), 12)),
                         4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("le_obsidian", "Obsidian for the Keep",
                         new SupplyItems(Items.OBSIDIAN, 16),
-                        List.of(new ItemStack(Items.GOLD_INGOT, 16), new ItemStack(Items.DIAMOND, 4)),
+                        List.of(new ItemStack(Items.DIAMOND, 4), new ItemStack(ten("bronze_coin"), 20)),
                         5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
+                // A Hearth of Flame (was smeltery 3) — now an active supply deal.
                 new DealSpec("le_hearth", "A Hearth of Flame",
-                        new BuildingLevel("smeltery", 3),
-                        List.of(new ItemStack(Items.BLAZE_ROD, 6), new ItemStack(Items.GOLD_INGOT, 16),
-                                new ItemStack(ten("magic_tome_fire"), 1)),
-                        6.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
-                new DealSpec("le_legion", "The Flame Legion",
-                        new Population(20),
-                        List.of(new ItemStack(Items.DIAMOND, 6), new ItemStack(Items.GOLD_BLOCK, 1),
-                                new ItemStack(Items.BLAZE_ROD, 8)),
-                        6.0, 5.0, 20 * DAY, 0, FactionTier.FRIENDLY, false),
+                        new SupplyBundle(List.of(new ItemStack(Items.BLAZE_ROD, 8),
+                                new ItemStack(Items.MAGMA_BLOCK, 16))),
+                        List.of(new ItemStack(ten("magic_tome_fire"), 1),
+                                potion("Flamewarden's Brew", 0xE25822,
+                                        eff(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE, 0),
+                                        eff(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST, 0)),
+                                new ItemStack(ten("silver_coin"), 10)),
+                        6.0, 5.0, 8 * DAY, 0, FactionTier.FRIENDLY, false),
+                // Aid Needed (was "The Flame Legion" / Population) — a 6-citizen levy.
+                new DealSpec("le_legion", "Aid Needed",
+                        new LendCitizens(Skill.Stamina, 1, 6, 3 * DAY, 2),
+                        List.of(new ItemStack(Items.DIAMOND, 6), new ItemStack(Items.BLAZE_ROD, 8),
+                                new ItemStack(ten("silver_coin"), 12)),
+                        6.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false),
+                // A Burning Devotion (was Happiness) — now an active supply deal.
                 new DealSpec("le_zealots", "A Burning Devotion",
-                        new Happiness(8.0),
-                        List.of(new ItemStack(Items.DIAMOND, 6), new ItemStack(Items.BLAZE_ROD, 8)),
-                        7.0, 5.0, 16 * DAY, 0, FactionTier.FRIENDLY, false),
+                        new SupplyItems(Items.MAGMA_CREAM, 12),
+                        List.of(potion("Flamewarden's Brew", 0xE25822,
+                                        eff(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE, 0),
+                                        eff(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST, 0)),
+                                new ItemStack(Items.DIAMOND, 6),
+                                new ItemStack(ten("silver_coin"), 10)),
+                        7.0, 5.0, 8 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("le_flamebearers", "Flamebearers Abroad",
                         new LendCitizens(Skill.Mana, 6, 2, 3 * DAY, 2),
-                        List.of(new ItemStack(Items.BLAZE_ROD, 4), new ItemStack(Items.DIAMOND, 4)),
+                        List.of(new ItemStack(Items.BLAZE_ROD, 4), new ItemStack(Items.DIAMOND, 4),
+                                new ItemStack(ten("magic_tome_fire"), 1),
+                                new ItemStack(ten("silver_coin"), 8)),
                         6.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false),
+                // The Greater Forge (was smeltery 5) — now an active supply deal.
                 new DealSpec("le_greater_forge", "The Greater Forge",
-                        new BuildingLevel("smeltery", 5),
-                        List.of(new ItemStack(ten("high_magisteel_ingot"), 3), new ItemStack(Items.DIAMOND, 8),
-                                new ItemStack(ten("magic_tome_enhancement"), 1)),
-                        8.0, 5.0, 20 * DAY, 0, FactionTier.ALLIED, false),
+                        new SupplyBundle(List.of(new ItemStack(ten("high_magisteel_ingot"), 4),
+                                new ItemStack(ten("high_quality_magic_crystal"), 8))),
+                        List.of(new ItemStack(ten("magic_tome_enhancement"), 1), new ItemStack(Items.DIAMOND, 8),
+                                new ItemStack(ten("gold_coin"), 3)),
+                        8.0, 5.0, 12 * DAY, 0, FactionTier.ALLIED, false),
                 new DealSpec("le_knights", "Flame Knights Abroad",
                         new LendCitizens(Skill.Strength, 8, 2, 3 * DAY, 3),
-                        List.of(new ItemStack(ten("high_magisteel_ingot"), 3), new ItemStack(Items.DIAMOND, 8)),
-                        8.0, 5.0, 3 * DAY, 0, FactionTier.ALLIED, false)));
+                        List.of(new ItemStack(ten("high_magisteel_ingot"), 3), new ItemStack(Items.DIAMOND, 8),
+                                new ItemStack(ten("battlewill_manual"), 1),
+                                new ItemStack(ten("gold_coin"), 2)),
+                        8.0, 5.0, 3 * DAY, 0, FactionTier.ALLIED, false),
+                // Trial by Fire — a fire hunt (Flamewarden's Brew + martial manual).
+                new DealSpec("le_trial", "Trial by Fire",
+                        new SlayEntities(java.util.Set.of("minecraft:blaze", "minecraft:magma_cube"),
+                                30, "blazes & magma cubes"),
+                        List.of(potion("Flamewarden's Brew", 0xE25822,
+                                        eff(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE, 0),
+                                        eff(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST, 0)),
+                                new ItemStack(ten("magic_tome_fire"), 1),
+                                new ItemStack(ten("battlewill_manual"), 1),
+                                new ItemStack(ten("silver_coin"), 10)),
+                        7.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
+                // The Platinum Blade — the Platinum Saber's flame katana
+                // (Fire Aspect II + Sharpness IV), built at grant time.
+                new DealSpec("le_platinum_blade", "The Platinum Blade",
+                        new SupplyItems(ten("high_magisteel_ingot"), 4),
+                        List.of(new ItemStack(ten("gold_coin"), 3)),
+                        9.0, 5.0, 12 * DAY, 0, FactionTier.ALLIED, false,
+                        List.of(new EnchantedReward(ten("high_magisteel_katana"), 1, List.of(
+                                new EnchantSpec(Enchantments.FIRE_ASPECT, 2),
+                                new EnchantSpec(Enchantments.SHARPNESS, 4)))))));
 
         // 🕯 SHIZU — soft-retired (Phase 0 decision): its catalog table,
         // conquest profile (ConquestPayoff) and sh_pupils skill mapping were

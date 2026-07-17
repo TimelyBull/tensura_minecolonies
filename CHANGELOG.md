@@ -25,6 +25,14 @@ Copy the relevant version's section into the CurseForge release notes on each up
   it now comes from the third layer instead.)
 
 ### Changed
+- **Leon (the Platinum Saber) deals reworked.** Leon now reads as what he is in
+  the story — a master swordsman and spirit-summoner whose signature is the fire
+  spirit Ifrit — rather than a generic flame faction. Deals that just watched
+  your colony were replaced with real tasks, coins were added throughout, and the
+  board gained a martial spine: **Flame Knights** and the new **Trial by Fire**
+  now grant Battlewill Manuals, and a new capstone, **The Platinum Blade**, awards
+  a fire katana (Fire Aspect II + Sharpness IV). Several deals also hand out the
+  new **Flamewarden's Brew** potion.
 - **Factions now reward custom brews.** Several deals that paid out a single
   filler item now hand you a themed, custom-named potion (each lasting 1:30):
   Falmuth's **Crusader's Draught** (Strength + Resistance) and **Siegebreaker's

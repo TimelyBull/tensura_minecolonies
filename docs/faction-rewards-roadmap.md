@@ -453,19 +453,25 @@ completed by declaring war on a rival settlement and WINNING it. Event-driven �
 polled), same shape as `SlayEntities`. This is the first deal that ties the
 diplomacy board to the rival-colony war system.
 
-**Leon** (Tier III — fire/martial; expanded in Phase 3, now re-ranked to III):
+**Leon** (Tier III — the Platinum Saber: fire-wielding SWORDSMAN + spirit
+summoner, signature spirit Ifrit): *reworked 2026-07-16 — milestones → active,
+coin ladder, martial/saber spine (Battlewill + the Platinum Blade fire-katana),
+blaze-rod spam cut; canon check confirmed fire is his element VIA Ifrit, so kept.*
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
 | Stones of Fire | Deliver 32 Magma Block | 8 Magma Cream + 8 Gold | NEUTRAL |
-| Cinders for the Flame Lord | Deliver 32 Blaze Powder | 8 Blaze Rod + 16 Glowstone | NEUTRAL |
-| Fuel for the Furnaces | Deliver 64 Coal | 16 Blaze Powder + 8 Iron | NEUTRAL |
-| Obsidian for the Keep | Deliver 16 Obsidian | 16 Gold + 4 Diamond | NEUTRAL |
-| A Hearth of Flame | Build smeltery 3 | 6 Blaze Rod + 16 Gold + Fire Tome | FRIENDLY |
-| The Flame Legion | Pop 20 | 6 Diamond + 1 Gold Block + 8 Blaze Rod | FRIENDLY |
-| A Burning Devotion | Happy ≥ 8 | 6 Diamond + 8 Blaze Rod | FRIENDLY |
-| Flamebearers Abroad ★ | Lend 2 × Mana≥6 | 4 Blaze Rod + 4 Diamond | FRIENDLY |
-| The Greater Forge | Build smeltery 5 | 3 High Magisteel + 8 Diamond + Enhancement Tome | ALLIED |
-| Flame Knights Abroad | Lend 2 × Strength≥8 | 3 High Magisteel + 8 Diamond | ALLIED |
+| Cinders Needed *(renamed)* | Deliver 32 Blaze Powder | 16 Glowstone + 12 Bronze Coin | NEUTRAL |
+| Fuel for the Furnaces | Deliver 64 Coal | 16 Blaze Powder + 12 Bronze Coin | NEUTRAL |
+| Obsidian for the Keep | Deliver 16 Obsidian | 4 Diamond + 20 Bronze Coin | NEUTRAL |
+| A Hearth of Flame *(was smeltery 3)* | Deliver 8 Blaze Rod + 16 Magma Block | Fire Tome + **Flamewarden's Brew** + 10 Silver Coin | FRIENDLY |
+| Aid Needed *(was The Flame Legion/Pop)* | Lend 6 citizens | 6 Diamond + 8 Blaze Rod + 12 Silver Coin | FRIENDLY |
+| A Burning Devotion *(was Happiness)* | Deliver 12 Magma Cream | **Flamewarden's Brew** + 6 Diamond + 10 Silver Coin | FRIENDLY |
+| Flamebearers Abroad ★ | Lend 2 × Mana≥6 | 4 Blaze Rod + 4 Diamond + Fire Tome + 8 Silver Coin | FRIENDLY |
+| The Greater Forge *(was smeltery 5)* | Deliver 4 High Magisteel + 8 High Crystal | Enhancement Tome + 8 Diamond + 3 Gold Coin | ALLIED |
+| Flame Knights Abroad | Lend 2 × Strength≥8 | 3 High Magisteel + 8 Diamond + Battlewill Manual + 2 Gold Coin | ALLIED |
+| Trial by Fire | Slay 30 blazes & magma cubes | **Flamewarden's Brew** + Fire Tome + Battlewill Manual + 10 Silver Coin | FRIENDLY |
+| The Platinum Blade | Deliver 4 High Magisteel | **High Magisteel Katana (Fire Aspect II + Sharpness IV)** + 3 Gold Coin | ALLIED |
+
 
 **Eastern Empire** (Tier II — magitech/imperial; expanded in Phase 3):
 | Deal | Task | Reward | Tier |
