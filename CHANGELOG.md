@@ -25,6 +25,15 @@ Copy the relevant version's section into the CurseForge release notes on each up
   it now comes from the third layer instead.)
 
 ### Changed
+- **Eastern Empire (magitech/imperial) deals reworked.** Its board leans into what
+  the Empire is — a magitech military that summons soldiers. Milestone deals became
+  real tasks, coins were added, and it gained three new deals: **The Imperial Levy**,
+  **Arcane Conscripts**, and **A New Type of Soldier** (build a magisteel golem to
+  fight for you). Several deals now grant a **Summoning Tome** or the new **Imperial
+  Stimulant** potion, and *An Imperial Garrison* awards an enchanted magisteel sword.
+- **Some deal names cleaned up** so they match what the deal actually asks for —
+  e.g. Eurazania's Charybdis fight is now "The Charybdis Hunt," and a couple of
+  Leon/Empire deals were renamed to fit their tasks.
 - **Leon (the Platinum Saber) deals reworked.** Leon now reads as what he is in
   the story — a master swordsman and spirit-summoner whose signature is the fire
   spirit Ifrit — rather than a generic flame faction. Deals that just watched

@@ -506,6 +506,22 @@ The mod ships several custom items that are craftable / obtainable but have
 General task: audit every custom item for "can the player actually USE this?"
 and give the trophy items a real sink.
 
+## Unify currency — MineColonies money → Tensura coins (2026-07-16)
+
+If MineColonies has any currency / money mechanic, route it through Tensura's
+coin currency (Bronze → Silver → Gold → Stellar Gold Coin, + Coin Pouches) so
+the whole modpack shares ONE money system instead of two parallel economies.
+Our diplomacy deals already pay out in Tensura coins; the goal is that the
+colony side uses the same coins rather than a separate token/emerald economy.
+NEEDS INVESTIGATION FIRST: determine what (if any) currency MineColonies
+actually uses in this version — colonists don't natively use money, but check
+the Bazaar / merchant / any coin-like item or trade token, and whether Tavern /
+recruitment / trades consume anything spendable. Then either (a) swap that
+item for the Tensura coin in the relevant recipes/handlers, or (b) add a
+converter/bridge. Scope depends entirely on what the investigation finds — may
+be small (a couple of recipes) or large (a trade-handler mixin). Keep it behind
+a config toggle if it changes vanilla-MC economy behaviour.
+
 ## Legendary weapons — ally-forged, player-stat-scaling (2026-07-15)
 
 **Config-optional** (a toggle; off unless enabled). A big system: certain ALLIES

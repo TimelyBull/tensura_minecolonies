@@ -421,7 +421,7 @@ beast mats + coin ladder; the 4 milestone deals converted to active (supply/hunt
 | A Proper Den *(was Dens/BuildingLevel)* | Deliver 2 Campfire + 16 Oak Log | 20 Silver Coin | FRIENDLY |
 | A Great Hunt *(was Great Pack/Population)* | Slay 40 monsters | 10 Monster Leather A + 4 Beast Horn + 12 Silver Coin | FRIENDLY |
 | A Thriving Pack *(was Happiness)* | Deliver 20 Monster Leather A | Full Potion + 4 Diamond + 8 Silver Coin | FRIENDLY |
-| A Wild Haven ★ *(was Happiness)* | Slay Charybdis | Armorsaurus Scalemail Schematic + Battlewill Manual + 3 Gold Coin | ALLIED |
+| The Charybdis Hunt ★ *(was A Wild Haven/Happiness)* | Slay Charybdis | Armorsaurus Scalemail Schematic + Battlewill Manual + 3 Gold Coin | ALLIED |
 | Hunters Abroad | Lend 2 × Agility≥8 | 8 Monster Leather B + 4 Magic Stone + 6 Silver Coin | FRIENDLY |
 | Keen Trackers | Lend 2 × Focus≥6 | 4 Diamond + 6 Monster Leather C + 2 Gold Coin | ALLIED |
 | The Beast-Horn Spear | Deliver 12 Beast Horn | **Beast Horn Spear** (Sharpness V + Swift) + Battlewill Manual + 3 Gold Coin | ALLIED |
@@ -465,7 +465,7 @@ blaze-rod spam cut; canon check confirmed fire is his element VIA Ifrit, so kept
 | Obsidian for the Keep | Deliver 16 Obsidian | 4 Diamond + 20 Bronze Coin | NEUTRAL |
 | A Hearth of Flame *(was smeltery 3)* | Deliver 8 Blaze Rod + 16 Magma Block | Fire Tome + **Flamewarden's Brew** + 10 Silver Coin | FRIENDLY |
 | Aid Needed *(was The Flame Legion/Pop)* | Lend 6 citizens | 6 Diamond + 8 Blaze Rod + 12 Silver Coin | FRIENDLY |
-| A Burning Devotion *(was Happiness)* | Deliver 12 Magma Cream | **Flamewarden's Brew** + 6 Diamond + 10 Silver Coin | FRIENDLY |
+| Molten Cores *(was A Burning Devotion/Happiness)* | Deliver 12 Magma Cream | **Flamewarden's Brew** + 6 Diamond + 10 Silver Coin | FRIENDLY |
 | Flamebearers Abroad ★ | Lend 2 × Mana≥6 | 4 Blaze Rod + 4 Diamond + Fire Tome + 8 Silver Coin | FRIENDLY |
 | The Greater Forge *(was smeltery 5)* | Deliver 4 High Magisteel + 8 High Crystal | Enhancement Tome + 8 Diamond + 3 Gold Coin | ALLIED |
 | Flame Knights Abroad | Lend 2 × Strength≥8 | 3 High Magisteel + 8 Diamond + Battlewill Manual + 2 Gold Coin | ALLIED |
@@ -473,19 +473,23 @@ blaze-rod spam cut; canon check confirmed fire is his element VIA Ifrit, so kept
 | The Platinum Blade | Deliver 4 High Magisteel | **High Magisteel Katana (Fire Aspect II + Sharpness IV)** + 3 Gold Coin | ALLIED |
 
 
-**Eastern Empire** (Tier II — magitech/imperial; expanded in Phase 3):
+**Eastern Empire** (Tier II — magitech/imperial): *reworked 2026-07-16 — milestones
+→ active, coin ladder, summoning/imperial theme; some deals renamed to match.*
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
-| Curios from Your World | Deliver 32 Glass | 16 Copper + 8 Amethyst | NEUTRAL |
-| Strange Contraptions | Deliver 16 Redstone Block | 24 Redstone + 8 Iron | NEUTRAL |
-| Resonant Crystals | Deliver 32 Amethyst Shard | 4 Diamond + 24 Redstone | NEUTRAL |
-| Copper for the Engines | Deliver 16 Copper Block | 24 Redstone + 16 Iron | NEUTRAL |
-| Settlers from Afar | Pop 15 | 8 Iron + 8 Emerald + Area-TP Scroll | FRIENDLY |
-| The Magitech Foundry | Build smeltery 3 | 8 Iron Block + 8 Amethyst + 16 Redstone | FRIENDLY |
-| A Well-Ordered City | Happy ≥ 8 | 4 Diamond + 16 Amethyst | FRIENDLY |
-| Specialists Abroad ★ | Lend 2 × Intelligence≥6 | 8 Amethyst + 4 Diamond + Summoning Tome | FRIENDLY |
-| An Imperial Garrison | Build barracks 4 | 6 Diamond + 8 Iron Block + 8 Amethyst | ALLIED |
-| Engineers Abroad | Lend 2 × Dexterity≥8 | 8 Diamond + 1 High Crystal | ALLIED |
+| Gimme Glass *(renamed)* | Deliver 32 Glass | 8 Amethyst + 12 Bronze Coin | NEUTRAL |
+| Strange Contraptions | Deliver 16 Redstone Block | 4 Amethyst + 12 Bronze Coin | NEUTRAL |
+| Resonant Crystals | Deliver 32 Amethyst | 4 Diamond + 15 Bronze Coin | NEUTRAL |
+| Gimme Copper *(renamed)* | Deliver 16 Copper Block | 16 Iron + 12 Bronze Coin | NEUTRAL |
+| A Different Civilization *(was Settlers/Pop)* | Deliver 16 Amethyst + 8 Copper Block + 8 Emerald | Area-TP Scroll + 6 Diamond + 10 Silver Coin | FRIENDLY |
+| The Magitech Foundry *(was smeltery 3)* | Deliver 8 Iron Block + 16 Amethyst | Summoning Tome + 2 Medium Crystal + 10 Silver Coin | FRIENDLY |
+| Crystal Requisition *(was A Well-Ordered City/Happy)* | Deliver 24 Amethyst | **Imperial Stimulant** + 4 Diamond + 10 Silver Coin | FRIENDLY |
+| Specialists Abroad ★ | Lend 2 × Intelligence≥6 | 8 Amethyst + 4 Diamond + Summoning Tome + 8 Silver Coin | FRIENDLY |
+| An Imperial Garrison *(was barracks 4)* | Deliver 4 High Magisteel + 8 Amethyst | **High Magisteel Sword (Sharpness IV + Unbreaking III)** + 3 Gold Coin | ALLIED |
+| Engineers Abroad | Lend 2 × Dexterity≥8 | 8 Diamond + 1 High Crystal + 2 Gold Coin | ALLIED |
+| The Imperial Levy | Deliver 4 Low Magisteel | 6 Low Magisteel Nugget | NEUTRAL |
+| Arcane Conscripts | Lend 2 × Mana≥6 | Summoning Tome + **Imperial Stimulant** + 8 Silver Coin | FRIENDLY |
+| A New Type of Soldier | Deliver 4 High Crystal + 8 Amethyst + 4 Low Magisteel | **Low Magisteel Golem** + 4 Gold Coin | ALLIED |
 
 ### 7B. Covenant milestone deals
 
