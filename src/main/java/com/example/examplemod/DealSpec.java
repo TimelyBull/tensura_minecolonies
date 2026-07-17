@@ -401,6 +401,34 @@ public record DealSpec(
                 net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecolonies", path));
     }
 
+    /** Every custom potion reward lasts 1:30 (user-set). */
+    private static final int POTION_TICKS = 20 * 90;
+
+    /** One potion effect at the standard {@link #POTION_TICKS} duration. */
+    private static net.minecraft.world.effect.MobEffectInstance eff(
+            net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect> effect, int amplifier) {
+        return new net.minecraft.world.effect.MobEffectInstance(effect, POTION_TICKS, amplifier);
+    }
+
+    /**
+     * A custom potion reward — custom name, colour and effects. Mob effects
+     * live in a STATIC registry (unlike enchantments, which need the dynamic
+     * per-world one), so these are safe to build right here at class-load and
+     * can be plain reward literals — no deferred-build plumbing required.
+     */
+    private static ItemStack potion(String name, int color,
+                                    net.minecraft.world.effect.MobEffectInstance... effects) {
+        ItemStack stack = new ItemStack(Items.POTION);
+        stack.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,
+                new net.minecraft.world.item.alchemy.PotionContents(
+                        java.util.Optional.empty(), java.util.Optional.of(color), List.of(effects)));
+        stack.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                net.minecraft.network.chat.Component.literal(name)
+                        .withStyle(s -> s.withColor(net.minecraft.ChatFormatting.AQUA)
+                                .withItalic(false)));
+        return stack;
+    }
+
     /**
      * Capstone SKILL rewards (user-approved): each faction's TOP ALLIED
      * catalog quest (the aloof three's highest quest) grants a
@@ -456,7 +484,7 @@ public record DealSpec(
         m.put("tp_slime_pact", io.github.manasmods.tensura.registry.skill.CommonSkills.SELF_REGENERATION);
         m.put("lu_devout", io.github.manasmods.tensura.registry.skill.ResistanceSkills.HOLY_ATTACK_RESISTANCE);
         m.put("fa_fortress", io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
-        m.put("mi_warriors", io.github.manasmods.tensura.registry.skill.CommonSkills.STRENGTH);
+        m.put("mi_ultimate_brawl", io.github.manasmods.tensura.registry.skill.CommonSkills.STRENGTH);
         m.put("ca_wild_haven", io.github.manasmods.tensura.registry.skill.IntrinsicSkills.GIANTIFICATION);
         m.put("cl_marionette", io.github.manasmods.tensura.registry.skill.IntrinsicSkills.CHARM);
         m.put("le_flamebearers", io.github.manasmods.tensura.registry.skill.ResistanceSkills.FLAME_ATTACK_RESISTANCE);
@@ -869,8 +897,21 @@ public record DealSpec(
                         6.0, 5.0, 6 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("fa_barracks", "Walls and Watchmen",
                         new SupplyItems(Items.IRON_BLOCK, 32),
-                        List.of(new ItemStack(ten("low_magisteel_ingot"), 3)),
+                        List.of(new ItemStack(ten("low_magisteel_ingot"), 3),
+                                potion("Siegebreaker's Tonic", 0xD9A334,
+                                        eff(net.minecraft.world.effect.MobEffects.DIG_SPEED, 1),
+                                        eff(net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE, 0)),
+                                new ItemStack(ten("gold_coin"), 2)),
                         8.0, 5.0, 6 * DAY, 0, FactionTier.ALLIED, false),
+                // The Siege Train — Falmuth's war machine (Siegebreaker's Tonic).
+                new DealSpec("fa_siege_train", "The Siege Train",
+                        new SupplyBundle(List.of(new ItemStack(Items.TNT, 8),
+                                new ItemStack(Items.IRON_BLOCK, 8))),
+                        List.of(potion("Siegebreaker's Tonic", 0xD9A334,
+                                        eff(net.minecraft.world.effect.MobEffects.DIG_SPEED, 1),
+                                        eff(net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE, 0)),
+                                new ItemStack(ten("silver_coin"), 10)),
+                        7.0, 5.0, 6 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("fa_archery", "Towers and Bowmen",
                         new SupplyItems(Items.ARROW, 128),
                         List.of(new ItemStack(ten("short_bow"), 1), new ItemStack(Items.GOLD_INGOT, 8),
@@ -885,7 +926,11 @@ public record DealSpec(
                         10.0, 5.0, 20 * DAY, 0, FactionTier.ALLIED, false),
                 new DealSpec("fa_garrison", "A Standing Garrison",
                         new LendCitizens(Skill.Stamina, 10, 3, 3 * DAY, 2),
-                        List.of(new ItemStack(Items.IRON_BLOCK, 3)),
+                        List.of(new ItemStack(Items.IRON_BLOCK, 3),
+                                potion("Crusader's Draught", 0xC0392B,
+                                        eff(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST, 0),
+                                        eff(net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE, 0)),
+                                new ItemStack(ten("silver_coin"), 8)),
                         6.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("fa_field_hands", "Hands for the Fields",
                         new LendCitizens(Skill.Stamina, 10, 5, 3 * DAY, 2),
@@ -909,7 +954,10 @@ public record DealSpec(
                         6.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("mi_more_meat", "More Meat!",
                         new SupplyItems(Items.COOKED_BEEF, 64),
-                        List.of(new ItemStack(Items.GOLDEN_CARROT, 16)),
+                        List.of(new ItemStack(Items.GOLDEN_CARROT, 16),
+                                potion("Dragon's Vigor", 0xE0218A,
+                                        eff(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST, 1),
+                                        eff(net.minecraft.world.effect.MobEffects.REGENERATION, 0))),
                         5.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("mi_fireworks", "Bring Me Fireworks!",
                         new SupplyItems(Items.FIREWORK_ROCKET, 16),
@@ -939,13 +987,11 @@ public record DealSpec(
                         List.of(new ItemStack(ten("silver_apple"), 4), new ItemStack(Items.GOLDEN_APPLE, 1),
                                 new ItemStack(ten("silver_coin"), 8)),
                         8.0, 5.0, 8 * DAY, 0, FactionTier.FRIENDLY, false),
-                // Prove Your Strength — rewards the custom ABSOLUTE ANNIHILATOR
-                // PLAIN (no pre-applied enchants/engravings): it earns its own
-                // engraving (holy_coat) + growth via its gear_existence entry.
                 new DealSpec("mi_mighty_town", "Prove Your Strength",
                         new SlayEntities(java.util.Set.of("minecraft:wither"), 1, "the Wither"),
-                        List.of(new ItemStack(ten("gold_coin"), 2),
-                                new ItemStack(ExampleMod.ABSOLUTE_ANNIHILATOR.get())),
+                        List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2),
+                                new ItemStack(Items.DIAMOND, 12), new ItemStack(ten("gold_coin"), 4),
+                                new ItemStack(ten("battlewill_manual"), 1)),
                         8.0, 5.0, 20 * DAY, 0, FactionTier.ALLIED, false),
                 new DealSpec("mi_happy_subjects", "Keep Them Cheerful",
                         new SupplyBundle(List.of(new ItemStack(Items.CAKE, 8),
@@ -969,11 +1015,14 @@ public record DealSpec(
                         List.of(new ItemStack(Items.DIAMOND, 6), new ItemStack(Items.GOLD_INGOT, 8),
                                 new ItemStack(Items.GOLDEN_APPLE, 1), new ItemStack(ten("silver_coin"), 8)),
                         7.0, 5.0, 5 * DAY, 0, FactionTier.FRIENDLY, false),
+                // The Ultimate Brawl ★ — Milim's capstone (grants the STRENGTH
+                // skill). Rewards the custom ABSOLUTE ANNIHILATOR, granted PLAIN
+                // (no pre-applied enchants/engravings): it earns its own
+                // engraving (holy_coat) + growth via its gear_existence entry.
                 new DealSpec("mi_ultimate_brawl", "The Ultimate Brawl",
                         new SlayEntities(java.util.Set.of("minecraft:warden"), 1, "the Warden"),
-                        List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2),
-                                new ItemStack(Items.DIAMOND, 12), new ItemStack(ten("gold_coin"), 4),
-                                new ItemStack(ten("battlewill_manual"), 1)),
+                        List.of(new ItemStack(ten("gold_coin"), 2),
+                                new ItemStack(ExampleMod.ABSOLUTE_ANNIHILATOR.get())),
                         9.0, 5.0, 15 * DAY, 0, FactionTier.ALLIED, false)));
 
         // 🦁 EURAZANIA (the Beast Kingdom; renamed from carrion) — monster
@@ -991,7 +1040,11 @@ public record DealSpec(
                         4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("ca_bones", "Bones for the Den",
                         new SupplyItems(Items.BONE, 64),
-                        List.of(new ItemStack(Items.BONE_MEAL, 32), new ItemStack(ten("beast_horn"), 2),
+                        List.of(new ItemStack(Items.BONE_MEAL, 32),
+                                potion("Beast-Blood Draught", 0x8B3A1E,
+                                        eff(net.minecraft.world.effect.MobEffects.MOVEMENT_SPEED, 0),
+                                        eff(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST, 0),
+                                        eff(net.minecraft.world.effect.MobEffects.JUMP, 0)),
                                 new ItemStack(ten("bronze_coin"), 8)),
                         4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("ca_sinew", "Sinew for Snares",
@@ -1082,12 +1135,16 @@ public record DealSpec(
                         5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("cl_redstone", "Whispers and Wires",
                         new SupplyItems(Items.REDSTONE, 64),
-                        List.of(new ItemStack(ten("medium_quality_magic_crystal"), 4),
+                        List.of(new ItemStack(ten("low_quality_magic_crystal"), 8),
+                                potion("Potion of Invisibility", 0x7F8392,
+                                        eff(net.minecraft.world.effect.MobEffects.INVISIBILITY, 0)),
                                 new ItemStack(ten("bronze_coin"), 10)),
                         4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("cl_gold", "Gold to Grease Palms",
                         new SupplyItems(Items.GOLD_INGOT, 32),
-                        List.of(new ItemStack(ten("medium_quality_magic_crystal"), 4),
+                        List.of(new ItemStack(ten("low_quality_magic_crystal"), 8),
+                                potion("Potion of Night Vision", 0x1F1FA1,
+                                        eff(net.minecraft.world.effect.MobEffects.NIGHT_VISION, 0)),
                                 new ItemStack(ten("bronze_coin"), 12)),
                         5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
                 // Obedient Subjects (was Happiness) — now an active supply deal.

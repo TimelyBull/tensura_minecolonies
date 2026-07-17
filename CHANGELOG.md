@@ -25,6 +25,17 @@ Copy the relevant version's section into the CurseForge release notes on each up
   it now comes from the third layer instead.)
 
 ### Changed
+- **Factions now reward custom brews.** Several deals that paid out a single
+  filler item now hand you a themed, custom-named potion (each lasting 1:30):
+  Falmuth's **Crusader's Draught** (Strength + Resistance) and **Siegebreaker's
+  Tonic** (Haste + Resistance), Milim's **Dragon's Vigor** (Strength II +
+  Regeneration), Eurazania's **Beast-Blood Draught** (Speed, Strength, Jump
+  Boost), and Clayman's **Potion of Invisibility** / **Potion of Night Vision**
+  for its spy work. Falmuth also gained a new deal, **The Siege Train**.
+- **Milim's two boss hunts swapped payouts.** Slaying the **Warden** ("The
+  Ultimate Brawl") is now Milim's signature feat and awards the **Absolute
+  Annihilator**, while slaying the Wither ("Prove Your Strength") pays out
+  enchanted golden apples, diamonds, gold and a Battlewill Manual.
 - **Clayman (the Moderate Harlequin Alliance) deals reworked.** Its quest board no
   longer hands back the same thing you delivered, every deal now pays coins scaled
   to your standing, and the deals that just watched your colony's buildings, size,

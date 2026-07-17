@@ -382,10 +382,11 @@ Schematic — needs the time-windowed-slay mechanic; see future-ideas.md.)*
 | I Need More Steel! | Deliver 10 Iron Block | 5 Gold Block + **Diamond Sword (Sharpness III + Looting + Unbreaking)** + 15 Bronze Coin | NEUTRAL |
 | Blades of Magisteel | Deliver 4 Low Magisteel | 4 Gold Block + Enhancement Tome + 8 Silver Coin | FRIENDLY |
 | Powder for the Cannons | Deliver 32 Gunpowder | 8 Gold + 4 Diamond + 20 Bronze Coin | NEUTRAL |
-| Walls and Watchmen | Deliver 32 Iron Block | 3 Low Magisteel | ALLIED |
+| Walls and Watchmen | Deliver 32 Iron Block | 3 Low Magisteel + **Siegebreaker's Tonic** + 2 Gold Coin | ALLIED |
+| The Siege Train | Deliver 8 TNT + 8 Iron Block | **Siegebreaker's Tonic** + 10 Silver Coin | FRIENDLY |
 | Towers and Bowmen | Deliver 128 Arrow | 1 Short Bow + 8 Gold + 20 Bronze Coin | NEUTRAL |
 | A Mighty Defense ★ | Slay 30 raiders | Long Sword Schematic + Battlewill Manual + 2 Gold Coin | ALLIED |
-| A Standing Garrison | Lend 3 × Stamina≥10 | 3 Iron Block | FRIENDLY |
+| A Standing Garrison | Lend 3 × Stamina≥10 | 3 Iron Block + **Crusader's Draught** + 8 Silver Coin | FRIENDLY |
 | Hands for the Fields | Lend 5 × Stamina≥10 | 16 Iron + 8 Gold | FRIENDLY |
 | Shock Troops Abroad | Lend 3 × Strength≥8 | 3 High Magisteel + 8 Diamond | ALLIED |
 
@@ -396,7 +397,7 @@ Schematic — needs the time-windowed-slay mechanic; see future-ideas.md.)*
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
 | A Feast Worthy of Me! | Deliver 64 Cooked Porkchop | 16 Golden Carrot + 8 Gold | NEUTRAL |
-| More Meat! | Deliver 64 Cooked Beef | 16 Golden Carrot | NEUTRAL |
+| More Meat! | Deliver 64 Cooked Beef | 16 Golden Carrot + **Dragon's Vigor** | NEUTRAL |
 | Bring Me Fireworks! | Deliver 16 Firework Rocket | 6 Gold + 12 Bronze Coin + 4 Golden Carrot | NEUTRAL |
 | Sweets for Milim | Deliver 64 Cookie | 2 Golden Apple + 8 Gold | NEUTRAL |
 | Cake, and Lots of It! | Deliver 8 Cake | 2 Golden Apple + 8 Gold + Gravity Tome | FRIENDLY |
@@ -405,9 +406,9 @@ Schematic — needs the time-windowed-slay mechanic; see future-ideas.md.)*
 | A Dragon's Hoard | Deliver 64 Golden Carrot | 6 Diamond + 8 Gold + Golden Apple + 8 Silver Coin | FRIENDLY |
 | Keep Them Cheerful | Deliver 8 Cake + 64 Cookie | 1 Enchanted Golden Apple + 8 Diamond + 8 Silver Coin | FRIENDLY |
 | Champions for Milim | Lend 2 × Strength≥10 | 6 Diamond + 2 Golden Apple + Battlewill Manual | FRIENDLY |
-| Prove Your Strength | Slay the Wither | **Absolute Annihilator** (custom PLAIN weapon: 20 dmg, 1.8 spd, +2.5 reach, gold ench, netherite-axe durability; earns holy_coat engraving + EP-scaling powers via gear_existence — see future-ideas.md "Absolute Annihilator") + 2 Gold Coin | ALLIED |
-| The Ultimate Brawl | Slay the Warden | 2 Enchanted Golden Apple + 12 Diamond + 4 Gold Coin + Battlewill Manual | ALLIED |
-| Warriors to Spar ★ | Lend 2 × Athletics≥8 | 8 Diamond + 1 Enchanted Golden Apple | ALLIED |
+| Prove Your Strength | Slay the Wither | 2 Enchanted Golden Apple + 12 Diamond + 4 Gold Coin + Battlewill Manual | ALLIED |
+| The Ultimate Brawl ★ | Slay the Warden | **Absolute Annihilator** (custom PLAIN weapon: 20 dmg, 1.8 spd, +2.5 reach, gold ench, netherite-axe durability; earns holy_coat engraving + EP-scaling powers via gear_existence — see future-ideas.md "Absolute Annihilator") + 2 Gold Coin | ALLIED |
+| Warriors to Spar | Lend 2 × Athletics≥8 | 8 Diamond + 1 Enchanted Golden Apple | ALLIED |
 
 **Eurazania** (Tier II — beast kingdom): *reworked 2026-07-16 — monster leather +
 beast mats + coin ladder; the 4 milestone deals converted to active (supply/hunt).*
@@ -415,7 +416,7 @@ beast mats + coin ladder; the 4 milestone deals converted to active (supply/hunt
 |---|---|---|---|
 | Hides for the Beastfolk | Deliver 32 Leather | 8 Monster Leather B + 12 Bronze Coin | NEUTRAL |
 | Meat for the Pack | Deliver 64 Cooked Beef | 8 Meaty Stew + 10 Bronze Coin | NEUTRAL |
-| Bones for the Den | Deliver 64 Bone | 32 Bone Meal + 2 Beast Horn + 8 Bronze Coin | NEUTRAL |
+| Bones for the Den | Deliver 64 Bone | 32 Bone Meal + **Beast-Blood Draught** + 8 Bronze Coin | NEUTRAL |
 | Sinew for Snares | Deliver 48 String | 12 Monster Leather B + 8 Bronze Coin | NEUTRAL |
 | A Proper Den *(was Dens/BuildingLevel)* | Deliver 2 Campfire + 16 Oak Log | 20 Silver Coin | FRIENDLY |
 | A Great Hunt *(was Great Pack/Population)* | Slay 40 monsters | 10 Monster Leather A + 4 Beast Horn + 12 Silver Coin | FRIENDLY |
@@ -434,8 +435,8 @@ ladder added, the 4 milestone deals converted to active; ★ moved to The Marion
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
 | Magic Crystals *(renamed)* | Deliver 16 Low Crystal | 16 Redstone + 12 Bronze Coin | NEUTRAL |
-| Whispers and Wires | Deliver 64 Redstone | 4 Medium Crystal + 10 Bronze Coin | NEUTRAL |
-| Gold to Grease Palms | Deliver 32 Gold | 4 Medium Crystal + 12 Bronze Coin | NEUTRAL |
+| Whispers and Wires | Deliver 64 Redstone | 8 Low Crystal + **Potion of Invisibility** + 10 Bronze Coin | NEUTRAL |
+| Gold to Grease Palms | Deliver 32 Gold | 8 Low Crystal + **Potion of Night Vision** + 12 Bronze Coin | NEUTRAL |
 | Obedient Subjects *(was Happiness)* | Deliver 24 Redstone | 2 Medium Crystal + 8 Bronze Coin | NEUTRAL |
 | Magicule Tithe | Deliver 8 Medium Crystal | 1 High Crystal + Illusion Tome + 8 Silver Coin | FRIENDLY |
 | A Site of Dark Power *(was BuildingLevel)* | Deliver 8 Medium Crystal + 4 Magic Stone | 2 High Crystal + Buff Scroll + 8 Silver Coin | FRIENDLY |
