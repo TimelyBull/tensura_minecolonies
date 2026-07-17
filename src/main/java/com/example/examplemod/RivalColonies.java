@@ -2407,6 +2407,9 @@ public final class RivalColonies {
         // marked-kill world-rep fan-out already fired on its death; D
         // layers rewards on top, no double-apply).
         ConquestPayoff.apply(level, s, player);
+        // Diplomacy — a won war fulfils any active WinWar deal (e.g. Clayman's
+        // "The Marionette" capstone).
+        DiplomacyManager.onWarWon(level, player.getUUID());
         clearGarrisonGlow(level, s);
         clearAssaultState(s, true); // keep conquestReached
         SettlementSavedData.get(level).markChanged();

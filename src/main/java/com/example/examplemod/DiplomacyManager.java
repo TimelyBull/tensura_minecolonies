@@ -1246,6 +1246,8 @@ public final class DiplomacyManager {
             // Bundles deliver via the button; hunts track via kills.
             case DealSpec.SupplyBundle ignored -> false;
             case DealSpec.SlayEntities ignored -> false;
+            // Wars fulfil through the rival-colony win hook (onWarWon).
+            case DealSpec.WinWar ignored -> false;
         };
     }
 
@@ -1287,6 +1289,34 @@ public final class DiplomacyManager {
             }
             if (deal.progress >= hunt.count()) {
                 fulfillDeal(level, killer, faction, deal, spec);
+            }
+        }
+    }
+
+    /** WinWar tracking — called from {@code RivalColonies.resolveWin} when a
+     *  player wins an assault on a rival settlement: bump matching war deals. */
+    static void onWarWon(ServerLevel level, UUID player) {
+        if (!isEnabled()) return;
+        DiplomacySavedData data = DiplomacySavedData.get(level);
+        Map<String, ActiveDeal> byFaction = data.allDeals().get(player);
+        if (byFaction == null) return;
+        for (Map.Entry<String, ActiveDeal> e : new HashMap<>(byFaction).entrySet()) {
+            ActiveDeal deal = e.getValue();
+            if (deal.state != ActiveDeal.STATE_ACTIVE) continue;
+            DealSpec spec = DealSpec.byId(deal.dealId);
+            BossFaction faction = BossFaction.byId(e.getKey());
+            if (spec == null || faction == null) continue;
+            if (!(spec.requirement() instanceof DealSpec.WinWar war)) continue;
+            deal.progress++;
+            data.setDeal(player, e.getKey(), deal);
+            ServerPlayer online = level.getServer().getPlayerList().getPlayer(player);
+            if (online != null) {
+                online.sendSystemMessage(Component.literal("'" + spec.title() + "' — "
+                        + deal.progress + "/" + war.count() + ".")
+                        .withStyle(net.minecraft.ChatFormatting.YELLOW));
+            }
+            if (deal.progress >= war.count()) {
+                fulfillDeal(level, player, faction, deal, spec);
             }
         }
     }
@@ -1385,7 +1415,8 @@ public final class DiplomacyManager {
                     if (colony != null && !(spec.requirement() instanceof DealSpec.SupplyItems)
                             && !(spec.requirement() instanceof DealSpec.LendCitizens)
                             && !(spec.requirement() instanceof DealSpec.SupplyBundle)
-                            && !(spec.requirement() instanceof DealSpec.SlayEntities)) {
+                            && !(spec.requirement() instanceof DealSpec.SlayEntities)
+                            && !(spec.requirement() instanceof DealSpec.WinWar)) {
                         ActiveDeal probe = new ActiveDeal();
                         probe.colonyId = colony.getID();
                         if (isRequirementMet(level, probe, spec)) continue;

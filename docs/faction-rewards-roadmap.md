@@ -429,19 +429,28 @@ beast mats + coin ladder; the 4 milestone deals converted to active (supply/hunt
 | The Tanner's Trade | Deliver 12 Monster Leather B | 20 Silver Coin + 4 Diamond | NEUTRAL |
 | Pack Hunters | Slay 10 Direwolves | 2 Monster Leather Special A + 2 Golden Apple + 10 Silver Coin | FRIENDLY |
 
-**Clayman** (Tier I — schemer):
+**Clayman** (Tier I — schemer): *reworked 2026-07-16 — duplicates removed, coin
+ladder added, the 4 milestone deals converted to active; ★ moved to The Marionette.*
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
-| Crystals for the Scheme | Deliver 16 Low Crystal | 4 Low Crystal + 16 Redstone | NEUTRAL |
-| Whispers and Wires | Deliver 64 Redstone | 32 Redstone + 8 Gold | NEUTRAL |
-| Gold to Grease Palms | Deliver 32 Gold | 4 Medium Crystal + 16 Gold | NEUTRAL |
-| Magicule Tithe | Deliver 8 Medium Crystal | 1 High Crystal + 2 Medium Crystal + Illusion Tome | FRIENDLY |
-| A Site of Dark Power | Build mysticalsite 3 | 3 Medium Crystal + 8 Gold | FRIENDLY |
-| The Puppet-Maker's Workshop | Build enchanter 3 | 8 Lapis + 16 Redstone + Buff Scroll | FRIENDLY |
-| More Pawns | Pop 20 | 3 Medium Crystal + 1 Slime Core | FRIENDLY |
-| Obedient Subjects | Happy ≥ 7 | 16 Redstone + 8 Gold | NEUTRAL |
-| Spies Abroad | Lend 2 × Focus≥6 | 1 High Crystal + 8 Redstone + 8 Magic Stone | FRIENDLY |
-| Enforcers for the Cause ★ | Lend 2 × Strength≥8 | 2 High Crystal + 4 Diamond | ALLIED |
+| Magic Crystals *(renamed)* | Deliver 16 Low Crystal | 16 Redstone + 12 Bronze Coin | NEUTRAL |
+| Whispers and Wires | Deliver 64 Redstone | 4 Medium Crystal + 10 Bronze Coin | NEUTRAL |
+| Gold to Grease Palms | Deliver 32 Gold | 4 Medium Crystal + 12 Bronze Coin | NEUTRAL |
+| Obedient Subjects *(was Happiness)* | Deliver 24 Redstone | 2 Medium Crystal + 8 Bronze Coin | NEUTRAL |
+| Magicule Tithe | Deliver 8 Medium Crystal | 1 High Crystal + Illusion Tome + 8 Silver Coin | FRIENDLY |
+| A Site of Dark Power *(was BuildingLevel)* | Deliver 8 Medium Crystal + 4 Magic Stone | 2 High Crystal + Buff Scroll + 8 Silver Coin | FRIENDLY |
+| The Puppet-Maker's Workshop *(was BuildingLevel)* | Deliver 16 Lapis + 16 Redstone | 2 Buff Scroll + 32 Lapis + 8 Silver Coin | FRIENDLY |
+| More Pawns *(was Population)* | Lend 10 citizens | Slime Core + 3 Medium Crystal + 10 Silver Coin | FRIENDLY |
+| Spies Abroad | Lend 2 × Focus≥6 | 1 High Crystal + Illusion Tome + 6 Silver Coin | FRIENDLY |
+| Enforcers for the Cause | Lend 2 × Strength≥8 | 2 High Crystal + 4 Diamond + 2 Gold Coin | ALLIED |
+| A Grand Illusion | Deliver 1 Grimoire (A) | Illusion Tome + 2 High Crystal + 3 Gold Coin | ALLIED |
+| The Marionette ★ | **Declare war on a rival colony and win** | 3 High Crystal + Slime Core + 4 Gold Coin | ALLIED |
+
+**NEW requirement type — `WinWar`** (added 2026-07-16 for The Marionette): a deal
+completed by declaring war on a rival settlement and WINNING it. Event-driven —
+`RivalColonies.resolveWin` → `DiplomacyManager.onWarWon` bumps progress (never
+polled), same shape as `SlayEntities`. This is the first deal that ties the
+diplomacy board to the rival-colony war system.
 
 **Leon** (Tier III — fire/martial; expanded in Phase 3, now re-ranked to III):
 | Deal | Task | Reward | Tier |

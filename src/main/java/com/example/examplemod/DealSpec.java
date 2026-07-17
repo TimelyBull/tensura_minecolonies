@@ -112,7 +112,7 @@ public record DealSpec(
     /** What the faction asks for. Sealed — the extension seam. */
     public sealed interface Requirement
             permits SupplyItems, BuildingLevel, Population, Happiness, LendCitizens,
-                    MendingRite, SupplyBundle, SlayEntities {
+                    MendingRite, SupplyBundle, SlayEntities, WinWar {
         /** Player-facing one-liner ("Supply 64 Iron Ingot"). */
         String summary();
     }
@@ -137,6 +137,17 @@ public record DealSpec(
                                String label) implements Requirement {
         @Override public String summary() {
             return "Slay " + count + " — " + label;
+        }
+    }
+
+    /** Declare war on a rival settlement and WIN it ({@code count} times).
+     *  Event-driven: {@code RivalColonies.resolveWin} → the diplomacy
+     *  {@code onWarWon} hook bumps progress (never polled). */
+    public record WinWar(int count) implements Requirement {
+        @Override public String summary() {
+            return count == 1
+                    ? "Declare war on a rival colony and win"
+                    : "Declare and win " + count + " wars on rival colonies";
         }
     }
 
@@ -447,7 +458,7 @@ public record DealSpec(
         m.put("fa_fortress", io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
         m.put("mi_warriors", io.github.manasmods.tensura.registry.skill.CommonSkills.STRENGTH);
         m.put("ca_wild_haven", io.github.manasmods.tensura.registry.skill.IntrinsicSkills.GIANTIFICATION);
-        m.put("cl_enforcers", io.github.manasmods.tensura.registry.skill.IntrinsicSkills.CHARM);
+        m.put("cl_marionette", io.github.manasmods.tensura.registry.skill.IntrinsicSkills.CHARM);
         m.put("le_flamebearers", io.github.manasmods.tensura.registry.skill.ResistanceSkills.FLAME_ATTACK_RESISTANCE);
         // Phase 0 decision: Shizu is soft-retired — its sh_pupils skill mapping
         // is purged along with its catalog table + conquest profile.
@@ -1064,56 +1075,83 @@ public record DealSpec(
 
         // 🃏 CLAYMAN — schemer: crystals (lean), redstone, illusion tome.
         map.put("clayman", List.of(
-                new DealSpec("cl_crystals", "Crystals for the Scheme",
+                new DealSpec("cl_crystals", "Magic Crystals",
                         new SupplyItems(ten("low_quality_magic_crystal"), 16),
-                        List.of(new ItemStack(ten("low_quality_magic_crystal"), 4),
-                                new ItemStack(Items.REDSTONE, 16)),
+                        List.of(new ItemStack(Items.REDSTONE, 16),
+                                new ItemStack(ten("bronze_coin"), 12)),
                         5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("cl_redstone", "Whispers and Wires",
                         new SupplyItems(Items.REDSTONE, 64),
-                        List.of(new ItemStack(Items.REDSTONE, 32), new ItemStack(Items.GOLD_INGOT, 8)),
+                        List.of(new ItemStack(ten("medium_quality_magic_crystal"), 4),
+                                new ItemStack(ten("bronze_coin"), 10)),
                         4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("cl_gold", "Gold to Grease Palms",
                         new SupplyItems(Items.GOLD_INGOT, 32),
                         List.of(new ItemStack(ten("medium_quality_magic_crystal"), 4),
-                                new ItemStack(Items.GOLD_INGOT, 16)),
+                                new ItemStack(ten("bronze_coin"), 12)),
+                        5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
+                // Obedient Subjects (was Happiness) — now an active supply deal.
+                new DealSpec("cl_obedient", "Obedient Subjects",
+                        new SupplyItems(Items.REDSTONE, 24),
+                        List.of(new ItemStack(ten("medium_quality_magic_crystal"), 2),
+                                new ItemStack(ten("bronze_coin"), 8)),
                         5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("cl_magic_tithe", "Magicule Tithe",
                         new SupplyItems(ten("medium_quality_magic_crystal"), 8),
                         List.of(new ItemStack(ten("high_quality_magic_crystal"), 1),
-                                new ItemStack(ten("medium_quality_magic_crystal"), 2),
-                                new ItemStack(ten("magic_tome_illusion"), 1)),
+                                new ItemStack(ten("magic_tome_illusion"), 1),
+                                new ItemStack(ten("silver_coin"), 8)),
                         6.0, 5.0, 6 * DAY, 0, FactionTier.FRIENDLY, false),
+                // A Site of Dark Power (was BuildingLevel) — now an active supply deal.
                 new DealSpec("cl_mystic", "A Site of Dark Power",
-                        new BuildingLevel("mysticalsite", 3),
-                        List.of(new ItemStack(ten("medium_quality_magic_crystal"), 3),
-                                new ItemStack(Items.GOLD_INGOT, 8)),
-                        6.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
+                        new SupplyBundle(List.of(new ItemStack(ten("medium_quality_magic_crystal"), 8),
+                                new ItemStack(ten("magic_stone"), 4))),
+                        List.of(new ItemStack(ten("high_quality_magic_crystal"), 2),
+                                new ItemStack(mc("scroll_buff"), 1),
+                                new ItemStack(ten("silver_coin"), 8)),
+                        6.0, 5.0, 8 * DAY, 0, FactionTier.FRIENDLY, false),
+                // The Puppet-Maker's Workshop (was BuildingLevel) — now active supply.
                 new DealSpec("cl_enchanter", "The Puppet-Maker's Workshop",
-                        new BuildingLevel("enchanter", 3),
-                        List.of(new ItemStack(Items.LAPIS_LAZULI, 8), new ItemStack(Items.REDSTONE, 16),
-                                new ItemStack(mc("scroll_buff"), 1)),
-                        6.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
+                        new SupplyBundle(List.of(new ItemStack(Items.LAPIS_LAZULI, 16),
+                                new ItemStack(Items.REDSTONE, 16))),
+                        List.of(new ItemStack(mc("scroll_buff"), 2),
+                                new ItemStack(Items.LAPIS_LAZULI, 32),
+                                new ItemStack(ten("silver_coin"), 8)),
+                        6.0, 5.0, 8 * DAY, 0, FactionTier.FRIENDLY, false),
+                // More Pawns (was Population) — now a 10-citizen levy.
                 new DealSpec("cl_pawns", "More Pawns",
-                        new Population(20),
-                        List.of(new ItemStack(ten("medium_quality_magic_crystal"), 3),
-                                new ItemStack(ten("slime_core"), 1)),
-                        6.0, 5.0, 20 * DAY, 0, FactionTier.FRIENDLY, false),
-                new DealSpec("cl_obedient", "Obedient Subjects",
-                        new Happiness(7.0),
-                        List.of(new ItemStack(Items.REDSTONE, 16), new ItemStack(Items.GOLD_INGOT, 8)),
-                        5.0, 5.0, 12 * DAY, 0, FactionTier.NEUTRAL, false),
+                        new LendCitizens(Skill.Stamina, 1, 10, 3 * DAY, 2),
+                        List.of(new ItemStack(ten("slime_core"), 1),
+                                new ItemStack(ten("medium_quality_magic_crystal"), 3),
+                                new ItemStack(ten("silver_coin"), 10)),
+                        6.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("cl_spies", "Spies Abroad",
                         new LendCitizens(Skill.Focus, 6, 2, 2 * DAY, 2),
                         List.of(new ItemStack(ten("high_quality_magic_crystal"), 1),
-                                new ItemStack(Items.REDSTONE, 8),
-                                new ItemStack(ten("magic_stone"), 8)),
+                                new ItemStack(ten("magic_tome_illusion"), 1),
+                                new ItemStack(ten("silver_coin"), 6)),
                         7.0, 5.0, 2 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("cl_enforcers", "Enforcers for the Cause",
                         new LendCitizens(Skill.Strength, 8, 2, 3 * DAY, 3),
                         List.of(new ItemStack(ten("high_quality_magic_crystal"), 2),
-                                new ItemStack(Items.DIAMOND, 4)),
-                        8.0, 5.0, 3 * DAY, 0, FactionTier.ALLIED, false)));
+                                new ItemStack(Items.DIAMOND, 4),
+                                new ItemStack(ten("gold_coin"), 2)),
+                        8.0, 5.0, 3 * DAY, 0, FactionTier.ALLIED, false),
+                // A Grand Illusion — the grade-A grimoire commission.
+                new DealSpec("cl_grand_illusion", "A Grand Illusion",
+                        new SupplyItems(ten("grimoire_a"), 1),
+                        List.of(new ItemStack(ten("magic_tome_illusion"), 1),
+                                new ItemStack(ten("high_quality_magic_crystal"), 2),
+                                new ItemStack(ten("gold_coin"), 3)),
+                        9.0, 5.0, 12 * DAY, 0, FactionTier.ALLIED, false),
+                // The Marionette ★ — Clayman's capstone (grants the CHARM skill):
+                // pull the strings of a war and win it.
+                new DealSpec("cl_marionette", "The Marionette",
+                        new WinWar(1),
+                        List.of(new ItemStack(ten("high_quality_magic_crystal"), 3),
+                                new ItemStack(ten("slime_core"), 1),
+                                new ItemStack(ten("gold_coin"), 4)),
+                        10.0, 5.0, 24 * DAY, 0, FactionTier.ALLIED, false)));
 
         // 🔥 LEON — fire/flame. Phase 3 (faction-rewards roadmap): expanded
         // from 4 to 10 deals at TIER II (Major) value, matching Falmuth.

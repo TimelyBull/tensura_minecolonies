@@ -25,6 +25,13 @@ Copy the relevant version's section into the CurseForge release notes on each up
   it now comes from the third layer instead.)
 
 ### Changed
+- **Clayman (the Moderate Harlequin Alliance) deals reworked.** Its quest board no
+  longer hands back the same thing you delivered, every deal now pays coins scaled
+  to your standing, and the deals that just watched your colony's buildings, size,
+  or happiness were replaced with real tasks. Two new schemes were added: **A Grand
+  Illusion** (commission a grade-A grimoire) and **The Marionette** — a capstone
+  that asks you to **declare war on a rival colony and win it**, granting Clayman's
+  signature reward.
 - **Eurazania (the Beast Kingdom) deals reworked.** Its quest board now pays out
   in **monster leather, beast horns, meaty stew, a Full Potion, and beast-armor
   schematics** instead of plain leather, and every deal pays coins scaled to your
