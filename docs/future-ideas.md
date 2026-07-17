@@ -562,6 +562,22 @@ status; SkillAPI for mastered-skill counts + type breakdown), a branch selector
 keyed on the mastered-skill spread, and a prestige hook that scales-down without
 clearing unlocked abilities. Keep it all behind the config flag.
 
+**DECIDED so far (2026-07-16, Masterwork = the Dwargon-covenant instance):**
+- Crafting is NATIVE — Tensura's Smithing Bench (`tensura:smithing_bench` recipe,
+  up to 5 inputs + a `schematics` unlock gate + `SmithingSchematicItem`). Recipe:
+  `hihiirokane [weapon] + Masterwork Core → Masterwork [weapon]`, gated by a
+  Masterwork schematic. No custom recipe code.
+- BRANCH = mastered **Battlewills vs Magics**: ≥2 more battlewills → PHYSICAL lean;
+  ≥2 more magics → MAGIC lean; otherwise BALANCED.
+- 15+ skills mastered → unlocks a QOL/utility passive (ability TBD).
+- Also reads: EP (gear_existence), majin/human alignment (two forms), DL/Hero
+  seed + true status, prestige (decaying debuff, abilities kept).
+- **Unique-skill-SPECIFIC buffs = DEFERRED / MAYBE-NEVER (user, 2026-07-16):** a
+  possible future layer where a specific unique skill grants a specific weapon
+  buff (not just counts). Explicitly not committed — parked here. For now the
+  weapon only uses the battlewill-vs-magic spread + the 15+-mastered QOL unlock;
+  it does NOT read individual unique skills.
+
 ## Citizen aggression — a "Progressive" level (2026-06-27)
 
 Idea (user-requested 2026-06-27): add a fourth value to the `citizenAggression`
