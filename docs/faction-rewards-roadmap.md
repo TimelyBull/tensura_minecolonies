@@ -520,6 +520,16 @@ Forging Core** — a known dead-end item (see future-ideas.md). Cross-axis: the
 emerald amount matches the tier (III=64, II=48, I=32), but the *task difficulty*
 varies a lot (Pop 25 vs. slay the Wither) — a Phase 4 cross-check candidate.
 
+**7B REWORK IN PROGRESS (2026-07-16) — each covenant gets a UNIQUE hard task +
+a fully custom reward** (replacing the flat emerald payouts):
+- **Dwargon** → the **Masterwork Weapon** system (IN DESIGN, see below / decisions.md).
+  Reward = Masterwork Weapon Core + a schematic that unlocks a smithing-table line
+  of player-status-scaling "Masterwork" weapons. INVERTS today's deal (which
+  *consumes* a core) — the covenant now GRANTS the core.
+- **Milim** (PLANNED, not yet done) → move the **Absolute Annihilator** to
+  `cov_milim` as its custom covenant reward, and change the catalog "The Ultimate
+  Brawl" (slay Warden) reward to **1 Drago Nova**.
+
 ### 7C. Skill rewards
 
 **What it is / in game:** each faction has ONE catalog deal (the ★ rows above)
