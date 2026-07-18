@@ -286,6 +286,16 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                                     .fireResistant()
                                     .attributes(masterworkWeaponAttributes(6.0, -2.4))));
 
+    /** Masterwork Katana — faster, slightly lower base than the sword. Real art
+     *  (the others in the line use placeholder textures for now). */
+    public static final DeferredItem<MasterworkItem> MASTERWORK_KATANA =
+            ITEMS.register("masterwork_katana",
+                    () -> new MasterworkItem(MASTERWORK_TIER,
+                            new net.minecraft.world.item.Item.Properties()
+                                    .rarity(net.minecraft.world.item.Rarity.EPIC)
+                                    .fireResistant()
+                                    .attributes(masterworkWeaponAttributes(5.0, -2.2))));
+
     /** Base melee attributes for a Masterwork weapon (EP evolutions add on top). */
     private static net.minecraft.world.item.component.ItemAttributeModifiers masterworkWeaponAttributes(
             double attackDamage, double attackSpeed) {
@@ -404,6 +414,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         output.accept(ABSOLUTE_ANNIHILATOR.get());
                         output.accept(MASTERWORK_SCHEMATIC.get());
                         output.accept(MASTERWORK_SWORD.get());
+                        output.accept(MASTERWORK_KATANA.get());
                     })
                     .build());
 

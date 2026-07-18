@@ -593,6 +593,21 @@ clearing unlocked abilities. Keep it all behind the config flag.
 - **Prestige debuff**: on prestige, base damage drops to a floor of **10**
   (cut% = (current−10)/current); apply that SAME % cut to every other stat;
   recovers as EP regrows. Abilities/forms are kept.
+- **QOL tiers (cumulative, mastered-skill count):** 10+ → **magnet** (drops fly to
+  you); 15+ → **step assist**; 20+ → **soulbound** (keep on death).
+- **Branch ability ENERGY COST (user, 2026-07-16):** the branch special (read as
+  the right-click ability — left-click is vanilla attack) CONSUMES energy per use
+  — PHYSICAL sweep drains AURA, MAGIC slice drains MAGICULE (amount = my pick,
+  flat + tunable; balanced has no ability so no cost).
+- **Self-repair = NATIVE:** the weapon is an EP-gaining item, so Tensura's
+  EP-backed durability (`EP_DURABILITY` in gear_existence) auto-repairs it. No
+  custom self-repair code.
+- **PLACEHOLDER TEXTURES to replace later (2026-07-16):** the Masterwork **Katana**
+  has REAL art (the purple/blue katana download, processed to
+  `masterwork_katana.png` 64×64). Still placeholder (reusing Tensura art), replace
+  when the line is proven: `masterwork_sword` (→ hihiirokane_sword texture),
+  `masterwork_schematic` (→ leather_gear_schematic texture), and every future
+  weapon in the line (great sword + the remaining ~8 hihiirokane weapon types).
 - **Aura/Magicule → log-curve damage multiplier = DEFERRED (do not build yet).**
   RESEARCH (2026-07-16): a per-race split IS real — every `TensuraRace` defines
   BOTH `getBaseAuraRange()` and `getBaseMagiculeRange()`, entities track

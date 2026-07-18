@@ -28,8 +28,10 @@ Masterwork Sword is EP-capable (gear_existence: minEP 100k / maxEP 2M / attack
 evolutions +4/+9/+15/+22) so it grows and self-repairs via EP-backed durability.
 ⚠ This is the FOUNDATION only — the player-status layer (alignment lifesteal/regen
 + dark/light on-hit, battlewill/magic branch abilities, 10/15/20 mastered QOL,
-prestige debuff) is NOT built yet. Textures are PLACEHOLDERS (reuse hihiirokane
-sword / leather schematic art).
+prestige debuff) is NOT built yet. The **Masterwork Katana** (hihiirokane_katana
++ core, same gear_existence/growth) is also added with **REAL art** (64×64
+purple/blue katana); the Sword + Schematic textures are PLACEHOLDERS (reuse
+hihiirokane sword / leather schematic art).
 
 **How to test:**
 1. Creative: grab the Masterwork Schematic + Masterwork Sword + Masterwork Weapon
