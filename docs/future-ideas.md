@@ -578,6 +578,34 @@ clearing unlocked abilities. Keep it all behind the config flag.
   weapon only uses the battlewill-vs-magic spread + the 15+-mastered QOL unlock;
   it does NOT read individual unique skills.
 
+**LOCKED (2026-07-16, cont.):**
+- **cov_dwargon task** = deliver **1 Block of Netherite + 1 Hihiirokane Ingot**.
+- **Core** = reuse `MASTERWORK_FORGING_CORE`, relabel display "Masterwork Weapon
+  Core". **One** schematic unlocks the whole line. First cut = 3 weapons
+  (sword, katana, great sword).
+- **Alignment** (classifier = `WorldReputationManager.isMajinSide`, confirmed a
+  binary majin-vs-non-majin): MAJIN → slight lifesteal; NON-MAJIN → slight regen
+  boost. Dark on-hit (majin) / light on-hit (non-majin).
+- **Branch right-clicks** (battlewill-vs-magic mastered spread): PHYSICAL → a
+  sweep attack (for now a sweeping-edge particle arc in front, 30s cooldown);
+  MAGIC → a magic-slice projectile that flies forward; BALANCED → base weapon
+  (no special right-click).
+- **Prestige debuff**: on prestige, base damage drops to a floor of **10**
+  (cut% = (current−10)/current); apply that SAME % cut to every other stat;
+  recovers as EP regrows. Abilities/forms are kept.
+- **Aura/Magicule → log-curve damage multiplier = DEFERRED (do not build yet).**
+  RESEARCH (2026-07-16): a per-race split IS real — every `TensuraRace` defines
+  BOTH `getBaseAuraRange()` and `getBaseMagiculeRange()`, entities track
+  `getAura()`/`getMagicule()` separately + an `isSpiritualForm()` flag. Direction
+  (Tensura energy model): magicule = monster/majin/spiritual energy (magic +
+  skills), aura = warrior/physical energy (battlewill) — so majin/spiritual skew
+  magicule, human/physical skew aura, but EVERY race has some of BOTH (a ratio,
+  not a binary). ⇒ RECOMMENDATION: when we do build it, key the multiplier to
+  the WEAPON BRANCH (physical→aura, magic→magicule, balanced→EP or max), NOT to
+  majin/non-majin — cleaner and uses values that already exist. (Exact per-race
+  ratios weren't extractable via javap; would need decompile / in-game to prove
+  magnitude, but the structural split is confirmed.)
+
 ## Citizen aggression — a "Progressive" level (2026-06-27)
 
 Idea (user-requested 2026-06-27): add a fourth value to the `citizenAggression`
