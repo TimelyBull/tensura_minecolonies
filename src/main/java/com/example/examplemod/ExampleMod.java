@@ -255,6 +255,51 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public static final DeferredItem<net.minecraft.world.item.Item> MASTERWORK_FORGING_CORE =
             ITEMS.registerSimpleItem("masterwork_forging_core",
                     new net.minecraft.world.item.Item.Properties().stacksTo(16));
+    /** Dwargon Covenant reward — right-click UNLOCKS the whole Masterwork weapon
+     *  line at the Tensura Smithing Bench. Reuses Tensura's native schematic item
+     *  (its use() calls ITensuraPlayer.unlockSchematic; SmithingBenchRecipe gates
+     *  on it). */
+    public static final DeferredItem<net.minecraft.world.item.Item> MASTERWORK_SCHEMATIC =
+            ITEMS.register("masterwork_schematic",
+                    io.github.manasmods.tensura.item.misc.SmithingSchematicItem::new);
+    /** Masterwork weapon tier — high, netherite-ish; durability is EP-backed
+     *  (gear_existence EP_DURABILITY) so vanilla uses matter little. */
+    public static final net.minecraft.world.item.Tier MASTERWORK_TIER = new net.minecraft.world.item.Tier() {
+        @Override public int getUses() { return 2031; }
+        @Override public float getSpeed() { return 9.0f; }
+        @Override public float getAttackDamageBonus() { return 0.0f; }
+        @Override public net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> getIncorrectBlocksForDrops() {
+            return net.minecraft.tags.BlockTags.INCORRECT_FOR_NETHERITE_TOOL;
+        }
+        @Override public int getEnchantmentValue() { return 22; }
+        @Override public net.minecraft.world.item.crafting.Ingredient getRepairIngredient() {
+            return net.minecraft.world.item.crafting.Ingredient.of(net.minecraft.world.item.Items.NETHERITE_INGOT);
+        }
+    };
+    /** Masterwork Sword — the first of the player-status-scaling Masterwork line
+     *  (forged from a hihiirokane sword + Masterwork Weapon Core). */
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SWORD =
+            ITEMS.register("masterwork_sword",
+                    () -> new MasterworkItem(MASTERWORK_TIER,
+                            new net.minecraft.world.item.Item.Properties()
+                                    .rarity(net.minecraft.world.item.Rarity.EPIC)
+                                    .fireResistant()
+                                    .attributes(masterworkWeaponAttributes(6.0, -2.4))));
+
+    /** Base melee attributes for a Masterwork weapon (EP evolutions add on top). */
+    private static net.minecraft.world.item.component.ItemAttributeModifiers masterworkWeaponAttributes(
+            double attackDamage, double attackSpeed) {
+        var op = net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE;
+        var mainhand = net.minecraft.world.entity.EquipmentSlotGroup.MAINHAND;
+        return net.minecraft.world.item.component.ItemAttributeModifiers.builder()
+                .add(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE,
+                        new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                                net.minecraft.world.item.Item.BASE_ATTACK_DAMAGE_ID, attackDamage, op), mainhand)
+                .add(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_SPEED,
+                        new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                                net.minecraft.world.item.Item.BASE_ATTACK_SPEED_ID, attackSpeed, op), mainhand)
+                .build();
+    }
     /** Milim milestone intermediate (8 honeycomb + 1 pure magisteel). */
     public static final DeferredItem<net.minecraft.world.item.Item> APITO_NECTAR =
             ITEMS.registerSimpleItem("apito_nectar",
@@ -357,6 +402,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         output.accept(APITOS_JELLY.get());
                         output.accept(DRAGO_NOVA.get());
                         output.accept(ABSOLUTE_ANNIHILATOR.get());
+                        output.accept(MASTERWORK_SCHEMATIC.get());
+                        output.accept(MASTERWORK_SWORD.get());
                     })
                     .build());
 

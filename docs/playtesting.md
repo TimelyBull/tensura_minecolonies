@@ -15,6 +15,34 @@ test** (concrete steps + what you should see), **status**.
 
 ## OPEN — needs playtesting
 
+### 0d. Masterwork weapons — FOUNDATION (crafting flow) (2026-07-16)
+
+**What changed** (`ExampleMod` items, `MasterworkItem`, `DealSpec` cov_dwargon,
+new gear_existence/recipe/tag/models): the Dwargon Covenant "The Masterwork
+Commission" now asks for **1 Netherite Block + 1 Hihiirokane Ingot** and GRANTS a
+**Masterwork Weapon Core** (renamed from Forging Core) + a **Masterwork Schematic**
+(reuses Tensura's native `SmithingSchematicItem` — right-click to unlock). At the
+**Tensura Smithing Bench**, `hihiirokane_sword + Masterwork Weapon Core →
+Masterwork Sword` (gated by the schematic via the recipe's `schematics` list). The
+Masterwork Sword is EP-capable (gear_existence: minEP 100k / maxEP 2M / attack
+evolutions +4/+9/+15/+22) so it grows and self-repairs via EP-backed durability.
+⚠ This is the FOUNDATION only — the player-status layer (alignment lifesteal/regen
++ dark/light on-hit, battlewill/magic branch abilities, 10/15/20 mastered QOL,
+prestige debuff) is NOT built yet. Textures are PLACEHOLDERS (reuse hihiirokane
+sword / leather schematic art).
+
+**How to test:**
+1. Creative: grab the Masterwork Schematic + Masterwork Sword + Masterwork Weapon
+   Core from the mod tab. Right-click the schematic → should say unlocked.
+2. Place a Tensura Smithing Bench; put a hihiirokane sword + Masterwork Weapon
+   Core in → the Masterwork Sword recipe should appear ONLY after the schematic
+   is unlocked; craft it.
+3. Hold/equip it → confirm the EP line appears; kill mobs → EP climbs, attack
+   damage grows at the evolution thresholds; durability doesn't deplete (EP-backed).
+4. With the faction system ON, ally Dwargon to Covenant and complete "The
+   Masterwork Commission" (deliver Netherite Block + Hihiirokane Ingot) → receive
+   the Core + Schematic.
+
 ### 0c. Drago Nova charge-up animation (2026-07-15)
 
 **What changed** (`DragoNovaItem`, `ExampleMod.onServerTickPost`): Drago Nova no

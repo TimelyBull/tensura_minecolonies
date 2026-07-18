@@ -285,16 +285,15 @@ public record DealSpec(
 
     private static Map<String, DealSpec> buildCovenantDeals() {
         Map<String, DealSpec> map = new LinkedHashMap<>();
+        // Dwargon Covenant — GRANTS the Masterwork Weapon Core + the schematic
+        // that unlocks the Masterwork weapon line at the Tensura Smithing Bench.
+        // (Inverts the old deal, which consumed a core.)
         map.put("dwargon", new DealSpec("cov_dwargon", "The Masterwork Commission",
                 new SupplyBundle(List.of(
-                        new ItemStack(net.minecraft.core.registries.BuiltInRegistries.ITEM.get(
-                                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
-                                        "tensura", "hihiirokane_katana")), 1),
-                        new ItemStack(net.minecraft.core.registries.BuiltInRegistries.ITEM.get(
-                                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
-                                        "tensura", "pure_magisteel_ingot")), 8),
-                        new ItemStack(ExampleMod.MASTERWORK_FORGING_CORE.get(), 1))),
-                List.of(new ItemStack(Items.EMERALD, 48)),
+                        new ItemStack(Items.NETHERITE_BLOCK, 1),
+                        new ItemStack(ten("hihiirokane_ingot"), 1))),
+                List.of(new ItemStack(ExampleMod.MASTERWORK_FORGING_CORE.get(), 1),
+                        new ItemStack(ExampleMod.MASTERWORK_SCHEMATIC.get(), 1)),
                 10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
         map.put("tempest", new DealSpec("cov_tempest", "A Thriving Metropolis",
                 new Population(25),
