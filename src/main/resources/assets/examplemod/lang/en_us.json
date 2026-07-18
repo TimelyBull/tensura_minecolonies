@@ -11,21 +11,17 @@
   "block.tensura_minecolonies.magicule_storage_tier4": "Magicule Storage (Tier 4)",
   "item.tensura_minecolonies.masterwork_forging_core": "Masterwork Weapon Core",
   "item.tensura_minecolonies.masterwork_schematic": "Masterwork Schematic",
-  "item.tensura_minecolonies.masterwork_sword": "Masterwork Sword",
   "item.tensura_minecolonies.masterwork_katana": "Masterwork Katana",
-  "item.tensura_minecolonies.masterwork_great_sword": "Masterwork Great Sword",
   "item.tensura_minecolonies.apito_nectar": "Apito Nectar",
   "item.tensura_minecolonies.apitos_jelly": "Apito's Jelly",
   "item.tensura_minecolonies.drago_nova": "Drago Nova",
   "block.examplemod.example_block": "Example Block",
   "item.examplemod.example_item": "Example Item",
-
   "tensura_minecolonies.configuration.title": "Tensura MineColonies Integration",
   "tensura_minecolonies.configuration.section.tensura_minecolonies.common.toml": "Tensura MineColonies Settings",
   "tensura_minecolonies.configuration.section.tensura_minecolonies.common.toml.title": "Tensura MineColonies Settings",
   "tensura_minecolonies.configuration.section.tensura_minecolonies.server.toml": "Tensura MineColonies Settings (Per-World)",
   "tensura_minecolonies.configuration.section.tensura_minecolonies.server.toml.title": "Tensura MineColonies Settings (Per-World)",
-
   "tensura_minecolonies.configuration.citizenAggression": "Mob Aggression",
   "tensura_minecolonies.configuration.enableFactionSystem": "Enable Faction System",
   "tensura_minecolonies.configuration.enableAssassins": "Enable Assassins",
@@ -39,12 +35,9 @@
   "tensura_minecolonies.configuration.magicNumber": "Magic Number (MDK placeholder)",
   "tensura_minecolonies.configuration.magicNumberIntroduction": "Magic Number Text (MDK placeholder)",
   "tensura_minecolonies.configuration.items": "Item List (MDK placeholder)",
-
   "key.categories.tensura_minecolonies": "Tensura MineColonies Integration",
   "key.tensura_minecolonies.open_roster": "Open Citizen Roster",
-
   "tensura_minecolonies.colony.created.goblin": "News of your new goblin town spreads far and wide. Wild goblins drawn to your banner will appear in your territory — name them, and they will serve.",
   "tensura_minecolonies.colony.created.orc": "Whispers of your orc settlement carry on the wind. Wild orcs answering the call will arrive in your territory — name them, and they will serve.",
-
   "tensura_minecolonies.command.patrol": "%s will patrol the outskirts of %s."
 }

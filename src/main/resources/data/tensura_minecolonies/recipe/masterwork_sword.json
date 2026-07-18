@@ -1,7 +1,0 @@
-{
-  "type": "tensura:smithing_bench",
-  "input1": { "item": "tensura:hihiirokane_sword" },
-  "input2": { "item": "tensura_minecolonies:masterwork_forging_core" },
-  "output": { "count": 1, "id": "tensura_minecolonies:masterwork_sword" },
-  "schematics": [ "tensura_minecolonies:masterwork_schematic" ]
-}

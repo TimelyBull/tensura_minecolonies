@@ -276,18 +276,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             return net.minecraft.world.item.crafting.Ingredient.of(net.minecraft.world.item.Items.NETHERITE_INGOT);
         }
     };
-    /** Masterwork Sword — the first of the player-status-scaling Masterwork line
-     *  (forged from a hihiirokane sword + Masterwork Weapon Core). */
-    public static final DeferredItem<MasterworkItem> MASTERWORK_SWORD =
-            ITEMS.register("masterwork_sword",
-                    () -> new MasterworkItem(MASTERWORK_TIER,
-                            new net.minecraft.world.item.Item.Properties()
-                                    .rarity(net.minecraft.world.item.Rarity.EPIC)
-                                    .fireResistant()
-                                    .attributes(masterworkWeaponAttributes(9.0, -2.4))));
-
-    /** Masterwork Katana — faster than the sword. Real art (the others in the
-     *  line use placeholder textures for now). */
+    /** Masterwork Katana — the first (and, for now, ONLY) weapon in the
+     *  player-status-scaling Masterwork line. Real art. */
     public static final DeferredItem<MasterworkItem> MASTERWORK_KATANA =
             ITEMS.register("masterwork_katana",
                     () -> new MasterworkItem(MASTERWORK_TIER,
@@ -295,14 +285,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                                     .rarity(net.minecraft.world.item.Rarity.EPIC)
                                     .fireResistant()
                                     .attributes(masterworkWeaponAttributes(9.0, -2.2))));
-    /** Masterwork Great Sword — slower, heavier swing. Placeholder art. */
-    public static final DeferredItem<MasterworkItem> MASTERWORK_GREAT_SWORD =
-            ITEMS.register("masterwork_great_sword",
-                    () -> new MasterworkItem(MASTERWORK_TIER,
-                            new net.minecraft.world.item.Item.Properties()
-                                    .rarity(net.minecraft.world.item.Rarity.EPIC)
-                                    .fireResistant()
-                                    .attributes(masterworkWeaponAttributes(9.0, -2.8))));
 
     /** Base melee attributes for a Masterwork weapon (EP evolutions add on top). */
     private static net.minecraft.world.item.component.ItemAttributeModifiers masterworkWeaponAttributes(
@@ -421,9 +403,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         output.accept(DRAGO_NOVA.get());
                         output.accept(ABSOLUTE_ANNIHILATOR.get());
                         output.accept(MASTERWORK_SCHEMATIC.get());
-                        output.accept(MASTERWORK_SWORD.get());
                         output.accept(MASTERWORK_KATANA.get());
-                        output.accept(MASTERWORK_GREAT_SWORD.get());
                     })
                     .build());
 

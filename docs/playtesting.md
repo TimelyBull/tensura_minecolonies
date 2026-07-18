@@ -26,8 +26,12 @@ Commission" now asks for **1 Netherite Block + 1 Hihiirokane Ingot** and GRANTS 
 Masterwork Sword` (gated by the schematic via the recipe's `schematics` list). The
 Masterwork Sword is EP-capable (gear_existence: minEP 100k / maxEP 2M / attack
 evolutions +4/+9/+15/+22) so it grows and self-repairs via EP-backed durability.
-The line is now **Sword + Katana + Great Sword** (katana has REAL art — 64×64
-purple/blue; sword/great-sword/schematic are PLACEHOLDERS reusing tensura art).
+The line is now **Katana only** (Sword + Great Sword removed — focusing on the
+katana). REAL art (48×48 purple/blue katana, re-oriented so the handle sits
+bottom-left / blade up-right like the Tensura katanas, longer + thicker). Max
+attack damage scales to **80** at max EP (base floor 10). Schematic is still a
+PLACEHOLDER texture. Tooltip: normal hover shows "Hold SHIFT to see abilities";
+SHIFT reveals the on-hit / branch / QOL ability list.
 The **full player-status layer is built** (`MasterworkItem`):
 - **On-hit (alignment):** MAJIN wielder → slight lifesteal + dark burst;
   NON-MAJIN → brief Regeneration + light burst.

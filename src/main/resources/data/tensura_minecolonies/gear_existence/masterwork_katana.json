@@ -7,41 +7,25 @@
     {
       "EP": 250000,
       "attributes": [
-        {
-          "type": "minecraft:generic.attack_damage",
-          "amount": 4.0,
-          "slot": "mainhand"
-        }
+        { "type": "minecraft:generic.attack_damage", "amount": 15.0, "slot": "mainhand" }
       ]
     },
     {
       "EP": 600000,
       "attributes": [
-        {
-          "type": "minecraft:generic.attack_damage",
-          "amount": 9.0,
-          "slot": "mainhand"
-        }
+        { "type": "minecraft:generic.attack_damage", "amount": 35.0, "slot": "mainhand" }
       ]
     },
     {
       "EP": 1200000,
       "attributes": [
-        {
-          "type": "minecraft:generic.attack_damage",
-          "amount": 15.0,
-          "slot": "mainhand"
-        }
+        { "type": "minecraft:generic.attack_damage", "amount": 55.0, "slot": "mainhand" }
       ]
     },
     {
       "EP": 2000000,
       "attributes": [
-        {
-          "type": "minecraft:generic.attack_damage",
-          "amount": 22.0,
-          "slot": "mainhand"
-        }
+        { "type": "minecraft:generic.attack_damage", "amount": 70.0, "slot": "mainhand" }
       ]
     }
   ]

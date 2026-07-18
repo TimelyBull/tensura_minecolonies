@@ -70,6 +70,40 @@ public class MasterworkItem extends SwordItem {
     }
 
     // ------------------------------------------------------------------
+    // Tooltip — SHIFT reveals the ability list; otherwise a hint line.
+    // (appendHoverText only runs client-side, so the client-only Screen
+    //  reference never loads on a dedicated server.)
+    // ------------------------------------------------------------------
+    @Override
+    public void appendHoverText(ItemStack stack, net.minecraft.world.item.Item.TooltipContext context,
+                                java.util.List<Component> tooltip,
+                                net.minecraft.world.item.TooltipFlag flag) {
+        if (net.minecraft.client.gui.screens.Screen.hasShiftDown()) {
+            tooltip.add(Component.literal("Grows with your Existence Points — self-repairs, damage scales with EP.")
+                    .withStyle(net.minecraft.ChatFormatting.AQUA));
+            tooltip.add(Component.literal("On hit:").withStyle(net.minecraft.ChatFormatting.GRAY));
+            tooltip.add(Component.literal("  Majin wielder → lifesteal + dark strike")
+                    .withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
+            tooltip.add(Component.literal("  Non-majin wielder → Regeneration + light strike")
+                    .withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
+            tooltip.add(Component.literal("Right-click ability (from your mastered skills):")
+                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+            tooltip.add(Component.literal("  More Battlewills → Sweep (spends aura)")
+                    .withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
+            tooltip.add(Component.literal("  More Magics → Magic Slice (spends magicule)")
+                    .withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
+            tooltip.add(Component.literal("  Balanced → none")
+                    .withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
+            tooltip.add(Component.literal("Mastered-skill perks: 10 magnet · 15 step assist · 20 soulbound")
+                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+        } else {
+            tooltip.add(Component.literal("Hold SHIFT to see abilities")
+                    .withStyle(net.minecraft.ChatFormatting.DARK_GRAY, net.minecraft.ChatFormatting.ITALIC));
+        }
+        super.appendHoverText(stack, context, tooltip, flag);
+    }
+
+    // ------------------------------------------------------------------
     // On-hit — alignment form (majin lifesteal / non-majin regen).
     // ------------------------------------------------------------------
     @Override
