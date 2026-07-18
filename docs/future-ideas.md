@@ -578,6 +578,16 @@ clearing unlocked abilities. Keep it all behind the config flag.
   weapon only uses the battlewill-vs-magic spread + the 15+-mastered QOL unlock;
   it does NOT read individual unique skills.
 
+**BUILT (2026-07-16):** the first cut is implemented — cov_dwargon grants the
+Core + schematic; Tensura Smithing-Bench recipes for Masterwork **Sword / Katana
+/ Great Sword** (`hihiirokane X + core`, schematic-gated); EP growth +
+self-repair (gear_existence); and the FULL status layer in `MasterworkItem`
+(alignment lifesteal/regen + dark/light on-hit; battlewill/magic branch sweep +
+magic-slice right-clicks with aura/magicule cost + 30s cd; 10/15/20 mastered
+magnet/step/soulbound; prestige = emergent from EP + base-10 floor). Deferred:
+the aura/magicule log-curve DAMAGE multiplier; the rest of the weapon line;
+real art for all but the katana.
+
 **LOCKED (2026-07-16, cont.):**
 - **cov_dwargon task** = deliver **1 Block of Netherite + 1 Hihiirokane Ingot**.
 - **Core** = reuse `MASTERWORK_FORGING_CORE`, relabel display "Masterwork Weapon

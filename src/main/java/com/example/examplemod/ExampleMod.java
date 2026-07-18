@@ -284,17 +284,25 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                             new net.minecraft.world.item.Item.Properties()
                                     .rarity(net.minecraft.world.item.Rarity.EPIC)
                                     .fireResistant()
-                                    .attributes(masterworkWeaponAttributes(6.0, -2.4))));
+                                    .attributes(masterworkWeaponAttributes(9.0, -2.4))));
 
-    /** Masterwork Katana — faster, slightly lower base than the sword. Real art
-     *  (the others in the line use placeholder textures for now). */
+    /** Masterwork Katana — faster than the sword. Real art (the others in the
+     *  line use placeholder textures for now). */
     public static final DeferredItem<MasterworkItem> MASTERWORK_KATANA =
             ITEMS.register("masterwork_katana",
                     () -> new MasterworkItem(MASTERWORK_TIER,
                             new net.minecraft.world.item.Item.Properties()
                                     .rarity(net.minecraft.world.item.Rarity.EPIC)
                                     .fireResistant()
-                                    .attributes(masterworkWeaponAttributes(5.0, -2.2))));
+                                    .attributes(masterworkWeaponAttributes(9.0, -2.2))));
+    /** Masterwork Great Sword — slower, heavier swing. Placeholder art. */
+    public static final DeferredItem<MasterworkItem> MASTERWORK_GREAT_SWORD =
+            ITEMS.register("masterwork_great_sword",
+                    () -> new MasterworkItem(MASTERWORK_TIER,
+                            new net.minecraft.world.item.Item.Properties()
+                                    .rarity(net.minecraft.world.item.Rarity.EPIC)
+                                    .fireResistant()
+                                    .attributes(masterworkWeaponAttributes(9.0, -2.8))));
 
     /** Base melee attributes for a Masterwork weapon (EP evolutions add on top). */
     private static net.minecraft.world.item.component.ItemAttributeModifiers masterworkWeaponAttributes(
@@ -415,6 +423,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         output.accept(MASTERWORK_SCHEMATIC.get());
                         output.accept(MASTERWORK_SWORD.get());
                         output.accept(MASTERWORK_KATANA.get());
+                        output.accept(MASTERWORK_GREAT_SWORD.get());
                     })
                     .build());
 
@@ -6868,6 +6877,38 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      *   - circle entities older than CIRCLE_DURATION_TICKS → discard
      *   - pending swaps past their executeAtTick → re-validate and run
      */
+    /** Masterwork soulbound (20+ mastered skills): items kept on death, held
+     *  here between death and respawn, keyed by player UUID. */
+    private static final java.util.Map<java.util.UUID, java.util.List<net.minecraft.world.item.ItemStack>>
+            MASTERWORK_SOULBOUND = new java.util.HashMap<>();
+
+    @SubscribeEvent
+    public void onMasterworkDrops(net.neoforged.neoforge.event.entity.living.LivingDropsEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer sp)) return;
+        if (MasterworkItem.masteredCount(sp) < MasterworkItem.SOULBOUND_MASTERED) return;
+        java.util.List<net.minecraft.world.item.ItemStack> keep = new java.util.ArrayList<>();
+        event.getDrops().removeIf(itemEntity -> {
+            if (itemEntity.getItem().getItem() instanceof MasterworkItem) {
+                keep.add(itemEntity.getItem().copy());
+                return true;
+            }
+            return false;
+        });
+        if (!keep.isEmpty()) MASTERWORK_SOULBOUND.put(sp.getUUID(), keep);
+    }
+
+    @SubscribeEvent
+    public void onMasterworkClone(net.neoforged.neoforge.event.entity.player.PlayerEvent.Clone event) {
+        if (!event.isWasDeath()) return;
+        java.util.List<net.minecraft.world.item.ItemStack> keep =
+                MASTERWORK_SOULBOUND.remove(event.getOriginal().getUUID());
+        if (keep == null) return;
+        net.minecraft.world.entity.player.Player np = event.getEntity();
+        for (net.minecraft.world.item.ItemStack s : keep) {
+            if (!np.getInventory().add(s)) np.drop(s, false);
+        }
+    }
+
     @SubscribeEvent
     public void onServerTickPost(ServerTickEvent.Post event) {
         MinecraftServer server = event.getServer();

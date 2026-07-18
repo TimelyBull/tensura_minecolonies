@@ -26,12 +26,27 @@ Commission" now asks for **1 Netherite Block + 1 Hihiirokane Ingot** and GRANTS 
 Masterwork Sword` (gated by the schematic via the recipe's `schematics` list). The
 Masterwork Sword is EP-capable (gear_existence: minEP 100k / maxEP 2M / attack
 evolutions +4/+9/+15/+22) so it grows and self-repairs via EP-backed durability.
-⚠ This is the FOUNDATION only — the player-status layer (alignment lifesteal/regen
-+ dark/light on-hit, battlewill/magic branch abilities, 10/15/20 mastered QOL,
-prestige debuff) is NOT built yet. The **Masterwork Katana** (hihiirokane_katana
-+ core, same gear_existence/growth) is also added with **REAL art** (64×64
-purple/blue katana); the Sword + Schematic textures are PLACEHOLDERS (reuse
-hihiirokane sword / leather schematic art).
+The line is now **Sword + Katana + Great Sword** (katana has REAL art — 64×64
+purple/blue; sword/great-sword/schematic are PLACEHOLDERS reusing tensura art).
+The **full player-status layer is built** (`MasterworkItem`):
+- **On-hit (alignment):** MAJIN wielder → slight lifesteal + dark burst;
+  NON-MAJIN → brief Regeneration + light burst.
+- **Right-click (branch):** mastered Battlewills − Magics ≥2 → PHYSICAL sweep
+  (arc AoE, drains ~5% max aura); Magics − Battlewills ≥2 → MAGIC forward slice
+  (drains ~5% max magicule); otherwise BALANCED (no ability). 30 s cooldown.
+- **QOL by mastered-skill count:** 10+ magnet (drops fly to you), 15+ step assist
+  (while held), 20+ soulbound (kept on death — via LivingDrops/Clone hooks).
+- **Prestige = emergent:** base damage floors at 10 (modifier 9); EP evolutions
+  add on top and fall back to 10 when EP drops, recovering as EP regrows.
+
+**Extra test steps:**
+5. Hit a mob as a majin race → you heal a sliver + dark particles; as a human
+   race → you gain Regeneration + light particles.
+6. Master 2+ more Battlewills than Magics → right-click does a sweep (aura drops,
+   30s cd); master 2+ more Magics → right-click fires a forward slice (magicule
+   drops); even split → right-click does nothing.
+7. Master 10 / 15 / 20 skills → nearby drops magnetise / you step up full blocks
+   while holding it / the weapon stays in your inventory after death.
 
 **How to test:**
 1. Creative: grab the Masterwork Schematic + Masterwork Sword + Masterwork Weapon
