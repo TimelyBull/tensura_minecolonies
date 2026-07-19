@@ -6857,6 +6857,16 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      *   - circle entities older than CIRCLE_DURATION_TICKS → discard
      *   - pending swaps past their executeAtTick → re-validate and run
      */
+    /** Masterwork QOL driver — every tick, only while the weapon is HELD (so a
+     *  dropped weapon stops magnetising and step-assist is always cleaned up). */
+    @SubscribeEvent
+    public void onMasterworkPlayerTick(net.neoforged.neoforge.event.tick.PlayerTickEvent.Post event) {
+        if (!(event.getEntity() instanceof ServerPlayer sp)) return;
+        boolean holding = sp.getMainHandItem().getItem() instanceof MasterworkItem
+                || sp.getOffhandItem().getItem() instanceof MasterworkItem;
+        MasterworkItem.tickQol(sp, holding);
+    }
+
     /** Masterwork soulbound (20+ mastered skills): items kept on death, held
      *  here between death and respawn, keyed by player UUID. */
     private static final java.util.Map<java.util.UUID, java.util.List<net.minecraft.world.item.ItemStack>>

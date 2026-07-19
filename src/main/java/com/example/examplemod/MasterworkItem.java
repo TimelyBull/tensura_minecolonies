@@ -202,23 +202,51 @@ public class MasterworkItem extends SwordItem {
     // QOL passives — magnet (10+) + step assist (15+). Soulbound (20+) is in
     // ExampleMod's death/clone hooks. Throttled to every 10 ticks.
     // ------------------------------------------------------------------
-    @Override
-    public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
-        if (level.isClientSide || !(entity instanceof ServerPlayer sp)) return;
-        if (sp.tickCount % 10 != 0) return;
-        int mastered = masteredCount(sp);
+    /** Mastered-skill count cache (the SkillAPI scan is too costly per tick). */
+    private static final java.util.Map<java.util.UUID, int[]> MASTERED_CACHE = new java.util.HashMap<>();
+    private static final int MAGNET_RADIUS = 6;
+
+    /**
+     * Per-tick QOL driver — called from {@code ExampleMod}'s player-tick hook.
+     * Runs EVERY tick (so the magnet is smooth, not stuttery) and only while the
+     * weapon is actually HELD, so a dropped weapon stops magnetising and the
+     * step-assist modifier is always cleaned up.
+     */
+    public static void tickQol(ServerPlayer sp, boolean holding) {
+        if (!holding) {
+            applyStepAssist(sp, false);
+            return;
+        }
+        int mastered = cachedMastered(sp);
         if (mastered >= MAGNET_MASTERED) pullNearbyItems(sp);
-        applyStepAssist(sp, selected && mastered >= STEP_MASTERED);
+        applyStepAssist(sp, mastered >= STEP_MASTERED);
     }
 
+    private static int cachedMastered(ServerPlayer sp) {
+        int[] e = MASTERED_CACHE.get(sp.getUUID());
+        if (e == null || sp.tickCount - e[1] > 40 || sp.tickCount < e[1]) {
+            e = new int[]{ masteredCount(sp), sp.tickCount };
+            MASTERED_CACHE.put(sp.getUUID(), e);
+        }
+        return e[0];
+    }
+
+    /** Smooth magnet: eased velocity blended every tick. Items still inside their
+     *  pickup delay (i.e. JUST thrown by the player) are left alone so you can
+     *  drop a weapon and look at it. */
     private static void pullNearbyItems(ServerPlayer player) {
+        Vec3 target = player.position().add(0, 0.4, 0);
         for (ItemEntity item : player.level().getEntitiesOfClass(ItemEntity.class,
-                player.getBoundingBox().inflate(6.0))) {
-            if (item.hasPickUpDelay() || !item.isAlive()) continue;
-            Vec3 pull = player.position().add(0, 0.4, 0).subtract(item.position());
-            if (pull.lengthSqr() < 1.0) continue;
-            item.setDeltaMovement(pull.normalize().scale(0.35));
-            item.setPickUpDelay(0);
+                player.getBoundingBox().inflate(MAGNET_RADIUS))) {
+            if (!item.isAlive() || item.hasPickUpDelay()) continue;
+            Vec3 diff = target.subtract(item.position());
+            double dist = diff.length();
+            if (dist < 0.6 || dist > MAGNET_RADIUS) continue;
+            // ease in with distance, then blend with current velocity => no jitter
+            double speed = Math.min(0.42, 0.06 + dist * 0.06);
+            Vec3 desired = diff.scale(speed / dist);
+            item.setDeltaMovement(item.getDeltaMovement().scale(0.6).add(desired.scale(0.4)));
+            item.hasImpulse = true;
         }
     }
 
