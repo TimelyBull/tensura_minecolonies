@@ -41,5 +41,12 @@ public class ExampleModClient {
                             io.github.manasmods.tensura.registry.item.misc.TensuraDataComponents.EP.get());
                     return (ep != null && ep >= AbsoluteAnnihilatorItem.CHARGE_EP) ? 1.0f : 0.0f;
                 }));
+
+        // Masterwork Katana: the blade starts as sleek steel at 0 EP and gains
+        // its shimmer in stages — this property selects the model per EP tier.
+        event.enqueueWork(() -> ItemProperties.register(
+                ExampleMod.MASTERWORK_KATANA.get(),
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "ep_tier"),
+                (stack, level, entity, seed) -> MasterworkItem.shimmerTier(stack)));
     }
 }

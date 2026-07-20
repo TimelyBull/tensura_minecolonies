@@ -65,6 +65,25 @@ public class MasterworkItem extends SwordItem {
 
     public enum Branch { PHYSICAL, MAGIC, BALANCED }
 
+    /**
+     * EP thresholds at which the blade's shimmer intensifies. MUST stay in sync
+     * with the {@code uniqueEvolutions} EPs in the weapon's gear_existence entry
+     * so the look changes exactly when the stats do. Tier 0 (below the first
+     * threshold) is the plain steel blade.
+     */
+    public static final double[] SHIMMER_TIERS = { 250_000, 600_000, 1_200_000, 2_000_000 };
+
+    /** 0 = sleek steel (freshly forged, 0 EP) … 4 = fully awakened shimmer. */
+    public static int shimmerTier(ItemStack stack) {
+        Double ep = stack.get(io.github.manasmods.tensura.registry.item.misc.TensuraDataComponents.EP.get());
+        double v = ep == null ? 0.0 : ep;
+        int tier = 0;
+        for (double threshold : SHIMMER_TIERS) {
+            if (v >= threshold) tier++;
+        }
+        return tier;
+    }
+
     public MasterworkItem(Tier tier, Properties properties) {
         super(tier, properties);
     }

@@ -43,6 +43,16 @@ The **full player-status layer is built** (`MasterworkItem`):
 - **Prestige = emergent:** base damage floors at 10 (modifier 9); EP evolutions
   add on top and fall back to 10 when EP drops, recovering as EP regrows.
 
+**EP-tiered blade look (2026-07-17):** the katana is **sleek steel at 0 EP** and
+gains its colour + an animated shimmer in 4 stages at the SAME EP thresholds as
+the damage evolutions (250k / 600k / 1.2M / 2M). Tier 0 is a static texture;
+tiers 1–4 are 10-frame animated strips (`_t1`.._t4` + `.mcmeta`, frametime 2)
+whose shimmer sweeps along the blade and grows stronger each tier. Driven by the
+client item property `tensura_minecolonies:ep_tier`
+(`MasterworkItem.shimmerTier`) + model overrides — so it changes live as EP
+climbs. ⚠ `SHIMMER_TIERS` must stay in sync with the gear_existence
+`uniqueEvolutions` EPs.
+
 **Extra test steps:**
 5. Hit a mob as a majin race → you heal a sliver + dark particles; as a human
    race → you gain Regeneration + light particles.
