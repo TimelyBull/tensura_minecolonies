@@ -1,0 +1,6 @@
+{
+  "parent": "item/handheld",
+  "textures": {
+    "layer0": "tensura_minecolonies:item/masterwork_kodachi_t1"
+  }
+}

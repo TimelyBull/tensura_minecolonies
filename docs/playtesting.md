@@ -26,9 +26,12 @@ Commission" now asks for **1 Netherite Block + 1 Hihiirokane Ingot** and GRANTS 
 Masterwork Sword` (gated by the schematic via the recipe's `schematics` list). The
 Masterwork Sword is EP-capable (gear_existence: minEP 100k / maxEP 2M / attack
 evolutions +4/+9/+15/+22) so it grows and self-repairs via EP-backed durability.
-The line is now **Katana only** (Sword + Great Sword removed — focusing on the
-katana). REAL art (48×48 purple/blue katana, re-oriented so the handle sits
-bottom-left / blade up-right like the Tensura katanas, longer + thicker). Max
+The line is now the **FULL 12 weapons** — katana, sword, short/long/great sword,
+kodachi, odachi, tachi, spear, scythe, axe, sickle — all with REAL art (48×48,
+from the user's sprite sheet + a dedicated scythe render, processed through the
+katana pipeline). Each is forged from its matching `tensura:hihiirokane_*` +
+a Masterwork Weapon Core. They share the damage floor/curve and differ by attack
+SPEED (sickle/kodachi/short_sword fastest → axe/scythe/great_sword slowest). Max
 attack damage scales to **80** at max EP (base floor 10). Schematic is still a
 PLACEHOLDER texture. Tooltip: normal hover shows "Hold SHIFT to see abilities";
 SHIFT reveals the on-hit / branch / QOL ability list.

@@ -276,15 +276,38 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             return net.minecraft.world.item.crafting.Ingredient.of(net.minecraft.world.item.Items.NETHERITE_INGOT);
         }
     };
-    /** Masterwork Katana — the first (and, for now, ONLY) weapon in the
-     *  player-status-scaling Masterwork line. Real art. */
-    public static final DeferredItem<MasterworkItem> MASTERWORK_KATANA =
-            ITEMS.register("masterwork_katana",
-                    () -> new MasterworkItem(MASTERWORK_TIER,
-                            new net.minecraft.world.item.Item.Properties()
-                                    .rarity(net.minecraft.world.item.Rarity.EPIC)
-                                    .fireResistant()
-                                    .attributes(masterworkWeaponAttributes(9.0, -2.2))));
+    /** Register one Masterwork weapon. Every one shares the base damage floor of
+     *  10 (modifier 9) — the prestige floor — and differs only by attack SPEED
+     *  per weapon type; EP evolutions stack damage on top (up to 80). */
+    private static DeferredItem<MasterworkItem> masterwork(String name, double attackSpeed) {
+        return ITEMS.register(name, () -> new MasterworkItem(MASTERWORK_TIER,
+                new net.minecraft.world.item.Item.Properties()
+                        .rarity(net.minecraft.world.item.Rarity.EPIC)
+                        .fireResistant()
+                        .attributes(masterworkWeaponAttributes(9.0, attackSpeed))));
+    }
+
+    // --- The Masterwork weapon line (forged from the matching hihiirokane
+    //     weapon + a Masterwork Weapon Core at the Tensura Smithing Bench).
+    public static final DeferredItem<MasterworkItem> MASTERWORK_KATANA      = masterwork("masterwork_katana", -2.2);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SWORD       = masterwork("masterwork_sword", -2.4);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SHORT_SWORD = masterwork("masterwork_short_sword", -2.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_LONG_SWORD  = masterwork("masterwork_long_sword", -2.5);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_GREAT_SWORD = masterwork("masterwork_great_sword", -2.9);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_KODACHI     = masterwork("masterwork_kodachi", -2.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_ODACHI      = masterwork("masterwork_odachi", -2.8);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_TACHI       = masterwork("masterwork_tachi", -2.4);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SPEAR       = masterwork("masterwork_spear", -2.7);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SCYTHE      = masterwork("masterwork_scythe", -2.9);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_AXE         = masterwork("masterwork_axe", -3.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SICKLE      = masterwork("masterwork_sickle", -1.9);
+
+    /** Every Masterwork weapon — drives the creative tab + the client EP-tier
+     *  model property, so adding one here wires it everywhere. */
+    public static final java.util.List<DeferredItem<MasterworkItem>> MASTERWORK_WEAPONS = java.util.List.of(
+            MASTERWORK_KATANA, MASTERWORK_SWORD, MASTERWORK_SHORT_SWORD, MASTERWORK_LONG_SWORD,
+            MASTERWORK_GREAT_SWORD, MASTERWORK_KODACHI, MASTERWORK_ODACHI, MASTERWORK_TACHI,
+            MASTERWORK_SPEAR, MASTERWORK_SCYTHE, MASTERWORK_AXE, MASTERWORK_SICKLE);
 
     /** Base melee attributes for a Masterwork weapon (EP evolutions add on top). */
     private static net.minecraft.world.item.component.ItemAttributeModifiers masterworkWeaponAttributes(
@@ -403,7 +426,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         output.accept(DRAGO_NOVA.get());
                         output.accept(ABSOLUTE_ANNIHILATOR.get());
                         output.accept(MASTERWORK_SCHEMATIC.get());
-                        output.accept(MASTERWORK_KATANA.get());
+                        for (var weapon : MASTERWORK_WEAPONS) output.accept(weapon.get());
                     })
                     .build());
 
