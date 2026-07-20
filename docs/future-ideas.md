@@ -612,6 +612,20 @@ real art for all but the katana.
 - **Self-repair = NATIVE:** the weapon is an EP-gaining item, so Tensura's
   EP-backed durability (`EP_DURABILITY` in gear_existence) auto-repairs it. No
   custom self-repair code.
+- **Magnet pull could be SMOOTHER (2026-07-17):** the QOL magnet now runs every
+  tick with an eased, velocity-blended pull (was every 10 ticks = stuttery), which
+  is much better but still not perfectly silky. Ideas for a future pass: lerp
+  toward a target velocity with proper acceleration/damping instead of a fixed
+  60/40 blend; cancel gravity while an item is being pulled (and restore it on
+  release) so the arc doesn't sag; scale the pull by how long the item has been
+  attracted; possibly interpolate client-side. Tunables live in
+  `MasterworkItem.pullNearbyItems` / `MAGNET_RADIUS`.
+- **⚠ minEP is 0 (2026-07-17, user-requested "start at 0 EP once crafted").**
+  RISK TO PLAYTEST: `GearHandler.initiateGearExistence` stamps `EP_DURABILITY`
+  from `minEP`, so a freshly-forged Masterwork weapon also starts with 0
+  EP-backed durability. If that makes the weapon spawn "broken"/unusable, bump
+  minEP to a small non-zero value (or decouple EP_DURABILITY) — vanilla
+  durability (2031 from MASTERWORK_TIER) should still apply either way.
 - **PLACEHOLDER TEXTURES to replace later (2026-07-16):** the Masterwork **Katana**
   has REAL art (the purple/blue katana download, processed to
   `masterwork_katana.png` 64×64). Still placeholder (reusing Tensura art), replace
