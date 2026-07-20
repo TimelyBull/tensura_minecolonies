@@ -612,6 +612,17 @@ real art for all but the katana.
 - **Self-repair = NATIVE:** the weapon is an EP-gaining item, so Tensura's
   EP-backed durability (`EP_DURABILITY` in gear_existence) auto-repairs it. No
   custom self-repair code.
+- **SPRITE RULE — keep the alpha silhouette clean (2026-07-20).** `item/handheld`
+  EXTRUDES the texture into 3D, so every 1-pixel notch/speck in the alpha outline
+  becomes real side geometry and the weapon reads as "bumpy" in-hand; enclosed
+  transparent pixels read as holes. When adding weapon art, after downscaling run
+  the silhouette cleanup: fill enclosed holes, fill 1px notches (transparent px
+  with >=6 opaque neighbours), drop specks (opaque px with <=1 opaque neighbour),
+  and re-fill any holes the smoothing creates (order matters — hole-fill LAST
+  re-introduces notches). Thresholds are chosen so 1px-wide blades/shafts (which
+  have 2 neighbours) survive. Verify with the specks/holes/notches diagnostic —
+  it should read 0/0/0, which is what the original katana scored and why it never
+  looked bumpy while the sheet-derived weapons did.
 - **Magnet pull could be SMOOTHER (2026-07-17):** the QOL magnet now runs every
   tick with an eased, velocity-blended pull (was every 10 ticks = stuttery), which
   is much better but still not perfectly silky. Ideas for a future pass: lerp
