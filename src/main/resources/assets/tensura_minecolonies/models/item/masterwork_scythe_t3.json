@@ -1,5 +1,5 @@
 {
-  "parent": "item/handheld",
+  "parent": "tensura:item/scythe_handheld",
   "textures": {
     "layer0": "tensura_minecolonies:item/masterwork_scythe_t3"
   }

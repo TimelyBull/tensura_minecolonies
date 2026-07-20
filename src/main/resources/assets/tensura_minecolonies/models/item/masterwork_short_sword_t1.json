@@ -1,5 +1,5 @@
 {
-  "parent": "item/handheld",
+  "parent": "minecraft:item/handheld",
   "textures": {
     "layer0": "tensura_minecolonies:item/masterwork_short_sword_t1"
   }

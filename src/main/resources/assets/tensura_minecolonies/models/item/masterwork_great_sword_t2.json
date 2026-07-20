@@ -1,5 +1,5 @@
 {
-  "parent": "item/handheld",
+  "parent": "tensura:item/great_sword_handheld",
   "textures": {
     "layer0": "tensura_minecolonies:item/masterwork_great_sword_t2"
   }

@@ -1,5 +1,5 @@
 {
-  "parent": "item/handheld",
+  "parent": "tensura:item/spear_handheld",
   "textures": {
     "layer0": "tensura_minecolonies:item/masterwork_spear_t1"
   }
