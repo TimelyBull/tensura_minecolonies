@@ -501,15 +501,15 @@ each relationship.
 
 | Faction | Deal | Task | Reward | Tier value |
 |---|---|---|---|---|
-| Dwargon | The Masterwork Commission | Deliver Hihiirokane Katana + 8 Pure Magisteel + 1 Masterwork Forging Core | 64 Emerald | II ⚠ 64→48 |
-| Luminous | The Grand Offering | Deliver 8 Diamond Block + 16 Gold Block | 64 Emerald | III |
-| Tempest | A Thriving Metropolis | Pop 25 | 48 Emerald | II |
-| Milim | Apito's Jelly | Deliver 1 Apito's Jelly | 48 Emerald | III ⚠ 48→64 |
-| Falmuth | Prove Your Might | Slay the Wither | 48 Emerald | II |
-| Leon | Tribute to the Platinum Saber | Deliver 16 Gold Block + 16 Blaze Rod + 1 Netherite Ingot | 48 Emerald | III ⚠ 48→64 |
-| Eastern Empire | The Imperial Compact | Deliver 4 Diamond Block + 32 Amethyst + 16 Redstone Block | 48 Emerald | II |
-| Eurazania | The Great Hunt | Slay 3 great beasts (Wither / Warden / Elder Guardian / Charybdis / Ifrit) | 48 Emerald | II |
-| Clayman | Souls for the Core | Slay 10 Villagers | 32 Emerald | I |
+| Dwargon | The Masterwork Commission | Deliver 1 Netherite Block + 1 Hihiirokane Ingot | **Masterwork Weapon Core + Masterwork Schematic** (unlocks the Masterwork weapon line) | II |
+| Luminous | The Grand Offering | Deliver 8 Diamond Block + 16 Gold Block | 3 Enchanted Golden Apple *(placeholder)* | III |
+| Tempest | A Thriving Metropolis | Pop 25 | 2 Enchanted Golden Apple *(placeholder)* | II |
+| Milim | Apito's Jelly | Deliver 1 Apito's Jelly | 3 Enchanted Golden Apple *(placeholder)* | III |
+| Falmuth | Prove Your Might | Slay the Wither | 2 Enchanted Golden Apple *(placeholder)* | II |
+| Leon | Tribute to the Platinum Saber | Deliver 16 Gold Block + 16 Blaze Rod + 1 Netherite Ingot | 3 Enchanted Golden Apple *(placeholder)* | III |
+| Eastern Empire | The Imperial Compact | Deliver 4 Diamond Block + 32 Amethyst + 16 Redstone Block | 2 Enchanted Golden Apple *(placeholder)* | II |
+| Eurazania | The Great Hunt | Slay 3 great beasts (Wither / Warden / Elder Guardian / Charybdis / Ifrit) | 2 Enchanted Golden Apple *(placeholder)* | II |
+| Clayman | Souls for the Core | Slay 10 Villagers | 1 Enchanted Golden Apple *(placeholder)* | I |
 
 Plus one **Covenant-only training deal**: Tempest's *Warrior Training* — a lend
 (Strength≥5, returns trained in Stamina + Adaptability) offered only AFTER the
@@ -519,6 +519,12 @@ Covenant is forged → 16 Emerald.
 Forging Core** — a known dead-end item (see future-ideas.md). Cross-axis: the
 emerald amount matches the tier (III=64, II=48, I=32), but the *task difficulty*
 varies a lot (Pop 25 vs. slay the Wither) — a Phase 4 cross-check candidate.
+
+
+**STATUS (v0.2.0):** the covenant capstones now pay **tier-scaled Enchanted Golden
+Apples as PLACEHOLDERS** (I=1, II=2, III=3) instead of flat emeralds, pending the
+unique per-faction rewards. **Dwargon is done for real** — it grants the Masterwork
+Weapon Core + schematic. Faction development is PAUSED here for the 0.2.0 release.
 
 **7B REWORK IN PROGRESS (2026-07-16) — each covenant gets a UNIQUE hard task +
 a fully custom reward** (replacing the flat emerald payouts):

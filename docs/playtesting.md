@@ -15,67 +15,54 @@ test** (concrete steps + what you should see), **status**.
 
 ## OPEN — needs playtesting
 
-### 0d. Masterwork weapons — FOUNDATION (crafting flow) (2026-07-16)
+### 0d. Masterwork weapons — FULL LINE (2026-07-21)
 
-**What changed** (`ExampleMod` items, `MasterworkItem`, `DealSpec` cov_dwargon,
-new gear_existence/recipe/tag/models): the Dwargon Covenant "The Masterwork
-Commission" now asks for **1 Netherite Block + 1 Hihiirokane Ingot** and GRANTS a
-**Masterwork Weapon Core** (renamed from Forging Core) + a **Masterwork Schematic**
-(reuses Tensura's native `SmithingSchematicItem` — right-click to unlock). At the
-**Tensura Smithing Bench**, `hihiirokane_sword + Masterwork Weapon Core →
-Masterwork Sword` (gated by the schematic via the recipe's `schematics` list). The
-Masterwork Sword is EP-capable (gear_existence: minEP 100k / maxEP 2M / attack
-evolutions +4/+9/+15/+22) so it grows and self-repairs via EP-backed durability.
-The line is now the **FULL 12 weapons** — katana, sword, short/long/great sword,
-kodachi, odachi, tachi, spear, scythe, axe, sickle — all with REAL art (48×48,
-from the user's sprite sheet + a dedicated scythe render, processed through the
-katana pipeline). Each is forged from its matching `tensura:hihiirokane_*` +
-a Masterwork Weapon Core. They share the damage floor/curve and differ by attack
-SPEED (sickle/kodachi/short_sword fastest → axe/scythe/great_sword slowest). Max
-attack damage scales to **80** at max EP (base floor 10). Schematic is still a
-PLACEHOLDER texture. Tooltip: normal hover shows "Hold SHIFT to see abilities";
-SHIFT reveals the on-hit / branch / QOL ability list.
-The **full player-status layer is built** (`MasterworkItem`):
-- **On-hit (alignment):** MAJIN wielder → slight lifesteal + dark burst;
-  NON-MAJIN → brief Regeneration + light burst.
-- **Right-click (branch):** mastered Battlewills − Magics ≥2 → PHYSICAL sweep
-  (arc AoE, drains ~5% max aura); Magics − Battlewills ≥2 → MAGIC forward slice
-  (drains ~5% max magicule); otherwise BALANCED (no ability). 30 s cooldown.
-- **QOL by mastered-skill count:** 10+ magnet (drops fly to you), 15+ step assist
-  (while held), 20+ soulbound (kept on death — via LivingDrops/Clone hooks).
-- **Prestige = emergent:** base damage floors at 10 (modifier 9); EP evolutions
-  add on top and fall back to 10 when EP drops, recovering as EP regrows.
+**What changed** (`ExampleMod` items + `MasterworkItem` + `ExampleModClient`,
+`DealSpec` cov_dwargon, 12x gear_existence/recipes/models/textures): the Dwargon
+Covenant "The Masterwork Commission" (deliver **1 Netherite Block + 1 Hihiirokane
+Ingot**) grants a **Masterwork Weapon Core** (renamed from Forging Core) + a
+**Masterwork Schematic** (Tensura's native `SmithingSchematicItem` — right-click
+to unlock). At the **Tensura Smithing Bench**: `hihiirokane_<type> + core ->
+masterwork_<type>`, schematic-gated, for all **12 weapon types**.
 
-**EP-tiered blade look (2026-07-17):** the katana is **sleek steel at 0 EP** and
-gains its colour + an animated shimmer in 4 stages at the SAME EP thresholds as
-the damage evolutions (250k / 600k / 1.2M / 2M). Tier 0 is a static texture;
-tiers 1–4 are 10-frame animated strips (`_t1`.._t4` + `.mcmeta`, frametime 2)
-whose shimmer sweeps along the blade and grows stronger each tier. Driven by the
-client item property `tensura_minecolonies:ep_tier`
-(`MasterworkItem.shimmerTier`) + model overrides — so it changes live as EP
-climbs. ⚠ `SHIMMER_TIERS` must stay in sync with the gear_existence
-`uniqueEvolutions` EPs.
+**Stats (rebased onto the hihiirokane scale 2026-07-21):** MASTERWORK_TIER damage
+bonus **76** (= hihiirokane), durability **4000** (> their 3600), enchantability
+**50** (=), `epGain` **0.04** (=). Each weapon's damage param = its counterpart's
+**+2** (verified exactly +2 on all 12: sword 82, katana 83, odachi/great_sword 85).
+gear_existence: **minEP 800,000, maxEP 2,000,000**, ladder
+**1.1M/1.4M/1.7M/2.0M -> +8/+18/+30/+45** (~127-130 damage at the cap).
+`MasterworkItem.SHIMMER_TIERS` MUST equal those four EPs.
+⚠ The prestige floor is NO LONGER 10 — an EP loss drops the weapon to its base
+(counterpart + 2), forfeiting up to +45.
 
-**Extra test steps:**
-5. Hit a mob as a majin race → you heal a sliver + dark particles; as a human
-   race → you gain Regeneration + light particles.
-6. Master 2+ more Battlewills than Magics → right-click does a sweep (aura drops,
-   30s cd); master 2+ more Magics → right-click fires a forward slice (magicule
-   drops); even split → right-click does nothing.
-7. Master 10 / 15 / 20 skills → nearby drops magnetise / you step up full blocks
-   while holding it / the weapon stays in your inventory after death.
+**Look:** tier 0 = sleek steel (static); tiers 1-4 = 10-frame animated strips
+(+ `.mcmeta`) whose subtle in-place glimmer matches the hihiirokane weapons
+(tuned to their measured ~27% changed / max ~24 / mean ~4.5 per frame). Katana
+has bespoke art; the rest come from the sprite sheet. Schematic texture is still
+a PLACEHOLDER.
+
+**Abilities** (`MasterworkItem`): on-hit alignment (majin lifesteal + dark burst /
+non-majin Regeneration + light burst); right-click branch from the mastered
+Battlewill-vs-Magic spread (PHYSICAL sweep spends aura / MAGIC slice spends
+magicule / BALANCED none, 30 s cd); mastered-count QOL (10 magnet, 15 step assist,
+20 soulbound); EP-backed self-repair; SHIFT-hover ability list.
 
 **How to test:**
-1. Creative: grab the Masterwork Schematic + Masterwork Sword + Masterwork Weapon
-   Core from the mod tab. Right-click the schematic → should say unlocked.
-2. Place a Tensura Smithing Bench; put a hihiirokane sword + Masterwork Weapon
-   Core in → the Masterwork Sword recipe should appear ONLY after the schematic
-   is unlocked; craft it.
-3. Hold/equip it → confirm the EP line appears; kill mobs → EP climbs, attack
-   damage grows at the evolution thresholds; durability doesn't deplete (EP-backed).
-4. With the faction system ON, ally Dwargon to Covenant and complete "The
-   Masterwork Commission" (deliver Netherite Block + Hihiirokane Ingot) → receive
-   the Core + Schematic.
+1. Creative: grab the Schematic + Core + a Masterwork weapon from the mod tab.
+   Right-click the schematic -> "unlocked".
+2. Tensura Smithing Bench: hihiirokane weapon + Core -> the recipe should appear
+   ONLY after the schematic is unlocked. Craft it.
+3. Tooltip: normal hover shows "Hold SHIFT to see abilities"; SHIFT lists them.
+   Damage should read ~2 higher than the hihiirokane you consumed.
+4. Kill things -> EP climbs from 800k; at 1.1M/1.4M/1.7M/2.0M damage steps up AND
+   the blade gains colour/glimmer. Durability should not deplete (EP-backed).
+5. Hit a mob as a majin race -> heal a sliver + dark particles; as a human race ->
+   Regeneration + light particles.
+6. Master 2+ more Battlewills than Magics -> right-click sweeps (aura drops);
+   2+ more Magics -> forward slice (magicule drops); even -> nothing.
+7. Master 10 / 15 / 20 skills -> drops magnetise (only while HELD) / step up full
+   blocks / weapon survives death.
+8. Faction system ON: ally Dwargon to Covenant, complete the Commission.
 
 ### 0c. Drago Nova charge-up animation (2026-07-15)
 
