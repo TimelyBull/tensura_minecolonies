@@ -612,6 +612,35 @@ real art for all but the katana.
 - **Self-repair = NATIVE:** the weapon is an EP-gaining item, so Tensura's
   EP-backed durability (`EP_DURABILITY` in gear_existence) auto-repairs it. No
   custom self-repair code.
+- **MASTERWORK BALANCE REBASE (2026-07-21) + the tsukumogami finding.** A sanity
+  check showed the Masterwork line was a DOWNGRADE: the hihiirokane TIER carries a
+  hidden **+76 attack-damage bonus** (Tensura's `createAttributes` does
+  `fadd getAttackDamageBonus()`), so hihiirokane weapons already sit at 78-83,
+  while ours had a 0 tier bonus and only reached 80 after a 2M-EP grind — worse on
+  durability, enchantability, EP gain and engraving too, despite CONSUMING a
+  hihiirokane weapon + a rare core. Rebased: tier bonus 76 (same scale),
+  per-weapon damage param = counterpart + 2 (verified exactly +2 on all 12),
+  durability 4000 (>3600), enchantability 50 (=), epGain 0.04 (=), minEP 800,000,
+  and **no `maxEP` key = uncapped EP**. Evolution ladder rebased ABOVE the new
+  start (1.5M/3M/5M/8M -> +8/+18/+30/+45, so ~127-130 at 8M).
+  `MasterworkItem.SHIMMER_TIERS` MUST stay equal to those EPs.
+  ⚠ Consequence: the prestige floor is no longer 10 — losing EP now drops the
+  weapon to its base (counterpart + 2), forfeiting up to +45.
+  **ENGRAVINGS (investigated):** base Tensura grants them in `DeathHandler`, right
+  where kill-EP is written, via `EngravingHelper.grantRandomEngraving` gated by
+  `shouldAddEngraving` -> the `RANDOM_ENGRAVING_LEVEL` component and the
+  `EnchantmentConfig.legendEP` / `godEP` thresholds, drawing from rarity-weighted
+  curse/common/uncommon/rare/epic pools. That is EP-driven and item-agnostic, so
+  our Masterwork weapons already gain engravings exactly like base Tensura — no
+  code needed, and it is a real reason to keep growing EP past our own bonuses.
+  **TSUKUMOGAMI is NOT a prestige mechanic.** `GearHandler.updateTsukumogami`
+  compares the stack's `OWNER` component against the holder's UUID (clones count)
+  and ramps `TSUKUMOGAMI_INACTIVE` in 0.1 steps; the enchantment then applies
+  -10%..-90% to attack damage / armor / toughness / knockback resistance. It is an
+  anti-theft / owner-binding penalty keyed on WHO HOLDS IT, not on player
+  progression — so it CANNOT replace our prestige debuff (which is keyed on the
+  wielder's EP/progression reset). It would, however, pair naturally with the
+  20-mastery soulbound perk if we ever want the weapon to reject other wielders.
 - **SPRITE RULE — keep the alpha silhouette clean (2026-07-20).** `item/handheld`
   EXTRUDES the texture into 3D, so every 1-pixel notch/speck in the alpha outline
   becomes real side geometry and the weapon reads as "bumpy" in-hand; enclosed

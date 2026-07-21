@@ -1,45 +1,44 @@
 {
   "type": "tensura_minecolonies:masterwork_odachi",
-  "epGain": 0.02,
-  "minEP": 0,
-  "maxEP": 2000000,
+  "epGain": 0.04,
+  "minEP": 800000,
   "uniqueEvolutions": [
     {
-      "EP": 250000,
+      "EP": 1500000,
       "attributes": [
         {
           "type": "minecraft:generic.attack_damage",
-          "amount": 15.0,
+          "amount": 8.0,
           "slot": "mainhand"
         }
       ]
     },
     {
-      "EP": 600000,
+      "EP": 3000000,
       "attributes": [
         {
           "type": "minecraft:generic.attack_damage",
-          "amount": 35.0,
+          "amount": 18.0,
           "slot": "mainhand"
         }
       ]
     },
     {
-      "EP": 1200000,
+      "EP": 5000000,
       "attributes": [
         {
           "type": "minecraft:generic.attack_damage",
-          "amount": 55.0,
+          "amount": 30.0,
           "slot": "mainhand"
         }
       ]
     },
     {
-      "EP": 2000000,
+      "EP": 8000000,
       "attributes": [
         {
           "type": "minecraft:generic.attack_damage",
-          "amount": 70.0,
+          "amount": 45.0,
           "slot": "mainhand"
         }
       ]

@@ -265,13 +265,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     /** Masterwork weapon tier — high, netherite-ish; durability is EP-backed
      *  (gear_existence EP_DURABILITY) so vanilla uses matter little. */
     public static final net.minecraft.world.item.Tier MASTERWORK_TIER = new net.minecraft.world.item.Tier() {
-        @Override public int getUses() { return 2031; }
-        @Override public float getSpeed() { return 9.0f; }
-        @Override public float getAttackDamageBonus() { return 0.0f; }
+        @Override public int getUses() { return 4000; }              // > hihiirokane's 3600
+        @Override public float getSpeed() { return 27.0f; }           // == hihiirokane
+        /** == hihiirokane's tier bonus. Tensura adds this to each weapon's own
+         *  damage param, so matching it is what puts us on their scale. */
+        @Override public float getAttackDamageBonus() { return 76.0f; }
         @Override public net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> getIncorrectBlocksForDrops() {
             return net.minecraft.tags.BlockTags.INCORRECT_FOR_NETHERITE_TOOL;
         }
-        @Override public int getEnchantmentValue() { return 22; }
+        @Override public int getEnchantmentValue() { return 50; }     // == hihiirokane
         @Override public net.minecraft.world.item.crafting.Ingredient getRepairIngredient() {
             return net.minecraft.world.item.crafting.Ingredient.of(net.minecraft.world.item.Items.NETHERITE_INGOT);
         }
@@ -279,12 +281,16 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     /** Register one Masterwork weapon. Every one shares the base damage floor of
      *  10 (modifier 9) — the prestige floor — and differs only by attack SPEED
      *  per weapon type; EP evolutions stack damage on top (up to 80). */
-    private static DeferredItem<MasterworkItem> masterwork(String name, double attackSpeed, double reach) {
+    /** {@code damageParam} is the weapon's own damage value — set to its
+     *  hihiirokane counterpart's param + 2, so that once the shared tier bonus
+     *  (76) is added the Masterwork lands at exactly hihiirokane + 2 damage. */
+    private static DeferredItem<MasterworkItem> masterwork(String name, double damageParam,
+                                                           double attackSpeed, double reach) {
         return ITEMS.register(name, () -> new MasterworkItem(MASTERWORK_TIER,
                 new net.minecraft.world.item.Item.Properties()
                         .rarity(net.minecraft.world.item.Rarity.EPIC)
                         .fireResistant()
-                        .attributes(masterworkWeaponAttributes(9.0, attackSpeed, reach))));
+                        .attributes(masterworkWeaponAttributes(damageParam, attackSpeed, reach))));
     }
 
     // --- The Masterwork weapon line (forged from the matching hihiirokane
@@ -293,18 +299,19 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     //     (extracted from the Simple*Item constructors, where the first double
     //     is the ENTITY_INTERACTION_RANGE bonus). Damage is NOT matched — that
     //     rides the masterwork EP curve (floor 10 → 80).
-    public static final DeferredItem<MasterworkItem> MASTERWORK_KATANA      = masterwork("masterwork_katana", -2.2, 0.0);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_SWORD       = masterwork("masterwork_sword", -2.4, 0.0);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_SHORT_SWORD = masterwork("masterwork_short_sword", -2.0, -0.75);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_LONG_SWORD  = masterwork("masterwork_long_sword", -2.6, 0.25);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_GREAT_SWORD = masterwork("masterwork_great_sword", -3.2, 2.0);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_KODACHI     = masterwork("masterwork_kodachi", -2.0, -0.75);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_ODACHI      = masterwork("masterwork_odachi", -3.2, 2.0);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_TACHI       = masterwork("masterwork_tachi", -2.6, 0.25);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_SPEAR       = masterwork("masterwork_spear", -2.6, 2.0);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_SCYTHE      = masterwork("masterwork_scythe", -3.2, 2.0);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_AXE         = masterwork("masterwork_axe", -3.0, 0.0);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_SICKLE      = masterwork("masterwork_sickle", -2.8, 0.0);
+    //     damageParam = hihiirokane counterpart's param + 2.
+    public static final DeferredItem<MasterworkItem> MASTERWORK_KATANA      = masterwork("masterwork_katana", 6, -2.2, 0.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SWORD       = masterwork("masterwork_sword", 5, -2.4, 0.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SHORT_SWORD = masterwork("masterwork_short_sword", 3, -2.0, -0.75);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_LONG_SWORD  = masterwork("masterwork_long_sword", 7, -2.6, 0.25);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_GREAT_SWORD = masterwork("masterwork_great_sword", 8, -3.2, 2.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_KODACHI     = masterwork("masterwork_kodachi", 3, -2.0, -0.75);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_ODACHI      = masterwork("masterwork_odachi", 8, -3.2, 2.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_TACHI       = masterwork("masterwork_tachi", 7, -2.6, 0.25);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SPEAR       = masterwork("masterwork_spear", 5, -2.6, 2.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SCYTHE      = masterwork("masterwork_scythe", 7, -3.2, 2.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_AXE         = masterwork("masterwork_axe", 7, -3.0, 0.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SICKLE      = masterwork("masterwork_sickle", 4, -2.8, 0.0);
 
     /** Every Masterwork weapon — drives the creative tab + the client EP-tier
      *  model property, so adding one here wires it everywhere. */
@@ -317,9 +324,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      *  {@code reach} mirrors the Tensura counterpart's ENTITY_INTERACTION_RANGE
      *  bonus (0 for most, +2 for polearms, -0.75 for the short blades). */
     private static net.minecraft.world.item.component.ItemAttributeModifiers masterworkWeaponAttributes(
-            double attackDamage, double attackSpeed, double reach) {
+            double damageParam, double attackSpeed, double reach) {
         var op = net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE;
         var mainhand = net.minecraft.world.entity.EquipmentSlotGroup.MAINHAND;
+        // Tensura's createAttributes adds the TIER bonus to the weapon's own
+        // damage param — mirror that so we sit on the same scale.
+        double attackDamage = damageParam + MASTERWORK_TIER.getAttackDamageBonus();
         var builder = net.minecraft.world.item.component.ItemAttributeModifiers.builder()
                 .add(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE,
                         new net.minecraft.world.entity.ai.attributes.AttributeModifier(
