@@ -612,6 +612,16 @@ real art for all but the katana.
 - **Self-repair = NATIVE:** the weapon is an EP-gaining item, so Tensura's
   EP-backed durability (`EP_DURABILITY` in gear_existence) auto-repairs it. No
   custom self-repair code.
+- **SPRITE RULE — anchor weapons BOTTOM-LEFT with no margin (2026-07-20).**
+  Tensura frames every weapon so the handle runs off the bottom-left frame edge
+  (left/bottom margins = 0.00, content fills the frame). Centring the art with a
+  margin instead — as the first Masterwork pass did — leaves a gap under the
+  pommel, so in-hand you can SEE THE BOTTOM of the weapon floating instead of it
+  continuing into the fist; it also reads as sitting too high. Most visible on
+  weapons using an oversized parent model (odachi/great_sword/spear/scythe at
+  scale 2.0) because every texture pixel is doubled. Frame with:
+  `side=max(w,h)` canvas, paste at `(0, side-h)`. Verify with the L/B-margin
+  comparison against `hihiirokane_*`.
 - **SPRITE RULE — flatten the shading, don't ship photo gradients (2026-07-20).**
   AI-generated weapon art carries smooth photorealistic shading (the Masterwork
   set had 484–765 distinct colours per texture); Minecraft items read ~8–24. The
