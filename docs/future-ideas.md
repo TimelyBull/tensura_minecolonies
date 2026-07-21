@@ -641,6 +641,38 @@ real art for all but the katana.
   progression — so it CANNOT replace our prestige debuff (which is keyed on the
   wielder's EP/progression reset). It would, however, pair naturally with the
   20-mastery soulbound perk if we ever want the weapon to reject other wielders.
+- **MASTERWORK — DEFERRED IDEAS (2026-07-21).** The EP cap was RESTORED to
+  2,000,000 (ladder rebased to fit: 1.1M/1.4M/1.7M/2.0M -> +8/+18/+30/+45, so the
+  ~127-130 max damage is unchanged and now lands exactly at the cap;
+  `MasterworkItem.SHIMMER_TIERS` matches). Parked for later:
+  1. **Give Masterwork weapons the `tsukumogami` engraving.** Investigated: it is
+     an OWNER-BINDING / anti-theft mechanic — `GearHandler.updateTsukumogami`
+     compares the stack's `OWNER` component to the holder's UUID (clones count)
+     and ramps `TSUKUMOGAMI_INACTIVE` in 0.1 steps, and the enchantment applies
+     -10%..-90% to attack damage / armor / toughness / knockback resistance. It is
+     NOT a prestige mechanic (keyed on WHO HOLDS IT, not on progression), so it
+     cannot replace our prestige debuff — but it fits a legendary weapon and would
+     pair naturally with the 20-mastery soulbound perk. Add via the gear_existence
+     `engravings` map, as Tensura does for hihiirokane.
+  2. **Uncap EP** (drop the `maxEP` key entirely — Tensura's own hihiirokane
+     weapons have no cap). Only worth doing alongside idea 3, otherwise EP past
+     2M does nothing.
+  3. **Encourage EP growth past our bonuses** — options, roughly in order of
+     value-for-effort:
+     a. FREE ALREADY: Tensura's `EnchantmentConfig.legendEP` / `godEP` thresholds
+        mean high EP keeps rolling new random engravings (up to epic) forever, via
+        `DeathHandler` -> `EngravingHelper.grantRandomEngraving`. Uncapping EP
+        alone re-enables this open-ended chase at no code cost.
+     b. Soft-cap damage, uncapped UTILITY — past the last tier grant small
+        non-damage perks (attack speed, reach, knockback resist) so it never
+        becomes a pure damage race.
+     c. A 5th "Awakened" shimmer tier (cosmetic only) to visibly mark a maxed
+        weapon.
+     d. Ability upgrades instead of stats — e.g. sweep/slice cooldown 30s -> 20s,
+        or a wider sweep, at very high EP.
+     e. Logarithmic damage trickle past the last tier (pairs with the parked
+        aura/magicule log-curve idea).
+  Recommended combination if revisited: uncap + (a) + (b) + (c).
 - **SPRITE RULE — keep the alpha silhouette clean (2026-07-20).** `item/handheld`
   EXTRUDES the texture into 3D, so every 1-pixel notch/speck in the alpha outline
   becomes real side geometry and the weapon reads as "bumpy" in-hand; enclosed

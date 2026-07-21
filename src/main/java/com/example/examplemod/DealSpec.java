@@ -297,35 +297,35 @@ public record DealSpec(
                 10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
         map.put("tempest", new DealSpec("cov_tempest", "A Thriving Metropolis",
                 new Population(25),
-                List.of(new ItemStack(Items.EMERALD, 48)),
+                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),   // PLACEHOLDER (tier II)
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         // (Jura's old cov_jura "The Grand Academy" dropped — the merged
         // Jura-Tempest Federation keeps Tempest's cov_tempest as its one
         // Covenant deal.)
         map.put("milim", new DealSpec("cov_milim", "Apito's Jelly",
                 new SupplyItems(ExampleMod.APITOS_JELLY.get(), 1),
-                List.of(new ItemStack(Items.EMERALD, 48)),
+                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 3)),   // PLACEHOLDER (tier III)
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         map.put("falmuth", new DealSpec("cov_falmuth", "Prove Your Might",
                 new SlayEntities(java.util.Set.of("minecraft:wither"), 1, "the Wither"),
-                List.of(new ItemStack(Items.EMERALD, 48)),
+                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),   // PLACEHOLDER (tier II)
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         map.put("eurazania", new DealSpec("cov_carrion", "The Great Hunt",
                 new SlayEntities(java.util.Set.of("minecraft:wither", "minecraft:warden",
                         "minecraft:elder_guardian", "tensura:charybdis", "tensura:ifrit"),
                         3, "great beasts (Wither / Warden / Elder Guardian / Charybdis / Ifrit)"),
-                List.of(new ItemStack(Items.EMERALD, 48)),
+                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),   // PLACEHOLDER (tier II)
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         map.put("luminous", new DealSpec("cov_luminous", "The Grand Offering",
                 new SupplyBundle(List.of(new ItemStack(Items.DIAMOND_BLOCK, 8),
                         new ItemStack(Items.GOLD_BLOCK, 16))),
-                List.of(new ItemStack(Items.EMERALD, 64)),
+                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 3)),   // PLACEHOLDER (tier III)
                 10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
         map.put("clayman", new DealSpec("cov_clayman", "Souls for the Core",
                 new SlayEntities(java.util.Set.of("minecraft:villager"), 10,
                         "villagers (their souls feed the Charybdis core)"),
                 // Phase 3: was empty; Clayman is TIER I (minor) → 32 emeralds.
-                List.of(new ItemStack(Items.EMERALD, 32)),
+                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 1)),   // PLACEHOLDER (tier I)
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         // Phase 1 (faction-rewards roadmap) — Leon + Eastern Empire were
         // raidable towns with NO Covenant milestone; add one each so their
@@ -335,14 +335,14 @@ public record DealSpec(
                         new ItemStack(Items.GOLD_BLOCK, 16),
                         new ItemStack(Items.BLAZE_ROD, 16),
                         new ItemStack(Items.NETHERITE_INGOT, 1))),
-                List.of(new ItemStack(Items.EMERALD, 48)),
+                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 3)),   // PLACEHOLDER (tier III)
                 10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
         map.put("eastern_empire", new DealSpec("cov_eastern_empire", "The Imperial Compact",
                 new SupplyBundle(List.of(
                         new ItemStack(Items.DIAMOND_BLOCK, 4),
                         new ItemStack(Items.AMETHYST_SHARD, 32),
                         new ItemStack(Items.REDSTONE_BLOCK, 16))),
-                List.of(new ItemStack(Items.EMERALD, 48)),
+                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),   // PLACEHOLDER (tier II)
                 10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
         return Map.copyOf(map);
     }

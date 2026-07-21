@@ -71,7 +71,7 @@ public class MasterworkItem extends SwordItem {
      * so the look changes exactly when the stats do. Tier 0 (below the first
      * threshold) is the plain steel blade.
      */
-    public static final double[] SHIMMER_TIERS = { 1_500_000, 3_000_000, 5_000_000, 8_000_000 };
+    public static final double[] SHIMMER_TIERS = { 1_100_000, 1_400_000, 1_700_000, 2_000_000 };
 
     /** 0 = sleek steel (freshly forged, 0 EP) … 4 = fully awakened shimmer. */
     public static int shimmerTier(ItemStack stack) {
