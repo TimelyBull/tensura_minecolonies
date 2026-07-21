@@ -612,6 +612,15 @@ real art for all but the katana.
 - **Self-repair = NATIVE:** the weapon is an EP-gaining item, so Tensura's
   EP-backed durability (`EP_DURABILITY` in gear_existence) auto-repairs it. No
   custom self-repair code.
+- **SPRITE RULE — flatten the shading, don't ship photo gradients (2026-07-20).**
+  AI-generated weapon art carries smooth photorealistic shading (the Masterwork
+  set had 484–765 distinct colours per texture); Minecraft items read ~8–24. The
+  smooth "how light reflects off the blade" gradient looks wrong next to vanilla.
+  Fix applied: band the BLADE's luminance to 5 levels (targeted at bright pixels
+  so the guard/handle keep their detail), then MEDIANCUT-quantize to 24 colours.
+  Quantize the WHOLE animation strip in one call so every frame shares one
+  palette — quantizing frames individually gives each a different palette and the
+  weapon flickers. Verify the silhouette diagnostic still reads 0 afterwards.
 - **SPRITE RULE — keep the alpha silhouette clean (2026-07-20).** `item/handheld`
   EXTRUDES the texture into 3D, so every 1-pixel notch/speck in the alpha outline
   becomes real side geometry and the weapon reads as "bumpy" in-hand; enclosed
