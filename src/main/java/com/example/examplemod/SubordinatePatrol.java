@@ -95,6 +95,13 @@ public final class SubordinatePatrol {
     /** Re-pick the patrol point at most this often (ticks) to bound path
      *  recomputation; between picks the mob just walks to its current point. */
     private static final int REPICK_INTERVAL = 10;
+    /** How far (radians) the patrol advances AROUND the colony ring between
+     *  successive points, so the mob walks the PERIMETER instead of picking a
+     *  fresh random direction each time and cutting across the middle past the
+     *  town hall. ~25° per leg → a full loop takes ~15 legs. Also the step used
+     *  to skip past a water / unreachable sector (keep turning the same way
+     *  until a good point is found). */
+    private static final double PATROL_ANGULAR_STEP = Math.toRadians(25.0);
     /** Inner edge of the outskirts band, as a fraction of the boundary radius
      *  in the chosen direction. Below this is "the middle of the colony" and
      *  is intentionally avoided — we want the OUTER area. */
@@ -205,8 +212,14 @@ public final class SubordinatePatrol {
         // patrolling (the friendly-race / citizen veto still protects allies).
         SubordinateHelper.setAggressive(mob);
 
+        // Seed the patrol bearing from where the mob currently stands relative
+        // to the colony centre, so the first leg advances around the ring from
+        // its own position rather than always starting from due east.
+        BlockPos center = colony.getCenter();
+        float startBearing = (float) Math.atan2(
+                mob.getZ() - center.getZ(), mob.getX() - center.getX());
         mob.setData(Attachments.PATROL_ORDER.get(),
-                new PatrolOrder(colony.getID(), colony.getDimension().location()));
+                new PatrolOrder(colony.getID(), colony.getDimension().location(), startBearing));
         // Seed the first patrol point immediately so there's no idle frame.
         mob.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
 
@@ -297,6 +310,12 @@ public final class SubordinatePatrol {
             BlockPos back = outskirtsReturnTarget(colony, level, mob);
             mob.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
                     new WalkTarget(back, PATROL_SPEED, CLOSE_ENOUGH));
+            // Resume the perimeter loop from the direction the mob re-enters,
+            // so it doesn't jump back to a stale bearing on the far side.
+            BlockPos center = colony.getCenter();
+            float reentry = (float) Math.atan2(
+                    mob.getZ() - center.getZ(), mob.getX() - center.getX());
+            mob.setData(Attachments.PATROL_ORDER.get(), order.withBearing(wrapAngle(reentry)));
             return;
         }
 
@@ -336,7 +355,11 @@ public final class SubordinatePatrol {
         // this same tick) or its target is unreachable and a retry is due.
         // Refilling immediately on arrival closes the window in which
         // Tensura's idle wander could grab the empty WALK_TARGET memory.
-        BlockPos target = computeOutskirtsTarget(colony, level, mob);
+        // ADVANCE around the ring from the order's stored bearing (perimeter
+        // walk) rather than picking a fresh random direction — this is what
+        // keeps the patrol on the colony EDGE instead of criss-crossing the
+        // middle past the town hall.
+        BlockPos target = nextPerimeterTarget(colony, level, mob, order);
         if (target == null) return; // no dry in-colony point found this pass — retry next tick
         mob.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
                 new WalkTarget(target, PATROL_SPEED, CLOSE_ENOUGH));
@@ -357,6 +380,49 @@ public final class SubordinatePatrol {
     // =================================================================
 
     /**
+     * Pick the NEXT patrol point by advancing a fixed angular step
+     * ({@link #PATROL_ANGULAR_STEP}) AROUND the colony ring from the order's
+     * stored {@code bearing}, and persist the chosen bearing back onto the
+     * order. This is the core of the perimeter-walk fix: because each leg turns
+     * the same way by a small amount, the mob traces the colony EDGE in a loop
+     * instead of picking independent random directions and cutting back and
+     * forth across the middle (which read as "circling the town hall").
+     *
+     * <p>Sectors that land on water or outside the claim are skipped by
+     * continuing to turn the same way (step ×2, ×3, …) up to a full circle, so
+     * a bad stretch of edge doesn't stall the loop. Advancing the STORED
+     * bearing (rather than one derived from the mob's live position) also
+     * un-sticks the patrol when the mob can't reach a sector: the bearing keeps
+     * marching on even while the mob sits still, so the next retry aims past the
+     * unreachable spot.
+     *
+     * @return the next dry, in-colony ring point, or null if no good point was
+     *         found anywhere around the ring this pass (retry next tick).
+     */
+    private static BlockPos nextPerimeterTarget(IColony colony, ServerLevel level, Mob mob, PatrolOrder order) {
+        double start = order.bearing();
+        int sectors = (int) Math.ceil((Math.PI * 2.0) / PATROL_ANGULAR_STEP);
+        for (int i = 1; i <= sectors; i++) {
+            double angle = start + i * PATROL_ANGULAR_STEP;
+            BlockPos p = outskirtsPointAlong(colony, level, mob, angle);
+            if (p != null) {
+                mob.setData(Attachments.PATROL_ORDER.get(), order.withBearing(wrapAngle(angle)));
+                return p;
+            }
+        }
+        return null;
+    }
+
+    /** Normalise an angle to {@code [0, 2π)} so the stored bearing doesn't grow
+     *  without bound as the patrol loops around. */
+    private static float wrapAngle(double angle) {
+        double twoPi = Math.PI * 2.0;
+        double a = angle % twoPi;
+        if (a < 0) a += twoPi;
+        return (float) a;
+    }
+
+    /**
      * Pick a point in the OUTER ring of the colony's claimed area, avoiding
      * water.
      *
@@ -367,6 +433,9 @@ public final class SubordinatePatrol {
      * in the outer band of that distance (see {@link #BAND_INNER}/
      * {@link #BAND_OUTER}). A handful of bearings are tried so a water edge in
      * one direction doesn't strand the mob.
+     *
+     * <p>Used by the recall path as a random-bearing fallback; the normal
+     * perimeter walk uses {@link #nextPerimeterTarget}.
      *
      * @return a dry, in-colony surface position in the outer ring, or null if
      *         none of the sampled bearings produced one.

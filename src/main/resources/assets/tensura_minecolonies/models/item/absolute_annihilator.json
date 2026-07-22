@@ -1,0 +1,10 @@
+{
+  "parent": "tensura:item/scythe_handheld",
+  "textures": { "layer0": "tensura_minecolonies:item/absolute_annihilator" },
+  "overrides": [
+    {
+      "predicate": { "tensura_minecolonies:charged": 1.0 },
+      "model": "tensura_minecolonies:item/absolute_annihilator_charged"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "parent": "tensura:item/long_sword_handheld",
+  "textures": {
+    "layer0": "tensura_minecolonies:item/masterwork_long_sword"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "tensura_minecolonies:ep_tier": 1
+      },
+      "model": "tensura_minecolonies:item/masterwork_long_sword_t1"
+    },
+    {
+      "predicate": {
+        "tensura_minecolonies:ep_tier": 2
+      },
+      "model": "tensura_minecolonies:item/masterwork_long_sword_t2"
+    },
+    {
+      "predicate": {
+        "tensura_minecolonies:ep_tier": 3
+      },
+      "model": "tensura_minecolonies:item/masterwork_long_sword_t3"
+    },
+    {
+      "predicate": {
+        "tensura_minecolonies:ep_tier": 4
+      },
+      "model": "tensura_minecolonies:item/masterwork_long_sword_t4"
+    }
+  ]
+}

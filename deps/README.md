@@ -14,7 +14,7 @@ ranges). If a jar version changes, re-verify before trusting a claim here.
 |---|---|---|---|
 | [minecolonies.md](minecolonies.md) | MineColonies | 1.1.1319-1.21.1 | colony/citizen model, custom event bus, colony-event/raid contract, buildings/jobs/research/requests, BlockUI GUI hooks |
 | [tensura.md](tensura.md) | Tensura: Reincarnated (+ ManasCore) | 2.0.1.0 / 4.0.0.2 | EP/magicule/aura, skills, races, attributes, entity/subordinate/merchant hierarchy, rendering, Architectury events |
-| [nightmares-utils.md](nightmares-utils.md) | Nightmare's Tensura Utils | 0.1.2 | the `sentient` mob-skill autocaster and its invariants |
+| [nightmares-utils.md](nightmares-utils.md) | Nightmare's Tensura Utils | 0.1.2 | the `sentient` mob-skill autocaster + its invariants; the globally-active behaviors (aura/magicule refill, ownership tree, awakening flags) that touch our mobs; map of the broader framework (mimicry, weapon, otherworlder, possession, traders) |
 | [structurize.md](structurize.md) | Structurize | 1.0.830-1.21.1 | schematic/blueprint loading + placement (MC's foundation lib) |
 
 ## The one cross-cutting fact: THREE substrates, don't mix them

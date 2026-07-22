@@ -543,20 +543,24 @@ public final class Networking {
         context.enqueueWork(() -> barrierMenuClientHandler.accept(payload));
     }
 
-    /** Build + send the menu snapshot for {@code be} to {@code player}. */
+    /** Build + send the menu snapshot for {@code be} to {@code player}.
+     *  A linked SECONDARY core shows/controls its network PRIMARY (the whole
+     *  colony network is one barrier) — but the payload keeps the CLICKED
+     *  block's pos so the reach check + action routing stay local. */
     static void sendBarrierMenuTo(ServerPlayer player, BarrierBlockEntity be) {
         ServerLevel level = player.serverLevel();
+        BarrierBlockEntity target = be.resolveMenuTarget();
         IColony colony = IColonyManager.getInstance().getClosestColony(level, be.getBlockPos());
         PacketDistributor.sendToPlayer(player, new OpenBarrierMenuPayload(
                 be.getBlockPos(),
-                be.getPoolStored(),
-                be.getCapacity(),
-                be.getActiveLayers(),
+                target.getPoolStored(),
+                target.getCapacity(),
+                target.getActiveLayers(),
                 BarrierBlockEntity.isDemonLordOrHero(player),
-                be.getLastDrainPerSecond(),
-                be.getTier(),
+                target.getLastDrainPerSecond(),
+                target.getTier(),
                 colony != null ? colony.getName() : "",
-                be.isWallVisible()));
+                target.isWallVisible()));
     }
 
     private static void onBarrierMenuAction(BarrierMenuActionPayload payload, IPayloadContext context) {
@@ -566,7 +570,10 @@ public final class Networking {
             // Reach + existence validation — the menu is a remote control
             // for a block; standard interaction distance applies.
             if (payload.pos().distToCenterSqr(sp.position()) > 8 * 8) return;
-            if (!(level.getBlockEntity(payload.pos()) instanceof BarrierBlockEntity be)) return;
+            if (!(level.getBlockEntity(payload.pos()) instanceof BarrierBlockEntity clicked)) return;
+            // Actions apply to the network primary when the clicked core is a
+            // linked secondary (one shared barrier per colony network).
+            BarrierBlockEntity be = clicked.resolveMenuTarget();
 
             switch (payload.action()) {
                 case BarrierMenuActionPayload.ACTION_ADD ->
@@ -585,7 +592,7 @@ public final class Networking {
                         be.setWallVisible(!be.isWallVisible());
                 default -> { }
             }
-            sendBarrierMenuTo(sp, be); // live refresh
+            sendBarrierMenuTo(sp, clicked); // live refresh (routes to primary itself)
         });
     }
 

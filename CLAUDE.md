@@ -289,18 +289,30 @@ MDK-1.21.1-ModDevGradle-main/
                                        # 16/28/42/60, base cap 100-250k,
                                        # 4-stage charge sprites). Right-click
                                        # opens the core menu; crystal refuel.
-        BarrierBlockEntity.java        # POOL tank (core-first fill, storage
-                                       # overflow) + field driver: square
-                                       # footprint (outermost layer), pushback
-                                       # on barrier_blocked-tagged hostiles +
-                                       # raiders, EP-scaled contact drain,
-                                       # layers 1-3 (DL/Hero gate, 50/s
-                                       # upkeep, outermost-first shedding),
-                                       # wall-visibility toggle. Tuning knobs
+        BarrierBlockEntity.java        # POOL tank (member-core fill, storage
+                                       # overflow) + field driver: faceted
+                                       # SPHERE per layer (24 quad-sphere
+                                       # sections, per-section health/holes),
+                                       # pushback on barrier_blocked-tagged
+                                       # hostiles + raiders, EP-scaled section
+                                       # damage, layers 1-3 (DL/Hero gate, 50/s
+                                       # upkeep), wall-visibility toggle.
+                                       # Field CENTERS on the colony TOWN HALL
+                                       # when the core is in a claimed zone
+                                       # (getFieldCenter; else self-centered).
+                                       # Cores in one colony form ONE network
+                                       # (COLONY_CORE_NETWORKS): highest-tier
+                                       # PRIMARY drives the field, others are
+                                       # tank-only secondaries; capacity/pool
+                                       # stack (deduped storage). Layer-3 buff
+                                       # split by raiser: Demon Lord = +10%
+                                       # player magicule regen, Hero = citizen
+                                       # Regen II + Absorption. Tuning knobs
                                        # are named constants here.
-        BarrierFieldRenderer.java      # @OnlyIn(CLIENT). Square wall + roof
-                                       # render per active layer, alpha =
-                                       # pool fill, half-block tiling.
+        BarrierFieldRenderer.java      # @OnlyIn(CLIENT). Sphere-section wall
+                                       # render per active layer, alpha = pool
+                                       # fill; draws at getFieldCenter (town
+                                       # hall offset), skips linked secondaries.
         BarrierCoreScreen.java         # @OnlyIn(CLIENT). Paper-styled core
                                        # menu (gauge, +/-3k, MIN/MAX, layers,
                                        # wall toggle) — server-snapshot
@@ -419,10 +431,13 @@ Related MDK-rename leftovers (surfaced while fixing config display names):
   NeoForge's config screen looks up `tensura_minecolonies.configuration.*`
   (the real mod id). Fixed by re-prefixing the keys; moving the file into the
   `tensura_minecolonies` namespace folder is deferred cleanup.
-- Vestigial MDK placeholder config options remain in `Config.java`
-  (`logDirtBlock`, `magicNumber`, `magicNumberIntroduction`, `items`) plus the
-  example block/item (`block.examplemod.*` / `item.examplemod.*`). Safe to
-  delete when convenient (also touches the `commonSetup` example logging).
+- ~~Vestigial MDK placeholder config options + the example block/item.~~
+  DONE (2026-07-21, 0.2.0): `logDirtBlock` / `magicNumber` /
+  `magicNumberIntroduction` / `items` + `validateItemName` deleted from
+  `Config.java` (all were referenced only by their own declarations), and
+  `EXAMPLE_BLOCK` / `EXAMPLE_BLOCK_ITEM` / `EXAMPLE_ITEM` + the `addCreative`
+  listener + their two lang keys deleted. Only the `assets/examplemod/` folder
+  name remains (see the item above).
 
 ## Current feature status (Milestone 3 vertical slice)
 
@@ -636,10 +651,10 @@ the design rationale and design-choice history.
   (`setGender/setSkin/.../setVariant/...`) from the citizen's
   current `RaceTag` onto the freshly reconstructed wild mob. The
   NBT round-trip via `readAdditionalSaveData` was usually correct
-  but the snapshot is older than the RaceTag (snapshot captured at
-  first send; RaceTag refreshed on every send), so drift produced
-  the reported "summoned mob's skin doesn't match the citizen"
-  symptom. Per-race apply methods: `applyGoblinVariant`,
+  but the snapshot can be older than the RaceTag (snapshot captured
+  at naming + refreshed periodically while loaded + on each send;
+  RaceTag refreshed on every send), so drift produced the reported
+  "summoned mob's skin doesn't match the citizen" symptom. Per-race apply methods: `applyGoblinVariant`,
   `applyOrcVariant`, `applyLizardmanVariant`,
   `applyDwarfVariant` (the dwarf one also restores the per-mob
   `Attributes.SCALE`).

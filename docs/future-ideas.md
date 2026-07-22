@@ -1,5 +1,21 @@
 # Future ideas (recorded, not scheduled)
 
+## Verify Form Hide (and similar concealment) still hides the player (2026-07-10)
+
+Check whether Tensura's **Form Hide** — and other identity/aura-concealment
+skills/effects that hide the player from mobs (e.g. presence/aura masking,
+"hide EP", disguise) — still work as intended given this mod's additions. Our
+faction garrisons, raids, threat-response, and assassin systems do a lot of
+explicit targeting (`setTarget` / persistent-anger / brain WALK_TARGET steering
++ the nightmareutils Sentient autocaster reading `mob.getTarget()`). Explicit
+targeting can BYPASS the normal "can this mob see/sense the player" gate that
+Form Hide relies on, so a hidden player might still be found/attacked by our
+garrison defenders, steered raiders, or a manifested assassin. Audit the
+targeting entry points (`RivalColonies.steerGarrisonToInvaders`,
+`TensuraRaids` steering, `ColonyThreatResponse`, `Assassins`) against whatever
+"is the player concealed" check Tensura exposes, and gate our targeting on it
+where appropriate.
+
 ## Raid wave staggering (2026-07-10, from the in-colony-spawn bug report)
 
 The 2026-07-10 raid-placement fix moved the wave spawn to the colony edge
@@ -122,6 +138,237 @@ SIEGE — a super-raid above the lore-event class. Sketch:
   the betrayed tier (`Settlement.betrayalTier`) before the standing crash
   shatters relations. A siege pass can key off WAR_DECLARED (and the
   recorded tier) instead of inventing new betrayal detection.
+
+## INVESTIGATE — are Tensura coins actually "barrier fuel"? (2026-07-06)
+
+`deps/tensura.md` §1 claims `BRONZE_COIN`/`SILVER_COIN` are "merchant currency
++ barrier fuel." The **merchant-currency** half is verified (Goblin/merchant
+`OneForOneTrade` uses `BRONZE_COIN`). The **barrier-fuel** half could NOT be
+substantiated on a quick check: our own Barrier Core is fueled by player
+magicule + Tensura magic CRYSTALS (`BarrierBlock.crystalValue`), not coins, and
+Tensura's own "barriers" are all magic spells/skills, not coin-fueled blocks.
+TODO: full-decompile Tensura to find whether coins have any hidden magicule
+value / fuel use anywhere; if not, CORRECT the `deps/tensura.md` line (drop or
+qualify "barrier fuel"). Low priority, but the deps docs are meant to be
+source-grounded, so an unverifiable claim should be fixed.
+
+## Faction standing reacts to the player's race choices/actions (2026-07-06)
+
+Two related ideas for making factions respond to WHO the player is / what they
+do, beyond the existing marked-boss-kill fan-out:
+
+1. **Certain actions LOWER standing with certain factions.** e.g. naming a
+   majin, or choosing Goblins as the starting race for the colony, should anger
+   the human/holy factions (Luminous, Falmuth) — a standing hit when the action
+   happens. Hook points: the naming event (majin detection via the existing
+   race-side classifier), the race-picker choice (`onRaceChoice`), etc. Ties
+   into the faction-model's per-faction disposition already keyed on the
+   player's race side.
+2. **Starting race changes quest DIFFICULTY per faction.** If the player starts
+   Goblin (or Human), certain factions' catalog quests get harder — MUCH harder
+   for the factions that dislike that choice (bigger delivery counts, tougher
+   slays, higher building/lend bars). A per-faction difficulty multiplier keyed
+   on the player's starting race, applied to the deal requirements at offer
+   time. Makes the starting-race choice a lasting diplomatic identity, not just
+   a cosmetic/spawn choice.
+
+## Higher tiers take MORE deals to advance friendship (2026-07-15)
+
+Idea: make each relations tier require progressively more completed deals to
+climb. Right now standing rises a flat amount per deal regardless of tier, so
+NEUTRAL→FRIENDLY takes about as much work as FRIENDLY→ALLIED→COVENANT. Make the
+higher tiers demand MORE (e.g. scale the standing-per-deal down, or the
+threshold up, as the tier rises) so deep alliances feel earned. Tuning knob on
+the standing/tier math (`WorldReputationManager` / `FactionTier` thresholds +
+`DealSpec.standingReward`).
+
+## Absolute Annihilator — custom Milim weapon (2026-07-15)
+
+**✅ FULLY BUILT (item registered, in creative menu, sprite, given as the "Prove
+Your Strength" reward enchanted with crushing + Sharpness V + Unbreaking III,
+AND now EP-capable).**
+Item `tensura_minecolonies:absolute_annihilator` — a SwordItem on a custom Tier
+(gold enchantability 22), attributes: 20 attack damage, 1.8 attack speed, +2.5
+ENTITY_INTERACTION_RANGE (reach), EPIC + fire-resistant.
+**EP done (2026-07-15):** weapon EP is NOT an item-class/interface thing in
+Tensura — it's a datapack entry in the `tensura:gear_existence` registry keyed by
+item id. Shipped `data/tensura_minecolonies/gear_existence/absolute_annihilator.json`
+(the registry merges across namespaces): `minEP 10k`, `maxEP 1M`, `epGain 0.01`,
+plus `uniqueEvolutions` — cumulative per tier at 150k/400k/700k/1M — adding
+attack damage +4/+8/+13/+18 (grows 20 → 38), attack speed +0.2/+0.3/+0.4/+0.5,
+knockback resist (from 400k) and +max health (from 700k). Tensura's `GearHandler` stamps the EP components
+(`TensuraDataComponents.EP/MAX_EP/EP_GAIN/EP_DURABILITY`) on pickup/equip and
+grows them on kills — no Java change needed. ⚠ Playtest: confirm the EP tooltip
+appears and the evolution ladder fires (esp. that a deal-reward stack given
+straight to inventory gets stamped on first equip, not only on world-pickup).
+Also worth revisiting: whether "+2.5 reach" (added to the default ~3) matches
+intent vs. a total of 2.5. Original spec (user):
+- **Sprite:** the 1254×1254 PNG download (`ChatGPT Image Jul 15…png`) — usable
+  (square PNG). Fallback if unusable: a plain Netherite Axe.
+- **Name:** "Absolute Annihilator". **20 base attack damage.** **Attack speed
+  1.8.** **Reach/range 2.5** (needs `ENTITY_INTERACTION_RANGE` +
+  `BLOCK_INTERACTION_RANGE` attribute modifiers — vanilla Sword/Axe don't add
+  these). **Gold enchantability** (custom `Tier`, enchantmentValue 22).
+- **Pre-applied enchants/engravings REMOVED (2026-07-15):** the deal now grants
+  the hammer PLAIN (no crushing/Sharpness/Unbreaking). Instead it carries a
+  material-line engraving via `gear_existence` — `tensura:holy_coat` level 3
+  (mithril/adamantite line; force-stamped past holy_coat's anvil max_level 1, as
+  Tensura's own mithril data does at level 2 — bumped to 3 for our higher 1M EP
+  max). Durability lowered to 2031 (a netherite axe). holy_coat = anti-holy
+  damage; swap to `severance`/`crushing` if an always-on offensive engraving is
+  preferred.
+- **"Able to have EP":** Tensura weapon-EP — the `Simple*Item` bases are plain
+  vanilla extensions (NOT inherently EP-capable), so weapon EP comes from
+  Tensura's item-energy/engraving system (`growth`/`transcendence` engravings
+  reference weapon "Energy"). NEEDS INVESTIGATION: how a weapon holds/gains EP
+  (ManasCore item storage? a base item class? an engraving?) before claiming it
+  works.
+Build = a new `Item` class + custom `Tier` + attribute modifiers + model +
+texture + registration in `ExampleMod` + lang, then give it via the
+enchanted-reward path on `mi_mighty_town`.
+**TODO — redo the sprite (2026-07-15):** the current texture is an
+AI-generated image machine-processed (background flood-fill + alpha bleed +
+hard-binarized alpha, downscaled to 32×32 to tame the extruded-side spikes).
+It's serviceable but not great — the low res muddies detail and the drawn
+silhouette is still spiky edge-on. Replace with a purpose-drawn pixel-art
+sprite (ideally 48×48 to match Tensura scythes, clean silhouette, no reliance
+on the flat image's baked-in spikes). Files:
+`assets/tensura_minecolonies/textures/item/absolute_annihilator.png` AND the
+charged variant `..._charged.png` (the charged one is currently machine-derived
+from the base by lighting up dark pixels to electric cyan — redraw both together
+so the charged look is hand-tuned, not a recolor).
+**Charged sprite (2026-07-15, BUILT; threshold 500,000 EP):** the item swaps to a
+lit-up "charged" texture via a client item property `tensura_minecolonies:charged`
+(reads `TensuraDataComponents.EP`) + a model override. Threshold =
+`AbsoluteAnnihilatorItem.CHARGE_EP` (shared with the ability); glow colour is in
+the texture (regen via the derive-from-base script). Possible follow-on: more
+charge stages (extra override tiers matching the EP ladder), emissive render.
+
+**EFFECT LADDER (2026-07-15, BUILT):** `maxEP` is 1M; the ability unlocks at
+500k. Effects live in `AbsoluteAnnihilatorItem` (`hurtEnemy` + `use`), stats in
+the gear_existence `uniqueEvolutions` (above):
+- 150k — on-hit Weakness (~5s).
+- 500k — charged sprite + Drago Nova nova (right-click, no consume, 60s cd).
+- 700k — lifesteal (heal 8% of attack damage on hit) + nova cd → 45s.
+- 1M — on-hit sonic-boom AoE shockwave (hostiles only, spares players/citizens/
+  ally+race-tagged) + nova cd → 30s.
+Future tuning knobs: shockwave radius/damage (0.3× attack dmg, r=4), lifesteal %,
+Weakness duration, nova cooldown tiers. Engravings: added all-at-stamp (not
+threshold-gated) — could ship an innate
+themed set (e.g. growth to speed EP gain) if wanted.
+
+## Code cleanup / good-practices pass (2026-07-06)
+
+A dedicated hygiene pass over the codebase (not tied to a feature): remove
+UNNECESSARY / dead code and make what's left read nicely and follow good
+practices. Candidates already known: the MDK-rename leftovers (`ExampleMod`/
+`ExampleModClient`/`Config` names, `com.example.examplemod` package, the
+`examplemod` lang-namespace file, vestigial placeholder config options + example
+block/item), superseded-but-still-present classes (e.g. the unregistered
+`SubordinateTradeButtonHandler`), any remaining `[DIAG]`/debug logging, and the
+one very large file (`ExampleMod.java`) that could be split. Also a consistency
+sweep: naming, comment density, dead imports, small dup helpers. Do it in
+reviewable chunks (rename ≠ behavior change) with a compile + ideally a runClient
+check per chunk. Low urgency, high readability payoff.
+
+## Enchanted / engraved equipment as deal rewards (2026-07-06)
+
+**✅ MECHANIC BUILT (2026-07-06, approach B).** `DealSpec` now has an
+`enchantedRewards` component (`EnchantedReward(item, count, List<EnchantSpec>)`
++ `EnchantSpec(ResourceKey<Enchantment>, level)`), a delegating 10-arg
+constructor (plain deals untouched), and `resolvedRewards(HolderLookup.Provider)`
+which all reward consumers use — so enchanted/engraved stacks are materialised
+via the world registry everywhere (grant + conquest loot + UI summary). Helper
+`DealSpec.engraving("holy_weapon")` builds a Tensura engraving key. First use:
+Falmuth "I Need More Steel!" (enchanted Diamond Sword). Extended 2026-07-06 for
+ENCHANTED BOOKS (`item == ENCHANTED_BOOK` → writes `STORED_ENCHANTMENTS`) — used
+by Tempest's Forbidden Knowledge (Mending) + A Scholar's Reward. See decisions.md.
+**Enchant/engrave review DONE for Dwargon + Tempest + Luminous (2026-07-06):**
+Dwargon — engraved High Magisteel Katana (Grand Forge) + enchanted Diamond
+Pickaxe (A Master's Tools); Tempest — 2 enchanted books + engraved Pure
+Magisteel Katana; Luminous — enchanted Netherite Sword (Crusader's Blade),
+Diamond Chestplate (Blessed Aegis), Smite book (A Sacred Verse). Still open:
+Milim/Eurazania/Clayman/Leon/Eastern Empire (not yet reworked at all), Tensura
+engraving *level* semantics / rarity-weighted rolls via `EngravingHelper`, and
+runtime-verifying that engravings actually FUNCTION on the chosen weapons.
+
+**Parked engraved-weapon DEALS (deferred, maybe for other factions/colonies):**
+- **A Masterwork Blade** — deliver premium mats → an engraved forged sword
+  (`severance` + `crushing` + Unbreaking).
+- **The Living Blade** — deliver 1 Hihi'irokane Ingot → an engraved weapon
+  (`growth` + `magic_weapon`; strengthens with EP).
+These were reviewed for Dwargon but NOT added (Dwargon looks good as-is); keep
+them as ready-made engraved-gear deals to drop onto a fitting faction later.
+
+Idea: give ENCHANTED / ENGRAVED gear as catalog-deal rewards so martial/smith
+factions can hand out real weapons/armor.
+
+**INVESTIGATED (2026-07-06) — one small mechanic covers BOTH:**
+- **Engravings ARE enchantments.** Tensura engravings are registry enchantments
+  tagged `#tensura:engraving` (`EngravingHelper`, `EngraveCommand`,
+  `EngraveEvent`). ~30 of them, many super-thematic: `holy_weapon` (holy dmg),
+  `magic_weapon`, `severance`, `crushing`, `energy_steal`, `soul_eater`,
+  `barrier_piercing`, `swift`, `sturdy`, `vitality`, `magic_capacity`,
+  `elemental_boost`, `transcendence`, `growth`, `restoration`, … So a vanilla
+  enchant and a Tensura engraving are applied the **same way** (an
+  `ItemStack.enchant(Holder<Enchantment>, level)` off `Registries.ENCHANTMENT`).
+- **Do we need a SEPARATE grant mechanic? NO.** The normal reward path is a
+  single chokepoint — `DiplomacyManager.giveItems(ServerPlayer, List<ItemStack>)`
+  — and it already has the player → `registryAccess`. The only reason we can't
+  bake enchants into the reward at `DealSpec` static-load is that enchantment
+  Holders need a loaded registry (unavailable at class-load). Fix = carry the
+  intended enchant/engraving list on the reward (e.g. a `CUSTOM_DATA` marker, or
+  a tiny parallel structure) and APPLY it inside `giveItems` (resolve holders,
+  `enchant()`, strip the marker). ~15 lines, one method, handles vanilla enchants
+  AND engravings together. `EngravingHelper` also offers rarity-weighted random
+  engraving if we want "roll an engraving" rewards.
+- **Parked example waiting on this:** Falmuth's **"I Need More Steel!"** → Diamond
+  Sword w/ Sharpness III + Looting + Unbreaking (plain for now).
+- **TODO once it lands — review these for enchant/engrave gear:** Dwargon
+  (smith-forged engraved blades: `magic_weapon`/`severance`/`crushing`; the
+  Masterwork Trade below), Luminous (holy: `holy_weapon` blade, Protection
+  armor), Tempest (enchanted BOOKS for the academy), Falmuth (the sword).
+
+## Dwargon "Masterwork Trade" at Covenant (2026-07-06)
+
+Idea (user): once the player reaches **Covenant** with Dwargon, unlock a
+standing **Masterwork Trade** (a shop, per the "Covenant = a standing SHOP"
+idea) that sells **"Masterwork" versions of every metal tier — Low Magisteel →
+High → Pure Magisteel → Mithril → Orichalcum → Adamantite → Hihi'irokane**.
+"Masterwork" isn't an existing Tensura item tier (no `masterwork_*` gear
+exists), so it = the base gear of that tier pre-ENGRAVED / pre-enchanted with
+strong Tensura engravings (`severance`, `crushing`, `magic_weapon`, `growth`,
+etc.) — the master-smith's finest work. Depends on: the covenant-shop mechanic +
+the enchant/engrave-at-grant mechanic above. Naturally Dwargon-exclusive and a
+great capstone reason to reach Covenant with the smith kingdom.
+
+## Time-windowed / conditional slay quests — e.g. "in one night" (2026-07-06)
+
+The `SlayEntities` requirement currently just ACCUMULATES total kills over the
+deal's whole lifetime (`ActiveDeal.progress++` in `DiplomacyManager.onPlayerKill`);
+there's no time window. To support quests like "slay 24 undead **in one night**"
+(or "within X in-game days", "without dying", "before dawn"), add a condition to
+`SlayEntities` (e.g. a `window` enum / `oneNight` flag) plus reset logic in
+`onPlayerKill`: track the game-time of the streak's first kill and RESET
+`progress` to 0 (or 1) if the window lapses (new dawn / not night / too long).
+Needs a small persisted field on `ActiveDeal` for the streak anchor.
+**Parked deal that wants this:** a Luminous **"Crusader's Trial"** — *slay 24
+undead in one night* → **Anti-Magic Mask Schematic** + diamonds + coins. Left
+out of the catalog for now; add it (if at all) once time-windowed slays exist.
+
+## Covenant = a standing SHOP instead of deals (2026-07-06)
+
+Idea: once a player reaches **Covenant** (or a sufficiently high standing) with a
+faction, the deal/quest flow is REPLACED by a standing trade — they can buy (in
+some fashion — coins? materials?) the items they'd otherwise have earned through
+that faction's catalog deals. At Covenant, they **no longer see any deals** from
+that faction; the relationship graduates from "do quests for rewards" to "you're
+a trusted partner, just shop." Design notes: the item pool is naturally the
+faction's `factionRewardPool` (already computed for conquest loot); the trade
+currency is a natural fit for the coin economy (bronze/silver/gold coins); needs
+a shop UI (or reuse the merchant/`MerchantMenu` path); gate on
+`RelationsState.COVENANT` in the deal-offer loop (suppress offers, open the shop
+instead). Complements the "quest bulletin board" idea below.
 
 ## Quest deadlines by type + a quest bulletin board (2026-07-06)
 
@@ -258,6 +505,217 @@ The mod ships several custom items that are craftable / obtainable but have
 
 General task: audit every custom item for "can the player actually USE this?"
 and give the trophy items a real sink.
+
+## Unify currency — MineColonies money → Tensura coins (2026-07-16)
+
+If MineColonies has any currency / money mechanic, route it through Tensura's
+coin currency (Bronze → Silver → Gold → Stellar Gold Coin, + Coin Pouches) so
+the whole modpack shares ONE money system instead of two parallel economies.
+Our diplomacy deals already pay out in Tensura coins; the goal is that the
+colony side uses the same coins rather than a separate token/emerald economy.
+NEEDS INVESTIGATION FIRST: determine what (if any) currency MineColonies
+actually uses in this version — colonists don't natively use money, but check
+the Bazaar / merchant / any coin-like item or trade token, and whether Tavern /
+recruitment / trades consume anything spendable. Then either (a) swap that
+item for the Tensura coin in the relevant recipes/handlers, or (b) add a
+converter/bridge. Scope depends entirely on what the investigation finds — may
+be small (a couple of recipes) or large (a trade-handler mixin). Keep it behind
+a config toggle if it changes vanilla-MC economy behaviour.
+
+## Legendary weapons — ally-forged, player-stat-scaling (2026-07-15)
+
+**Config-optional** (a toggle; off unless enabled). A big system: certain ALLIES
+can FORGE a legendary weapon for you after you complete a special deal / trade
+with them, then wait a few in-game days (the forging takes time — like the envoy
+/ deal cooldowns). The Absolute Annihilator is the first hand-built proof of the
+"weapon that grows" idea; this generalizes it.
+
+**Progresses with PLAYER status, not just weapon EP.** The weapon reads the
+wielder's Tensura standing and levels its abilities/stats off multiple signals:
+- Demon Lord SEED / Hero SEED status.
+- TRUE Demon Lord / TRUE Hero status (bigger unlocks).
+- Named status.
+- Number of skills MASTERED — and this may **BRANCH**: the weapon changes based on
+  WHICH TYPES of skills you've mastered, so it reflects the player's build /
+  preferences (a mostly-Sword/physical masterer gets a different legendary form
+  than a mostly-Spatial/magic masterer). The mastered-skill spread is the "class
+  identity" input.
+
+**Prestige = a DEBUFF, not a reset.** On prestige the weapon is DEBUFFED (its
+current power dips, matching the player's reset progression), BUT the ABILITIES
+it has unlocked are NOT lost — they stay, just temporarily weakened, so prestige
+feels rewarding rather than punishing (you re-earn the numbers, keep the toys).
+
+**Ties into the Masterwork idea.** Fold this into the Masterwork Forging Core
+([above](#custom-items-need-real-uses--masterwork-forging-core-etc-2026-06-27)):
+completing the Covenant deal grants a **Masterwork Forging Core**, which the
+player uses to craft a **masterwork version of ANY weapon Tensura adds** — the
+masterwork variant is the "legendary" one that grows with the player as above.
+This gives the Forging Core its long-missing sink AND makes the legendary system
+apply to the whole Tensura weapon roster, not just one custom item.
+
+Implementation notes / seams: the Annihilator already proves the pieces — EP-gated
+effects in a custom `Item` (`hurtEnemy`/`use`), a client model-override sprite
+swap, and Tensura `gear_existence` stat evolutions. A legendary layer would add:
+a per-player-status read (reuse `ExampleMod.readExistence` for DL/Hero/true
+status; SkillAPI for mastered-skill counts + type breakdown), a branch selector
+keyed on the mastered-skill spread, and a prestige hook that scales-down without
+clearing unlocked abilities. Keep it all behind the config flag.
+
+**DECIDED so far (2026-07-16, Masterwork = the Dwargon-covenant instance):**
+- Crafting is NATIVE — Tensura's Smithing Bench (`tensura:smithing_bench` recipe,
+  up to 5 inputs + a `schematics` unlock gate + `SmithingSchematicItem`). Recipe:
+  `hihiirokane [weapon] + Masterwork Core → Masterwork [weapon]`, gated by a
+  Masterwork schematic. No custom recipe code.
+- BRANCH = mastered **Battlewills vs Magics**: ≥2 more battlewills → PHYSICAL lean;
+  ≥2 more magics → MAGIC lean; otherwise BALANCED.
+- 15+ skills mastered → unlocks a QOL/utility passive (ability TBD).
+- Also reads: EP (gear_existence), majin/human alignment (two forms), DL/Hero
+  seed + true status, prestige (decaying debuff, abilities kept).
+- **Unique-skill-SPECIFIC buffs = DEFERRED / MAYBE-NEVER (user, 2026-07-16):** a
+  possible future layer where a specific unique skill grants a specific weapon
+  buff (not just counts). Explicitly not committed — parked here. For now the
+  weapon only uses the battlewill-vs-magic spread + the 15+-mastered QOL unlock;
+  it does NOT read individual unique skills.
+
+**BUILT (2026-07-16):** the first cut is implemented — cov_dwargon grants the
+Core + schematic; Tensura Smithing-Bench recipes for Masterwork **Sword / Katana
+/ Great Sword** (`hihiirokane X + core`, schematic-gated); EP growth +
+self-repair (gear_existence); and the FULL status layer in `MasterworkItem`
+(alignment lifesteal/regen + dark/light on-hit; battlewill/magic branch sweep +
+magic-slice right-clicks with aura/magicule cost + 30s cd; 10/15/20 mastered
+magnet/step/soulbound; prestige = emergent from EP + base-10 floor). Deferred:
+the aura/magicule log-curve DAMAGE multiplier; the rest of the weapon line;
+real art for all but the katana.
+
+**LOCKED (2026-07-16, cont.):**
+- **cov_dwargon task** = deliver **1 Block of Netherite + 1 Hihiirokane Ingot**.
+- **Core** = reuse `MASTERWORK_FORGING_CORE`, relabel display "Masterwork Weapon
+  Core". **One** schematic unlocks the whole line. First cut = 3 weapons
+  (sword, katana, great sword).
+- **Alignment** (classifier = `WorldReputationManager.isMajinSide`, confirmed a
+  binary majin-vs-non-majin): MAJIN → slight lifesteal; NON-MAJIN → slight regen
+  boost. Dark on-hit (majin) / light on-hit (non-majin).
+- **Branch right-clicks** (battlewill-vs-magic mastered spread): PHYSICAL → a
+  sweep attack (for now a sweeping-edge particle arc in front, 30s cooldown);
+  MAGIC → a magic-slice projectile that flies forward; BALANCED → base weapon
+  (no special right-click).
+- **Prestige debuff**: on prestige, base damage drops to a floor of **10**
+  (cut% = (current−10)/current); apply that SAME % cut to every other stat;
+  recovers as EP regrows. Abilities/forms are kept.
+- **QOL tiers (cumulative, mastered-skill count):** 10+ → **magnet** (drops fly to
+  you); 15+ → **step assist**; 20+ → **soulbound** (keep on death).
+- **Branch ability ENERGY COST (user, 2026-07-16):** the branch special (read as
+  the right-click ability — left-click is vanilla attack) CONSUMES energy per use
+  — PHYSICAL sweep drains AURA, MAGIC slice drains MAGICULE (amount = my pick,
+  flat + tunable; balanced has no ability so no cost).
+- **Self-repair = NATIVE:** the weapon is an EP-gaining item, so Tensura's
+  EP-backed durability (`EP_DURABILITY` in gear_existence) auto-repairs it. No
+  custom self-repair code.
+- **MASTERWORK BALANCE REBASE (2026-07-21) + the tsukumogami finding.** A sanity
+  check showed the Masterwork line was a DOWNGRADE: the hihiirokane TIER carries a
+  hidden **+76 attack-damage bonus** (Tensura's `createAttributes` does
+  `fadd getAttackDamageBonus()`), so hihiirokane weapons already sit at 78-83,
+  while ours had a 0 tier bonus and only reached 80 after a 2M-EP grind — worse on
+  durability, enchantability, EP gain and engraving too, despite CONSUMING a
+  hihiirokane weapon + a rare core. Rebased: tier bonus 76 (same scale),
+  per-weapon damage param = counterpart + 2 (verified exactly +2 on all 12),
+  durability 4000 (>3600), enchantability 50 (=), epGain 0.04 (=), minEP 800,000,
+  and **no `maxEP` key = uncapped EP**. Evolution ladder rebased ABOVE the new
+  start (1.5M/3M/5M/8M -> +8/+18/+30/+45, so ~127-130 at 8M).
+  `MasterworkItem.SHIMMER_TIERS` MUST stay equal to those EPs.
+  ⚠ Consequence: the prestige floor is no longer 10 — losing EP now drops the
+  weapon to its base (counterpart + 2), forfeiting up to +45.
+  **ENGRAVINGS (investigated):** base Tensura grants them in `DeathHandler`, right
+  where kill-EP is written, via `EngravingHelper.grantRandomEngraving` gated by
+  `shouldAddEngraving` -> the `RANDOM_ENGRAVING_LEVEL` component and the
+  `EnchantmentConfig.legendEP` / `godEP` thresholds, drawing from rarity-weighted
+  curse/common/uncommon/rare/epic pools. That is EP-driven and item-agnostic, so
+  our Masterwork weapons already gain engravings exactly like base Tensura — no
+  code needed, and it is a real reason to keep growing EP past our own bonuses.
+  **TSUKUMOGAMI is NOT a prestige mechanic.** `GearHandler.updateTsukumogami`
+  compares the stack's `OWNER` component against the holder's UUID (clones count)
+  and ramps `TSUKUMOGAMI_INACTIVE` in 0.1 steps; the enchantment then applies
+  -10%..-90% to attack damage / armor / toughness / knockback resistance. It is an
+  anti-theft / owner-binding penalty keyed on WHO HOLDS IT, not on player
+  progression — so it CANNOT replace our prestige debuff (which is keyed on the
+  wielder's EP/progression reset). It would, however, pair naturally with the
+  20-mastery soulbound perk if we ever want the weapon to reject other wielders.
+- **MASTERWORK — DEFERRED IDEAS (2026-07-21).** The EP cap was RESTORED to
+  2,000,000 (ladder rebased to fit: 1.1M/1.4M/1.7M/2.0M -> +8/+18/+30/+45, so the
+  ~127-130 max damage is unchanged and now lands exactly at the cap;
+  `MasterworkItem.SHIMMER_TIERS` matches). Parked for later:
+  1. **Give Masterwork weapons the `tsukumogami` engraving.** Investigated: it is
+     an OWNER-BINDING / anti-theft mechanic — `GearHandler.updateTsukumogami`
+     compares the stack's `OWNER` component to the holder's UUID (clones count)
+     and ramps `TSUKUMOGAMI_INACTIVE` in 0.1 steps, and the enchantment applies
+     -10%..-90% to attack damage / armor / toughness / knockback resistance. It is
+     NOT a prestige mechanic (keyed on WHO HOLDS IT, not on progression), so it
+     cannot replace our prestige debuff — but it fits a legendary weapon and would
+     pair naturally with the 20-mastery soulbound perk. Add via the gear_existence
+     `engravings` map, as Tensura does for hihiirokane.
+  2. **Uncap EP** (drop the `maxEP` key entirely — Tensura's own hihiirokane
+     weapons have no cap). Only worth doing alongside idea 3, otherwise EP past
+     2M does nothing.
+  3. **Encourage EP growth past our bonuses** — options, roughly in order of
+     value-for-effort:
+     a. FREE ALREADY: Tensura's `EnchantmentConfig.legendEP` / `godEP` thresholds
+        mean high EP keeps rolling new random engravings (up to epic) forever, via
+        `DeathHandler` -> `EngravingHelper.grantRandomEngraving`. Uncapping EP
+        alone re-enables this open-ended chase at no code cost.
+     b. Soft-cap damage, uncapped UTILITY — past the last tier grant small
+        non-damage perks (attack speed, reach, knockback resist) so it never
+        becomes a pure damage race.
+     c. A 5th "Awakened" shimmer tier (cosmetic only) to visibly mark a maxed
+        weapon.
+     d. Ability upgrades instead of stats — e.g. sweep/slice cooldown 30s -> 20s,
+        or a wider sweep, at very high EP.
+     e. Logarithmic damage trickle past the last tier (pairs with the parked
+        aura/magicule log-curve idea).
+  Recommended combination if revisited: uncap + (a) + (b) + (c).
+- **SPRITE RULE — keep the alpha silhouette clean (2026-07-20).** `item/handheld`
+  EXTRUDES the texture into 3D, so every 1-pixel notch/speck in the alpha outline
+  becomes real side geometry and the weapon reads as "bumpy" in-hand; enclosed
+  transparent pixels read as holes. When adding weapon art, after downscaling run
+  the silhouette cleanup: fill enclosed holes, fill 1px notches (transparent px
+  with >=6 opaque neighbours), drop specks (opaque px with <=1 opaque neighbour),
+  and re-fill any holes the smoothing creates (order matters — hole-fill LAST
+  re-introduces notches). Thresholds are chosen so 1px-wide blades/shafts (which
+  have 2 neighbours) survive. Verify with the specks/holes/notches diagnostic —
+  it should read 0/0/0, which is what the original katana scored and why it never
+  looked bumpy while the sheet-derived weapons did.
+- **Magnet pull could be SMOOTHER (2026-07-17):** the QOL magnet now runs every
+  tick with an eased, velocity-blended pull (was every 10 ticks = stuttery), which
+  is much better but still not perfectly silky. Ideas for a future pass: lerp
+  toward a target velocity with proper acceleration/damping instead of a fixed
+  60/40 blend; cancel gravity while an item is being pulled (and restore it on
+  release) so the arc doesn't sag; scale the pull by how long the item has been
+  attracted; possibly interpolate client-side. Tunables live in
+  `MasterworkItem.pullNearbyItems` / `MAGNET_RADIUS`.
+- **⚠ minEP is 0 (2026-07-17, user-requested "start at 0 EP once crafted").**
+  RISK TO PLAYTEST: `GearHandler.initiateGearExistence` stamps `EP_DURABILITY`
+  from `minEP`, so a freshly-forged Masterwork weapon also starts with 0
+  EP-backed durability. If that makes the weapon spawn "broken"/unusable, bump
+  minEP to a small non-zero value (or decouple EP_DURABILITY) — vanilla
+  durability (2031 from MASTERWORK_TIER) should still apply either way.
+- **PLACEHOLDER TEXTURES to replace later (2026-07-16):** the Masterwork **Katana**
+  has REAL art (the purple/blue katana download, processed to
+  `masterwork_katana.png` 64×64). Still placeholder (reusing Tensura art), replace
+  when the line is proven: `masterwork_sword` (→ hihiirokane_sword texture),
+  `masterwork_schematic` (→ leather_gear_schematic texture), and every future
+  weapon in the line (great sword + the remaining ~8 hihiirokane weapon types).
+- **Aura/Magicule → log-curve damage multiplier = DEFERRED (do not build yet).**
+  RESEARCH (2026-07-16): a per-race split IS real — every `TensuraRace` defines
+  BOTH `getBaseAuraRange()` and `getBaseMagiculeRange()`, entities track
+  `getAura()`/`getMagicule()` separately + an `isSpiritualForm()` flag. Direction
+  (Tensura energy model): magicule = monster/majin/spiritual energy (magic +
+  skills), aura = warrior/physical energy (battlewill) — so majin/spiritual skew
+  magicule, human/physical skew aura, but EVERY race has some of BOTH (a ratio,
+  not a binary). ⇒ RECOMMENDATION: when we do build it, key the multiplier to
+  the WEAPON BRANCH (physical→aura, magic→magicule, balanced→EP or max), NOT to
+  majin/non-majin — cleaner and uses values that already exist. (Exact per-race
+  ratios weren't extractable via javap; would need decompile / in-game to prove
+  magnitude, but the structural split is confirmed.)
 
 ## Citizen aggression — a "Progressive" level (2026-06-27)
 
@@ -432,3 +890,80 @@ the assassin EP-theft and stat-sync code.
   known in `trySpawnChild`; thread them through `onReproductionChild`).
 - Persistence + reload safety: any inherited EP/skills live on the child's
   `RaceIdentity` snapshot like the rest of the two-bodies state.
+
+## Magicule Storage blocks: possibly redundant after core-pool stacking (2026-07-13)
+
+The colony core-network change (multiple Barrier Cores in one colony share one
+centered barrier and POOL THEIR CAPACITY) overlaps the Magicule Storage block's
+whole job: extra capacity is now available by just placing another core, which
+also brings its own tank AND raises nothing extra (the network uses the highest
+tier core's radius/sections). Storage blocks are KEPT for now, but their niche
+has narrowed to "cheaper capacity per block than a full core." Options recorded
+for a future pass (pick one deliberately, don't drift):
+
+1. **Repurpose (preferred candidate)** — give storage a job cores can't do:
+   e.g. passive trickle-refill (storage slowly recharges from ambient/area
+   magicule, cores don't), or act as the REPAIR battery (section repairs must
+   be paid from storage, cores only power upkeep), or player-withdrawable bank
+   (a colony magicule ATM; cores stay barrier-only).
+2. **Keep as-is** — cheaper capacity/block is a real (if thin) niche; recipes
+   already climb by tier. Zero work.
+3. **Remove** — delete the blocks + recipes, migrate existing placed storage by
+   refunding contents into the adjacent core network. Cleanest world model, but
+   invalidates crafted items in existing saves.
+4. **Rebalance instead** — lower the cores' base capacities (100k–250k) so
+   storage is *needed* again for a deep tank; makes multi-core stacking a
+   radius/redundancy choice rather than a capacity one.
+
+## Evil barrier variant — ability-suppression field (2026-07-13, needs expanding)
+
+A craftable EVIL counterpart to the Barrier Core (its own tier ladder) that
+doesn't wall enemies out but SUPPRESSES what they can do inside the field —
+anti-magic / sealing-barrier flavour (Tensura's holy-field/anti-magic ward
+imagery). Recorded early; needs a full design pass before any build.
+
+Sketch of the idea as given + first open questions:
+- Prevents "factions from using certain things" inside the field — candidate
+  suppressions per tier: block skill/magic casting (hook the same
+  LivingIncomingDamageEvent / skill-cost seams the barrier already uses),
+  silence resistances, slow EP regen, disable teleports, weaken specific
+  elements.
+- **EP-limited**: each enemy/boss resists suppression based on its EP vs the
+  field's strength — a weak field can't silence an Orc Disaster; scale like the
+  existing EP-scaled drain (attacker EP × multiplier). Tier raises the EP
+  ceiling the field can suppress.
+- Tiered like the core (radius + suppression ceiling + upkeep climb); evil
+  aesthetic (dark sprites/tint) and possibly an alignment/repute cost to run it
+  (colony reputation or faction standing penalty while active?).
+- Open questions: does it affect OUR citizens/subordinates too (double-edged)?
+  fuel type (magicule, or something darker — soul points?); does running one
+  flip Holy-bloc dispositions (ties into the majin side-watch); interaction
+  with raids (suppressing a raid boss's skills trivializes lore events?).
+
+## Barrier main-thread cost — throttle the per-tick entity scans (2026-07-13)
+
+Recorded from an optimization discussion. NOT async — Minecraft's world state
+(entities, block entities, EP storage, colony data) is single-threaded and
+moving barrier work off the main thread would race the save. The real lever is
+LESS main-thread work.
+
+`BarrierBlockEntity.serverTick` runs two `getEntitiesOfClass` AABB scans (mobs
++ projectiles) EVERY tick, per active barrier. MC buckets entities by
+chunk-section so the cost is ~"entities near the barrier," not sphere volume —
+but every tick is more often than the effect needs. Options, all main-thread,
+all safe, do them only if a `runClient` profiling pass shows the barrier
+actually costs something (don't optimize on a guess):
+
+1. **Throttle the mob/projectile scans to every 2–3 ticks**, accumulating
+   section damage across the interval — visually indistinguishable, cuts that
+   scan cost by half to two-thirds.
+2. **Cache the per-second colony lookup** in `resolveNetwork`
+   (`getColonyByPosFromWorld` every second per core → refresh every few
+   seconds; a core's claiming colony rarely changes).
+3. **Stagger the per-second schedulers** (`TensuraRaids`, `ColonyThreatResponse`,
+   garrison, diplomacy, envoy, rival-colony) so they don't all fire on the same
+   tick — spread work across the 20-tick second.
+
+Already banked (not a future idea, just context): multi-core networking made
+only the elected PRIMARY run the field driver, so a colony with N cores went
+from N per-tick entity scans to 1.

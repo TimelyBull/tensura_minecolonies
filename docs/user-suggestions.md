@@ -57,6 +57,21 @@ into `docs/future-ideas.md` / `docs/roadmap.md` and a decision into
      the `tensura_minecolonies:barrier_blocked` tag, which does cover
      Tensura's hostile types) was already shipped; only its in-game
      verification remains open.
+   - *IMPLEMENTED (2026-07-10) — coverage broadened, built green:* verified at
+     the code level that (b) TENSURA mobs ARE covered — `barrier_blocked` pulls
+     in `#tensura:hostile_monster` (all real Tensura hostiles), and Tensura's
+     wild spawns use standard `neoforge:add_spawns` → vanilla `NaturalSpawner` →
+     posts `PositionCheck`. The old hook only accepted `NATURAL` +
+     `CHUNK_GENERATION`, so dungeon/mob spawners, pillager patrols, trial
+     spawners, and reinforcements could still pop hostiles inside a fueled
+     barrier. Fixed: the shared `BARRIER_BLOCKED_SPAWN_TYPES` set now covers the
+     whole *environmental* set (chosen scope: block involuntary/world spawns,
+     leave deliberate player placement alone), split across the existing
+     `PositionCheck` hook (NATURAL/CHUNK/SPAWNER) and a NEW `FinalizeSpawnEvent`
+     hook (patrol/trial/reinforcement/jockey/structure/event). Works whenever
+     the barrier is fueled (peacetime included). Raids stay outside, unaffected.
+     Full as-built in docs/raid-system.md ("IN-FIELD SPAWN SUPPRESSION —
+     BROADENED"). (a) In-game verification still OPEN — see docs/playtesting.md.
 
 4. **Lightweight kingdom-conquest system (expand rival settlements into a kingdom
    with continuing purpose).** A large design proposal to give conquered
@@ -104,13 +119,17 @@ into `docs/future-ideas.md` / `docs/roadmap.md` and a decision into
 1. **Patrol team only circles the town hall, not the whole colony (reported as a
    bug).** When the "Patrol Colony Outskirts" command is on duty, the NPCs only
    walk around the town hall area instead of patrolling the colony's edges.
-   - *Status: likely a real bug, not just a suggestion.* The patrol is supposed
-     to walk the OUTER RING of the colony's claimed chunks
-     (`SubordinatePatrol` — outskirts = outermost claimed chunks, water
-     avoided). If they're staying near the town hall, the outskirts-ring
-     targeting or the colony-bounds lookup may be resolving to the colony
-     center rather than the perimeter. Needs investigation in
-     `SubordinatePatrol` (the WALK_TARGET steering + outskirts computation).
+   - *Status: FIXED 2026-07-10 (compiles; awaiting in-game verification — see
+     docs/playtesting.md §0a).* Root cause was NOT the bounds lookup — the
+     boundary march (`isCoordInColony` on claimed chunks, from `getCenter()` =
+     town hall) resolves the real edge correctly. The bug was in the movement:
+     `computeOutskirtsTarget` picked an INDEPENDENT random bearing every leg, so
+     the mob walked straight-line chords back and forth across the middle (past
+     the town hall) instead of following the border. Fix: `PatrolOrder` now
+     carries a persisted `bearing`; the new `nextPerimeterTarget` advances it by
+     a fixed step (25°) around the ring each leg, so the mob loops the
+     perimeter. Water/unreachable sectors are skipped by turning further the
+     same way.
    - *Related ask below — the player wants a stationary "guard a spot" mode too.*
 
 2. **A "stand and guard" / sentry command.** A command that makes NPCs stand

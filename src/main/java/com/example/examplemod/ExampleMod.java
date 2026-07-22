@@ -178,13 +178,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS =
             DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
 
-    public static final DeferredBlock<Block> EXAMPLE_BLOCK =
-            BLOCKS.registerSimpleBlock("example_block", BlockBehaviour.Properties.of().mapColor(MapColor.STONE));
-    public static final DeferredItem<BlockItem> EXAMPLE_BLOCK_ITEM =
-            ITEMS.registerSimpleBlockItem("example_block", EXAMPLE_BLOCK);
-    public static final DeferredItem<Item> EXAMPLE_ITEM =
-            ITEMS.registerSimpleItem("example_item", new Item.Properties().food(
-                    new FoodProperties.Builder().alwaysEdible().nutrition(1).saturationModifier(2f).build()));
     // ------------------------------------------------------------------
     // Raid v1 — magicule barrier block + block entity + MC colony-event
     // registry entry. See docs/raid-system.md.
@@ -255,6 +248,96 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public static final DeferredItem<net.minecraft.world.item.Item> MASTERWORK_FORGING_CORE =
             ITEMS.registerSimpleItem("masterwork_forging_core",
                     new net.minecraft.world.item.Item.Properties().stacksTo(16));
+    /** Dwargon Covenant reward — right-click UNLOCKS the whole Masterwork weapon
+     *  line at the Tensura Smithing Bench. Reuses Tensura's native schematic item
+     *  (its use() calls ITensuraPlayer.unlockSchematic; SmithingBenchRecipe gates
+     *  on it). */
+    public static final DeferredItem<net.minecraft.world.item.Item> MASTERWORK_SCHEMATIC =
+            ITEMS.register("masterwork_schematic",
+                    io.github.manasmods.tensura.item.misc.SmithingSchematicItem::new);
+    /** Masterwork weapon tier — high, netherite-ish; durability is EP-backed
+     *  (gear_existence EP_DURABILITY) so vanilla uses matter little. */
+    public static final net.minecraft.world.item.Tier MASTERWORK_TIER = new net.minecraft.world.item.Tier() {
+        @Override public int getUses() { return 4000; }              // > hihiirokane's 3600
+        @Override public float getSpeed() { return 27.0f; }           // == hihiirokane
+        /** == hihiirokane's tier bonus. Tensura adds this to each weapon's own
+         *  damage param, so matching it is what puts us on their scale. */
+        @Override public float getAttackDamageBonus() { return 76.0f; }
+        @Override public net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> getIncorrectBlocksForDrops() {
+            return net.minecraft.tags.BlockTags.INCORRECT_FOR_NETHERITE_TOOL;
+        }
+        @Override public int getEnchantmentValue() { return 50; }     // == hihiirokane
+        @Override public net.minecraft.world.item.crafting.Ingredient getRepairIngredient() {
+            return net.minecraft.world.item.crafting.Ingredient.of(net.minecraft.world.item.Items.NETHERITE_INGOT);
+        }
+    };
+    /** Register one Masterwork weapon. Every one shares the base damage floor of
+     *  10 (modifier 9) — the prestige floor — and differs only by attack SPEED
+     *  per weapon type; EP evolutions stack damage on top (up to 80). */
+    /** {@code damageParam} is the weapon's own damage value — set to its
+     *  hihiirokane counterpart's param + 2, so that once the shared tier bonus
+     *  (76) is added the Masterwork lands at exactly hihiirokane + 2 damage. */
+    private static DeferredItem<MasterworkItem> masterwork(String name, double damageParam,
+                                                           double attackSpeed, double reach) {
+        return ITEMS.register(name, () -> new MasterworkItem(MASTERWORK_TIER,
+                new net.minecraft.world.item.Item.Properties()
+                        .rarity(net.minecraft.world.item.Rarity.EPIC)
+                        .fireResistant()
+                        .attributes(masterworkWeaponAttributes(damageParam, attackSpeed, reach))));
+    }
+
+    // --- The Masterwork weapon line (forged from the matching hihiirokane
+    //     weapon + a Masterwork Weapon Core at the Tensura Smithing Bench).
+    //     Attack SPEED + REACH are matched to each weapon's Tensura counterpart
+    //     (extracted from the Simple*Item constructors, where the first double
+    //     is the ENTITY_INTERACTION_RANGE bonus). Damage is NOT matched — that
+    //     rides the masterwork EP curve (floor 10 → 80).
+    //     damageParam = hihiirokane counterpart's param + 2.
+    public static final DeferredItem<MasterworkItem> MASTERWORK_KATANA      = masterwork("masterwork_katana", 6, -2.2, 0.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SWORD       = masterwork("masterwork_sword", 5, -2.4, 0.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SHORT_SWORD = masterwork("masterwork_short_sword", 3, -2.0, -0.75);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_LONG_SWORD  = masterwork("masterwork_long_sword", 7, -2.6, 0.25);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_GREAT_SWORD = masterwork("masterwork_great_sword", 8, -3.2, 2.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_KODACHI     = masterwork("masterwork_kodachi", 3, -2.0, -0.75);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_ODACHI      = masterwork("masterwork_odachi", 8, -3.2, 2.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_TACHI       = masterwork("masterwork_tachi", 7, -2.6, 0.25);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SPEAR       = masterwork("masterwork_spear", 5, -2.6, 2.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SCYTHE      = masterwork("masterwork_scythe", 7, -3.2, 2.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_AXE         = masterwork("masterwork_axe", 7, -3.0, 0.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SICKLE      = masterwork("masterwork_sickle", 4, -2.8, 0.0);
+
+    /** Every Masterwork weapon — drives the creative tab + the client EP-tier
+     *  model property, so adding one here wires it everywhere. */
+    public static final java.util.List<DeferredItem<MasterworkItem>> MASTERWORK_WEAPONS = java.util.List.of(
+            MASTERWORK_KATANA, MASTERWORK_SWORD, MASTERWORK_SHORT_SWORD, MASTERWORK_LONG_SWORD,
+            MASTERWORK_GREAT_SWORD, MASTERWORK_KODACHI, MASTERWORK_ODACHI, MASTERWORK_TACHI,
+            MASTERWORK_SPEAR, MASTERWORK_SCYTHE, MASTERWORK_AXE, MASTERWORK_SICKLE);
+
+    /** Base melee attributes for a Masterwork weapon (EP evolutions add on top).
+     *  {@code reach} mirrors the Tensura counterpart's ENTITY_INTERACTION_RANGE
+     *  bonus (0 for most, +2 for polearms, -0.75 for the short blades). */
+    private static net.minecraft.world.item.component.ItemAttributeModifiers masterworkWeaponAttributes(
+            double damageParam, double attackSpeed, double reach) {
+        var op = net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE;
+        var mainhand = net.minecraft.world.entity.EquipmentSlotGroup.MAINHAND;
+        // Tensura's createAttributes adds the TIER bonus to the weapon's own
+        // damage param — mirror that so we sit on the same scale.
+        double attackDamage = damageParam + MASTERWORK_TIER.getAttackDamageBonus();
+        var builder = net.minecraft.world.item.component.ItemAttributeModifiers.builder()
+                .add(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE,
+                        new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                                net.minecraft.world.item.Item.BASE_ATTACK_DAMAGE_ID, attackDamage, op), mainhand)
+                .add(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_SPEED,
+                        new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                                net.minecraft.world.item.Item.BASE_ATTACK_SPEED_ID, attackSpeed, op), mainhand);
+        if (reach != 0.0) {
+            builder.add(net.minecraft.world.entity.ai.attributes.Attributes.ENTITY_INTERACTION_RANGE,
+                    new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "masterwork_reach"),
+                            reach, op), mainhand);
+        }
+        return builder.build();
+    }
     /** Milim milestone intermediate (8 honeycomb + 1 pure magisteel). */
     public static final DeferredItem<net.minecraft.world.item.Item> APITO_NECTAR =
             ITEMS.registerSimpleItem("apito_nectar",
@@ -267,6 +350,46 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public static final DeferredItem<DragoNovaItem> DRAGO_NOVA =
             ITEMS.register("drago_nova",
                     () -> new DragoNovaItem(new net.minecraft.world.item.Item.Properties().stacksTo(1)));
+
+    // --- Absolute Annihilator — Milim's custom destruction weapon (reward for
+    //     "Prove Your Strength"). Gold enchantability (22), 20 attack damage,
+    //     1.8 attack speed, +2.5 reach. EP capability deferred (future-ideas.md).
+    public static final net.minecraft.world.item.Tier ANNIHILATOR_TIER = new net.minecraft.world.item.Tier() {
+        @Override public int getUses() { return 2031; }   // == a netherite axe
+        @Override public float getSpeed() { return 9.0f; }
+        @Override public float getAttackDamageBonus() { return 0.0f; }
+        @Override public net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> getIncorrectBlocksForDrops() {
+            return net.minecraft.tags.BlockTags.INCORRECT_FOR_NETHERITE_TOOL;
+        }
+        @Override public int getEnchantmentValue() { return 22; }
+        @Override public net.minecraft.world.item.crafting.Ingredient getRepairIngredient() {
+            return net.minecraft.world.item.crafting.Ingredient.of(net.minecraft.world.item.Items.NETHERITE_INGOT);
+        }
+    };
+    public static final DeferredItem<AbsoluteAnnihilatorItem> ABSOLUTE_ANNIHILATOR =
+            ITEMS.register("absolute_annihilator",
+                    () -> new AbsoluteAnnihilatorItem(ANNIHILATOR_TIER,
+                            new net.minecraft.world.item.Item.Properties()
+                                    .rarity(net.minecraft.world.item.Rarity.EPIC)
+                                    .fireResistant()
+                                    .attributes(absoluteAnnihilatorAttributes())));
+
+    private static net.minecraft.world.item.component.ItemAttributeModifiers absoluteAnnihilatorAttributes() {
+        var op = net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE;
+        var mainhand = net.minecraft.world.entity.EquipmentSlotGroup.MAINHAND;
+        return net.minecraft.world.item.component.ItemAttributeModifiers.builder()
+                .add(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE,
+                        new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                                net.minecraft.world.item.Item.BASE_ATTACK_DAMAGE_ID, 19.0, op), mainhand)
+                .add(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_SPEED,
+                        new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                                net.minecraft.world.item.Item.BASE_ATTACK_SPEED_ID, -2.2, op), mainhand)
+                .add(net.minecraft.world.entity.ai.attributes.Attributes.ENTITY_INTERACTION_RANGE,
+                        new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "annihilator_reach"),
+                                2.5, op), mainhand)
+                .build();
+    }
 
     public static final java.util.function.Supplier<net.minecraft.world.level.block.entity.BlockEntityType<BarrierBlockEntity>> BARRIER_BLOCK_ENTITY =
             BLOCK_ENTITIES.register("magicule_barrier",
@@ -303,7 +426,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     .withTabsBefore(CreativeModeTabs.COMBAT)
                     .icon(() -> DRAGO_NOVA.get().getDefaultInstance())
                     .displayItems((parameters, output) -> {
-                        output.accept(EXAMPLE_ITEM.get());
                         output.accept(BARRIER_BLOCK_ITEM.get());
                         output.accept(BARRIER_BLOCK_T2_ITEM.get());
                         output.accept(BARRIER_BLOCK_T3_ITEM.get());
@@ -316,6 +438,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         output.accept(APITO_NECTAR.get());
                         output.accept(APITOS_JELLY.get());
                         output.accept(DRAGO_NOVA.get());
+                        output.accept(ABSOLUTE_ANNIHILATOR.get());
+                        output.accept(MASTERWORK_SCHEMATIC.get());
+                        for (var weapon : MASTERWORK_WEAPONS) output.accept(weapon.get());
                     })
                     .build());
 
@@ -334,7 +459,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // driver lives in its own handler class. The command-cycle branch is
         // hooked from onEntityInteract below.
         NeoForge.EVENT_BUS.register(new SubordinatePatrol());
-        modEventBus.addListener(this::addCreative);
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
         // Faction master switch lives in a per-world SERVER config so the
         // in-game config menu can actually change it (COMMON loads once per
@@ -543,8 +667,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         LOGGER.info("[TM] citizen {} marked travelling — no body will auto-spawn", citizenData.getId());
 
         // --- Create persistent identity record ---
-        // No snapshot at naming time — the goblin is alive at the player's side.
-        // The full entity NBT is captured at send time (before discard).
+        // Snapshot is captured NOW from the live body (see below), then
+        // refreshed on every send and by the periodic refresh pass. Capturing
+        // at naming time (rather than only at first send) means the subordinate
+        // is recoverable via /recoverorphans even if its body vanishes before
+        // it is ever sent to a colony.
 
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(serverLevel);
         RaceIdentitySavedData.RaceIdentity identity = new RaceIdentitySavedData.RaceIdentity(
@@ -553,11 +680,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 colony.getID(),
                 entity.getUUID(),           // current mob entity UUID
                 RaceIdentitySavedData.Mode.SUBORDINATE,
-                null,                       // entitySnapshot — populated at first send
+                null,                       // entitySnapshot — populated immediately below
                 player.getUUID(),           // owner — matches IExistence.permanentOwner
                 race
         );
         saved.addIdentity(identity);
+        captureSnapshotFromLiveMob(saved, identity, entity);
 
         LOGGER.info("[TM] identity {} stored: citizen={} mob={} race={} mode=SUBORDINATE",
                 identity.identityId, identity.citizenId, identity.mobEntityUUID, race);
@@ -741,11 +869,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     colony.getID(),
                     p.mobEntityUUID,
                     RaceIdentitySavedData.Mode.SUBORDINATE,
-                    null,                                           // entitySnapshot — populated at first send
+                    null,                                           // entitySnapshot — populated immediately below
                     p.ownerPlayerUUID,                              // propagate from pending entry
                     p.race                                          // propagate race so renderer picks correctly
             );
             saved.addIdentity(identity);
+            // Capture the snapshot now from the live body (the goblin is
+            // guaranteed loaded here — findLivingEntityAcrossLevels above found
+            // it), so it's recoverable even if it vanishes before its first send.
+            captureSnapshotFromLiveMob(saved, identity, goblin);
             saved.removePending(p);
 
             LOGGER.info("[TM] pending '{}' promoted: citizen id={} race={} in '{}' (now {} citizens)",
@@ -1685,38 +1817,98 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     }
 
     /**
-     * Hostile-only spawn prevention inside a fueled barrier.
+     * The spawn TYPES a fueled barrier suppresses inside its footprint —
+     * the "environmental / involuntary arrival" set. Deliberate spawns are
+     * deliberately ABSENT (SPAWN_EGG, COMMAND, DISPENSER, MOB_SUMMONED,
+     * BREEDING, CONVERSION, BUCKET), so a player (or this mod) can still
+     * intentionally place a mob inside the field — and our own raid / envoy
+     * / garrison / defense spawns (all {@code MobSpawnType.SPAWN_EGG} via a
+     * direct {@code finalizeSpawn}, which doesn't post these events anyway)
+     * are never touched. Raids are unaffected regardless: they bypass the
+     * spawn events and are placed OUTSIDE the field by construction.
      *
-     * Classification — "only hostile" = the {@code tensura:hostile_monster}
-     * ENTITY TYPE TAG, not {@code MobCategory.MONSTER}. Tensura registers
+     * Only a subset of these actually reach {@code PositionCheck}
+     * (NATURAL / CHUNK_GENERATION / SPAWNER); the rest (PATROL /
+     * TRIAL_SPAWNER / REINFORCEMENT / JOCKEY / STRUCTURE / EVENT /
+     * TRIGGERED) only reach {@code FinalizeSpawnEvent}. Both hooks share
+     * this one set, so listing all of them here is correct for each hook.
+     */
+    private static final java.util.EnumSet<net.minecraft.world.entity.MobSpawnType>
+            BARRIER_BLOCKED_SPAWN_TYPES = java.util.EnumSet.of(
+                    net.minecraft.world.entity.MobSpawnType.NATURAL,
+                    net.minecraft.world.entity.MobSpawnType.CHUNK_GENERATION,
+                    net.minecraft.world.entity.MobSpawnType.SPAWNER,
+                    net.minecraft.world.entity.MobSpawnType.TRIAL_SPAWNER,
+                    net.minecraft.world.entity.MobSpawnType.PATROL,
+                    net.minecraft.world.entity.MobSpawnType.REINFORCEMENT,
+                    net.minecraft.world.entity.MobSpawnType.JOCKEY,
+                    net.minecraft.world.entity.MobSpawnType.STRUCTURE,
+                    net.minecraft.world.entity.MobSpawnType.EVENT,
+                    net.minecraft.world.entity.MobSpawnType.TRIGGERED);
+
+    /**
+     * Shared test for both barrier spawn-suppression hooks: true when a mob
+     * of {@code type}, arriving via {@code spawnType} at (x, z), should be
+     * denied because it is a barrier-blocked hostile inside a fueled
+     * barrier's footprint.
+     *
+     * Classification — "hostile" = the {@code tensura_minecolonies:barrier_blocked}
+     * ENTITY TYPE TAG (which pulls in Tensura's curated
+     * {@code tensura:hostile_monster} list PLUS the vanilla hostiles that
+     * tag omits), NOT {@code MobCategory.MONSTER}: Tensura registers
      * goblins/orcs/etc. as MONSTER even though they're passive-aggressive,
-     * so the category over-blocks; the tag is Tensura's own curated
-     * attacks-on-sight list (vanilla zombies/skeletons/creepers + Tensura's
-     * genuine hostiles, with neutral mobs like endermen and the nameable
-     * races deliberately absent). Same tag the patrol targeting uses.
-     *
-     * Hook — {@code MobSpawnEvent.PositionCheck}, fired by vanilla's
-     * NaturalSpawner / spawner placement checks. Our raid spawns go
-     * through {@code EntityType.create + addFreshEntity} directly, which
-     * never posts this event — raids are unaffected by construction (and
-     * spawn at the colony perimeter anyway). Only NATURAL-style spawns
-     * are denied; the barrier must be FUELED (the active-barrier registry
-     * only carries barriers with stored magicule > 0).
+     * so the category over-blocks. Same tag the field pushback uses, so a
+     * mob the barrier would repel is exactly a mob it won't let spawn.
+     * "Fueled" is implicit — the active-barrier registry only carries
+     * barriers with stored magicule > 0.
+     */
+    private static boolean shouldBarrierBlockSpawn(
+            ServerLevel level,
+            net.minecraft.world.entity.EntityType<?> type,
+            net.minecraft.world.entity.MobSpawnType spawnType,
+            double x, double z) {
+        if (!BARRIER_BLOCKED_SPAWN_TYPES.contains(spawnType)) return false;
+        if (!type.builtInRegistryHolder().is(TensuraRaids.HOSTILE_MONSTER_TAG)) return false;
+        return TensuraRaids.isInsideFueledBarrier(level, x, z);
+    }
+
+    /**
+     * Barrier spawn-suppression hook #1 — {@code MobSpawnEvent.PositionCheck},
+     * fired by vanilla's NaturalSpawner (NATURAL / CHUNK_GENERATION) and by
+     * mob-spawner blocks (SPAWNER). Denies the spawn early, before the mob
+     * is finalized. The companion {@link #onBarrierBlockFinalizeSpawn} hook
+     * covers the environmental spawn types that never reach PositionCheck.
      */
     @SubscribeEvent
     public void onMobSpawnPositionCheck(
             net.neoforged.neoforge.event.entity.living.MobSpawnEvent.PositionCheck event) {
         if (!(event.getLevel() instanceof ServerLevel serverLevel)) return;
-        net.minecraft.world.entity.MobSpawnType type = event.getSpawnType();
-        if (type != net.minecraft.world.entity.MobSpawnType.NATURAL
-                && type != net.minecraft.world.entity.MobSpawnType.CHUNK_GENERATION) {
-            return;
+        if (shouldBarrierBlockSpawn(serverLevel, event.getEntity().getType(),
+                event.getSpawnType(), event.getX(), event.getZ())) {
+            event.setResult(
+                    net.neoforged.neoforge.event.entity.living.MobSpawnEvent.PositionCheck.Result.FAIL);
         }
-        if (!event.getEntity().getType().builtInRegistryHolder().is(TensuraRaids.HOSTILE_MONSTER_TAG)) {
-            return;
-        }
-        if (TensuraRaids.isInsideFueledBarrier(serverLevel, event.getX(), event.getZ())) {
-            event.setResult(net.neoforged.neoforge.event.entity.living.MobSpawnEvent.PositionCheck.Result.FAIL);
+    }
+
+    /**
+     * Barrier spawn-suppression hook #2 — {@code FinalizeSpawnEvent}, the
+     * catch for the environmental spawn paths that DON'T fire PositionCheck:
+     * pillager patrols, trial spawners, zombie reinforcements, jockeys, and
+     * structure / event spawns all reach {@code finalizeSpawn} instead.
+     * Cancelling here stops them materialising inside a fueled barrier.
+     * (NATURAL / CHUNK_GENERATION / SPAWNER are already denied earlier by
+     * PositionCheck, so this only ends up firing for the finalize-only
+     * types — but sharing the same set keeps it robust if any of those ever
+     * skips PositionCheck.)
+     */
+    @SubscribeEvent
+    public void onBarrierBlockFinalizeSpawn(
+            net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent event) {
+        if (event.isSpawnCancelled()) return;
+        if (!(event.getLevel() instanceof ServerLevel serverLevel)) return;
+        if (shouldBarrierBlockSpawn(serverLevel, event.getEntity().getType(),
+                event.getSpawnType(), event.getX(), event.getZ())) {
+            event.setSpawnCancelled(true);
         }
     }
 
@@ -1727,6 +1919,22 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      * cancel the hit and chip the facing section. Complements the
      * projectile-entity blocker, which only catches moving point projectiles.
      */
+    /**
+     * No FRIENDLY FIRE within a rival-colony garrison. Cancels any hit whose
+     * attacker (or the caster behind a spell/projectile) shares a settlement
+     * garrison with the victim — so a caster's AoE magic (Fire Ball, Stone Shot)
+     * can't wipe out its own defenders. Invaders (player + war-party) are
+     * unaffected. See {@link RivalColonies#isGarrisonFriendlyFire}.
+     */
+    @SubscribeEvent
+    public void onGarrisonFriendlyFire(
+            net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent event) {
+        if (!(event.getEntity().level() instanceof ServerLevel)) return;
+        if (RivalColonies.isGarrisonFriendlyFire(event.getSource().getEntity(), event.getEntity())) {
+            event.setCanceled(true);
+        }
+    }
+
     @SubscribeEvent
     public void onBarrierBlockIncomingDamage(
             net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent event) {
@@ -4073,6 +4281,56 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         return null;
     }
 
+    /**
+     * Capture (or refresh) an identity's full-entity snapshot from a live mob
+     * body. Best-effort: logs and no-ops on failure, leaving any prior
+     * snapshot intact.
+     *
+     * <p>Called at naming time, on pending-pool promotion, and by the periodic
+     * refresh pass ({@link #tickRefreshSubordinateSnapshots}). Previously the
+     * snapshot was only taken on the first send-to-colony, which meant a
+     * subordinate that vanished before it was ever sent (e.g. scooped by a
+     * third-party mob-storage item) had no snapshot and could never be
+     * recovered — only purged. Capturing early makes such subordinates
+     * recoverable via {@code /recoverorphans}; refreshing periodically keeps
+     * the snapshot tracking EP/leveling rather than freezing at naming time.
+     *
+     * <p>The tag is identical in form to the send-time snapshot
+     * ({@code Entity.save}): type, position, attributes, inventory, appearance,
+     * evolution state, and all ManasCore storages.
+     */
+    private static void captureSnapshotFromLiveMob(RaceIdentitySavedData saved,
+                                                   RaceIdentitySavedData.RaceIdentity identity,
+                                                   LivingEntity mob) {
+        try {
+            CompoundTag snap = new CompoundTag();
+            if (mob.save(snap)) {
+                saved.updateEntitySnapshot(identity, snap);
+            }
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] snapshot capture threw for identity {} — leaving prior snapshot",
+                    identity.identityId, t);
+        }
+    }
+
+    /**
+     * Periodic pass — re-save the snapshot of every SUBORDINATE-mode identity
+     * whose live mob is currently loaded, so a subordinate that later vanishes
+     * is recoverable from a recent form (see {@link #captureSnapshotFromLiveMob}).
+     * Bounded by the number of loaded subordinate mobs; unloaded/gone ones are
+     * skipped (nothing to read).
+     */
+    private static void tickRefreshSubordinateSnapshots(MinecraftServer server) {
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(server.overworld());
+        for (RaceIdentitySavedData.RaceIdentity identity : saved.all()) {
+            if (identity.mode != RaceIdentitySavedData.Mode.SUBORDINATE) continue;
+            if (identity.mobEntityUUID == null) continue;
+            LivingEntity mob = findLivingEntityAcrossLevels(server, identity.mobEntityUUID);
+            if (mob == null) continue; // unloaded or gone — nothing to snapshot
+            captureSnapshotFromLiveMob(saved, identity, mob);
+        }
+    }
+
     // ------------------------------------------------------------------
     // Stage D — death hooks
     //
@@ -4553,9 +4811,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         event.getDispatcher().register(
                 Commands.literal("recoverorphans")
                         .requires(src -> src.hasPermission(2))
-                        .executes(ctx -> handleRecoverOrphans(ctx, false))
+                        .executes(ctx -> handleRecoverOrphans(ctx, OrphanAction.DRY_RUN))
                         .then(Commands.literal("confirm")
-                                .executes(ctx -> handleRecoverOrphans(ctx, true)))
+                                .executes(ctx -> handleRecoverOrphans(ctx, OrphanAction.CONFIRM)))
+                        .then(Commands.literal("purge")
+                                .executes(ctx -> handleRecoverOrphans(ctx, OrphanAction.PURGE)))
         );
         // Harvest Festival debug/testing + the prestige-reset entry point.
         //   /festival run    — run the once-per-colony festival on your colonies
@@ -5599,8 +5859,25 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     // mob-storage item, or a summon that rolled back before FIX 1), the
     // identity record is left stuck in SUBORDINATE pointing at a mob UUID that
     // resolves to nothing — so the subordinate can never re-join the colony.
-    // This tool finds those records and (on explicit confirm) restores them as
-    // colonists, reusing the CitizenData that always existed.
+    // This tool finds those records. On "confirm" it restores the snapshot-
+    // backed ones as colonists (reusing the CitizenData that always existed);
+    // on "purge" it DELETES the snapshot-less ones and frees their housing.
+    //
+    // Three forms (OrphanAction):
+    //   • DRY_RUN (no arg) — reports and mutates nothing. Splits the orphans
+    //     into recoverable (has a snapshot) and identity-only (no snapshot),
+    //     and points at the confirm/purge follow-ups.
+    //   • CONFIRM — restores the RECOVERABLE ones as colonists. Never deletes.
+    //   • PURGE — deletes the IDENTITY-ONLY ones (removeCivilian + removeIdentity)
+    //     so their occupied housing slot is freed. Destructive; only ever
+    //     touches snapshot-less, body-less, owner-matched records.
+    //
+    // Note: since snapshots are now also captured at naming time and refreshed
+    // periodically while a subordinate is loaded (see captureSnapshotFromLiveMob
+    // + tickRefreshSubordinateSnapshots), the identity-only bucket only holds
+    // subordinates that vanished before their FIRST snapshot was ever taken
+    // (e.g. legacy pre-update records, or a body removed the same tick it was
+    // named). Those are the ones purge is for.
     //
     // SAFETY:
     //   • Scope = the RUNNING player's own identities only. The owner is online
@@ -5608,13 +5885,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     //     an unresolvable mob is therefore a strong signal it was genuinely
     //     removed, not merely in an unloaded chunk.
     //   • DRY RUN by default — it reports and mutates nothing. Only "confirm"
-    //     changes state.
-    //   • Records are NEVER deleted. On any uncertainty (missing colony /
-    //     citizen / exception) the record is left intact and reported as skipped.
-    //   • Snapshot-less ("named but never sent") records are reported separately
-    //     as identity-only and left untouched — their stats/appearance can't be
-    //     reconstructed, so we don't fabricate them.
-    private int handleRecoverOrphans(CommandContext<CommandSourceStack> ctx, boolean confirm) {
+    //     or "purge" changes state.
+    //   • CONFIRM never deletes. On any uncertainty (missing colony / citizen /
+    //     exception) the record is left intact and reported as skipped.
+    //   • PURGE only ever targets the identity-only bucket (never a recoverable
+    //     or live subordinate), and only for records the running player owns.
+    /** Which form of the /recoverorphans command was run. */
+    private enum OrphanAction { DRY_RUN, CONFIRM, PURGE }
+
+    private int handleRecoverOrphans(CommandContext<CommandSourceStack> ctx, OrphanAction action) {
         CommandSourceStack src = ctx.getSource();
         ServerPlayer player;
         try {
@@ -5648,7 +5927,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             return 1;
         }
 
-        if (!confirm) {
+        if (action == OrphanAction.DRY_RUN) {
             final int rec = recoverable.size();
             final int idOnly = identityOnly.size();
             src.sendSuccess(() -> Component.literal(
@@ -5659,7 +5938,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     .withStyle(ChatFormatting.GREEN), false);
             src.sendSuccess(() -> Component.literal(
                     "  " + idOnly + " identity-only (never sent to a colony / no snapshot) — "
-                    + "cannot restore stats or appearance; will be left untouched.")
+                    + "cannot restore stats or appearance.")
                     .withStyle(ChatFormatting.YELLOW), false);
             for (RaceIdentitySavedData.RaceIdentity id : recoverable) {
                 final String nm = resolveOrphanName(cm, level, id);
@@ -5670,12 +5949,60 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             for (RaceIdentitySavedData.RaceIdentity id : identityOnly) {
                 final String nm = resolveOrphanName(cm, level, id);
                 final Race race = id.race;
-                src.sendSuccess(() -> Component.literal("    skip:    " + nm + " (" + race + ", no snapshot)")
+                src.sendSuccess(() -> Component.literal("    purge?:  " + nm + " (" + race + ", no snapshot)")
                         .withStyle(ChatFormatting.DARK_GRAY), false);
             }
             src.sendSuccess(() -> Component.literal(
                     "Run \"/recoverorphans confirm\" to restore the " + rec + " recoverable subordinate(s).")
                     .withStyle(ChatFormatting.AQUA), false);
+            if (idOnly > 0) {
+                src.sendSuccess(() -> Component.literal(
+                        "Run \"/recoverorphans purge\" to DELETE the " + idOnly + " unrecoverable "
+                        + "identity-only subordinate(s) and free their housing. This is permanent.")
+                        .withStyle(ChatFormatting.RED), false);
+            }
+            return 1;
+        }
+
+        if (action == OrphanAction.PURGE) {
+            // Destructive — delete the identity-only orphans (no snapshot, no
+            // live body, so /recoverorphans can never restore them) and free
+            // the housing/citizen slot their CitizenData still occupies. Only
+            // ever touches identity-only, owner-matched records; recoverable
+            // ones are left for "confirm". Mirrors the death-hook cleanup:
+            // removeCivilian (drops the count, unassigns buildings) then
+            // removeIdentity.
+            int purged = 0, skipped = 0;
+            for (RaceIdentitySavedData.RaceIdentity id : identityOnly) {
+                try {
+                    IColony colony = cm.getColonyByWorld(id.colonyId, level);
+                    if (colony != null) {
+                        ICitizenData cd = colony.getCitizenManager().getCivilian(id.citizenId);
+                        if (cd != null) {
+                            colony.getCitizenManager().removeCivilian(cd);
+                            LOGGER.info("[TM] purgeorphan: removed citizen {} from colony {} (housing freed)",
+                                    id.citizenId, id.colonyId);
+                        }
+                    }
+                    // Drop the record regardless — a missing colony/citizen just
+                    // means the housing is already gone; the dead record isn't.
+                    saved.removeIdentity(id);
+                    purged++;
+                    LOGGER.info("[TM] purgeorphan: deleted identity-only record {} (citizen {} race {})",
+                            id.identityId, id.citizenId, id.race);
+                } catch (Throwable t) {
+                    LOGGER.error("[TM] purgeorphan: purge threw for identity {} — leaving record intact",
+                            id.identityId, t);
+                    skipped++;
+                }
+            }
+            final int fPurged = purged, fSkipped = skipped, fRecoverable = recoverable.size();
+            src.sendSuccess(() -> Component.literal(
+                    "Orphan purge complete: " + fPurged + " deleted (housing freed); "
+                    + fSkipped + " skipped (error — records kept). "
+                    + fRecoverable + " recoverable subordinate(s) were left untouched — "
+                    + "use \"/recoverorphans confirm\" for those.")
+                    .withStyle(ChatFormatting.GREEN), false);
             return 1;
         }
 
@@ -6566,10 +6893,56 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      *   - circle entities older than CIRCLE_DURATION_TICKS → discard
      *   - pending swaps past their executeAtTick → re-validate and run
      */
+    /** Masterwork QOL driver — every tick, only while the weapon is HELD (so a
+     *  dropped weapon stops magnetising and step-assist is always cleaned up). */
+    @SubscribeEvent
+    public void onMasterworkPlayerTick(net.neoforged.neoforge.event.tick.PlayerTickEvent.Post event) {
+        if (!(event.getEntity() instanceof ServerPlayer sp)) return;
+        boolean holding = sp.getMainHandItem().getItem() instanceof MasterworkItem
+                || sp.getOffhandItem().getItem() instanceof MasterworkItem;
+        MasterworkItem.tickQol(sp, holding);
+    }
+
+    /** Masterwork soulbound (20+ mastered skills): items kept on death, held
+     *  here between death and respawn, keyed by player UUID. */
+    private static final java.util.Map<java.util.UUID, java.util.List<net.minecraft.world.item.ItemStack>>
+            MASTERWORK_SOULBOUND = new java.util.HashMap<>();
+
+    @SubscribeEvent
+    public void onMasterworkDrops(net.neoforged.neoforge.event.entity.living.LivingDropsEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer sp)) return;
+        if (MasterworkItem.masteredCount(sp) < MasterworkItem.SOULBOUND_MASTERED) return;
+        java.util.List<net.minecraft.world.item.ItemStack> keep = new java.util.ArrayList<>();
+        event.getDrops().removeIf(itemEntity -> {
+            if (itemEntity.getItem().getItem() instanceof MasterworkItem) {
+                keep.add(itemEntity.getItem().copy());
+                return true;
+            }
+            return false;
+        });
+        if (!keep.isEmpty()) MASTERWORK_SOULBOUND.put(sp.getUUID(), keep);
+    }
+
+    @SubscribeEvent
+    public void onMasterworkClone(net.neoforged.neoforge.event.entity.player.PlayerEvent.Clone event) {
+        if (!event.isWasDeath()) return;
+        java.util.List<net.minecraft.world.item.ItemStack> keep =
+                MASTERWORK_SOULBOUND.remove(event.getOriginal().getUUID());
+        if (keep == null) return;
+        net.minecraft.world.entity.player.Player np = event.getEntity();
+        for (net.minecraft.world.item.ItemStack s : keep) {
+            if (!np.getInventory().add(s)) np.drop(s, false);
+        }
+    }
+
     @SubscribeEvent
     public void onServerTickPost(ServerTickEvent.Post event) {
         MinecraftServer server = event.getServer();
         long now = server.getTickCount();
+
+        // Drago Nova charge-up ritual — EVERY tick (needs per-tick smoothness for
+        // the rising orb + converging particles). Cheap early-return when idle.
+        DragoNovaItem.tickCharges(server);
 
         // Stage 3a — envoy scheduler fires every ENVOY_SCHEDULER_PERIOD_TICKS
         // (currently 1 s). Cheap per call; the day-based gates inside the
@@ -6612,6 +6985,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (now > 0 && now % AMBIENT_PERIOD_TICKS == 0) {
             runEnvoyScheduler(server);
             tickReputationDrift(server);
+            // Refresh the stored snapshot of every loaded subordinate so a
+            // vanished body can be recovered from a recent form (and never
+            // lands in the unrecoverable "identity-only" bucket).
+            tickRefreshSubordinateSnapshots(server);
         }
 
         // Dawn-restock pass — refresh every named subordinate merchant's
@@ -7874,12 +8251,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     .subscribe(com.minecolonies.api.eventbus.events.colony.buildings.BuildingConstructionModEvent.class,
                             this::onBuildingConstruction);
         });
-    }
-
-    private void addCreative(BuildCreativeModeTabContentsEvent event) {
-        if (event.getTabKey() == CreativeModeTabs.BUILDING_BLOCKS) {
-            event.accept(EXAMPLE_BLOCK_ITEM);
-        }
     }
 
     @SubscribeEvent

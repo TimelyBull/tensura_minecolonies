@@ -1,0 +1,48 @@
+{
+  "type": "tensura_minecolonies:masterwork_tachi",
+  "epGain": 0.04,
+  "minEP": 800000,
+  "maxEP": 2000000,
+  "uniqueEvolutions": [
+    {
+      "EP": 1100000,
+      "attributes": [
+        {
+          "type": "minecraft:generic.attack_damage",
+          "amount": 8.0,
+          "slot": "mainhand"
+        }
+      ]
+    },
+    {
+      "EP": 1400000,
+      "attributes": [
+        {
+          "type": "minecraft:generic.attack_damage",
+          "amount": 18.0,
+          "slot": "mainhand"
+        }
+      ]
+    },
+    {
+      "EP": 1700000,
+      "attributes": [
+        {
+          "type": "minecraft:generic.attack_damage",
+          "amount": 30.0,
+          "slot": "mainhand"
+        }
+      ]
+    },
+    {
+      "EP": 2000000,
+      "attributes": [
+        {
+          "type": "minecraft:generic.attack_damage",
+          "amount": 45.0,
+          "slot": "mainhand"
+        }
+      ]
+    }
+  ]
+}

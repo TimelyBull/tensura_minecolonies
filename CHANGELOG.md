@@ -6,9 +6,72 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project aims to follow [Semantic Versioning](https://semver.org/).
 Copy the relevant version's section into the CurseForge release notes on each update.
 
-## [Unreleased]
+## [0.2.0] - 2026-07-21
 
 ### Added
+- **Masterwork weapons — a legendary weapon line that grows with you.** Ally with
+  **Dwargon** to Covenant and complete *The Masterwork Commission* (deliver a
+  Block of Netherite + a Hihiirokane Ingot) to receive a **Masterwork Weapon
+  Core** and a **Masterwork Schematic**. Right-click the schematic to learn the
+  recipes, then forge at a **Tensura Smithing Bench**: any hihiirokane weapon +
+  a Masterwork Weapon Core becomes its Masterwork version. All **12 weapon types**
+  are supported — sword, short/long/great sword, katana, kodachi, odachi, tachi,
+  spear, scythe, axe and sickle.
+  - **Stronger than what it replaces.** Each Masterwork weapon hits for slightly
+    more than its hihiirokane counterpart, with more durability and enchantability,
+    and its damage keeps climbing as the weapon absorbs EP — up to roughly +45 more
+    at full power.
+  - **The blade awakens as it grows.** Newly forged, it's a plain sleek steel
+    blade. As its EP rises it gains colour and a subtle glimmer, in four stages,
+    at the same milestones its damage increases.
+  - **It fights differently depending on who wields it.** A **majin** wielder
+    drains life on hit; a **non-majin** wielder is mended instead. Master more
+    **Battlewills** than Magics and right-click unleashes a **sweeping strike**
+    (spending aura); master more **Magics** and it fires a **flying magic slice**
+    (spending magicule).
+  - **Mastery perks:** at **10** mastered skills nearby drops fly to you, at **15**
+    you step up full blocks while holding it, and at **20** the weapon stays with
+    you when you die.
+  - It repairs itself from its own EP, and hovering it with **SHIFT** lists
+    everything it can do.
+
+- **The Absolute Annihilator — a new legendary hammer from Milim.** Earned from
+  Milim's "Prove Your Strength" pact, this two-headed warhammer hits for heavy
+  base damage with extra reach, carries a **Holy Coat engraving** (extra damage
+  against holy foes), and — like other Tensura weapons — **gains EP as you
+  fight**, growing stronger (up to a much higher attack power) the more it
+  kills (up to a 1,000,000 EP cap), and **unlocks new powers at EP milestones**:
+  - **150,000 EP** — its strikes inflict brief Weakness.
+  - **500,000 EP** — it becomes "charged": the dark detailing **lights up with
+    energy**, and right-click **unleashes a Drago Nova blast** (the same floating
+    charge-up and explosion), on a cooldown, without being consumed.
+  - **700,000 EP** — strikes heal you (lifesteal), and the blast recharges faster.
+  - **1,000,000 EP** — strikes burst into a small shockwave that hits nearby
+    enemies, and the blast recharges faster still.
+
+  Alongside these, its raw stats climb with EP too (more attack damage and speed,
+  then knockback resistance, then bonus health). It also appears in the creative
+  tab.
+- **`/recoverorphans purge` — delete lost subordinates that can't be rescued
+  and free their housing.** Some vanished subordinates can be restored as
+  colonists with `/recoverorphans confirm`, but ones that were lost before the
+  game ever saved a copy of them have nothing to restore from — they just sit
+  there occupying a house forever. The new `/recoverorphans purge` permanently
+  deletes those (and only those), freeing the housing slot. Run
+  `/recoverorphans` first to see which of your lost subordinates are
+  recoverable versus purge-only; it changes nothing until you run `confirm` or
+  `purge`.
+
+- **A fueled magicule barrier now stops hostile mobs from spawning inside it.**
+  While your Barrier Core has fuel, hostile monsters — vanilla ones and Tensura
+  ones (spiders, direwolves, daemons, orcs, and the rest of Tensura's hostile
+  list) — can no longer appear anywhere inside the protected area. This covers
+  wild night-time spawns as well as pillager patrols, mob spawners, trial
+  spawners, and zombie reinforcements that would otherwise pop up inside your
+  walls. It does NOT block things you place on purpose (spawn eggs, `/summon`,
+  dispensers, breeding, your own tamed/summoned creatures), and it leaves raids
+  alone — raiders still spawn OUTSIDE the field and have to break through, as
+  before. An empty barrier protects nothing: refuel it to keep the area clear.
 - **New setting: "Citizens Transform to Defend Raids"** (on by default). When a
   colony is raided, strong non-guard Tensura-race citizens transform into their
   monster body and fight with skills, then change back when the raid ends. If you
@@ -22,7 +85,157 @@ Copy the relevant version's section into the CurseForge release notes on each up
   any citizen — instead of a plain human villager. The whole colony stays true
   to its race as it grows, with no naming step required for each newcomer.
 
+### Changed
+- **Covenant alliance rewards are being reworked.** The final "Covenant" deal for
+  each faction now grants **Enchanted Golden Apples** scaled to that faction's
+  standing tier, as a placeholder while the unique per-faction rewards are
+  designed. Dwargon's already awards its Masterwork Weapon Core + schematic.
+- **Barriers now protect your colony, not just the block.** A Barrier Core
+  placed anywhere inside your colony's claimed land projects its sphere around
+  your **town hall** instead of around the block itself. A core placed out in
+  the wild still centres on itself, as before.
+- **Multiple Barrier Cores in one colony merge into a single barrier.** Extra
+  cores no longer make overlapping spheres — the strongest core sets the
+  barrier's size and panel strength, and every core's fuel tank pools into one
+  shared supply. Opening the menu on any of them shows and controls the shared
+  barrier.
+- **The third barrier layer now grants a buff that depends on who raised it.**
+  A true **Demon Lord** grants players inside 10% faster magicule regeneration;
+  a true **Hero** blesses the citizens inside with stronger healing and extra
+  absorption hearts. (This buff used to come from tier 3+ cores automatically —
+  it now comes from the third layer instead.)
+
+- **Eastern Empire (magitech/imperial) deals reworked.** Its board leans into what
+  the Empire is — a magitech military that summons soldiers. Milestone deals became
+  real tasks, coins were added, and it gained three new deals: **The Imperial Levy**,
+  **Arcane Conscripts**, and **A New Type of Soldier** (build a magisteel golem to
+  fight for you). Several deals now grant a **Summoning Tome** or the new **Imperial
+  Stimulant** potion, and *An Imperial Garrison* awards an enchanted magisteel sword.
+- **Some deal names cleaned up** so they match what the deal actually asks for —
+  e.g. Eurazania's Charybdis fight is now "The Charybdis Hunt," and a couple of
+  Leon/Empire deals were renamed to fit their tasks.
+- **Leon (the Platinum Saber) deals reworked.** Leon now reads as what he is in
+  the story — a master swordsman and spirit-summoner whose signature is the fire
+  spirit Ifrit — rather than a generic flame faction. Deals that just watched
+  your colony were replaced with real tasks, coins were added throughout, and the
+  board gained a martial spine: **Flame Knights** and the new **Trial by Fire**
+  now grant Battlewill Manuals, and a new capstone, **The Platinum Blade**, awards
+  a fire katana (Fire Aspect II + Sharpness IV). Several deals also hand out the
+  new **Flamewarden's Brew** potion.
+- **Factions now reward custom brews.** Several deals that paid out a single
+  filler item now hand you a themed, custom-named potion (each lasting 1:30):
+  Falmuth's **Crusader's Draught** (Strength + Resistance) and **Siegebreaker's
+  Tonic** (Haste + Resistance), Milim's **Dragon's Vigor** (Strength II +
+  Regeneration), Eurazania's **Beast-Blood Draught** (Speed, Strength, Jump
+  Boost), and Clayman's **Potion of Invisibility** / **Potion of Night Vision**
+  for its spy work. Falmuth also gained a new deal, **The Siege Train**.
+- **Milim's two boss hunts swapped payouts.** Slaying the **Warden** ("The
+  Ultimate Brawl") is now Milim's signature feat and awards the **Absolute
+  Annihilator**, while slaying the Wither ("Prove Your Strength") pays out
+  enchanted golden apples, diamonds, gold and a Battlewill Manual.
+- **Clayman (the Moderate Harlequin Alliance) deals reworked.** Its quest board no
+  longer hands back the same thing you delivered, every deal now pays coins scaled
+  to your standing, and the deals that just watched your colony's buildings, size,
+  or happiness were replaced with real tasks. Two new schemes were added: **A Grand
+  Illusion** (commission a grade-A grimoire) and **The Marionette** — a capstone
+  that asks you to **declare war on a rival colony and win it**, granting Clayman's
+  signature reward.
+- **Eurazania (the Beast Kingdom) deals reworked.** Its quest board now pays out
+  in **monster leather, beast horns, meaty stew, a Full Potion, and beast-armor
+  schematics** instead of plain leather, and every deal pays coins scaled to your
+  standing. Several deals that just watched your colony's size/happiness were
+  replaced with real tasks — including **A Great Hunt** (slay 40 monsters) and a
+  new capstone, **A Wild Haven** (hunt down a Charybdis for an Armorsaurus
+  Scalemail schematic + a Battlewill Manual). Five new deals were added too: **The
+  Beast-Horn Spear** (forge an enchanted Beast Horn Spear), **Blade Tiger Cull**,
+  **Armorsaurus Hide**, **The Tanner's Trade**, and **Pack Hunters**.
+- **Drago Nova now has a dramatic charge-up.** Instead of exploding the instant
+  you use it, the Drago Nova lifts out of your hand and hovers in the air while
+  blue energy is drawn into it and a glowing blue sphere swells around it — then,
+  once it rises to head height (about 2.5 seconds), it unleashes the full blast.
+  The explosion now happens where the orb is floating, so stepping away during
+  the wind-up moves the blast with it.
+
+- **Higher-tier Barrier Cores are now crafted by upgrading the tier below.**
+  Each Barrier Core above the first now requires the previous tier's Barrier
+  Core placed in the center of the crafting grid (surrounded by the same
+  materials as before), instead of building from raw materials alone. Tier 2
+  needs a Tier 1 core, Tier 3 needs a Tier 2 core, and so on. The Tier 1 recipe
+  is unchanged.
+- **Rival-faction settlements now defend at a strength that matches their
+  reward.** A faction's garrison (how many defenders it fields and how tough
+  they are) is now set by how valuable that faction is to conquer, on a
+  four-step ladder, rather than swinging wildly off its leader. Apex settlements
+  — Luminous and Leon — field the largest, strongest garrisons (about 20
+  defenders); the next step — Dwargon and the Eastern Empire — a bit fewer;
+  Falmuth and Tempest fewer still. Each still feels distinct (their leaders and
+  troops differ). **Leon's boss (Ifrit) is now a proper apex threat** — much
+  tougher, to match the fight to the reward. The Eastern Empire is no longer
+  over-stacked.
+- **Dwargon is now a top-tier power.** Dwargon (King Gazel's realm) has been
+  moved up to the highest difficulty/reward tier to match its standing in the
+  story, so its settlement fields a full apex garrison.
+- **Dwargon's dwarves are now real soldiers.** Instead of near-harmless miners,
+  a Dwargon settlement is defended by hardened dwarven troops — far more health
+  and damage, plus tough hide — led by Gazel and a single War Gnome lieutenant.
+- **Faction defenders now sling elemental magic.** Each faction's garrison casts
+  an attack spell that fits its theme — fireballs for Leon and Luminous, wind
+  blades for Falmuth, stone shots for Dwargon and the Eastern Empire, water
+  cutters for Tempest — so settlement fights aren't just melee.
+- **Settlement defenders now fight as mages and warriors.** A faction's rank
+  splits into spellcasters — who wield staves, hang back, sling their element's
+  magic, and only resort to fists when you close in — and warriors, who carry
+  tier-appropriate swords (diamond up to high-magisteel), charge in, and dash
+  with a quick step. Casters ward against magic; warriors shrug off physical
+  blows. Defenders of the same settlement can't harm each other, so their
+  spellcasters can throw area magic without wiping out their own side. (All of
+  the above is part of the faction system, which is off by default; combat
+  values are a first pass and may be tuned.)
+
+- **Rival faction towns are bigger and better built.** Their buildings now
+  generate at their level-4 (well-established) size instead of level-1 starters,
+  so a conquered town looks like a proper city (taverns cap at level 3, the
+  largest the game provides). The Eastern Empire now builds in a heavy stone
+  style, and the Jura-Tempest Federation builds as a normal medieval-oak town
+  instead of a jungle treehouse village. Towns are also spaced out more so the
+  larger buildings don't overlap. (Only affects newly generated settlements.)
+- **Leon and the Eastern Empire now offer a full slate of alliance deals.** Both
+  had only a handful of quests; each now has a complete set (about ten),
+  themed to the faction (fire/martial for Leon, magitech/imperial for the
+  Eastern Empire), with rewards on par with the other major factions.
+- **The Moderate Harlequin Alliance's final alliance deal now gives a reward.**
+  Its Covenant milestone previously paid out nothing; it now grants emeralds
+  like the others.
+- **Allying with Leon or the Eastern Empire now gives the same perks as the
+  other factions.** Both were missing their alliance rewards. Now each offers a
+  daily caravan, an alliance buff while you're allied (Leon → Fire Resistance,
+  Eastern Empire → Absorption), and a final "Covenant" milestone deal so the
+  alliance can reach its highest tier like the others.
+- **The Moderate Harlequin Alliance now sends caravans and grants an alliance
+  buff too** — themed to its spy/manipulation streak (Night Vision, plus
+  emeralds and ender pearls in its caravan).
+- **Retired faction tidy-up.** Shizu (long since soft-retired and not part of
+  normal play) no longer carries leftover deal/reward data.
+
+_(All faction features are off by default — turn on the faction system in the
+config to see any of this.)_
+
 ### Fixed
+- **Named subordinates can no longer become permanently un-rescuable.** The
+  game now saves a copy of a named subordinate as soon as you name it (and
+  keeps that copy up to date while it's near you), instead of waiting until the
+  first time you send it to your colony. So if a subordinate vanishes — for
+  example, scooped up by another mod's mob-catching item — before you ever sent
+  it to the colony, `/recoverorphans` can now bring it back as a colonist
+  instead of it being lost for good.
+
+- **"Patrol Colony Outskirts" now actually walks the colony's edge.** Patrolling
+  creatures used to pick a fresh random spot on the border each time and walk
+  straight to it, which meant they kept cutting back and forth across the middle
+  of the colony past the town hall instead of guarding the perimeter. They now
+  circle the colony — moving a short way around the border to the next point
+  each time — so they trace the outer edge in a loop. If part of the border is
+  water or blocked, they turn past it and keep going the same way around.
 - **Raid monsters no longer appear in the middle of your colony.** When a
   Tensura raid started, the whole wave could materialize deep inside the
   built-up area — even inside a house — leaving no time to react. Raiding
@@ -76,34 +289,12 @@ Copy the relevant version's section into the CurseForge release notes on each up
   each world's own config, so existing setups will show it back at its default
   (off) and can re-enable it per world.
 
-### Changed
-- **Rival faction towns are bigger and better built.** Their buildings now
-  generate at their level-4 (well-established) size instead of level-1 starters,
-  so a conquered town looks like a proper city (taverns cap at level 3, the
-  largest the game provides). The Eastern Empire now builds in a heavy stone
-  style, and the Jura-Tempest Federation builds as a normal medieval-oak town
-  instead of a jungle treehouse village. Towns are also spaced out more so the
-  larger buildings don't overlap. (Only affects newly generated settlements.)
-- **Leon and the Eastern Empire now offer a full slate of alliance deals.** Both
-  had only a handful of quests; each now has a complete set (about ten),
-  themed to the faction (fire/martial for Leon, magitech/imperial for the
-  Eastern Empire), with rewards on par with the other major factions.
-- **The Moderate Harlequin Alliance's final alliance deal now gives a reward.**
-  Its Covenant milestone previously paid out nothing; it now grants emeralds
-  like the others.
-- **Allying with Leon or the Eastern Empire now gives the same perks as the
-  other factions.** Both were missing their alliance rewards. Now each offers a
-  daily caravan, an alliance buff while you're allied (Leon → Fire Resistance,
-  Eastern Empire → Absorption), and a final "Covenant" milestone deal so the
-  alliance can reach its highest tier like the others.
-- **The Moderate Harlequin Alliance now sends caravans and grants an alliance
-  buff too** — themed to its spy/manipulation streak (Night Vision, plus
-  emeralds and ender pearls in its caravan).
-- **Retired faction tidy-up.** Shizu (long since soft-retired and not part of
-  normal play) no longer carries leftover deal/reward data.
-
-_(All faction features are off by default — turn on the faction system in the
-config to see any of this.)_
+### Removed
+- **Leftover template content is gone.** The placeholder "Example Block" and
+  "Example Item" (which showed up in the creative menu with broken, untranslated
+  names) have been removed, along with four unused config options that did
+  nothing: `logDirtBlock`, `magicNumber`, `magicNumberIntroduction`, and `items`.
+  Your existing config file will simply ignore them.
 
 ## [0.1.21] - 2026-06-28
 

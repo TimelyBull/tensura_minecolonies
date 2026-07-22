@@ -1,8 +1,6 @@
-# This is an example neoforge.mods.toml file. It contains the data relating to the loading mods.
-# There are several mandatory fields (#mandatory), and many more that are optional (#optional).
-# The overall format is standard TOML format, v0.5.0.
-# Note that there are a couple of TOML lists in this file.
-# Find more information on toml format here:  https://github.com/toml-lang/toml
+# Mod metadata for Tensura MineColonies Integration.
+# Placeholder values are substituted from gradle.properties at build time.
+# TOML v0.5.0 format: https://github.com/toml-lang/toml
 
 # The name of the mod loader type to load - for regular FML @Mod mods it should be javafml
 modLoader="javafml" #mandatory
@@ -36,17 +34,25 @@ displayName="${mod_name}" #mandatory
 #displayURL="https://change.me.to.your.mods.homepage.example.invalid/" #optional
 
 # A file name (in the root of the mod JAR) containing a logo for display
-#logoFile="examplemod.png" #optional
+#logoFile="logo.png" #optional
 
 # A text field displayed in the mod UI
-#credits="" #optional
+credits='''Built on Tensura: Reincarnated, MineColonies, and Nightmare's Tensura Utils. Thanks to their teams for the mods this one bridges.'''
 
 # The authors of the mod, displayed in the mod UI (optional)
-#authors=""
+authors="Sajan"
 
 # The description text for the mod (multi line!) (#mandatory)
 description='''
-Example mod description.
+Bridges Tensura: Reincarnated and MineColonies so your colony is populated by Tensura races instead of ordinary villagers.
+
+Name a goblin, orc, lizardman, or dwarf and it joins your colony as a real citizen, keeping its own appearance, stats, and skills. Citizens keep two bodies and one identity: send them into the colony to work, or summon them back out as your subordinate to fight. Born children inherit their colony's races.
+
+Also adds:
+- Colony reputation, and the raids, assassins, and diplomacy that follow from how well you treat your people.
+- Magicule barrier cores and storage blocks to shield a settlement.
+- Rival faction settlements you can befriend through diplomacy or conquer outright (off by default).
+- Masterwork weapons: a legendary line forged at the Tensura smithing bench that grows in power alongside its wielder.
 '''
 
 # The [[mixins]] block allows you to declare your mixin config to FML so that it gets loaded.

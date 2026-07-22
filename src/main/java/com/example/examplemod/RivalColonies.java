@@ -222,8 +222,10 @@ public final class RivalColonies {
             // rank-and-file soldiers (listed twice so they're the bulk of the
             // round-robin garrison) led by the imperial lieutenants Shin
             // Ryusei, Mark Lauren and Shinji Tanimura (all native casters; NO
-            // granted skills — see isSkillUntouched). HIGH power tier via
-            // factionPowerMultiplier + the Mai boss-buff in spawnGarrison.
+            // granted skills — see isSkillUntouched). EE is TIER III — the
+            // lieutenants' own high stats/EP carry the fight; the old 1.6× power
+            // multiplier (the audit's "triple-dip") was removed. Mai (placeholder)
+            // gets her own HP/ATK bump in spawnGarrison.
             // (BONE_GOLEM soldiers removed — golems are player-POSSESSED and
             // won't fight their owner.) ⚠ FUTURE CANON: these three later
             // defect to the Jura-Tempest Federation (see faction-model.md).
@@ -235,24 +237,29 @@ public final class RivalColonies {
             // the buffed anchor SLIME; rank-and-file are goblins + lizardmen).
             case "tempest" -> new EntityType[] {
                     MonsterEntityTypes.GOBLIN.get(), MonsterEntityTypes.LIZARDMAN.get() };
-            // Dwargon — the dwarven kingdom: dwarf rank-and-file under Gazel.
+            // Dwargon — the dwarven kingdom: buffed dwarf-SOLDIER rank-and-file
+            // (see strengthenDwarfDefender — big stat bump + Body Armor + Earth
+            // Manipulation) under Gazel, plus ONE War Gnome earth-magic
+            // lieutenant (capped at one via isUniqueGarrisonMob).
             case "dwargon" -> new EntityType[] {
-                    HumanEntityTypes.DWARF.get() };
+                    HumanEntityTypes.DWARF.get(), MonsterEntityTypes.WAR_GNOME.get() };
             default -> null;
         };
     }
 
-    /** Unique named characters (Otherworlder heroes / imperial lieutenants)
-     *  that must spawn AT MOST ONCE per garrison — there shouldn't be two
-     *  Kyoyas standing side by side. Generic troops (knights, daemons,
-     *  salamander, goblins, dwarves, …) repeat freely. */
+    /** Mobs that must spawn AT MOST ONCE per garrison — the named Otherworlder
+     *  heroes / imperial lieutenants (there shouldn't be two Kyoyas side by
+     *  side), plus the War Gnome, which we field as a SINGLE lieutenant to Gazel
+     *  rather than a swarm. Generic troops (knights, goblins, dwarves, …) repeat
+     *  freely. */
     private static boolean isUniqueGarrisonMob(EntityType<?> type) {
         return type == HumanEntityTypes.KIRARA_MIZUTANI.get()
                 || type == HumanEntityTypes.KYOYA_TACHIBANA.get()
                 || type == HumanEntityTypes.SHOGO_TAGUCHI.get()
                 || type == HumanEntityTypes.MARK_LAUREN.get()
                 || type == HumanEntityTypes.SHINJI_TANIMURA.get()
-                || type == HumanEntityTypes.SHIN_RYUSEI.get();
+                || type == HumanEntityTypes.SHIN_RYUSEI.get()
+                || type == MonsterEntityTypes.WAR_GNOME.get();
     }
 
     /** First repeatable (non-unique) type in a roster — used to substitute a
@@ -284,37 +291,42 @@ public final class RivalColonies {
     }
 
     // ------------------------------------------------------------------
-    // GARRISON SCALING — derived from the BOSS's EP, not the player.
-    // ⚠⚠ ALL BALANCE GUESSES — no combat playtest yet. Tune after the
-    // first siege test (see docs/rival-colony-investigation.md Stage B).
+    // GARRISON SCALING — PRESCRIBED BY REWARD TIER, nudged by boss EP.
+    // (Reworked 2026-07-10 — see docs/faction-combat-audit.md.)
     //
-    //   ratio  = bossEP / GARRISON_BASELINE_EP
-    //   scale  = clamp(ratio ^ GARRISON_SCALE_EXPONENT,
-    //                  GARRISON_SCALE_MIN, GARRISON_SCALE_MAX)
-    //   count  = clamp(round(GARRISON_BASE_COUNT × scale),
-    //                  GARRISON_MIN_COUNT, GARRISON_MAX_COUNT)
-    //   stat×  = min(GARRISON_STAT_FACTOR_MAX,
-    //                1 + (scale − 1) × GARRISON_STAT_PER_SCALE)
-    // applied to MAX_HEALTH / ATTACK_DAMAGE / MAX_MAGICULE / MAX_AURA.
-    // The sqrt-ish exponent dampens EP (a 100× boss → ~10× scale, not
-    // 100×) so a Demon-Lord settlement is hard but not a brick wall.
+    // The OLD model drove difficulty purely off boss EP vs a tiny 5,000
+    // baseline. Real boss EP is 110k–1M, so EVERY faction pinned to the
+    // count cap (20) at stat× ~3 — no per-faction differentiation. Now:
+    //
+    //   tier    = difficultyTierFor(factionId)   // III / II / I, from the
+    //                                             // faction's REWARD tier
+    //   epF     = clamp((bossEP / GARRISON_EP_REFERENCE)^GARRISON_EP_EXPONENT,
+    //                   GARRISON_EP_BAND_MIN, GARRISON_EP_BAND_MAX)
+    //   count   = clamp(round(tier.baseCount × epF), MIN_COUNT, MAX_COUNT)
+    //   stat×   = clamp(tier.baseStat × epF, 1.0, STAT_FACTOR_MAX)
+    // stat× applied to MAX_HEALTH / ATTACK_DAMAGE / MAX_MAGICULE / MAX_AURA.
+    //
+    // So the TIER sets the target (IV > III > II > I) and boss EP only
+    // NUDGES within a clamped band — canon still shows through (a legendary
+    // boss pushes its garrison to the top of its tier) without a huge-EP
+    // boss (Gazel's 1M) blowing past its reward tier. Two same-tier factions
+    // still differ (different boss EP + different rosters / kits).
+    // ⚠ Values are BALANCE GUESSES pending a siege playtest.
     // ------------------------------------------------------------------
 
-    /** Boss EP that yields scale 1.0 (a "weak" anchor). */
-    static final double GARRISON_BASELINE_EP = 5_000.0;
+    /** Boss EP that sits a faction at the CENTRE of its tier band (epF = 1.0). */
+    static final double GARRISON_EP_REFERENCE = 150_000.0;
     /** Dampening exponent on the EP ratio (0.5 = square root). */
-    static final double GARRISON_SCALE_EXPONENT = 0.5;
-    static final double GARRISON_SCALE_MIN = 1.0;
-    static final double GARRISON_SCALE_MAX = 6.0;
-    /** Defenders at scale 1.0, before clamp. */
-    static final int GARRISON_BASE_COUNT = 6;
+    static final double GARRISON_EP_EXPONENT = 0.5;
+    /** How far boss EP may nudge the tier target (clamped band around 1.0). */
+    static final double GARRISON_EP_BAND_MIN = 0.80;
+    static final double GARRISON_EP_BAND_MAX = 1.30;
     static final int GARRISON_MIN_COUNT = 4;
     static final int GARRISON_MAX_COUNT = 20;
-    /** Per-unit-of-scale stat multiplier growth above the 1.0 floor. */
-    static final double GARRISON_STAT_PER_SCALE = 0.5;
+    /** Hard cap on the rank stat multiplier. */
     static final double GARRISON_STAT_FACTOR_MAX = 4.0;
-    /** EP assumed when a boss's existence can't be read (scale-1 fallback). */
-    static final double GARRISON_FALLBACK_BOSS_EP = GARRISON_BASELINE_EP;
+    /** EP assumed when a boss's existence can't be read (tier-centre fallback). */
+    static final double GARRISON_FALLBACK_BOSS_EP = GARRISON_EP_REFERENCE;
     /** Fraction of the starting garrison that must fall for conquest. */
     static final double GARRISON_WIN_FRACTION = 0.60;
     /** Defenders spawn within this radius (blocks) of the settlement center. */
@@ -348,6 +360,19 @@ public final class RivalColonies {
             ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "rimuru_mag");
     private static final ResourceLocation RIMURU_AURA_ID =
             ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "rimuru_aura");
+
+    /** Stable modifier ids for the Ifrit (Leon anchor) apex-tier boss buff.
+     *  Distinct from the GARRISON_* / RIMURU_* ids so none collide. */
+    private static final ResourceLocation IFRIT_HP_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "ifrit_hp");
+    private static final ResourceLocation IFRIT_DMG_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "ifrit_dmg");
+    private static final ResourceLocation IFRIT_SPIRIT_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "ifrit_spirit");
+    private static final ResourceLocation IFRIT_MAG_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "ifrit_mag");
+    private static final ResourceLocation IFRIT_AURA_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "ifrit_aura");
 
     // ------------------------------------------------------------------
     // STAGE E — BETRAYAL SCALING. Declaring war on a faction you have
@@ -581,6 +606,12 @@ public final class RivalColonies {
         if ("tempest".equals(factionId)) {
             buffRimuruBoss(boss);
         }
+        // Leon's anchor Ifrit is a modest in-mod entity (400 HP / 150k EP), but
+        // Leon is a TIER IV (apex) faction — promote Ifrit to a demon-lord-tier
+        // boss HERE (BEFORE spawnGarrison reads its EP), mirroring buffRimuruBoss.
+        if ("leon".equals(factionId)) {
+            buffIfritBoss(boss);
+        }
         return boss;
     }
 
@@ -622,6 +653,39 @@ public final class RivalColonies {
         if (exist != null) {
             exist.setMagicule(100_000.0);
             exist.setAura(10_000.0);
+            try {
+                exist.setSpiritualHealth(boss.getAttributeValue(TensuraAttributes.MAX_SPIRITUAL_HEALTH));
+            } catch (Throwable ignored) { }
+            exist.markDirty();
+        }
+    }
+
+    /**
+     * Promote Leon's anchor Ifrit into a TIER IV (apex) boss (⚠ BALANCE GUESSES).
+     * Ifrit is a native fire-casting Greater Spirit but ships modest for a
+     * demon-lord's keep (400 HP / EP 150k); here we raise durability + EP to
+     * sit alongside the 1M-EP anchors. HP ×7 (400→2800), attack ×1.5 (40→60),
+     * spiritual ×1.8; magicule / aura CAPS set absolute to 350,000 / 30,000
+     * (EP ≈ 380,000 → top of the EP band) and the pools filled so it can
+     * cast. Its offensive fire kit + nullification + self-regen are granted in
+     * spawnGarrison's Leon block; this is stats/EP only. Structured like
+     * buffRimuruBoss (multipliers off the native base + absolute energy caps).
+     */
+    private static void buffIfritBoss(Mob boss) {
+        multiplyAttribute(boss, Attributes.MAX_HEALTH, IFRIT_HP_ID, 7.0);       // 400 -> 2800
+        multiplyAttribute(boss, Attributes.ATTACK_DAMAGE, IFRIT_DMG_ID, 1.5);   // 40  -> 60
+        try {
+            multiplyAttribute(boss, TensuraAttributes.MAX_SPIRITUAL_HEALTH, IFRIT_SPIRIT_ID, 1.8);
+        } catch (Throwable ignored) { }
+        boss.setHealth(boss.getMaxHealth());
+
+        setAttributeAbsolute(boss, TensuraAttributes.MAX_MAGICULE, IFRIT_MAG_ID, 350_000.0);
+        setAttributeAbsolute(boss, TensuraAttributes.MAX_AURA, IFRIT_AURA_ID, 30_000.0);
+
+        ExistenceStorage exist = ExampleMod.readExistence(boss);
+        if (exist != null) {
+            exist.setMagicule(350_000.0);
+            exist.setAura(30_000.0);
             try {
                 exist.setSpiritualHealth(boss.getAttributeValue(TensuraAttributes.MAX_SPIRITUAL_HEALTH));
             } catch (Throwable ignored) { }
@@ -1069,43 +1133,77 @@ public final class RivalColonies {
     // STAGE B — garrison raise / scale / tether / reset / win-tracking
     // ==================================================================
 
-    /** Boss EP → garrison scale factor (the dampened-EP-ratio formula). */
-    private static double scaleForBoss(double bossEP) {
-        double ratio = Math.max(bossEP, 1.0) / GARRISON_BASELINE_EP;
-        double scale = Math.pow(ratio, GARRISON_SCALE_EXPONENT);
-        return Math.max(GARRISON_SCALE_MIN, Math.min(GARRISON_SCALE_MAX, scale));
+    /** A raidable faction's garrison difficulty target, keyed to its REWARD
+     *  tier (docs/faction-rewards-roadmap.md) so the fight matches the payout.
+     *  {@code baseCount} = defenders and {@code baseStat} = the rank
+     *  HP/ATK/magicule/aura multiplier at EP-par (epF = 1.0); boss EP nudges
+     *  both within {@link #GARRISON_EP_BAND_MIN}..MAX. See docs/faction-combat-audit.md. */
+    enum DifficultyTier {
+        IV(16, 2.8),    // apex — Luminous, Leon, Dwargon (+ Milim, abstract)
+        III(14, 2.4),   // high — Eastern Empire (+ Eurazania, abstract)
+        II(11, 2.0),    // major — Falmuth, Tempest
+        I(7, 1.5);      // minor — Moderate Harlequin Alliance (Clayman, abstract)
+        final int baseCount;
+        final double baseStat;
+        DifficultyTier(int baseCount, double baseStat) {
+            this.baseCount = baseCount;
+            this.baseStat = baseStat;
+        }
     }
 
-    private static int countForScale(double scale) {
-        int n = (int) Math.round(GARRISON_BASE_COUNT * scale);
+    /** The reward tier a faction fights at — keyed to the CANON power of the
+     *  kingdom, not the current (placeholder) boss mob's strength
+     *  (docs/faction-rewards-roadmap.md). Raidable: Luminous/Leon/Dwargon → IV;
+     *  Eastern Empire → III; Falmuth/Tempest → II. (Dwargon is IV: Gazel's
+     *  Armed Nation is a canon great power.) Milim (IV) / Eurazania (III) /
+     *  Clayman (I) are ABSTRACT — reward mapping only, no settlement, so this is
+     *  never called for them in combat. Unknown ids fall to II. */
+    private static DifficultyTier difficultyTierFor(String factionId) {
+        return switch (factionId) {
+            case "luminous", "leon", "dwargon", "milim" -> DifficultyTier.IV;
+            case "eastern_empire", "eurazania" -> DifficultyTier.III;
+            case "clayman" -> DifficultyTier.I;
+            default -> DifficultyTier.II; // falmuth, tempest
+        };
+    }
+
+    /** Boss EP → the ±band modifier around the faction's tier target. Canon EP
+     *  shows through (a stronger boss nudges its garrison up) but is clamped so
+     *  it can't cross tiers. */
+    private static double garrisonEpFactor(double bossEP) {
+        double raw = Math.pow(Math.max(bossEP, 1.0) / GARRISON_EP_REFERENCE, GARRISON_EP_EXPONENT);
+        return Math.max(GARRISON_EP_BAND_MIN, Math.min(GARRISON_EP_BAND_MAX, raw));
+    }
+
+    private static int garrisonCountFor(DifficultyTier tier, double epFactor) {
+        int n = (int) Math.round(tier.baseCount * epFactor);
         return Math.max(GARRISON_MIN_COUNT, Math.min(GARRISON_MAX_COUNT, n));
     }
 
-    private static double statFactorForScale(double scale) {
-        return Math.min(GARRISON_STAT_FACTOR_MAX, 1.0 + (scale - 1.0) * GARRISON_STAT_PER_SCALE);
+    private static double garrisonStatFactorFor(DifficultyTier tier, double epFactor) {
+        return Math.max(1.0, Math.min(GARRISON_STAT_FACTOR_MAX, tier.baseStat * epFactor));
     }
 
-    /** Explicit stat-buff factor for a PLACEHOLDER boss whose native EP is
-     *  too modest for its faction's intended power tier (e.g. Mai anchoring
-     *  the Eastern Empire). ⚠ BALANCE GUESS. */
-    static final double EMPIRE_BOSS_BUFF = 3.5;
+    /** Mai anchors the Eastern Empire as a PLACEHOLDER boss (swap for the real
+     *  Empire leader later). She's buffed toward a Tier III anchor — HP raised
+     *  well above the Tier II bosses (~500), but her ATTACK kept BELOW Gazel's 80
+     *  (a flat multiplier over-scaled attack and made her out-hit Gazel, which
+     *  she must not). ⚠ BALANCE GUESSES. 300 HP → ~1500; 30 ATK → ~54. */
+    static final double EMPIRE_HP_MULT = 5.0;
+    static final double EMPIRE_DMG_MULT = 1.8;
+    private static final ResourceLocation EMPIRE_HP_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "empire_hp");
+    private static final ResourceLocation EMPIRE_DMG_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "empire_dmg");
 
-    // The Jura-Tempest anchor Slime ("Rimuru") is buffed with absolute,
-    // demon-lord-tier values in buffRimuruBoss (not a flat multiplier) — see
-    // spawnAnchorBoss. The old SLIME_BOSS_BUFF ×8 was removed.
-
-    /** Per-faction POWER TIER multiplier applied to the EP-driven garrison
-     *  scale (boosts both count and stat factor). Lets a major power field a
-     *  strong garrison independent of its (possibly placeholder) boss's EP.
-     *  ⚠ ALL BALANCE GUESSES — no combat playtest. */
-    private static double factionPowerMultiplier(String factionId) {
-        return switch (factionId) {
-            // Eastern Empire — a major military power, comparable to or
-            // stronger than the Holy bloc: one of the strongest factions.
-            case "eastern_empire" -> 1.6;
-            default -> 1.0;
-        };
-    }
+    // The Jura-Tempest anchor Slime ("Rimuru") and Leon's Ifrit are buffed
+    // with absolute, demon-lord-tier values in buffRimuruBoss / buffIfritBoss
+    // (not a flat multiplier) — see spawnAnchorBoss.
+    //
+    // (The old per-faction garrison POWER-TIER multiplier was REMOVED 2026-07-10.
+    //  Faction difficulty is now prescribed by difficultyTierFor(); Eastern
+    //  Empire's former 1.6× — the "triple-dip" flagged in the combat audit — is
+    //  gone. Mai still gets her own HP/ATK bump in spawnGarrison.)
 
     /** Read a boss mob's EP, with a scale-1 fallback. */
     private static double readBossEP(Mob boss) {
@@ -1127,13 +1225,12 @@ public final class RivalColonies {
 
         Mob boss = resolveBoss(level, s);
         double bossEP = boss != null ? readBossEP(boss) : GARRISON_FALLBACK_BOSS_EP;
-        // Per-faction POWER TIER multiplier on top of the EP-driven scale —
-        // lets a faction be strong regardless of its (possibly placeholder)
-        // boss's native EP. ⚠ BALANCE GUESS.
-        double scale = Math.min(GARRISON_SCALE_MAX,
-                scaleForBoss(bossEP) * factionPowerMultiplier(s.factionId));
-        int count = countForScale(scale);
-        double statFactor = statFactorForScale(scale);
+        // Difficulty is PRESCRIBED by the faction's reward tier; boss EP only
+        // nudges it within a band (docs/faction-combat-audit.md).
+        DifficultyTier tier = difficultyTierFor(s.factionId);
+        double epFactor = garrisonEpFactor(bossEP);
+        int count = garrisonCountFor(tier, epFactor);
+        double statFactor = garrisonStatFactorFor(tier, epFactor);
 
         // The boss is part of the garrison — stamp it so its death routes
         // through the tally as the boss-down flag (it keeps its
@@ -1164,11 +1261,14 @@ public final class RivalColonies {
                 grantDefenderSkill(boss,
                         io.github.manasmods.tensura.registry.skill.CommonSkills.SELF_REGENERATION);
             }
-            // Eastern Empire — Mai is a PLACEHOLDER boss, so she is explicitly
-            // scaled up to a credible major-power commander (her native EP is
-            // modest). Stat-buff + magitech-armour / sustain skills.
+            // Eastern Empire — Mai is a PLACEHOLDER boss, scaled up toward a
+            // Tier III anchor: HP raised well above the Tier II bosses, ATTACK
+            // kept BELOW Gazel (a flat multiplier made her out-hit him). Plus
+            // magitech-armour / sustain skills.
             if ("eastern_empire".equals(s.factionId)) {
-                buffDefender(boss, EMPIRE_BOSS_BUFF);
+                multiplyAttribute(boss, Attributes.MAX_HEALTH, EMPIRE_HP_ID, EMPIRE_HP_MULT);    // ~1500
+                multiplyAttribute(boss, Attributes.ATTACK_DAMAGE, EMPIRE_DMG_ID, EMPIRE_DMG_MULT); // ~54
+                boss.setHealth(boss.getMaxHealth());
                 grantDefenderSkill(boss,
                         io.github.manasmods.tensura.registry.skill.CommonSkills.SELF_REGENERATION);
                 grantDefenderSkill(boss,
@@ -1209,7 +1309,7 @@ public final class RivalColonies {
         java.util.Set<EntityType<?>> usedUniques = new java.util.HashSet<>();
         for (int i = 0; i < count; i++) {
             EntityType<? extends Mob> type = pickGarrisonType(roster, i, usedUniques);
-            Mob defender = spawnDefender(level, type, s, statFactor);
+            Mob defender = spawnDefender(level, type, s, statFactor, bossEP);
             if (defender != null) s.garrisonUuids.add(defender.getUUID());
         }
         s.defenderCountAtStart = s.garrisonUuids.size();
@@ -1217,16 +1317,17 @@ public final class RivalColonies {
         s.bossDead = false;
         s.assaulted = false;
         SettlementSavedData.get(level).markChanged();
-        LOGGER.info("[TM] rival: settlement #{} ({}) garrison raised — {} defenders, bossEP {} → scale {} (stat×{})",
-                s.id, s.factionId, s.defenderCountAtStart, String.format("%.0f", bossEP),
-                String.format("%.2f", scale), String.format("%.2f", statFactor));
+        LOGGER.info("[TM] rival: settlement #{} ({}) garrison raised — {} defenders, tier {} bossEP {} epF {} (stat×{})",
+                s.id, s.factionId, s.defenderCountAtStart, tier, String.format("%.0f", bossEP),
+                String.format("%.2f", epFactor), String.format("%.2f", statFactor));
+        logSampleCasterReadiness(level, s); // mastery-fix diagnostic — confirm a caster's magic is instant-cast
     }
 
     /** Spawn one defender near the settlement center: the raid-engine
      *  path (create + finalizeSpawn(SPAWN_EGG) + persist), GARRISON_TAG,
      *  and the boss-EP-scaled stat-bump. */
     private static Mob spawnDefender(ServerLevel level, EntityType<? extends Mob> type,
-                                     Settlement s, double statFactor) {
+                                     Settlement s, double statFactor, double bossEP) {
         Mob mob = type.create(level);
         if (mob == null) return null;
         int dx = level.getRandom().nextInt(GARRISON_SPAWN_RADIUS * 2 + 1) - GARRISON_SPAWN_RADIUS;
@@ -1244,12 +1345,36 @@ public final class RivalColonies {
         if (type == HumanEntityTypes.BONE_GOLEM.get()) {
             assignBoneGolemElement(mob, s.factionId);
         }
-        assignFactionDefenderSkills(mob, s.factionId);
-        // Sentient driver (replaces the bone-golem autocaster + drives every
-        // garrison caster's kit). Skipped for the skill-untouched set, same as
-        // the faction-skill pass. Self-scoping: a mob with only passive skills
-        // just won't cast — only mobs with learned ACTIVE skills (e.g. the bone
-        // golem's element) actually fire.
+        // Thematic elemental resistances go to EVERY defender; the physical/magic
+        // ward + attack kit is ROLE-specific.
+        assignFactionElementalResistances(mob, s.factionId);
+        if (isUniqueGarrisonMob(type)) {
+            // Named LIEUTENANT — full elite kit (physical resist + attack magic),
+            // native behaviour (no warrior/caster split).
+            grantDefenderSkill(mob,
+                    io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
+            grantFactionElementMagic(mob, s.factionId);
+        } else if (!isSkillUntouched(type)) {
+            // Generic RANK — split into WARRIOR (rush + melee + sword) or CASTER
+            // (hang back + magic + staff). Skill-untouched troops (none today in
+            // the rank rosters) fall through unarmed-by-us.
+            DifficultyTier tier = difficultyTierFor(s.factionId);
+            if (mob.getRandom().nextFloat() < CASTER_FRACTION) {
+                applyCasterRole(mob, s.factionId, tier, bossEP);
+            } else {
+                applyWarriorRole(mob, s.factionId, tier);
+            }
+        }
+        // Dwargon's base Dwarves are civilian miners (ATK 1.5) — promote each
+        // into an armed forge-soldier so a TIER IV garrison isn't trivial adds
+        // (applies to both roles — they're still dwarves).
+        if (type == HumanEntityTypes.DWARF.get() && DWARGON.equals(s.factionId)) {
+            strengthenDwarfDefender(mob);
+        }
+        // Sentient driver — fires every defender's learned ACTIVE skills/magics at
+        // its target (the caster's Fire Ball / Stone Shot / …, the warrior's
+        // Shadow Motion). Skipped for the skill-untouched set. Self-scoping: a mob
+        // with only passives just won't cast.
         if (!isSkillUntouched(type)) {
             ExampleMod.grantSentient(mob);
         }
@@ -1270,6 +1395,30 @@ public final class RivalColonies {
             multiplyAttribute(mob, TensuraAttributes.MAX_AURA, GARRISON_AURA_ID, factor);
         } catch (Throwable ignored) { }
         mob.setHealth(mob.getMaxHealth());
+    }
+
+    /** The dwarf-soldier promotion (strengthenDwarfDefender): multipliers ON TOP
+     *  of the tier stat×, and their stable modifier ids. ⚠ BALANCE GUESSES. */
+    private static final double DWARF_SOLDIER_HP_MULT = 2.5;
+    private static final double DWARF_SOLDIER_DMG_MULT = 6.0;
+    private static final ResourceLocation DWARF_SOLDIER_HP_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "dwarf_soldier_hp");
+    private static final ResourceLocation DWARF_SOLDIER_DMG_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "dwarf_soldier_dmg");
+
+    /** Promote a Dwargon rank Dwarf from civilian miner into a forge-soldier:
+     *  a big flat HP/ATK bump ON TOP of the tier stat× (distinct modifier ids, so
+     *  both apply) + Body Armor for durability. Base 24 HP / 1.5 ATK → after the
+     *  Tier IV stat× (≈ ×3.64 for Gazel's EP) and this (×2.5 / ×6.0) roughly
+     *  218 HP / 33 ATK. Their earth ATTACK (Stone Shot + Earth Manipulation) and
+     *  resistances come from {@link #assignFactionDefenderSkills} (the dwargon
+     *  element kit), so it isn't repeated here. ⚠ BALANCE GUESS. */
+    private static void strengthenDwarfDefender(Mob dwarf) {
+        multiplyAttribute(dwarf, Attributes.MAX_HEALTH, DWARF_SOLDIER_HP_ID, DWARF_SOLDIER_HP_MULT);
+        multiplyAttribute(dwarf, Attributes.ATTACK_DAMAGE, DWARF_SOLDIER_DMG_ID, DWARF_SOLDIER_DMG_MULT);
+        dwarf.setHealth(dwarf.getMaxHealth());
+        grantDefenderSkill(dwarf,
+                io.github.manasmods.tensura.registry.skill.IntrinsicSkills.BODY_ARMOR);
     }
 
     /** ×factor as a stable-id ADD modifier — delta = current × (factor−1),
@@ -1301,15 +1450,16 @@ public final class RivalColonies {
 
     private static final int BONE_GOLEM_ELEMENT_COUNT = 5;
 
-    /** The single attack skill for each element (0=darkness 1=wind 2=earth
-     *  3=fire 4=water). Wind uses Voice Cannon (sonic); earth uses Earth
-     *  Manipulation (the only earth attack — less battle-tested as a mob
-     *  cast than the others). */
+    /** The single attack for each element (0=darkness 1=wind 2=earth 3=fire
+     *  4=water). Wind uses Voice Cannon (sonic); earth uses the Stone Shot
+     *  MAGIC — earth has no attack SKILL, only Manipulation (which does nothing
+     *  offensive alone), and Magic is a ManasSkill the autocaster fires just the
+     *  same. (Bone golems aren't in any current roster, but keep this correct.) */
     private static io.github.manasmods.manascore.skill.api.ManasSkill boneGolemElementSkill(int element) {
         return switch (element) {
             case 0 -> io.github.manasmods.tensura.registry.skill.ExtraSkills.BLACK_FLAME.get();
             case 1 -> io.github.manasmods.tensura.registry.skill.CommonSkills.VOICE_CANNON.get();
-            case 2 -> io.github.manasmods.tensura.registry.skill.ExtraSkills.EARTH_MANIPULATION.get();
+            case 2 -> io.github.manasmods.tensura.registry.magic.AspectualMagics.STONE_SHOT.get();
             case 3 -> io.github.manasmods.tensura.registry.skill.ExtraSkills.HEAT_WAVE.get();
             default -> io.github.manasmods.tensura.registry.skill.CommonSkills.WATER_BLADE.get();
         };
@@ -1449,12 +1599,13 @@ public final class RivalColonies {
         // Respawn the shortfall back to the starting count.
         EntityType<? extends Mob>[] roster = garrisonRoster(s.factionId);
         if (roster != null && roster.length > 0) {
-            double scale = scaleForBoss(s.bossUuid != null && resolveBoss(level, s) != null
-                    ? readBossEP(resolveBoss(level, s)) : GARRISON_FALLBACK_BOSS_EP);
-            double statFactor = statFactorForScale(scale);
+            double bossEP = s.bossUuid != null && resolveBoss(level, s) != null
+                    ? readBossEP(resolveBoss(level, s)) : GARRISON_FALLBACK_BOSS_EP;
+            double statFactor = garrisonStatFactorFor(
+                    difficultyTierFor(s.factionId), garrisonEpFactor(bossEP));
             for (int i = alive; i < s.defenderCountAtStart; i++) {
                 EntityType<? extends Mob> type = pickGarrisonType(roster, i, usedUniques);
-                Mob defender = spawnDefender(level, type, s, statFactor);
+                Mob defender = spawnDefender(level, type, s, statFactor, bossEP);
                 if (defender != null) s.garrisonUuids.add(defender.getUUID());
             }
         }
@@ -1497,6 +1648,25 @@ public final class RivalColonies {
             if (e instanceof Mob mob && mob.isAlive()) alive++;
         }
         return alive;
+    }
+
+    /**
+     * True when an incoming hit is FRIENDLY FIRE within one garrison — the
+     * attacker (or, for a spell/projectile, the caster behind it) and the victim
+     * both belong to the SAME settlement's garrison. Called from
+     * {@code ExampleMod.onGarrisonFriendlyFire} to cancel the damage, so a
+     * caster's AoE spells (Fire Ball, Stone Shot) can't kill their own side. The
+     * boss carries a GarrisonTag too, so boss↔defender fire is covered as well.
+     * Invaders (the player + lent war-party) have no GarrisonTag → not affected.
+     */
+    static boolean isGarrisonFriendlyFire(net.minecraft.world.entity.Entity attacker,
+                                          net.minecraft.world.entity.Entity victim) {
+        if (attacker == null || victim == null || attacker == victim) return false;
+        if (!victim.hasData(Attachments.GARRISON_TAG.get())
+                || !attacker.hasData(Attachments.GARRISON_TAG.get())) return false;
+        GarrisonTag av = attacker.getData(Attachments.GARRISON_TAG.get());
+        GarrisonTag vv = victim.getData(Attachments.GARRISON_TAG.get());
+        return av != null && vv != null && av.settlementId() == vv.settlementId();
     }
 
     /**
@@ -1805,11 +1975,49 @@ public final class RivalColonies {
                 || type == HumanEntityTypes.SHIN_RYUSEI.get();
     }
 
-    /** Per-faction PASSIVE/RESISTANCE skills (Pass 0). Passives work the
-     *  moment they're learned — no autocaster needed and no conflict with a
-     *  mob's native casting. Thematic on-element resists per faction. The
-     *  untouched set above is skipped entirely. */
+    // ==================================================================
+    // DEFENDER KITS — rank splits into WARRIOR (rush + melee) / CASTER
+    // (hang back + magic); lieutenants + boss get the full elite kit.
+    // Role is assigned at spawn (spawnDefender) and INFERRED later from the
+    // held weapon (staff = caster) — see isCasterDefender. ⚠ BALANCE GUESSES.
+    // ==================================================================
+
+    /** Fraction of the generic rank that spawns as CASTERS (rest are warriors). */
+    private static final double CASTER_FRACTION = 0.4;
+    // (Casters now ALWAYS carry a cheap "quick spell" secondary in addition to
+    //  their signature primary — see quickSpellMagic — so they alternate spells
+    //  and shoot more often against the autocaster's ~1 s cast gate.)
+    /** Casters move slower than the warrior rush so they naturally trail + cast
+     *  as they close (the only "hang back" lever — no WALK_TARGET retreat, which
+     *  shimmied against the brain). */
+    private static final double CASTER_SPEED_MULT = 0.65;
+    private static final ResourceLocation CASTER_SPEED_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "caster_slow");
+    // Caster magicule is scaled to the faction's BOSS (a weak-boss faction fields
+    // poorer casters), clamped so it can always afford its primary a couple of
+    // times but never balloons. ⚠ BALANCE GUESSES.
+    private static final double CASTER_MAG_BOSS_FRACTION = 0.12; // fraction of boss EP
+    private static final double CASTER_MAG_MIN_CASTS = 1.5;      // floor = primary cost × this
+    private static final double CASTER_MAG_CAP = 120_000.0;      // ceiling (was a flat 200k)
+    private static final ResourceLocation CASTER_MAG_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "caster_magicule");
+
+    /** The FULL elite kit — thematic elemental resistances + Physical Attack
+     *  Resistance + the faction's attack MAGIC. Used by the ANCHOR BOSS and the
+     *  named LIEUTENANTS (they keep native behaviour). The generic rank does NOT
+     *  go through here — it splits into warrior/caster in spawnDefender. */
     private static void assignFactionDefenderSkills(Mob mob, String factionId) {
+        if (isSkillUntouched(mob.getType())) return;
+        assignFactionElementalResistances(mob, factionId);
+        grantDefenderSkill(mob,
+                io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
+        grantFactionElementMagic(mob, factionId);
+    }
+
+    /** The faction's thematic NON-physical resistances — granted to EVERY
+     *  defender (both roles + lieutenants + boss). The physical-vs-magic ward is
+     *  role-specific and handled separately. */
+    private static void assignFactionElementalResistances(Mob mob, String factionId) {
         if (isSkillUntouched(mob.getType())) return;
         switch (factionId) {
             case "leon" -> { // fire domain
@@ -1818,32 +2026,211 @@ public final class RivalColonies {
                 grantDefenderSkill(mob,
                         io.github.manasmods.tensura.registry.skill.ResistanceSkills.HEAT_RESISTANCE);
             }
-            case "eastern_empire" -> // magitech war-constructs: armored
-                grantDefenderSkill(mob,
-                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
             case "tempest" -> { // forest / water / storm kin
                 grantDefenderSkill(mob,
                         io.github.manasmods.tensura.registry.skill.ResistanceSkills.WATER_ATTACK_RESISTANCE);
                 grantDefenderSkill(mob,
                         io.github.manasmods.tensura.registry.skill.ResistanceSkills.WIND_ATTACK_RESISTANCE);
             }
-            case "dwargon" -> { // tough forge-dwarves
-                grantDefenderSkill(mob,
-                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
+            case "dwargon" -> // forge-heat-hardened
                 grantDefenderSkill(mob,
                         io.github.manasmods.tensura.registry.skill.ResistanceSkills.HEAT_RESISTANCE);
-            }
-            case "luminous" -> { // holy crusaders — armoured, resist darkness
-                grantDefenderSkill(mob,
-                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
+            case "luminous" -> // holy — resist darkness
                 grantDefenderSkill(mob,
                         io.github.manasmods.tensura.registry.skill.ResistanceSkills.DARKNESS_ATTACK_RESISTANCE);
-            }
-            case "falmuth" -> // armoured human soldiery
-                grantDefenderSkill(mob,
-                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
-            default -> { /* abstract / no roster — nothing */ }
+            default -> { /* falmuth, eastern_empire — no elemental resist */ }
         }
+    }
+
+    /** The faction's element ATTACK kit (attack Magic + support Manipulation) —
+     *  Leon/Luminous fire, Falmuth wind, Eastern Empire/Dwargon earth, Tempest
+     *  water. Granted to CASTERS + lieutenants + boss (warriors get none). */
+    private static void grantFactionElementMagic(Mob mob, String factionId) {
+        var atk = factionAttackMagic(factionId);
+        var man = factionManipulation(factionId);
+        if (atk != null && man != null) grantElementKit(mob, atk, man);
+    }
+
+    /** The faction's primary attack MAGIC (null for a faction with no element). */
+    private static java.util.function.Supplier<? extends io.github.manasmods.manascore.skill.api.ManasSkill>
+            factionAttackMagic(String factionId) {
+        return switch (factionId) {
+            case "leon", "luminous" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.FIRE_BALL;
+            case "falmuth" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.WIND_CUTTER;
+            case "eastern_empire", "dwargon" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.STONE_SHOT;
+            case "tempest" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.WATER_CUTTER;
+            default -> null;
+        };
+    }
+
+    /** The faction's element MANIPULATION (the magic's low-tier support skill). */
+    private static java.util.function.Supplier<? extends io.github.manasmods.manascore.skill.api.ManasSkill>
+            factionManipulation(String factionId) {
+        return switch (factionId) {
+            case "leon", "luminous" -> io.github.manasmods.tensura.registry.skill.ExtraSkills.FLAME_MANIPULATION;
+            case "falmuth" -> io.github.manasmods.tensura.registry.skill.ExtraSkills.WIND_MANIPULATION;
+            case "eastern_empire", "dwargon" -> io.github.manasmods.tensura.registry.skill.ExtraSkills.EARTH_MANIPULATION;
+            case "tempest" -> io.github.manasmods.tensura.registry.skill.ExtraSkills.WATER_MANIPULATION;
+            default -> null;
+        };
+    }
+
+    /** Diagnostic (mastery fix, 2026-07-10): log ONE live caster's attack magic
+     *  mastery + {@code isInstantCast} after a garrison spawns, so "casters don't
+     *  cast" can be checked from the log — instantCast=true means the autocaster
+     *  can fire it in one press. Read-only; guarded. */
+    private static void logSampleCasterReadiness(ServerLevel level, Settlement s) {
+        var atk = factionAttackMagic(s.factionId);
+        if (atk == null) return;
+        for (UUID u : s.garrisonUuids) {
+            if (!(level.getEntity(u) instanceof Mob mob) || !mob.isAlive() || !isCasterDefender(mob)) continue;
+            try {
+                var skill = atk.get();
+                var storage = io.github.manasmods.manascore.skill.api.SkillAPI.getSkillsFrom(mob);
+                ExistenceStorage exist = ExampleMod.readExistence(mob);
+                double magicule = exist != null ? exist.getMagicule() : -1;
+                storage.getSkill(skill.getRegistryName()).ifPresent(inst -> {
+                    boolean instant = false;
+                    double cost = -1;
+                    if (skill instanceof io.github.manasmods.tensura.ability.magic.Magic magic) {
+                        instant = magic.isInstantCast(inst, mob);
+                        try { cost = magic.getMagiculeCost(mob, inst, 0); } catch (Throwable ignored) { }
+                    }
+                    LOGGER.info("[TM] rival: sample caster ({}) — {} mastery {}/{} instantCast={} cost={} magicule={} affordable={}",
+                            s.factionId, skill.getRegistryName().getPath(),
+                            inst.getMastery(), inst.getMaxMastery(), instant,
+                            String.format("%.0f", cost), String.format("%.0f", magicule),
+                            magicule >= cost);
+                });
+            } catch (Throwable ignored) { }
+            return; // one sample is enough
+        }
+    }
+
+    /** A CHEAP, same-element "quick spell" every caster carries ALONGSIDE its
+     *  signature primary — it's spammable (low cost, own cooldown), so the caster
+     *  alternates spells and shoots more often against the ~1 s autocaster gate.
+     *  Costs: Fire Lance 1k, Wind Gust 100, Mud Hand 5k, Icicle Lance 850. */
+    private static java.util.function.Supplier<? extends io.github.manasmods.manascore.skill.api.ManasSkill>
+            quickSpellMagic(String factionId) {
+        return switch (factionId) {
+            case "leon", "luminous" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.FIRE_LANCE;
+            case "falmuth" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.WIND_GUST;
+            case "eastern_empire", "dwargon" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.MUD_HAND;
+            case "tempest" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.ICICLE_LANCE;
+            default -> null;
+        };
+    }
+
+    /** The primary attack magic's magicule cost per faction (config defaults;
+     *  used to floor the caster's pool so it can always afford its signature). */
+    private static double primarySpellCost(String factionId) {
+        return switch (factionId) {
+            case "leon", "luminous" -> 30_000;  // Fire Ball
+            case "falmuth" -> 500;              // Wind Cutter
+            case "eastern_empire", "dwargon" -> 45_000; // Stone Shot
+            case "tempest" -> 1_000;           // Water Cutter
+            default -> 1_000;
+        };
+    }
+
+    /** Caster magicule = clamp(bossEP × fraction, primaryCost × minCasts, cap) —
+     *  scaled to the faction's boss, floored to afford its spell, capped. */
+    private static double casterMagiculeFor(String factionId, double bossEP) {
+        double floor = primarySpellCost(factionId) * CASTER_MAG_MIN_CASTS;
+        double scaled = bossEP * CASTER_MAG_BOSS_FRACTION;
+        return Math.max(floor, Math.min(CASTER_MAG_CAP, scaled));
+    }
+
+    /** CASTER role: magic-warded (Magic Resistance instead of Physical), the
+     *  faction attack magic + a cheap quick-spell (both mastered → instant-cast),
+     *  a tiered magic STAFF, reduced move speed, and a boss-scaled magicule pool
+     *  so it can actually pay for its spells. */
+    private static void applyCasterRole(Mob mob, String factionId, DifficultyTier tier, double bossEP) {
+        grantDefenderSkill(mob,
+                io.github.manasmods.tensura.registry.skill.ResistanceSkills.MAGIC_RESISTANCE);
+        grantFactionElementMagic(mob, factionId);
+        var quick = quickSpellMagic(factionId);
+        if (quick != null) grantMasteredSkill(mob, quick); // always — the cheap alternating spell
+        equipMainhand(mob, casterStaffFor(tier));
+        multiplyAttribute(mob, Attributes.MOVEMENT_SPEED, CASTER_SPEED_ID, CASTER_SPEED_MULT);
+        // Casters MUST be able to pay for their spells — the attack magics cost
+        // 500–70,000 magicule, vs a rank mob's native ~100–370. Give a boss-scaled
+        // pool (cap + fill) so the autocaster can afford to cast. ⚠ BALANCE GUESS
+        // (also lifts caster EP to ~this value — intended: they're the mages).
+        double casterMag = casterMagiculeFor(factionId, bossEP);
+        setAttributeAbsolute(mob, TensuraAttributes.MAX_MAGICULE, CASTER_MAG_ID, casterMag);
+        ExistenceStorage exist = ExampleMod.readExistence(mob);
+        if (exist != null) {
+            exist.setMagicule(casterMag);
+            exist.markDirty();
+        }
+    }
+
+    /** WARRIOR role: tanky (Physical Attack Resistance), Shadow Motion (the
+     *  flash-step dash toward where it's looking), and a tiered melee sword. NO
+     *  attack magic — warriors rush + melee (native brain). */
+    private static void applyWarriorRole(Mob mob, String factionId, DifficultyTier tier) {
+        grantDefenderSkill(mob,
+                io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
+        grantDefenderSkill(mob,
+                io.github.manasmods.tensura.registry.skill.ExtraSkills.SHADOW_MOTION);
+        equipMainhand(mob, warriorSwordFor(tier));
+    }
+
+    /** Warrior melee weapon by faction tier — diamond (I) → high magisteel (IV). */
+    private static net.minecraft.world.item.Item warriorSwordFor(DifficultyTier tier) {
+        return (switch (tier) {
+            case IV -> io.github.manasmods.tensura.registry.item.TensuraToolItems.HIGH_MAGISTEEL_LONG_SWORD;
+            case III -> io.github.manasmods.tensura.registry.item.TensuraToolItems.LOW_MAGISTEEL_LONG_SWORD;
+            case II -> io.github.manasmods.tensura.registry.item.TensuraToolItems.NETHERITE_LONG_SWORD;
+            case I -> io.github.manasmods.tensura.registry.item.TensuraToolItems.DIAMOND_LONG_SWORD;
+        }).get();
+    }
+
+    /** Caster magic staff by faction tier — low (I) → high (IV). Only three
+     *  staves exist, so II/III share the medium. */
+    private static net.minecraft.world.item.Item casterStaffFor(DifficultyTier tier) {
+        return (switch (tier) {
+            case IV -> io.github.manasmods.tensura.registry.item.TensuraToolItems.HIGH_MAGIC_STAFF;
+            case III, II -> io.github.manasmods.tensura.registry.item.TensuraToolItems.MEDIUM_MAGIC_STAFF;
+            case I -> io.github.manasmods.tensura.registry.item.TensuraToolItems.LOW_MAGIC_STAFF;
+        }).get();
+    }
+
+    /** Put a weapon in the mob's main hand and stop it from dropping (garrison
+     *  gear is decoration + role signal, not loot). */
+    private static void equipMainhand(Mob mob, net.minecraft.world.item.Item item) {
+        mob.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND,
+                new net.minecraft.world.item.ItemStack(item));
+        mob.setDropChance(net.minecraft.world.entity.EquipmentSlot.MAINHAND, 0f);
+    }
+
+    /** A rank defender is a CASTER iff it holds one of the magic staves (set in
+     *  applyCasterRole). Reload-safe (equipment persists) and needs no extra
+     *  storage. Bosses/warriors/lieutenants never hold a staff. */
+    private static boolean isCasterDefender(Mob mob) {
+        net.minecraft.world.item.Item held = mob.getMainHandItem().getItem();
+        return held == io.github.manasmods.tensura.registry.item.TensuraToolItems.LOW_MAGIC_STAFF.get()
+                || held == io.github.manasmods.tensura.registry.item.TensuraToolItems.MEDIUM_MAGIC_STAFF.get()
+                || held == io.github.manasmods.tensura.registry.item.TensuraToolItems.HIGH_MAGIC_STAFF.get();
+    }
+
+    /** Grant a defender its faction's element kit: an active attack MAGIC + the
+     *  matching low-tier element skill that supports it.
+     *
+     *  <p>The attack magic is granted MASTERED. This is REQUIRED for it to fire:
+     *  {@code Magic.isInstantCast} is true only if the caster has Chant Annulment
+     *  OR has MASTERED the spell — otherwise the spell has a cast-time CHANNEL.
+     *  The Sentient autocaster only PRESSES a skill (it doesn't hold the charge),
+     *  and a moving/kiting caster never stands still to channel, so an UNMASTERED
+     *  magic never releases. Mastered → instant-cast → fires on a single press.
+     *  The Manipulation stays unmastered (it's passive element-support, not cast). */
+    private static void grantElementKit(Mob mob,
+            java.util.function.Supplier<? extends io.github.manasmods.manascore.skill.api.ManasSkill> attackMagic,
+            java.util.function.Supplier<? extends io.github.manasmods.manascore.skill.api.ManasSkill> elementSkill) {
+        grantMasteredSkill(mob, attackMagic);
+        grantDefenderSkill(mob, elementSkill);
     }
 
     /** Teach a mob a skill (idempotent — the Covenant learnSkill path,
@@ -1856,6 +2243,26 @@ public final class RivalColonies {
             if (storage.getSkill(skill.getRegistryName()).isEmpty()) {
                 storage.learnSkill(skill.createDefaultInstance(), Component.literal(""));
             }
+        } catch (Throwable ignored) { }
+    }
+
+    /** Like {@link #grantDefenderSkill} but sets the learned skill to FULL
+     *  mastery — used for attack MAGIC so it becomes instant-cast (see
+     *  grantElementKit) and the autocaster can actually fire it. The
+     *  {@code setMastery / getMaxMastery / updateSkill} idiom mirrors
+     *  {@link #assignBoneGolemElement}. */
+    private static void grantMasteredSkill(Mob mob,
+            java.util.function.Supplier<? extends io.github.manasmods.manascore.skill.api.ManasSkill> supplier) {
+        try {
+            var skill = supplier.get();
+            var storage = io.github.manasmods.manascore.skill.api.SkillAPI.getSkillsFrom(mob);
+            if (storage.getSkill(skill.getRegistryName()).isEmpty()) {
+                storage.learnSkill(skill.createDefaultInstance(), Component.literal(""));
+            }
+            storage.getSkill(skill.getRegistryName()).ifPresent(inst -> {
+                inst.setMastery(inst.getMaxMastery());
+                storage.updateSkill(inst, true);
+            });
         } catch (Throwable ignored) { }
     }
 
@@ -1934,11 +2341,8 @@ public final class RivalColonies {
             ensureBetrayalBuffed(mob, s);
             // #7 — highlight defenders so the player can see their targets.
             mob.setGlowingTag(true);
-            // Bone golems cast via the Nightmare's Tensura Utils autocaster
-            // (registered once at setup); it reads mob.getTarget(), which the
-            // target-lock below sets — so no per-tick cast call here.
-            net.minecraft.world.entity.LivingEntity cur = mob.getTarget();
-            if (cur != null && cur.isAlive()) continue; // already fighting
+            // Nearest invader — used for BOTH the caster retreat and the target
+            // lock, so it's computed before the "already fighting" short-circuit.
             net.minecraft.world.entity.LivingEntity nearest = null;
             double best = Double.MAX_VALUE;
             for (net.minecraft.world.entity.LivingEntity inv : invaders) {
@@ -1946,6 +2350,15 @@ public final class RivalColonies {
                 double d = inv.distanceToSqr(mob);
                 if (d < best) { best = d; nearest = inv; }
             }
+            // (No caster "retreat" nudge here — a per-SECOND WALK_TARGET away
+            // fought the brain's per-tick approach and produced a side-to-side
+            // shimmy without actually keeping casters back. Casters just move
+            // slower [CASTER_SPEED_MULT] so they trail the warriors and cast as
+            // they close. A true kite needs a per-tick driver — deferred.)
+            // The autocaster casts at mob.getTarget(), which the target-lock below
+            // sets — so no per-tick cast call here.
+            net.minecraft.world.entity.LivingEntity cur = mob.getTarget();
+            if (cur != null && cur.isAlive()) continue; // already fighting
             if (nearest != null) {
                 BrainUtils.setTargetOfEntity(mob, nearest);
                 mob.setTarget(nearest);
@@ -1994,6 +2407,9 @@ public final class RivalColonies {
         // marked-kill world-rep fan-out already fired on its death; D
         // layers rewards on top, no double-apply).
         ConquestPayoff.apply(level, s, player);
+        // Diplomacy — a won war fulfils any active WinWar deal (e.g. Clayman's
+        // "The Marionette" capstone).
+        DiplomacyManager.onWarWon(level, player.getUUID());
         clearGarrisonGlow(level, s);
         clearAssaultState(s, true); // keep conquestReached
         SettlementSavedData.get(level).markChanged();

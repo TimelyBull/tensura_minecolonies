@@ -198,14 +198,25 @@ Phase 0 decisions (2026-06-27)":
   forced skill, and `factionRewardPool` so the conquest of each faction feels
   distinct and worth it. (This is the "warfare rewards need editing" TODO from
   future-ideas.md.)
+- **Fight-difficulty side of this axis** is audited in
+  [faction-combat-audit.md](faction-combat-audit.md): real boss/rank EP + stats
+  vs reward tier, the garrison scaling pipeline, the confirmed difficulty↔reward
+  mismatches (Eastern Empire / Dwargon / Tempest / Leon), and tuning
+  recommendations (baseline EP, per-faction difficulty tier, rank normalisation).
 
 **Phase 3 — Diplomacy balance pass (all factions): 🔄 IN PROGRESS (2026-06-28)**
 Done BEFORE Phase 2 on purpose — the peaceful route is the REFERENCE raids will
 match. Philosophy: **TIERED by difficulty** (user decision). Full record in
 `docs/decisions.md` → "Faction rewards review — Phase 3".
-- Tiers (updated 2026-06-28): **III/Apex** Luminous, Milim, Leon (Covenant 64
-  emeralds) · **II/Major** Falmuth, Dwargon, Tempest, Eastern Empire, Eurazania
-  (48) · **I/Minor** Clayman (32).
+- Tiers (updated 2026-07-10 — expanded to a **FOUR-tier ladder**; combat side
+  landed in [faction-combat-audit.md](faction-combat-audit.md) §6b):
+  **IV/Apex** Luminous, Leon, Dwargon, Milim · **III/High** Eastern Empire,
+  Eurazania · **II/Major** Falmuth, Tempest · **I/Minor** Clayman. (Tiers = canon
+  KINGDOM power, not the placeholder boss mob; Dwargon → IV 2026-07-10.)
+  ⚠ Reward reconciliation owed: re-space the Covenant-emerald guides
+  (were 64/48/32 for 3 tiers) across the four tiers, and lift/adjust each moved
+  faction's catalog to its new tier — the per-faction tables in §7 still show
+  the OLD tier labels.
 - ✅ Leon + Eastern Empire catalogs expanded 4 → 10 deals.
 - ✅ `cov_clayman` reward fixed (empty → 32 emeralds).
 - ⬜ Catalog deals being reworked MANUALLY (user-led) against the updated tiers.
@@ -229,8 +240,11 @@ The full review reference, split into the five reward styles. Reflects the
 **current code** (post Phase 1 + the Phase 3 structural edits: Leon/Eastern
 Empire expanded, `cov_clayman` reward fixed). Catalog magnitudes are being
 reworked MANUALLY against the tiers below, so some deals don't yet match their
-faction's tier. Tiers (updated 2026-06-28): **III** Luminous/Milim/Leon ·
-**II** Falmuth/Dwargon/Tempest/Eastern Empire/Eurazania · **I** Clayman.
+faction's tier. Tiers (updated 2026-07-10 — FOUR-tier ladder): **IV**
+Luminous/Leon/Dwargon/Milim · **III** Eastern Empire/Eurazania · **II**
+Falmuth/Tempest · **I** Clayman. (The per-faction tables below still show the
+OLD tier labels pending the manual reward reconciliation — the COMBAT tiers are
+as listed here.)
 
 **Task shorthand:** *Deliver N X* = hand over the items via the deal's deliver
 button · *Build <hut> N* = own that hut at level N · *Pop N* = colony reaches N
@@ -263,6 +277,18 @@ golem) can skip them — and coins may also appear in REQUIREMENTS (commission
 fees: pay coin to have something forged). Tempest (the trade capital) should
 sit at the generous end of each range.
 
+**No task-duplicate rewards.** A deal's reward should NOT hand back the same
+item its task asked for (e.g. "Deliver 64 Iron → 16 Iron" reads as pointless).
+Swap the duplicate for coins, a tier-up of the material, or a themed item.
+
+**Tome & manual guidance.** When a deal rewards a Tensura **spell tome**
+(`magic_tome_*`), pick the element that matches the faction's theme — earth
+(Dwargon), fire (Leon), illusion (Clayman), enhancement (Falmuth), gravity
+(Milim), summoning (Eastern Empire), recovery/barrier i.e. holy (Luminous),
+water (Tempest). **Battlewill Manuals** (physical combat aura) may **replace or
+accompany** a tome when the deal is martial/combat-themed (e.g. holy-warrior /
+war-faction deals) — use whichever fits the faction's flavor.
+
 **Dwargon** (Tier II — craft/industry; reworked 2026-06-28 to give Tensura
 weapon/tool SCHEMATICS + smith-craft items — the smith-kingdom teaches the
 smithing tree and forges staves, steel thread, earth cores, and metal golems.
@@ -275,138 +301,195 @@ COMMISSION FEES in a couple of requirements. 14 deals):
 | Iron for the Forges | Deliver 64 Iron Ingot | 15 Medium Magic Crystal + 20 Bronze Coin | NEUTRAL |
 | Fuel for the Forges | Deliver 64 Coal | 12 Monster Leather (B) + 12 Bronze Coin | NEUTRAL |
 | Silver for the Smiths | Deliver 32 Silver Ingot | 2 Magic Stone + 6 Low Magisteel Nugget + 8 Silver Coin | FRIENDLY |
-| Magisteel Quota | Deliver 8 Low Magisteel | 3 High Magisteel + 8 Iron Block + 10 Silver Coin | FRIENDLY |
-| A Proper Smithy | Build blacksmith 3 | 8 Iron Block + 16 Coal + **Short Sword Schematic** + 15 Bronze Coin | NEUTRAL |
-| Fires of Industry | Build smeltery 3 | **Magic Staff Schematic** + 6 Coal Block + 2 Low Magisteel *(no coin)* | FRIENDLY |
-| The Grand Forge | Build blacksmith 5 | **Great Sword Schematic** + 4 High Magisteel *(no coin)* | ALLIED |
+| Magisteel Quota | Deliver 8 Low Magisteel | **Spear Schematic** + 8 Medium Magic Crystal + 6 Silver Coin | FRIENDLY |
+| A Proper Smithy | Deliver 8 Gold Block | 8 Iron Block + 16 Coal + **Short Sword Schematic** + 15 Bronze Coin | NEUTRAL |
+| Fires of Industry | Deliver 2 Low Magisteel + 2 Magic Stone | **Magic Staff Schematic** + Battlewill Manual + 2 Low Magisteel *(no coin)* | FRIENDLY |
+| The Grand Forge | Deliver 1 Pure Magisteel + 2 High Crystal | **Great Sword Schematic** + **Engraved High Magisteel Katana (Crushing)** | ALLIED |
+| A Master's Tools | Deliver 3 Low Magisteel | **Enchanted Diamond Pickaxe (Efficiency III + Fortune II)** | FRIENDLY |
 | A Blade for Every Hand | Deliver 2 Pure Magisteel Ingot | **Long Sword + Kunai Schematics** + 8 Magic Stone + 6 Silver Coin | FRIENDLY |
 | Strong Backs for the Mines | Lend 3 × Strength≥8 | 16 Gold + 4 Low Magisteel + 12 Silver Coin | FRIENDLY |
-| Master Artisans Abroad ★ | Lend 2 × Creativity≥8 | **Spatial Blade Schematic** + 1 Mithril Ingot + 1 Orichalcum Ingot + Earth Tome *(no coin)* | ALLIED |
+| Master Artisans Abroad | Lend 2 × Creativity≥8 | **Spatial Blade Schematic** + 1 Mithril Ingot + 1 Orichalcum Ingot + Earth Tome *(no coin)* | ALLIED |
 | Staff of the Smiths | Deliver 8 Magic Stone **+ 10 Silver Coin** (commission fee) | **Medium Magic Staff** | FRIENDLY |
 | Threads of Steel | Deliver 16 Iron + 16 String | 8 Steel Thread + 10 Bronze Coin | NEUTRAL |
 | The Mountain's Heart | Deliver 30 Gold + 20 Diamond + 10 Emerald | **Element Core (Earth)** + 6 Magic Stone + 4 Gold Coin | ALLIED |
-| Forge a Sentinel | Deliver 4 High Magisteel + 1 Magic Stone + 32 Bone **+ 2 Gold Coin** (forging fee) | **High Magisteel Bone Golem** *(no coin back)* | ALLIED |
+| Forge a Sentinel ★ | Deliver 4 High Magisteel + 1 Magic Stone + 32 Bone + **3 Anvil** **+ 2 Gold Coin** (forging fee) | **High Magisteel Bone Golem** + Battlewill Manual *(no coin back)* | ALLIED |
 
-**Tempest** (Tier II — community + academy; merged tp_ + ja_, 19 deals):
+**Tempest** (Tier II — trade capital + academy; reworked 2026-07-06 to ACTIVE
+DEALS ONLY — no Population/Happiness/Building "milestone" reqs. Milestone deals
+were reincarnated as delivery/slay/lend deals; adds hipokute medicine, a serpent
+hunt, coin/caravan trade, a slime capstone, and (2026-07-06) enchanted books +
+an engraved katana. 24 deals):
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
-| Provisions for Travellers | Deliver 32 Bread | 16 Bread + 8 Iron | NEUTRAL |
-| Meat for the Market | Deliver 64 Cooked Beef | 8 Gold + 8 Emerald | NEUTRAL |
-| Timber for Expansion | Deliver 48 Oak Log | 32 Oak Planks + 16 Stone Bricks | NEUTRAL |
-| A Place to Gather | Build tavern 3 | 16 Glass + 16 Bricks | NEUTRAL |
-| A Growing Town | Pop 15 | 16 Bread + 16 Stone Bricks | NEUTRAL |
-| A Bustling Town | Pop 20 | 4 Diamond + 32 Stone Bricks + 8 Iron | FRIENDLY |
-| Content People | Happy ≥ 7 | 8 Gold + 16 Glass + Teleport Scroll | FRIENDLY |
-| A Joyful Haven ★ | Happy ≥ 8 | 6 Diamond + 16 Glass + Area-TP Scroll + Water Tome | ALLIED |
+| Provisions for Travellers | Deliver 32 Bread | 8 Iron + 20 Bronze Coin | NEUTRAL |
+| Meat for the Market | Deliver 64 Cooked Beef | 16 Gold + 8 Emerald | NEUTRAL |
+| Timber for Expansion | Deliver 48 Oak Log | 16 Bread + 8 Cooked Beef | NEUTRAL |
+| A Place to Gather | Deliver 32 Glass + 16 Bricks | 16 Bread + 15 Bronze Coin | NEUTRAL |
 | Helping Hands | Lend 2 × Adaptability≥5 | 12 Iron + 8 Gold + 6 Magic Stone | FRIENDLY |
-| Skilled Hands Abroad | Lend 2 × Dexterity≥6 | 16 Iron | FRIENDLY |
-| A Share of the Harvest | Deliver 64 Wheat | 16 Book + 8 Paper | NEUTRAL |
-| Paper for the Scribes | Deliver 64 Paper | 8 Bookshelf | NEUTRAL |
+| Skilled Hands Abroad | Lend 2 × Dexterity≥6 | 16 Iron + 4 Diamond | FRIENDLY |
+| Medicine for the Realm | Deliver 16 Hipokute Grass | High Potion ×4 + Hipokute Seeds + 12 Silver Coin | FRIENDLY |
+| Content People | Deliver 8 Cake + 32 Cookie | Full Potion + 8 Silver Coin | FRIENDLY |
+| Caravan Tolls | Deliver 32 Emerald + 8 Gold | 1 Coin Pouch (A) + 12 Silver Coin | FRIENDLY |
+| Tempest Serpents | Slay 8 Tempest Serpent | 4 Cooked Serpent Meat + 2 Low Magisteel + 2 Gold Coin | ALLIED |
+| A Joyful Haven | Deliver 8 Golden Apple | Bucket of Slime + 8 Diamond + 4 Gold Coin | ALLIED |
+| **Rimuru's Blessing ★** | Deliver 1 Slime Core + 8 Slime Ball | **Staff of Slime** + 16 Diamond *(grants Self-Regeneration)* | ALLIED |
+| A Share of the Harvest | Deliver 4 Carrot + 4 Bread + 4 Beetroot | 16 Book + 4 Sugar Cane | NEUTRAL |
+| Food for the Mind | Deliver 8 Bookshelf | 1 Golden Apple + 24 Lapis | NEUTRAL |
 | A Library's Worth | Deliver 32 Book | 16 Lapis + 4 XP Bottle | FRIENDLY |
-| Letters for the Young | Build school 3 | 8 Bookshelf + 16 Book | NEUTRAL |
-| Halls of Knowledge | Build library 3 | 16 Lapis + 8 Book | NEUTRAL |
-| Higher Learning | Build university 4 | 16 XP Bottle + 8 Bookshelf + 4 Diamond + Ancient Tome | FRIENDLY |
+| A Grimoire for the Academy | Deliver 1 Grimoire (D) | 8 XP Bottle + 24 Lapis + 6 Silver Coin | FRIENDLY |
+| Halls of Knowledge | Deliver 16 Bookshelf | Ancient Tome + 8 Silver Coin | FRIENDLY |
 | Scholars Abroad | Lend 2 × Knowledge≥8 | 16 Lapis + 8 XP + 8 Magic Stone | FRIENDLY |
-| Focused Minds Abroad | Lend 2 × Focus≥6 | 8 XP + 8 Book | FRIENDLY |
+| Focused Minds Abroad | Lend 2 × Focus≥6 | 8 XP + 1 Ancient Tome | FRIENDLY |
 | Sages for the Academy | Lend 2 × Intelligence≥8 | 16 XP + 16 Lapis + 4 Diamond + Ancient Tome | ALLIED |
+| Higher Learning | Lend 2 × Knowledge≥6 | 16 XP Bottle + 4 Diamond + Ancient Tome + 1 Gold Coin | ALLIED |
+| Forbidden Knowledge | Deliver 1 Grimoire (A) | **Enchanted Book: Mending** + 8 Silver Coin | ALLIED |
+| A Scholar's Reward | Deliver 1 Grimoire (C) | **Enchanted Book: Unbreaking III** + 6 Silver Coin | FRIENDLY |
+| KATANA?!? | Deliver 2 Pure Magisteel + 4 High Crystal | **Engraved Pure Magisteel Katana (`swift`)** + 2 Gold Coin | ALLIED |
 
-**Luminous** (Tier III — premium holy):
+*Skill note:* the ★ = Tempest's capstone skill (Self-Regeneration) now rides
+**Rimuru's Blessing** (the catalog slime deal), moved off Medicine for the Realm.
+This is the CATALOG capstone, not the `COVENANT_DEALS` milestone (`cov_tempest`).
+
+**Luminous** (Tier III — premium holy; milestone deals converted to active
+deals 2026-07-06 — grimoires, holy healing, the Orc-Disaster crusade):
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
 | Light for the Cathedral | Deliver 64 Glowstone | 16 Glowstone + 8 Gold | NEUTRAL |
 | The Golden Tithe | Deliver 32 Gold Block | 3 Gold Block + 8 Diamond | NEUTRAL |
 | Tribute to the Luminary | Deliver 32 Diamond | 8 Diamond + 16 Gold | NEUTRAL |
 | The Diamond Offering | Deliver 16 Diamond Block | 16 Diamond + 2 Diamond Block | ALLIED |
-| A Light of Learning | Build library 5 | 8 Diamond + 16 Gold + Ancient Tome | NEUTRAL |
-| Sanctified Halls | Build university 4 | 12 Diamond + 2 Gold Block | FRIENDLY |
-| A Cathedral of Light | Build mysticalsite 3 | 8 Diamond + 16 Glowstone + Recovery Tome | FRIENDLY |
-| Sanctuary of Healing | Build hospital 4 | 8 Diamond + 16 Gold + 8 Magic Stone | FRIENDLY |
-| A Devout Congregation ★ | Happy ≥ 9 | 16 Diamond + 1 Enchanted Golden Apple | ALLIED |
+| A Light of Learning | Deliver 2 Grimoire (C) | Recovery Tome + 8 Diamond + 6 Silver Coin | FRIENDLY |
+| Sanctified Halls | Deliver 8 Gold Block | 12 Diamond + 2 Gold Coin | ALLIED |
+| A Cathedral of Light | Deliver 2 Enchanted Golden Apple | Barrier Tome + 16 Diamond + 2 Gold Coin | ALLIED |
+| Sanctuary of Healing | Deliver 16 Hipokute Grass | Revival Elixir + 8 Silver Coin | FRIENDLY |
+| A Devout Congregation ★ | Slay the Orc Disaster | Anti-Magic Mask + Enchanted Golden Apple + 2 Gold Coin | ALLIED |
 | The Faithful Abroad | Lend 2 × Mana≥8 | 8 Diamond + 1 Enchanted Golden Apple | ALLIED |
+| Blessed Grass | Deliver 32 Hipokute Grass | High Arcane Potion ×2 + Full Potion + 8 Silver Coin | FRIENDLY |
+| Grimoire of Light | Deliver 1 Grimoire (B) | Barrier Tome + 8 Diamond + 6 Silver Coin | FRIENDLY |
+| The Purest Offering | Deliver 4 Enchanted Golden Apple | 2 Diamond Block + Recovery Tome + 2 Gold Coin | ALLIED |
+| The Crusader's Blade | Deliver 4 Diamond Block + 16 Gold Block | **Netherite Sword (Smite V + Looting III + Unbreaking III)** | ALLIED |
+| Blessed Aegis | Deliver 8 Diamond Block | **Diamond Chestplate (Protection IV + Unbreaking III)** | ALLIED |
+| A Sacred Verse | Deliver 1 Grimoire (C) | **Enchanted Book: Smite V** + 6 Silver Coin | FRIENDLY |
+
+*(Deferred: "Crusader's Trial" — slay 24 undead in one night → Anti-Magic Mask
+Schematic — needs the time-windowed-slay mechanic; see future-ideas.md.)*
 
 **Falmuth** (Tier II — war):
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
-| The Iron Quota | Deliver 64 Iron | 16 Iron + 8 Gold | NEUTRAL |
-| Arrows for the Levy | Deliver 64 Arrow | 32 Arrow + 8 Iron | NEUTRAL |
-| The War Levy | Deliver 32 Iron Block | 8 Iron Block + 16 Gold + 1 Diamond Sword | NEUTRAL |
-| Blades of Magisteel | Deliver 16 Low Magisteel | 6 Low Magisteel + 8 Gold + Enhancement Tome | FRIENDLY |
-| Walls and Watchmen | Build barracks 3 | 8 Iron Block + 16 Gold + 4 Diamond | NEUTRAL |
-| Towers and Bowmen | Build archery 3 | 32 Arrow + 8 Iron Block + Guard-Help Scroll | FRIENDLY |
-| A Mighty Fortress ★ | Build barracks 5 | 3 High Magisteel + 8 Diamond + Battlewill Manual | ALLIED |
-| A Standing Garrison | Pop 20 | 12 Iron Block + 8 Gold + 2 Shield | FRIENDLY |
-| Hands for the Fields | Lend 3 × Stamina≥10 | 16 Iron + 8 Gold | FRIENDLY |
+| The Iron Quota | Deliver 64 Iron | 8 Gold + 20 Bronze Coin | NEUTRAL |
+| Arrows for the Levy | Deliver 64 Arrow | 8 Iron + 4 Gold + 15 Bronze Coin | NEUTRAL |
+| I Need More Steel! | Deliver 10 Iron Block | 5 Gold Block + **Diamond Sword (Sharpness III + Looting + Unbreaking)** + 15 Bronze Coin | NEUTRAL |
+| Blades of Magisteel | Deliver 4 Low Magisteel | 4 Gold Block + Enhancement Tome + 8 Silver Coin | FRIENDLY |
+| Powder for the Cannons | Deliver 32 Gunpowder | 8 Gold + 4 Diamond + 20 Bronze Coin | NEUTRAL |
+| Walls and Watchmen | Deliver 32 Iron Block | 3 Low Magisteel + **Siegebreaker's Tonic** + 2 Gold Coin | ALLIED |
+| The Siege Train | Deliver 8 TNT + 8 Iron Block | **Siegebreaker's Tonic** + 10 Silver Coin | FRIENDLY |
+| Towers and Bowmen | Deliver 128 Arrow | 1 Short Bow + 8 Gold + 20 Bronze Coin | NEUTRAL |
+| A Mighty Defense ★ | Slay 30 raiders | Long Sword Schematic + Battlewill Manual + 2 Gold Coin | ALLIED |
+| A Standing Garrison | Lend 3 × Stamina≥10 | 3 Iron Block + **Crusader's Draught** + 8 Silver Coin | FRIENDLY |
+| Hands for the Fields | Lend 5 × Stamina≥10 | 16 Iron + 8 Gold | FRIENDLY |
 | Shock Troops Abroad | Lend 3 × Strength≥8 | 3 High Magisteel + 8 Diamond | ALLIED |
+
+(The I Need More Steel! Diamond Sword is granted ENCHANTED — the enchant/engrave
+-at-grant mechanic is now built; see decisions.md "Enchanted/engraved rewards".)
 
 **Milim** (Tier III — feast/brawl):
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
 | A Feast Worthy of Me! | Deliver 64 Cooked Porkchop | 16 Golden Carrot + 8 Gold | NEUTRAL |
-| More Meat! | Deliver 64 Cooked Beef | 16 Golden Carrot | NEUTRAL |
+| More Meat! | Deliver 64 Cooked Beef | 16 Golden Carrot + **Dragon's Vigor** | NEUTRAL |
+| Bring Me Fireworks! | Deliver 16 Firework Rocket | 6 Gold + 12 Bronze Coin + 4 Golden Carrot | NEUTRAL |
 | Sweets for Milim | Deliver 64 Cookie | 2 Golden Apple + 8 Gold | NEUTRAL |
 | Cake, and Lots of It! | Deliver 8 Cake | 2 Golden Apple + 8 Gold + Gravity Tome | FRIENDLY |
-| A Place to Brawl | Build barracks 3 | 4 Diamond + 8 Gold | FRIENDLY |
-| Show Me Your Strength | Pop 20 | 6 Diamond + 16 Gold | FRIENDLY |
-| Show Me MORE Strength! | Pop 25 | 12 Diamond + 2 Golden Apple | ALLIED |
-| Keep Them Cheerful | Happy ≥ 8 | 4 Diamond + 16 Golden Carrot | FRIENDLY |
+| For the Love of the Game | Slay 45 monsters | 8 Diamond + 2 Golden Apple + 8 Silver Coin | FRIENDLY |
+| Oooo Shiny! | Deliver 8 Diamond Block | 4 Silver Apple + Golden Apple + 8 Silver Coin | FRIENDLY |
+| A Dragon's Hoard | Deliver 64 Golden Carrot | 6 Diamond + 8 Gold + Golden Apple + 8 Silver Coin | FRIENDLY |
+| Keep Them Cheerful | Deliver 8 Cake + 64 Cookie | 1 Enchanted Golden Apple + 8 Diamond + 8 Silver Coin | FRIENDLY |
 | Champions for Milim | Lend 2 × Strength≥10 | 6 Diamond + 2 Golden Apple + Battlewill Manual | FRIENDLY |
-| Warriors to Spar ★ | Lend 2 × Athletics≥8 | 8 Diamond + 1 Enchanted Golden Apple | ALLIED |
+| Prove Your Strength | Slay the Wither | 2 Enchanted Golden Apple + 12 Diamond + 4 Gold Coin + Battlewill Manual | ALLIED |
+| The Ultimate Brawl ★ | Slay the Warden | **Absolute Annihilator** (custom PLAIN weapon: 20 dmg, 1.8 spd, +2.5 reach, gold ench, netherite-axe durability; earns holy_coat engraving + EP-scaling powers via gear_existence — see future-ideas.md "Absolute Annihilator") + 2 Gold Coin | ALLIED |
+| Warriors to Spar | Lend 2 × Athletics≥8 | 8 Diamond + 1 Enchanted Golden Apple | ALLIED |
 
-**Eurazania** (Tier II — beast kingdom):
+**Eurazania** (Tier II — beast kingdom): *reworked 2026-07-16 — monster leather +
+beast mats + coin ladder; the 4 milestone deals converted to active (supply/hunt).*
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
-| Hides for the Beastfolk | Deliver 48 Leather | 16 Leather + 8 Cooked Beef | NEUTRAL |
-| Meat for the Pack | Deliver 64 Cooked Beef | 16 Cooked Beef | NEUTRAL |
-| Bones for the Den | Deliver 64 Bone | 32 Bone Meal + 8 Leather | NEUTRAL |
-| Sinew for Snares | Deliver 48 String | 16 String + 16 Leather | NEUTRAL |
-| Dens for the Beasts | Build stable 3 | 24 Leather + 8 Gold + 4 Compost | FRIENDLY |
-| A Great Pack | Pop 18 | 24 Leather + 16 Cooked Beef + 4 Compost | FRIENDLY |
-| A Thriving Pack | Happy ≥ 8 | 16 Leather + 4 Diamond | FRIENDLY |
-| A Wild Haven ★ | Happy ≥ 9 | 6 Diamond + 24 Leather + Battlewill Manual | ALLIED |
-| Hunters Abroad | Lend 2 × Agility≥8 | 16 Leather + 8 Gold + 4 Magic Stone | FRIENDLY |
-| Keen Trackers | Lend 2 × Focus≥6 | 4 Diamond + 16 Leather | ALLIED |
+| Hides for the Beastfolk | Deliver 32 Leather | 8 Monster Leather B + 12 Bronze Coin | NEUTRAL |
+| Meat for the Pack | Deliver 64 Cooked Beef | 8 Meaty Stew + 10 Bronze Coin | NEUTRAL |
+| Bones for the Den | Deliver 64 Bone | 32 Bone Meal + **Beast-Blood Draught** + 8 Bronze Coin | NEUTRAL |
+| Sinew for Snares | Deliver 48 String | 12 Monster Leather B + 8 Bronze Coin | NEUTRAL |
+| A Proper Den *(was Dens/BuildingLevel)* | Deliver 2 Campfire + 16 Oak Log | 20 Silver Coin | FRIENDLY |
+| A Great Hunt *(was Great Pack/Population)* | Slay 40 monsters | 10 Monster Leather A + 4 Beast Horn + 12 Silver Coin | FRIENDLY |
+| A Thriving Pack *(was Happiness)* | Deliver 20 Monster Leather A | Full Potion + 4 Diamond + 8 Silver Coin | FRIENDLY |
+| The Charybdis Hunt ★ *(was A Wild Haven/Happiness)* | Slay Charybdis | Armorsaurus Scalemail Schematic + Battlewill Manual + 3 Gold Coin | ALLIED |
+| Hunters Abroad | Lend 2 × Agility≥8 | 8 Monster Leather B + 4 Magic Stone + 6 Silver Coin | FRIENDLY |
+| Keen Trackers | Lend 2 × Focus≥6 | 4 Diamond + 6 Monster Leather C + 2 Gold Coin | ALLIED |
+| The Beast-Horn Spear | Deliver 12 Beast Horn | **Beast Horn Spear** (Sharpness V + Swift) + Battlewill Manual + 3 Gold Coin | ALLIED |
+| Blade Tiger Cull | Slay 10 Blade Tigers | 8 Blade Tiger Steak + 6 Monster Leather B + 10 Silver Coin | FRIENDLY |
+| Armorsaurus Hide | Slay 4 Armorsaurus | 8 Armorsaurus Scale + 6 Monster Leather C + 12 Silver Coin | FRIENDLY |
+| The Tanner's Trade | Deliver 12 Monster Leather B | 20 Silver Coin + 4 Diamond | NEUTRAL |
+| Pack Hunters | Slay 10 Direwolves | 2 Monster Leather Special A + 2 Golden Apple + 10 Silver Coin | FRIENDLY |
 
-**Clayman** (Tier I — schemer):
+**Clayman** (Tier I — schemer): *reworked 2026-07-16 — duplicates removed, coin
+ladder added, the 4 milestone deals converted to active; ★ moved to The Marionette.*
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
-| Crystals for the Scheme | Deliver 16 Low Crystal | 4 Low Crystal + 16 Redstone | NEUTRAL |
-| Whispers and Wires | Deliver 64 Redstone | 32 Redstone + 8 Gold | NEUTRAL |
-| Gold to Grease Palms | Deliver 32 Gold | 4 Medium Crystal + 16 Gold | NEUTRAL |
-| Magicule Tithe | Deliver 8 Medium Crystal | 1 High Crystal + 2 Medium Crystal + Illusion Tome | FRIENDLY |
-| A Site of Dark Power | Build mysticalsite 3 | 3 Medium Crystal + 8 Gold | FRIENDLY |
-| The Puppet-Maker's Workshop | Build enchanter 3 | 8 Lapis + 16 Redstone + Buff Scroll | FRIENDLY |
-| More Pawns | Pop 20 | 3 Medium Crystal + 1 Slime Core | FRIENDLY |
-| Obedient Subjects | Happy ≥ 7 | 16 Redstone + 8 Gold | NEUTRAL |
-| Spies Abroad | Lend 2 × Focus≥6 | 1 High Crystal + 8 Redstone + 8 Magic Stone | FRIENDLY |
-| Enforcers for the Cause ★ | Lend 2 × Strength≥8 | 2 High Crystal + 4 Diamond | ALLIED |
+| Magic Crystals *(renamed)* | Deliver 16 Low Crystal | 16 Redstone + 12 Bronze Coin | NEUTRAL |
+| Whispers and Wires | Deliver 64 Redstone | 8 Low Crystal + **Potion of Invisibility** + 10 Bronze Coin | NEUTRAL |
+| Gold to Grease Palms | Deliver 32 Gold | 8 Low Crystal + **Potion of Night Vision** + 12 Bronze Coin | NEUTRAL |
+| Obedient Subjects *(was Happiness)* | Deliver 24 Redstone | 2 Medium Crystal + 8 Bronze Coin | NEUTRAL |
+| Magicule Tithe | Deliver 8 Medium Crystal | 1 High Crystal + Illusion Tome + 8 Silver Coin | FRIENDLY |
+| A Site of Dark Power *(was BuildingLevel)* | Deliver 8 Medium Crystal + 4 Magic Stone | 2 High Crystal + Buff Scroll + 8 Silver Coin | FRIENDLY |
+| The Puppet-Maker's Workshop *(was BuildingLevel)* | Deliver 16 Lapis + 16 Redstone | 2 Buff Scroll + 32 Lapis + 8 Silver Coin | FRIENDLY |
+| More Pawns *(was Population)* | Lend 10 citizens | Slime Core + 3 Medium Crystal + 10 Silver Coin | FRIENDLY |
+| Spies Abroad | Lend 2 × Focus≥6 | 1 High Crystal + Illusion Tome + 6 Silver Coin | FRIENDLY |
+| Enforcers for the Cause | Lend 2 × Strength≥8 | 2 High Crystal + 4 Diamond + 2 Gold Coin | ALLIED |
+| A Grand Illusion | Deliver 1 Grimoire (A) | Illusion Tome + 2 High Crystal + 3 Gold Coin | ALLIED |
+| The Marionette ★ | **Declare war on a rival colony and win** | 3 High Crystal + Slime Core + 4 Gold Coin | ALLIED |
 
-**Leon** (Tier III — fire/martial; expanded in Phase 3, now re-ranked to III):
+**NEW requirement type — `WinWar`** (added 2026-07-16 for The Marionette): a deal
+completed by declaring war on a rival settlement and WINNING it. Event-driven —
+`RivalColonies.resolveWin` → `DiplomacyManager.onWarWon` bumps progress (never
+polled), same shape as `SlayEntities`. This is the first deal that ties the
+diplomacy board to the rival-colony war system.
+
+**Leon** (Tier III — the Platinum Saber: fire-wielding SWORDSMAN + spirit
+summoner, signature spirit Ifrit): *reworked 2026-07-16 — milestones → active,
+coin ladder, martial/saber spine (Battlewill + the Platinum Blade fire-katana),
+blaze-rod spam cut; canon check confirmed fire is his element VIA Ifrit, so kept.*
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
 | Stones of Fire | Deliver 32 Magma Block | 8 Magma Cream + 8 Gold | NEUTRAL |
-| Cinders for the Flame Lord | Deliver 32 Blaze Powder | 8 Blaze Rod + 16 Glowstone | NEUTRAL |
-| Fuel for the Furnaces | Deliver 64 Coal | 16 Blaze Powder + 8 Iron | NEUTRAL |
-| Obsidian for the Keep | Deliver 16 Obsidian | 16 Gold + 4 Diamond | NEUTRAL |
-| A Hearth of Flame | Build smeltery 3 | 6 Blaze Rod + 16 Gold + Fire Tome | FRIENDLY |
-| The Flame Legion | Pop 20 | 6 Diamond + 1 Gold Block + 8 Blaze Rod | FRIENDLY |
-| A Burning Devotion | Happy ≥ 8 | 6 Diamond + 8 Blaze Rod | FRIENDLY |
-| Flamebearers Abroad ★ | Lend 2 × Mana≥6 | 4 Blaze Rod + 4 Diamond | FRIENDLY |
-| The Greater Forge | Build smeltery 5 | 3 High Magisteel + 8 Diamond + Enhancement Tome | ALLIED |
-| Flame Knights Abroad | Lend 2 × Strength≥8 | 3 High Magisteel + 8 Diamond | ALLIED |
+| Cinders Needed *(renamed)* | Deliver 32 Blaze Powder | 16 Glowstone + 12 Bronze Coin | NEUTRAL |
+| Fuel for the Furnaces | Deliver 64 Coal | 16 Blaze Powder + 12 Bronze Coin | NEUTRAL |
+| Obsidian for the Keep | Deliver 16 Obsidian | 4 Diamond + 20 Bronze Coin | NEUTRAL |
+| A Hearth of Flame *(was smeltery 3)* | Deliver 8 Blaze Rod + 16 Magma Block | Fire Tome + **Flamewarden's Brew** + 10 Silver Coin | FRIENDLY |
+| Aid Needed *(was The Flame Legion/Pop)* | Lend 6 citizens | 6 Diamond + 8 Blaze Rod + 12 Silver Coin | FRIENDLY |
+| Molten Cores *(was A Burning Devotion/Happiness)* | Deliver 12 Magma Cream | **Flamewarden's Brew** + 6 Diamond + 10 Silver Coin | FRIENDLY |
+| Flamebearers Abroad ★ | Lend 2 × Mana≥6 | 4 Blaze Rod + 4 Diamond + Fire Tome + 8 Silver Coin | FRIENDLY |
+| The Greater Forge *(was smeltery 5)* | Deliver 4 High Magisteel + 8 High Crystal | Enhancement Tome + 8 Diamond + 3 Gold Coin | ALLIED |
+| Flame Knights Abroad | Lend 2 × Strength≥8 | 3 High Magisteel + 8 Diamond + Battlewill Manual + 2 Gold Coin | ALLIED |
+| Trial by Fire | Slay 30 blazes & magma cubes | **Flamewarden's Brew** + Fire Tome + Battlewill Manual + 10 Silver Coin | FRIENDLY |
+| The Platinum Blade | Deliver 4 High Magisteel | **High Magisteel Katana (Fire Aspect II + Sharpness IV)** + 3 Gold Coin | ALLIED |
 
-**Eastern Empire** (Tier II — magitech/imperial; expanded in Phase 3):
+
+**Eastern Empire** (Tier II — magitech/imperial): *reworked 2026-07-16 — milestones
+→ active, coin ladder, summoning/imperial theme; some deals renamed to match.*
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
-| Curios from Your World | Deliver 32 Glass | 16 Copper + 8 Amethyst | NEUTRAL |
-| Strange Contraptions | Deliver 16 Redstone Block | 24 Redstone + 8 Iron | NEUTRAL |
-| Resonant Crystals | Deliver 32 Amethyst Shard | 4 Diamond + 24 Redstone | NEUTRAL |
-| Copper for the Engines | Deliver 16 Copper Block | 24 Redstone + 16 Iron | NEUTRAL |
-| Settlers from Afar | Pop 15 | 8 Iron + 8 Emerald + Area-TP Scroll | FRIENDLY |
-| The Magitech Foundry | Build smeltery 3 | 8 Iron Block + 8 Amethyst + 16 Redstone | FRIENDLY |
-| A Well-Ordered City | Happy ≥ 8 | 4 Diamond + 16 Amethyst | FRIENDLY |
-| Specialists Abroad ★ | Lend 2 × Intelligence≥6 | 8 Amethyst + 4 Diamond + Summoning Tome | FRIENDLY |
-| An Imperial Garrison | Build barracks 4 | 6 Diamond + 8 Iron Block + 8 Amethyst | ALLIED |
-| Engineers Abroad | Lend 2 × Dexterity≥8 | 8 Diamond + 1 High Crystal | ALLIED |
+| Gimme Glass *(renamed)* | Deliver 32 Glass | 8 Amethyst + 12 Bronze Coin | NEUTRAL |
+| Strange Contraptions | Deliver 16 Redstone Block | 4 Amethyst + 12 Bronze Coin | NEUTRAL |
+| Resonant Crystals | Deliver 32 Amethyst | 4 Diamond + 15 Bronze Coin | NEUTRAL |
+| Gimme Copper *(renamed)* | Deliver 16 Copper Block | 16 Iron + 12 Bronze Coin | NEUTRAL |
+| A Different Civilization *(was Settlers/Pop)* | Deliver 16 Amethyst + 8 Copper Block + 8 Emerald | Area-TP Scroll + 6 Diamond + 10 Silver Coin | FRIENDLY |
+| The Magitech Foundry *(was smeltery 3)* | Deliver 8 Iron Block + 16 Amethyst | Summoning Tome + 2 Medium Crystal + 10 Silver Coin | FRIENDLY |
+| Crystal Requisition *(was A Well-Ordered City/Happy)* | Deliver 24 Amethyst | **Imperial Stimulant** + 4 Diamond + 10 Silver Coin | FRIENDLY |
+| Specialists Abroad ★ | Lend 2 × Intelligence≥6 | 8 Amethyst + 4 Diamond + Summoning Tome + 8 Silver Coin | FRIENDLY |
+| An Imperial Garrison *(was barracks 4)* | Deliver 4 High Magisteel + 8 Amethyst | **High Magisteel Sword (Sharpness IV + Unbreaking III)** + 3 Gold Coin | ALLIED |
+| Engineers Abroad | Lend 2 × Dexterity≥8 | 8 Diamond + 1 High Crystal + 2 Gold Coin | ALLIED |
+| The Imperial Levy | Deliver 4 Low Magisteel | 6 Low Magisteel Nugget | NEUTRAL |
+| Arcane Conscripts | Lend 2 × Mana≥6 | Summoning Tome + **Imperial Stimulant** + 8 Silver Coin | FRIENDLY |
+| A New Type of Soldier | Deliver 4 High Crystal + 8 Amethyst + 4 Low Magisteel | **Low Magisteel Golem** + 4 Gold Coin | ALLIED |
 
 ### 7B. Covenant milestone deals
 
@@ -418,15 +501,15 @@ each relationship.
 
 | Faction | Deal | Task | Reward | Tier value |
 |---|---|---|---|---|
-| Dwargon | The Masterwork Commission | Deliver Hihiirokane Katana + 8 Pure Magisteel + 1 Masterwork Forging Core | 64 Emerald | II ⚠ 64→48 |
-| Luminous | The Grand Offering | Deliver 8 Diamond Block + 16 Gold Block | 64 Emerald | III |
-| Tempest | A Thriving Metropolis | Pop 25 | 48 Emerald | II |
-| Milim | Apito's Jelly | Deliver 1 Apito's Jelly | 48 Emerald | III ⚠ 48→64 |
-| Falmuth | Prove Your Might | Slay the Wither | 48 Emerald | II |
-| Leon | Tribute to the Platinum Saber | Deliver 16 Gold Block + 16 Blaze Rod + 1 Netherite Ingot | 48 Emerald | III ⚠ 48→64 |
-| Eastern Empire | The Imperial Compact | Deliver 4 Diamond Block + 32 Amethyst + 16 Redstone Block | 48 Emerald | II |
-| Eurazania | The Great Hunt | Slay 3 great beasts (Wither / Warden / Elder Guardian / Charybdis / Ifrit) | 48 Emerald | II |
-| Clayman | Souls for the Core | Slay 10 Villagers | 32 Emerald | I |
+| Dwargon | The Masterwork Commission | Deliver 1 Netherite Block + 1 Hihiirokane Ingot | **Masterwork Weapon Core + Masterwork Schematic** (unlocks the Masterwork weapon line) | II |
+| Luminous | The Grand Offering | Deliver 8 Diamond Block + 16 Gold Block | 3 Enchanted Golden Apple *(placeholder)* | III |
+| Tempest | A Thriving Metropolis | Pop 25 | 2 Enchanted Golden Apple *(placeholder)* | II |
+| Milim | Apito's Jelly | Deliver 1 Apito's Jelly | 3 Enchanted Golden Apple *(placeholder)* | III |
+| Falmuth | Prove Your Might | Slay the Wither | 2 Enchanted Golden Apple *(placeholder)* | II |
+| Leon | Tribute to the Platinum Saber | Deliver 16 Gold Block + 16 Blaze Rod + 1 Netherite Ingot | 3 Enchanted Golden Apple *(placeholder)* | III |
+| Eastern Empire | The Imperial Compact | Deliver 4 Diamond Block + 32 Amethyst + 16 Redstone Block | 2 Enchanted Golden Apple *(placeholder)* | II |
+| Eurazania | The Great Hunt | Slay 3 great beasts (Wither / Warden / Elder Guardian / Charybdis / Ifrit) | 2 Enchanted Golden Apple *(placeholder)* | II |
+| Clayman | Souls for the Core | Slay 10 Villagers | 1 Enchanted Golden Apple *(placeholder)* | I |
 
 Plus one **Covenant-only training deal**: Tempest's *Warrior Training* — a lend
 (Strength≥5, returns trained in Stamina + Adaptability) offered only AFTER the
@@ -436,6 +519,22 @@ Covenant is forged → 16 Emerald.
 Forging Core** — a known dead-end item (see future-ideas.md). Cross-axis: the
 emerald amount matches the tier (III=64, II=48, I=32), but the *task difficulty*
 varies a lot (Pop 25 vs. slay the Wither) — a Phase 4 cross-check candidate.
+
+
+**STATUS (v0.2.0):** the covenant capstones now pay **tier-scaled Enchanted Golden
+Apples as PLACEHOLDERS** (I=1, II=2, III=3) instead of flat emeralds, pending the
+unique per-faction rewards. **Dwargon is done for real** — it grants the Masterwork
+Weapon Core + schematic. Faction development is PAUSED here for the 0.2.0 release.
+
+**7B REWORK IN PROGRESS (2026-07-16) — each covenant gets a UNIQUE hard task +
+a fully custom reward** (replacing the flat emerald payouts):
+- **Dwargon** → the **Masterwork Weapon** system (IN DESIGN, see below / decisions.md).
+  Reward = Masterwork Weapon Core + a schematic that unlocks a smithing-table line
+  of player-status-scaling "Masterwork" weapons. INVERTS today's deal (which
+  *consumes* a core) — the covenant now GRANTS the core.
+- **Milim** (PLANNED, not yet done) → move the **Absolute Annihilator** to
+  `cov_milim` as its custom covenant reward, and change the catalog "The Ultimate
+  Brawl" (slay Warden) reward to **1 Drago Nova**.
 
 ### 7C. Skill rewards
 
@@ -448,10 +547,10 @@ capstone skill.
 
 | Faction | Granting deal | Skill | Skill type |
 |---|---|---|---|
-| Dwargon | The Grand Forge | Body Armor | Intrinsic |
+| Dwargon | Forge a Sentinel | Body Armor | Intrinsic |
 | Tempest | A Joyful Haven | Self-Regeneration | Common |
 | Luminous | A Devout Congregation | Holy Attack Resistance | Resistance |
-| Falmuth | A Mighty Fortress | Physical Attack Resistance | Resistance |
+| Falmuth | A Mighty Defense | Physical Attack Resistance | Resistance |
 | Milim | Warriors to Spar | Strength | Common |
 | Eurazania | A Wild Haven | Giantification | Intrinsic |
 | Clayman | Enforcers for the Cause | Charm | Intrinsic |

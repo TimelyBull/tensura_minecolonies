@@ -1,0 +1,6 @@
+{
+  "parent": "tensura:item/tachi_handheld",
+  "textures": {
+    "layer0": "tensura_minecolonies:item/masterwork_tachi_t3"
+  }
+}

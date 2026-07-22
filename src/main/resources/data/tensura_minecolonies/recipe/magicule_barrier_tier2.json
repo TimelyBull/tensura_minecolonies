@@ -1,10 +1,11 @@
 {
   "type": "minecraft:crafting_shaped",
-  "pattern": [ "SCS", "MCM", "SCS" ],
+  "pattern": [ "SCS", "MBM", "SCS" ],
   "key": {
     "S": { "item": "tensura:silver_ingot" },
     "C": { "item": "tensura:medium_quality_magic_crystal" },
-    "M": { "item": "tensura:high_magisteel_ingot" }
+    "M": { "item": "tensura:high_magisteel_ingot" },
+    "B": { "item": "tensura_minecolonies:magicule_barrier" }
   },
   "result": { "id": "tensura_minecolonies:magicule_barrier_tier2", "count": 1 }
 }

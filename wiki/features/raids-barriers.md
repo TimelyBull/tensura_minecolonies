@@ -48,8 +48,19 @@ events are planned — see the [Roadmap](../roadmap.md).)
 ## The barrier
 
 The barrier is a Barrier Core block you place that projects a protective
-**sphere** around itself while it holds magicule fuel. The sphere is centred on
-the block and sinks partway into the ground.
+**sphere** while it holds magicule fuel. The sphere sinks partway into the
+ground. Where it is centred depends on where you place the core:
+
+- **Inside your colony's claimed area:** the sphere is centred on your **town
+  hall**, wherever in the claim the core block sits.
+- **Outside any colony:** the sphere is centred on the core block itself.
+
+Placing **more than one core inside the same colony** does not create separate
+barriers — all the cores merge into **one** barrier around the town hall. The
+strongest core (highest tier) sets the radius and panel strength, and every
+core's fuel tank pools together, so extra cores are extra capacity and
+redundancy. Note that the core block only projects the field; if it sits far
+from the town hall it can end up outside its own sphere, unprotected.
 
 ### Panels and holes
 
@@ -75,14 +86,17 @@ tier's sphere is colour-coded:
 |---|---|---|---|---|
 | 1 | 16 | 10,000 | **Wall** — blocks hostiles | Blue |
 | 2 | 28 | 20,000 | + **Heal** — Regeneration to non-hostiles inside | Green |
-| 3 | 42 | 40,000 | + **Magicule regen** — your own magicule regenerates 10% faster while inside | Magenta |
-| 4 | 60 | 60,000 | (all of the above) | Gold |
+| 3 | 42 | 40,000 | (larger and tougher) | Magenta |
+| 4 | 60 | 60,000 | (larger and tougher) | Gold |
 
 While fueled, a barrier also **prevents hostile mobs from spawning** inside its
-footprint, and stops enemy arrows, spells, and breath attacks at its panels
-(these still pass through an open hole). Raid waves never appear inside a
-fueled barrier either — raiders always show up outside it and have to break
-through.
+footprint — both vanilla monsters and Tensura hostiles, whether from night-time
+wild spawns, mob spawners, trial spawners, pillager patrols, or reinforcements.
+Mobs you place on purpose (spawn eggs, commands, dispensers) and your own tamed
+or summoned creatures are not affected. It also stops enemy arrows, spells, and
+breath attacks at its panels (these still pass through an open hole). Raid waves
+never appear inside a fueled barrier either — raiders always show up outside it
+and have to break through.
 
 ### Fuel
 
@@ -110,9 +124,18 @@ as you build or break it.
 A Barrier Core can project up to **three concentric spheres**, expanding
 outward. The first layer is available to anyone; raising it to two or three
 requires you to be a true Demon Lord or true Hero. Each extra layer costs
-ongoing magicule upkeep from the fuel pool. When the pool can't pay, the
-outermost layer drops first, then the next, down to the always-available first
-layer.
+ongoing magicule upkeep from the fuel pool.
+
+Raising the **third layer** also grants a buff inside the barrier, depending
+on which title the raiser holds:
+
+- **True Demon Lord:** players inside regenerate their own magicule **10%
+  faster**.
+- **True Hero:** citizens inside receive **Regeneration II** and **Absorption**
+  (extra hearts), on any core tier.
+
+If the raiser loses their title, the extra layers collapse back to one and the
+buff ends.
 
 The Barrier Core's menu (right-click) shows fuel, lets you move magicule
 between yourself and the core, sets the layer count, and toggles whether the

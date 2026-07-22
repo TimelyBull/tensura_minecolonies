@@ -210,9 +210,11 @@ public final class TensuraRaids {
     // deregistration).
     // ------------------------------------------------------------------
 
-    /** One fueled barrier's registry entry — refresh time + field radius
-     *  (per-tier, needed for footprint checks). */
-    record BarrierEntry(long lastSeen, double radius) {}
+    /** One fueled barrier's registry entry — refresh time, the field CENTER
+     *  (town hall when colony-anchored, else the core block itself) and the
+     *  field radius (per-tier, needed for footprint checks). Keyed by the
+     *  CORE's position (stable across center changes / block removal). */
+    record BarrierEntry(long lastSeen, BlockPos center, double radius) {}
 
     private static final Map<GlobalPos, BarrierEntry> ACTIVE_BARRIERS = new ConcurrentHashMap<>();
     private static final long BARRIER_STALE_TICKS = 60L;
@@ -230,9 +232,10 @@ public final class TensuraRaids {
                     net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
                             ExampleMod.MODID, "barrier_blocked"));
 
-    static void reportActiveBarrier(ServerLevel level, BlockPos pos, double radius) {
-        ACTIVE_BARRIERS.put(GlobalPos.of(level.dimension(), pos.immutable()),
-                new BarrierEntry(level.getGameTime(), radius));
+    static void reportActiveBarrier(ServerLevel level, BlockPos corePos, BlockPos center,
+                                    double radius) {
+        ACTIVE_BARRIERS.put(GlobalPos.of(level.dimension(), corePos.immutable()),
+                new BarrierEntry(level.getGameTime(), center.immutable(), radius));
     }
 
     static void reportBarrierDown(ServerLevel level, BlockPos pos) {
@@ -253,7 +256,7 @@ public final class TensuraRaids {
             Map.Entry<GlobalPos, BarrierEntry> e = it.next();
             if (now - e.getValue().lastSeen() > BARRIER_STALE_TICKS) { it.remove(); continue; }
             if (!e.getKey().dimension().equals(level.dimension())) continue;
-            if (BarrierBlockEntity.isWithinFootprint(e.getKey().pos(), e.getValue().radius(), x, z)) {
+            if (BarrierBlockEntity.isWithinFootprint(e.getValue().center(), e.getValue().radius(), x, z)) {
                 return true;
             }
         }
@@ -280,8 +283,9 @@ public final class TensuraRaids {
         return false;
     }
 
-    /** Nearest fueled barrier within 160 blocks of {@code center}, or null. */
-    static BlockPos nearestActiveBarrier(ServerLevel level, BlockPos center) {
+    /** Nearest fueled barrier's field CENTER within 160 blocks of
+     *  {@code around}, or null — what raid steering walks mobs toward. */
+    static BlockPos nearestActiveBarrier(ServerLevel level, BlockPos around) {
         long now = level.getGameTime();
         BlockPos best = null;
         double bestDist = 160 * 160;
@@ -290,8 +294,8 @@ public final class TensuraRaids {
             Map.Entry<GlobalPos, BarrierEntry> e = it.next();
             if (now - e.getValue().lastSeen() > BARRIER_STALE_TICKS) { it.remove(); continue; }
             if (!e.getKey().dimension().equals(level.dimension())) continue;
-            double d = e.getKey().pos().distSqr(center);
-            if (d < bestDist) { bestDist = d; best = e.getKey().pos(); }
+            double d = e.getValue().center().distSqr(around);
+            if (d < bestDist) { bestDist = d; best = e.getValue().center(); }
         }
         return best;
     }
