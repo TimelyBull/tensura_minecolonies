@@ -13,7 +13,9 @@ Copy the relevant version's section into the CurseForge release notes on each up
   **Dwargon** to Covenant and complete *The Masterwork Commission* (deliver a
   Block of Netherite + a Hihiirokane Ingot) to receive a **Masterwork Weapon
   Core** and a **Masterwork Schematic**. Right-click the schematic to learn the
-  recipes, then forge at a **Tensura Smithing Bench**: any hihiirokane weapon +
+  recipes — it is used up in the process, and a spare copy tells you that you
+  already know them instead of being wasted. Then forge at a
+  **Tensura Smithing Bench**: any hihiirokane weapon +
   a Masterwork Weapon Core becomes its Masterwork version. All **12 weapon types**
   are supported — sword, short/long/great sword, katana, kodachi, odachi, tachi,
   spear, scythe, axe and sickle.

@@ -49,7 +49,10 @@ magicule / BALANCED none, 30 s cd); mastered-count QOL (10 magnet, 15 step assis
 
 **How to test:**
 1. Creative: grab the Schematic + Core + a Masterwork weapon from the mod tab.
-   Right-click the schematic -> "unlocked".
+   Right-click the schematic -> gold "techniques learned" message, level-up sound,
+   and THE SCHEMATIC IS CONSUMED (count drops by 1 / it leaves the hand).
+   Right-click a second copy -> grey "you already know" message and it is NOT
+   consumed. Both paths are our `MasterworkSchematicItem`, not Tensura's.
 2. Tensura Smithing Bench: hihiirokane weapon + Core -> the recipe should appear
    ONLY after the schematic is unlocked. Craft it.
 3. Tooltip: normal hover shows "Hold SHIFT to see abilities"; SHIFT lists them.

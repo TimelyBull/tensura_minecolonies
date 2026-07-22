@@ -249,12 +249,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             ITEMS.registerSimpleItem("masterwork_forging_core",
                     new net.minecraft.world.item.Item.Properties().stacksTo(16));
     /** Dwargon Covenant reward — right-click UNLOCKS the whole Masterwork weapon
-     *  line at the Tensura Smithing Bench. Reuses Tensura's native schematic item
-     *  (its use() calls ITensuraPlayer.unlockSchematic; SmithingBenchRecipe gates
-     *  on it). */
+     *  line at the Tensura Smithing Bench, and is CONSUMED in the process.
+     *  Subclasses Tensura's native schematic item so the unlock still goes through
+     *  ITensuraPlayer.unlockSchematic (keyed by our registry id, which is what
+     *  SmithingBenchRecipe gates on); see {@link MasterworkSchematicItem} for why
+     *  use() is overridden rather than inherited. */
     public static final DeferredItem<net.minecraft.world.item.Item> MASTERWORK_SCHEMATIC =
-            ITEMS.register("masterwork_schematic",
-                    io.github.manasmods.tensura.item.misc.SmithingSchematicItem::new);
+            ITEMS.register("masterwork_schematic", MasterworkSchematicItem::new);
     /** Masterwork weapon tier — high, netherite-ish; durability is EP-backed
      *  (gear_existence EP_DURABILITY) so vanilla uses matter little. */
     public static final net.minecraft.world.item.Tier MASTERWORK_TIER = new net.minecraft.world.item.Tier() {
