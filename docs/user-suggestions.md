@@ -6,6 +6,27 @@ not yet evaluated for feasibility. When one is picked up, move the design work
 into `docs/future-ideas.md` / `docs/roadmap.md` and a decision into
 `docs/decisions.md`.
 
+## 2026-07-22
+
+1. **Adjustable, per-colony barrier size.** [QUEUED — the user has asked for this
+   to be built after the phantom-citizen bug.] Players are hitting barriers that
+   don't cover their whole colony. Requested shape:
+   - Each barrier **tier increases the barrier's size** by some amount.
+   - The **core menu gets a size control** so the player can adjust the field
+     between a MINIMUM and MAXIMUM radius, rather than a single fixed radius.
+   - **More cores widen the adjustable range** — the more cores the colony has,
+     the bigger the field the player is allowed to dial up to.
+   - The barrier must be **per COLONY, not per block and not per player**:
+     right-clicking any core in a colony opens the SAME menu, showing the same
+     shared magicule pool, the same size setting, and so on.
+   - *Dev note:* partially built already — cores in one colony are networked
+     (`COLONY_CORE_NETWORKS` in `BarrierBlockEntity`; highest-tier core is
+     PRIMARY and drives the field, capacity/pool stack) and the field centres on
+     the colony TOWN HALL (`getFieldCenter`). What's missing is the size being a
+     per-colony ADJUSTABLE value with a range derived from the core count/tiers,
+     and the menu being a true shared colony view rather than a per-block one.
+     This supersedes the 2026-07-10 sizing ask below.
+
 ## 2026-07-10
 
 1. **Magic barrier should scale with the size of the colony.** The player

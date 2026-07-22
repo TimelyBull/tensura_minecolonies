@@ -57,7 +57,11 @@ MDK-1.21.1-ModDevGradle-main/
         Race.java                      # Enum: GOBLIN, ORC. Byte ids stable.
         Races.java                     # Central registry: Race ↔ ResourceLocation
                                        # ↔ EntityType. isBlocked() for orc_lord/
-                                       # orc_disaster.
+                                       # orc_disaster. This registry is also what
+                                       # keeps non-race subordinates (direwolf,
+                                       # spider, …) from ever taking a citizen
+                                       # slot — Races.of() returns null and
+                                       # onRaceNamed returns before creating one.
         RaceVariantData.java           # Sealed interface permitting Goblin and
                                        # Orc variant records.
         GoblinVariantData.java         # 25-byte goblin variant (gender/skin/face/
@@ -74,6 +78,14 @@ MDK-1.21.1-ModDevGradle-main/
                                        # pool. Data key kept as the original
                                        # "tensura_minecolonies_identities" for
                                        # backward compat with existing saves.
+                                       # ⚠ INVARIANT: one mob ⇒ at most ONE
+                                       # identity. The mob→identity index is
+                                       # keyed by mob UUID, so a second
+                                       # registration DISPLACES the first
+                                       # silently (that was the 0.2.0 phantom-
+                                       # citizen bug). Any path registering a
+                                       # citizen from a live mob MUST check
+                                       # getByMobUUID first. See decisions.md.
         Attachments.java               # NeoForge AttachmentType registration —
                                        # RACE_TAG attached to citizen entities.
         RaceTag.java                   # The race-tag record (identityId, race,
@@ -304,7 +316,13 @@ MDK-1.21.1-ModDevGradle-main/
                                        # (COLONY_CORE_NETWORKS): highest-tier
                                        # PRIMARY drives the field, others are
                                        # tank-only secondaries; capacity/pool
-                                       # stack (deduped storage). Layer-3 buff
+                                       # stack (deduped storage). FIELD SIZE is
+                                       # an adjustable per-colony choice on the
+                                       # primary (fieldRadius, clamped on READ
+                                       # into [8, tierRadius + 2×tier per EXTRA
+                                       # core, cap 128]). Upkeep is size-scaled:
+                                       # every layer costs 10/s + 1/s per block
+                                       # of ITS radius — see decisions.md. Layer-3 buff
                                        # split by raiser: Demon Lord = +10%
                                        # player magicule regen, Hero = citizen
                                        # Regen II + Absorption. Tuning knobs
@@ -339,6 +357,37 @@ MDK-1.21.1-ModDevGradle-main/
                                        # is the entry point called by the
                                        # cycleCommands mixin.
 
+        # — Custom weapons —
+        MasterworkItem.java            # The Dwargon Covenant weapon line.
+                                       # START_OFFSET/MAX_OFFSET/EVOLUTION_STEPS
+                                       # position every weapon RELATIVE to its
+                                       # hihiirokane counterpart (-30 at forge,
+                                       # +2 at max EP).
+        GearEvolution.java             # Rebuilds a growing weapon's stats from
+                                       # its current EP. ⚠ gear_existence
+                                       # uniqueEvolutions COMPOUND (increments,
+                                       # not per-tier absolutes) and are BAKED
+                                       # into the stack, so a datapack re-tune
+                                       # does nothing to existing weapons — this
+                                       # is what migrates them. See decisions.md.
+        AbsoluteAnnihilatorItem.java   # Milim's capstone hammer.
+        DragoNovaItem.java             # Milim's one-use detonation (also the
+                                       # Annihilator's charged ability).
+        WeaponAbilities.java           # SHARED on-hit plumbing every custom
+                                       # weapon ability MUST use instead of a
+                                       # raw target.hurt(): clears the
+                                       # invulnerability frames (else the
+                                       # player's preceding swing eats the
+                                       # ability's damage — the 0.2.0 "always
+                                       # 2 damage" bug), runs Tensura's on-hit
+                                       # pipeline so ENGRAVINGS fire, and hands
+                                       # out attacker-credited damage sources.
+                                       # See decisions.md (0.2.1).
+                                       # NOTE: a custom weapon must ALSO be in
+                                       # its Tensura counterpart's ITEM TAGS or
+                                       # it can never be engraved/enchanted at
+                                       # all — see resources/data below.
+
         # — Mixin —
         mixin/
           CreateColonyMessageMixin.java # @WrapOperation on MC's
@@ -346,6 +395,14 @@ MDK-1.21.1-ModDevGradle-main/
                                         # suppress the auto-sent "colony_founded"
                                         # / "colony_reactivated" chat messages
                                         # (re-issued by our race-picker handler).
+          EntityCitizenBabyMixin.java   # @ModifyReturnValue on MC's
+                                        # EntityCitizen.isBaby(). That method
+                                        # returns a CACHED field the client only
+                                        # refreshes when the entity leaves its
+                                        # INIT state (a 40-tick timer), so a
+                                        # freshly spawned child rendered adult
+                                        # for up to 2s. Client-side only, falls
+                                        # back to the synced DATA_IS_CHILD.
           ISubordinateCommandMixin.java # @Inject at HEAD of Tensura's
                                         # ISubordinate.cycleCommands (interface
                                         # default method) — inserts the PATROL
@@ -357,6 +414,14 @@ MDK-1.21.1-ModDevGradle-main/
         assets/examplemod/lang/en_us.json   # Keybind + UI translations +
                                             # tensura_minecolonies.colony.created.*
                                             # race flavour messages
+        data/tensura/tags/item/*.json       # Our weapons appended to Tensura's
+        data/minecraft/tags/item/*.json     # weapon-type tags + minecraft:swords
+                                            # /axes. REQUIRED: engraving +
+                                            # enchantment eligibility is decided
+                                            # by these tags, not by the item
+                                            # class. Mirror the hihiirokane
+                                            # counterpart. See decisions.md.
+        data/tensura_minecolonies/gear_existence/*.json  # Weapon EP curves.
         tensura_minecolonies.mixins.json    # Mixin config file
       templates/
         META-INF/neoforge.mods.toml         # Mod metadata template — registers

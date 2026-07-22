@@ -52,6 +52,10 @@ public class MasterworkItem extends SwordItem {
     private static final int ABILITY_COOLDOWN = 20 * 30;   // 30 s
     private static final double SWEEP_RADIUS = 3.5;
     private static final double SLICE_RANGE = 9.0;
+    /** Sweep damage = this fraction of the wielder's attack damage, per target. */
+    private static final double SWEEP_DAMAGE_FRACTION = 0.6;
+    /** Magic slice damage = this fraction of the wielder's attack damage. */
+    private static final double SLICE_DAMAGE_FRACTION = 0.8;
     /** Ability cost = this fraction of the wielder's MAX aura/magicule (min 100). */
     private static final double ENERGY_COST_FRACTION = 0.05;
     private static final double ENERGY_COST_MIN = 100.0;
@@ -72,6 +76,31 @@ public class MasterworkItem extends SwordItem {
      * threshold) is the plain steel blade.
      */
     public static final double[] SHIMMER_TIERS = { 1_100_000, 1_400_000, 1_700_000, 2_000_000 };
+
+    // ------------------------------------------------------------------
+    // The damage ladder. Every Masterwork weapon is positioned RELATIVE to the
+    // hihiirokane weapon it was forged from: it starts weaker and ends slightly
+    // stronger, with the four EP evolutions closing the gap.
+    //
+    // ⚠ The gear_existence `uniqueEvolutions` amounts are CUMULATIVE, not
+    // absolute. Tensura's GearHandler.applyUniqueGearEvolution picks the LOWEST
+    // not-yet-applied tier the weapon has reached, ADDS its amount to the stack's
+    // CURRENT modifiers, then drops that tier from the list — so the four numbers
+    // compound. (0.2.0 shipped believing only the highest tier applied, which is
+    // how a katana ended up at 184 damage instead of 128.)
+    // ------------------------------------------------------------------
+
+    /** How far BELOW its hihiirokane counterpart a freshly forged weapon sits. */
+    public static final double START_OFFSET = -30.0;
+    /** How far ABOVE its counterpart a fully grown (max EP) weapon ends. */
+    public static final double MAX_OFFSET = 2.0;
+    /**
+     * Damage added at each {@link #SHIMMER_TIERS} EP threshold, in order, and
+     * CUMULATIVE. Must sum to {@code MAX_OFFSET - START_OFFSET} (32) and must
+     * match the {@code uniqueEvolutions} amounts in every masterwork
+     * gear_existence file.
+     */
+    public static final double[] EVOLUTION_STEPS = { 5, 7, 9, 11 };
 
     /** 0 = sleek steel (freshly forged, 0 EP) … 4 = fully awakened shimmer. */
     public static int shimmerTier(ItemStack stack) {
@@ -122,6 +151,16 @@ public class MasterworkItem extends SwordItem {
         super.appendHoverText(stack, context, tooltip, flag);
     }
 
+    /** Weapons forged under 0.2.0's wrong (absolute-not-cumulative) ladder keep
+     *  their inflated stats until something rebuilds them — see
+     *  {@link GearEvolution#recalibrate}. Cheap and a no-op once correct. */
+    @Override
+    public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean isSelected) {
+        super.inventoryTick(stack, level, entity, slotId, isSelected);
+        if (level.isClientSide() || level.getGameTime() % 20 != 0) return;
+        GearEvolution.recalibrate(stack, level);
+    }
+
     // ------------------------------------------------------------------
     // On-hit — alignment form (majin lifesteal / non-majin regen).
     // ------------------------------------------------------------------
@@ -159,22 +198,23 @@ public class MasterworkItem extends SwordItem {
             double cost = energyCost(EnergyHelper.getMaxAura(sp));
             if (auraOf(sp) < cost) { notEnough(sp, "aura"); return InteractionResultHolder.pass(stack); }
             EnergyHelper.gainAura(sp, -cost, EnergyHelper.GainType.NORMAL);
-            doSweep(serverLevel, sp);
+            doSweep(serverLevel, sp, stack);
         } else {
             double cost = energyCost(EnergyHelper.getMaxMagicule(sp));
             if (magiculeOf(sp) < cost) { notEnough(sp, "magicule"); return InteractionResultHolder.pass(stack); }
             EnergyHelper.gainMagicule(sp, -cost, EnergyHelper.GainType.NORMAL);
-            doMagicSlice(serverLevel, sp);
+            doMagicSlice(serverLevel, sp, stack);
         }
         player.getCooldowns().addCooldown(stack.getItem(), ABILITY_COOLDOWN);
         return InteractionResultHolder.success(stack);
     }
 
     /** PHYSICAL branch — an arcing sweep in front that damages + knocks back. */
-    private void doSweep(ServerLevel level, ServerPlayer player) {
+    private void doSweep(ServerLevel level, ServerPlayer player, ItemStack weapon) {
         Vec3 look = player.getLookAngle();
         Vec3 center = player.position().add(look.x * 2.0, 1.0, look.z * 2.0);
-        float dmg = (float) (0.6 * player.getAttributeValue(Attributes.ATTACK_DAMAGE));
+        float dmg = (float) (SWEEP_DAMAGE_FRACTION * WeaponAbilities.abilityBase(player, weapon));
+        var source = level.damageSources().playerAttack(player);
         level.playSound(null, player.blockPosition(), SoundEvents.PLAYER_ATTACK_SWEEP,
                 SoundSource.PLAYERS, 1.2f, 0.8f);
         // sweeping-edge particle arc spread in front
@@ -188,16 +228,17 @@ public class MasterworkItem extends SwordItem {
                 AABB.ofSize(center, SWEEP_RADIUS * 2, 3, SWEEP_RADIUS * 2))) {
             if (e == player || isAlly(e)) continue;
             if (e.distanceToSqr(center) > SWEEP_RADIUS * SWEEP_RADIUS) continue;
-            e.hurt(level.damageSources().playerAttack(player), dmg);
+            WeaponAbilities.hit(level, player, weapon, e, source, dmg);
             e.knockback(0.5, player.getX() - e.getX(), player.getZ() - e.getZ());
         }
     }
 
     /** MAGIC branch — a slice of energy that flies forward, cutting what it passes. */
-    private void doMagicSlice(ServerLevel level, ServerPlayer player) {
+    private void doMagicSlice(ServerLevel level, ServerPlayer player, ItemStack weapon) {
         Vec3 look = player.getLookAngle();
         Vec3 start = player.getEyePosition();
-        float dmg = (float) (0.8 * player.getAttributeValue(Attributes.ATTACK_DAMAGE));
+        float dmg = (float) (SLICE_DAMAGE_FRACTION * WeaponAbilities.abilityBase(player, weapon));
+        var source = WeaponAbilities.magicSource(level, player);
         level.playSound(null, player.blockPosition(), SoundEvents.PLAYER_ATTACK_STRONG,
                 SoundSource.PLAYERS, 1.2f, 1.4f);
         for (double d = 1.0; d <= SLICE_RANGE; d += 0.5) {
@@ -213,7 +254,7 @@ public class MasterworkItem extends SwordItem {
             Vec3 toE = e.getBoundingBox().getCenter().subtract(start);
             double t = Math.max(0, Math.min(SLICE_RANGE, toE.dot(look)));
             if (start.add(look.scale(t)).distanceTo(e.getBoundingBox().getCenter()) > 1.6) continue;
-            e.hurt(level.damageSources().magic(), dmg);
+            WeaponAbilities.hit(level, player, weapon, e, source, dmg);
         }
     }
 

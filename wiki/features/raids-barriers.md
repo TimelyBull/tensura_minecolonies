@@ -57,10 +57,40 @@ ground. Where it is centred depends on where you place the core:
 
 Placing **more than one core inside the same colony** does not create separate
 barriers — all the cores merge into **one** barrier around the town hall. The
-strongest core (highest tier) sets the radius and panel strength, and every
-core's fuel tank pools together, so extra cores are extra capacity and
-redundancy. Note that the core block only projects the field; if it sits far
-from the town hall it can end up outside its own sphere, unprotected.
+strongest core (highest tier) sets the panel strength and the top of the size
+range, every core's fuel tank pools together, and **each extra core lets you
+make the barrier bigger** (see below). Right-clicking any core in the colony
+opens the same menu, showing the same fuel, size and layers — there is one
+barrier per colony, not one per block, and it is shared by everyone who can use
+it. Note that the core block only projects the field; if it sits far from the
+town hall it can end up outside its own sphere, unprotected.
+
+### Size
+
+You choose how big the barrier is, between a minimum of **8 blocks** and a
+maximum your colony has to earn. The maximum is the strongest core's tier radius,
+plus a bonus for every OTHER core in the colony based on that core's tier:
+
+| Extra core | Adds |
+|---|---|
+| Tier 1 | +2 blocks |
+| Tier 2 | +4 blocks |
+| Tier 3 | +6 blocks |
+| Tier 4 | +8 blocks |
+
+So one tier-4 core alone tops out at 60; add four more tier-4 cores and it
+reaches 92. There is a hard ceiling of **128** whatever you build.
+
+Set it in the core menu with the **FIELD SIZE** row: `-` and `+` move it 4
+blocks at a time, `MIN` and `MAX` jump to the ends of the range, and the bar
+shows where you are within it. Making it smaller keeps the sphere tight around
+what actually needs protecting **and costs less fuel to run**; making it bigger
+covers more ground but gives attackers more wall to break and burns through your
+magicule faster.
+
+If you lose a core the range narrows and the barrier shrinks to fit — but your
+chosen size is remembered, so rebuilding the core puts it back where you had
+it.
 
 ### Panels and holes
 
@@ -82,12 +112,15 @@ Four **Barrier Core** tiers. Higher tiers have a larger radius, more fuel
 capacity, tougher panels, and add an effect on top of the lower tiers'. Each
 tier's sphere is colour-coded:
 
-| Tier | Radius | Panel health | Effect (cumulative) | Colour |
+| Tier | Max radius | Panel health | Effect (cumulative) | Colour |
 |---|---|---|---|---|
 | 1 | 16 | 10,000 | **Wall** — blocks hostiles | Blue |
 | 2 | 28 | 20,000 | + **Heal** — Regeneration to non-hostiles inside | Green |
 | 3 | 42 | 40,000 | (larger and tougher) | Magenta |
 | 4 | 60 | 60,000 | (larger and tougher) | Gold |
+
+A tier's radius is the size the barrier starts at and the top of its range
+before extra cores are counted; you can always dial it down.
 
 While fueled, a barrier also **prevents hostile mobs from spawning** inside its
 footprint — both vanilla monsters and Tensura hostiles, whether from night-time
@@ -121,6 +154,27 @@ as you build or break it.
 
 ### Concentric layers (Demon Lords / Heroes)
 
+### Upkeep
+
+A barrier is never free. While it is up it burns magicule every second, and the
+bill depends on how big it is and how many layers it has: **10 per second for
+each layer, plus 1 per second for every block of that layer's radius.** Outer
+layers are bigger, so each one you add costs a little more than the last.
+
+Some examples of what that means for a full tank:
+
+| Setup | Cost | A full tank lasts |
+|---|---|---|
+| Tier 1, default size 16 | 26/s | about an hour |
+| Tier 4, default size 60 | 70/s | about an hour |
+| Tier 4, shrunk to 8 | 18/s | about four hours |
+| Tier 4, at the 128 ceiling | 138/s | about half an hour |
+| Tier 4 at 60, three layers | 225/s | about twenty minutes |
+
+Repairing broken panels costs fuel on top of that. If the pool runs dry the
+barrier falls, so a big barrier or a stack of layers is a standing commitment —
+keep it fed, or keep it small.
+
 A Barrier Core can project up to **three concentric spheres**, expanding
 outward. The first layer is available to anyone; raising it to two or three
 requires you to be a true Demon Lord or true Hero. Each extra layer costs
@@ -138,5 +192,6 @@ If the raiser loses their title, the extra layers collapse back to one and the
 buff ends.
 
 The Barrier Core's menu (right-click) shows fuel, lets you move magicule
-between yourself and the core, sets the layer count, and toggles whether the
-walls are visible.
+between yourself and the core, sets the field size and the layer count, and
+toggles whether the walls are visible. Any core in the colony opens the same
+menu.

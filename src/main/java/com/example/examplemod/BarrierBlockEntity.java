@@ -92,7 +92,14 @@ public class BarrierBlockEntity extends BlockEntity {
     /** Passive upkeep per EXTRA layer (magicule/sec), drained once per second
      *  from the pool. Layer 1 is free; 2 layers cost 50/s, 3 layers 100/s.
      *  Upkeep STACKS with attack drain. Based on the CONFIGURED layer count. */
-    public static final double LAYER_UPKEEP_PER_SECOND = 50.0;
+    /** Standing cost of holding ONE shell up, before its size is counted.
+     *  A barrier is never free any more — even a tiny one burns this.
+     *  ⚠ BALANCE GUESS — never playtested. */
+    public static final double UPKEEP_BASE_PER_LAYER = 10.0;
+    /** Added per BLOCK of a shell's own radius, per second. Charged per shell,
+     *  so outer layers (which are bigger) cost more than inner ones.
+     *  ⚠ BALANCE GUESS — never playtested. */
+    public static final double UPKEEP_PER_RADIUS_BLOCK = 1.0;
     /** Crystal refuel values (low / medium / high quality magic crystal). */
     public static final double CRYSTAL_LOW_MAGICULE    = 2_500.0;
     public static final double CRYSTAL_MEDIUM_MAGICULE = 10_000.0;
@@ -257,10 +264,99 @@ public class BarrierBlockEntity extends BlockEntity {
         return getBlockState().getBlock() instanceof BarrierBlock b ? b.tier() : 1;
     }
 
-    /** Field radius (base sphere radius) — by tier. */
-    public double getRadius() {
+    // ------------------------------------------------------------------
+    // Field size
+    //
+    // A colony picks how big its barrier is, inside a range it has EARNED:
+    // the tier sets where the range tops out, and every EXTRA core in the
+    // colony's network widens it further. So a bigger colony grows its cover
+    // by building more cores, and can still dial the field back down to keep
+    // it tight around what actually needs protecting.
+    //
+    // The size lives on the network PRIMARY (the core that drives the field),
+    // exactly like the layer count and the shared pool — every core in the
+    // colony opens the same menu and edits the same value.
+    // ------------------------------------------------------------------
+
+    /** Smallest radius the field can be dialled down to. */
+    public static final double MIN_RADIUS = 8.0;
+    /** Radius a core BEYOND the field-driving one adds, PER TIER — so an extra
+     *  tier-1/2/3/4 core is worth 2/4/6/8 blocks. Building a bigger core is
+     *  therefore worth more than building another small one. (User-specified,
+     *  2026-07-22.) */
+    public static final double RADIUS_PER_EXTRA_CORE_TIER = 2.0;
+    /** Absolute ceiling however many cores are built — bounds the per-second
+     *  collision sweep and the sphere render. ⚠ BALANCE GUESS. */
+    public static final double RADIUS_HARD_CAP = 128.0;
+    /** One click of the size buttons, in blocks. */
+    public static final double RADIUS_STEP = 4.0;
+
+    /** Player-chosen field radius. ≤0 means "never set — use the tier's own".
+     *  Persisted + synced (the renderer reads it client-side). */
+    private double fieldRadius = -1.0;
+    /** Cores in this colony's network, self included (1 = standalone).
+     *  Recomputed per second. Shown in the menu. */
+    private int networkCoreCount = 1;
+    /** Radius the EXTRA cores are worth: the sum of every member's tier except
+     *  the field-driving one, times {@link #RADIUS_PER_EXTRA_CORE_TIER}.
+     *  Recomputed per second; synced so the client clamps the same way. */
+    private double networkRadiusBonus = 0.0;
+
+    /** The radius this core's TIER is worth — the default size, and the base
+     *  the per-extra-core bonus is added to. */
+    public double getTierRadius() {
         return getBlockState().getBlock() instanceof BarrierBlock b
                 ? b.radius() : BarrierBlock.TIER_RADIUS[0];
+    }
+
+    /** Cores in this colony's network (1 = standalone). */
+    public int getNetworkCoreCount() {
+        return networkCoreCount;
+    }
+
+    /** What the colony's EXTRA cores are worth in radius (0 = standalone). */
+    public double getNetworkRadiusBonus() {
+        return networkRadiusBonus;
+    }
+
+    /** The biggest field this colony may raise: the field-driving core's tier
+     *  radius, plus every OTHER core's tier × {@link #RADIUS_PER_EXTRA_CORE_TIER},
+     *  capped at {@link #RADIUS_HARD_CAP}. */
+    public double getMaxRadius() {
+        return Math.min(RADIUS_HARD_CAP, getTierRadius() + Math.max(0.0, networkRadiusBonus));
+    }
+
+    /** The smallest field this colony may raise (never above the maximum, so a
+     *  hypothetical tiny cap can't invert the range). */
+    public double getMinRadius() {
+        return Math.min(MIN_RADIUS, getMaxRadius());
+    }
+
+    /**
+     * Field radius (base sphere radius) actually in use — the player's choice
+     * clamped into the currently allowed range, or the tier's own radius if
+     * they have never set one.
+     *
+     * <p>Clamping on READ rather than on write is deliberate: losing a core
+     * narrows the range and the field shrinks to fit immediately, but the
+     * player's chosen number is remembered, so rebuilding the core restores the
+     * size they picked instead of silently leaving it small.</p>
+     */
+    public double getRadius() {
+        double max = getMaxRadius();
+        if (fieldRadius <= 0) return Math.min(getTierRadius(), max);
+        return Math.max(getMinRadius(), Math.min(fieldRadius, max));
+    }
+
+    /** Menu control — resize the field, clamped to the allowed range. */
+    public void setFieldRadius(double radius) {
+        double clamped = Math.max(getMinRadius(), Math.min(radius, getMaxRadius()));
+        if (Math.abs(clamped - getRadius()) < 1.0e-6) return;
+        fieldRadius = clamped;
+        setChanged();
+        if (level != null && !level.isClientSide()) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
     }
 
     /** The core's OWN tank size (tier base, without storage). */
@@ -307,10 +403,28 @@ public class BarrierBlockEntity extends BlockEntity {
         return poolStoredCache;
     }
 
-    /** Menu drain readout, magicule/s: live layer upkeep + last second's
-     *  measured repair spend (attacks no longer drain the pool). */
+    /**
+     * Standing upkeep in magicule/second: every ACTIVE shell costs a flat base
+     * plus one per block of ITS OWN radius. So the bill rises three ways —
+     * a bigger field, more layers, and (because outer layers sit further out)
+     * each extra layer costing a little more than the last.
+     *
+     * <p>Worked example at the default sizes: a lone tier-1 core at radius 16
+     * pays 26/s, a tier-4 at radius 60 pays 70/s, and that same tier-4 dialled
+     * out to the 128 cap pays 138/s. Three layers at radius 60 pay 225/s.</p>
+     */
+    public double getUpkeepPerSecond() {
+        double total = 0.0;
+        for (int i = 0; i < activeLayers; i++) {
+            total += UPKEEP_BASE_PER_LAYER + UPKEEP_PER_RADIUS_BLOCK * getLayerRadius(i);
+        }
+        return total;
+    }
+
+    /** Menu drain readout, magicule/s: standing upkeep + last second's measured
+     *  repair spend (attacks themselves don't drain the pool). */
     public double getLastDrainPerSecond() {
-        return (activeLayers - 1) * LAYER_UPKEEP_PER_SECOND + lastContactDrainPerSecond;
+        return getUpkeepPerSecond() + lastContactDrainPerSecond;
     }
 
     public boolean isWallVisible() {
@@ -619,6 +733,8 @@ public class BarrierBlockEntity extends BlockEntity {
         boolean newSecondary = false;
         BlockPos newPrimary = null;
         String newKey = null;
+        int newCoreCount = 1;
+        double newRadiusBonus = 0.0;
         linkedCores.clear();
 
         if (colony != null) {
@@ -631,9 +747,11 @@ public class BarrierBlockEntity extends BlockEntity {
                     COLONY_CORE_NETWORKS.computeIfAbsent(newKey, k -> new ConcurrentHashMap<>());
             network.put(worldPosition.immutable(), new CoreReport(now, getTier()));
 
-            // Prune stale reports + elect the primary.
+            // Prune stale reports + elect the primary, and total up every
+            // member's tier on the way past (the size bonus is per-tier).
             BlockPos best = null;
             int bestTier = -1;
+            int tierSum = 0;
             for (java.util.Iterator<java.util.Map.Entry<BlockPos, CoreReport>> it =
                     network.entrySet().iterator(); it.hasNext(); ) {
                 java.util.Map.Entry<BlockPos, CoreReport> e = it.next();
@@ -642,12 +760,18 @@ public class BarrierBlockEntity extends BlockEntity {
                     continue;
                 }
                 int t = e.getValue().tier();
+                tierSum += t;
                 if (t > bestTier || (t == bestTier
                         && (best == null || e.getKey().compareTo(best) < 0))) {
                     bestTier = t;
                     best = e.getKey();
                 }
             }
+            // Every live member EXCEPT the field-driver widens the size range,
+            // by its own tier — see getMaxRadius().
+            newCoreCount = Math.max(1, network.size());
+            newRadiusBonus = Math.max(0, tierSum - Math.max(0, bestTier))
+                    * RADIUS_PER_EXTRA_CORE_TIER;
             if (best != null && !best.equals(worldPosition)) {
                 newSecondary = true;
                 newPrimary = best;
@@ -667,9 +791,13 @@ public class BarrierBlockEntity extends BlockEntity {
         primaryPos = newPrimary;
 
         boolean changed = !java.util.Objects.equals(fieldCenter, newCenter)
-                || linkedSecondary != newSecondary;
+                || linkedSecondary != newSecondary
+                || networkCoreCount != newCoreCount
+                || Math.abs(networkRadiusBonus - newRadiusBonus) > 1.0e-6;
         fieldCenter = newCenter;
         linkedSecondary = newSecondary;
+        networkCoreCount = newCoreCount;
+        networkRadiusBonus = newRadiusBonus;
         if (changed) {
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
@@ -947,9 +1075,10 @@ public class BarrierBlockEntity extends BlockEntity {
                     }
                 }
 
-                // Passive layer upkeep (layer 1 free; +LAYER_UPKEEP_PER_SECOND per
-                // extra configured layer), once per second from the pool.
-                double upkeep = (be.activeLayers - 1) * LAYER_UPKEEP_PER_SECOND;
+                // Standing upkeep, once per second from the pool: scales with
+                // the field's SIZE and with the number of layers (no layer is
+                // free any more — see getUpkeepPerSecond).
+                double upkeep = be.getUpkeepPerSecond();
                 if (upkeep > 0) {
                     be.drainFromPool(upkeep);
                 }
@@ -1263,6 +1392,9 @@ public class BarrierBlockEntity extends BlockEntity {
         if (fieldCenter != null) tag.putLong("fieldCenter", fieldCenter.asLong());
         tag.putBoolean("linkedSecondary", linkedSecondary);
         tag.putDouble("networkCapacity", networkCapacityCache);
+        tag.putDouble("fieldRadius", fieldRadius);
+        tag.putInt("networkCoreCount", networkCoreCount);
+        tag.putDouble("networkRadiusBonus", networkRadiusBonus);
 
         // Per-section state.
         ensureSections();
@@ -1290,6 +1422,12 @@ public class BarrierBlockEntity extends BlockEntity {
         linkedSecondary = tag.getBoolean("linkedSecondary");
         networkCapacityCache = tag.contains("networkCapacity")
                 ? tag.getDouble("networkCapacity") : -1.0;
+        // Pre-0.2.1 saves have neither — they load as "tier default size,
+        // standalone", which is exactly how they behaved.
+        fieldRadius = tag.contains("fieldRadius") ? tag.getDouble("fieldRadius") : -1.0;
+        networkCoreCount = tag.contains("networkCoreCount")
+                ? Math.max(1, tag.getInt("networkCoreCount")) : 1;
+        networkRadiusBonus = tag.getDouble("networkRadiusBonus");
 
         // Per-section state — pre-redesign saves have none → init all full.
         int n = MAX_LAYERS * SECTION_COUNT;

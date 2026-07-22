@@ -8,6 +8,204 @@ are broken.
 
 ---
 
+## 2026-07-22 — Naming a colony-born baby (or a grown-up one) leaves a PHANTOM citizen; summoned babies arrive as adults
+
+**Status:** RESOLVED (fix implemented 2026-07-22, 0.2.1) — awaiting the
+reporter's confirmation.
+
+> "if you have a baby monster born in your village and you summon them to your
+> side and name them, then send them back you can end up having a phantom
+> citizen — one that doesn't exist, cannot be sent to the colony, as they are
+> stuck by your side and are effectively dead weight, eating up a citizen slot.
+> Summoned babies also get summoned as adults. it also seems to do this when a
+> baby grows up and you summon it to name it."
+
+### ROOT CAUSE 1 (the phantom) — naming an EXISTING citizen minted a second one
+
+`onRaceNamed` (the `NAMING_EVENT` handler) assumed every named mob was a
+stranger. It unconditionally ran `createAndRegisterCivilianData()` + built a new
+`RaceIdentity`. But a colony-BORN citizen (minted by `mintRaceChildCitizen`)
+that the player has summoned to their side is still a fully registered citizen —
+it owns an identity and a `CitizenData` holding a housing slot — and it has no
+Tensura name yet, so the naming menu opens on it perfectly happily.
+
+The kill step is `RaceIdentitySavedData.addIdentity`:
+
+```java
+mobUUIDToIdentityId.put(identity.mobEntityUUID, identity.identityId);
+```
+
+One entry per mob UUID. Registering the second identity **displaced the first**
+in the reverse index. From then on every lookup for that body
+(`getByMobUUID` — the send trigger, the death hook, the roster) resolved to the
+NEW record, and the original was unreachable: its `CitizenData` sat in the colony
+permanently `startTravellingTo(…, Integer.MAX_VALUE)`-suppressed, so no body ever
+spawned for it, it could not be summoned (nothing to swap) and could not be sent
+(the mob answers to the other identity) — a citizen slot with nothing behind it.
+Exactly the reported phantom. The same thing happened on the grown-up path, and
+on any citizen the player summoned and then named.
+
+**Fix:** `onRaceNamed` now looks the mob up FIRST. If it already has an identity,
+naming is just a rename (`renameExistingCitizen` — same citizen id, same housing
+slot, same skills, same happiness modifier, no second registration) and Tensura's
+own naming still completes normally. The pending pool (mobs named before the
+player had a colony) got the same guard: re-naming updates the queued entry via
+`RaceIdentitySavedData.renamePending` instead of queueing the mob twice, which
+would have promoted to two citizens on colony creation. A non-owner naming
+someone else's citizen creates no duplicate either; it just can't change the name.
+
+### ROOT CAUSE 2 (adult babies) — the snapshot was never a baby
+
+A colony-born child's `entitySnapshot` is captured in `mintRaceChildCitizen` from
+a TRANSIENT mob built with `EntityType.create` + `finalizeSpawn` purely to roll
+an appearance — and that mob is an ADULT. Nothing ever wrote the baby state into
+it, because a bred child is never "sent" (the send path is what normally captures
+a real snapshot). So summoning one reconstructed an adult. The existing comment in
+the send path — "Summon path round-trips the baby state automatically via the
+entity NBT snapshot" — is true only for a mob that was sent at least once.
+
+**Fix:** the summon no longer trusts the snapshot's age. It syncs from
+`citizenData.isChild()`, which is the durable source of truth, so a child citizen
+always materialises as a baby and a grown citizen always as an adult regardless
+of how stale the snapshot is.
+
+### FOLLOW-UP (reported 2026-07-22, same session) — "they look like an adult for a moment and change when the animation is complete"
+
+Not the animation. `EntityCitizen.isBaby()` returns a **private cached field**
+(`child`), not the synced `DATA_IS_CHILD` value, and on the CLIENT that field is
+assigned in exactly one place: `CitizenColonyHandler.updateColonyClient()`. That
+runs from the entity's `ACTIVE_CLIENT` state, which a freshly spawned body only
+reaches after leaving `EntityState.INIT` — a transition checked on a **40-tick
+timer**. So for up to two seconds the client believes a child is an adult, and
+`LivingEntityRenderer.render` (which our citizen renderers extend) sets
+`model.young = entity.isBaby()` every frame. The ~1s rise animation just happened
+to finish around the same moment.
+
+**Fix, two halves:**
+
+- `mixin/EntityCitizenBabyMixin` — `@ModifyReturnValue` on `isBaby()`: on the
+  CLIENT, when the cached field says "adult", fall back to the synced
+  `DATA_IS_CHILD`. It can only ever turn adult into child, never the reverse, and
+  the server is untouched (there both are written together by `setIsChild`, so
+  they cannot disagree). Growing up stays safe — when a citizen matures BOTH go
+  false.
+- The send path now writes the CitizenData child flag **before** spawning the
+  body (step 2c). MineColonies stamps a new body from the CitizenData in the same
+  tick as the spawn (`addFreshEntity` → `registerWithColony` → `registerCivilian`
+  → `setEntity` → `setCivilianData` → `initEntityValues` →
+  `citizen.setIsChild(this.isChild())`), so the very first packet the client
+  receives already describes a child. Doing it afterwards, as the original fix
+  did, meant the body was briefly the wrong size on the server side too.
+
+Ordinary MineColonies children get the same benefit — this is upstream behaviour,
+not something our pipeline introduced.
+
+### ALSO FIXED (found while tracing) — babies could never grow up
+
+The send path only ever set the child flag ON (`if (goblin.isBaby()) setIsChild(true)`),
+and only on the ENTITY. Two problems: a baby that grew up while it was out with
+the player came back and was re-marked a child forever, and the ENTITY flag isn't
+the durable one — MineColonies keeps `EntityCitizen.setIsChild` and
+`CitizenData.setIsChild` completely independent, and only the latter survives a
+body rebuild. Both are now written, in both directions.
+
+### EXISTING SAVES
+
+Phantoms already created by this bug are repaired with `/recoverorphans`:
+`confirm` restores each one as a working colonist (they all have a snapshot), or
+`purge` deletes it and frees the housing slot. The orphan scan was widened to
+recognise a **displaced** identity — one whose mob UUID is now claimed by a
+different identity — so it finds these even while the mob is still alive and
+standing next to the player, instead of only after the body is gone.
+
+---
+
+## 2026-07-22 — Masterwork / Absolute Annihilator: on-hit engravings never trigger, and the right-click ability "doesn't scale with anything and always deals like 2 damage"
+
+**Status:** RESOLVED (fix implemented 2026-07-22, 0.2.1) — awaiting the
+reporter's confirmation. Two independent root causes, both verified against the
+`tensura-neoforge-2.0.1.0.jar` bytecode + datapack.
+
+### ROOT CAUSE 1 (engravings) — our weapons are in NO item tags
+
+Every Tensura engraving declares `"supported_items": "#tensura:handheld_enchantable"`,
+which resolves down to the VANILLA item tags (`#minecraft:swords`, `#minecraft:axes`,
+`#minecraft:enchantable/*`). Tensura puts each of its own weapons into those tags
+by datapack (`data/minecraft/tags/item/swords.json` in the Tensura jar lists
+`#tensura:katanas`, `#tensura:short_swords`, …). We shipped **no item tags at all**
+for the 12 Masterwork weapons or the Absolute Annihilator, so:
+
+- `Enchantment.canEnchant(stack)` is FALSE for every engraving (and for every
+  vanilla enchantment — no Sharpness, Unbreaking or Mending either);
+- `EngravingHelper.getRandomEngraving()` filters the candidate list with exactly
+  that check, so the EP-driven engraving grant in
+  `DeathHandler.gearGetEP → EngravingHelper.grantRandomEngraving()` always came
+  back empty. The weapon absorbed EP and levelled its damage, but **never gained
+  a single engraving** at the 50k / 250k / 1M EP milestones the way a Tensura
+  weapon does.
+
+Engravings that were forced on regardless (the Annihilator's Holy Coat, applied
+by our `gear_existence` entry, which calls `stack.enchant` directly and skips the
+tag check) *did* fire on a normal left-click — engraving effects run from
+`TensuraEnchantmentHelper.doAdditionalAfterAttack`, driven by Tensura's mixin on
+`Player.attack`, which is item-agnostic. So the symptom was "the engravings I
+expect never appear / never do anything", not "the hook is broken".
+
+**Fix:** ship the item tags, matching each Masterwork weapon to the tags its
+hihiirokane counterpart is in — `data/tensura/tags/item/{katanas, kodachis,
+tachis, odachis, short_swords, long_swords, great_swords, spears, scythes,
+sickles}.json` plus `data/minecraft/tags/item/{swords, axes}.json` for
+`masterwork_sword`, `masterwork_axe` and `absolute_annihilator`.
+
+### ROOT CAUSE 2 (ability damage) — the preceding melee swing eats the ability's damage
+
+`LivingEntity.hurt` only lets the BIGGEST hit inside a 10-tick window through:
+
+```java
+if (this.invulnerableTime > 10.0F && !source.is(BYPASSES_COOLDOWN)) {
+   if (amount <= this.lastHurt) return false;      // dropped entirely
+   this.actuallyHurt(source, amount - this.lastHurt);
+}
+```
+
+Players swing and then immediately right-click, so the ability's damage arrived
+inside the swing's invulnerability window and was charged `amount - lastHurt`.
+Both the ability and the swing scale off the same attack-damage attribute
+(sweep = 0.6×, slice = 0.8×, and a melee swing = 1.0× × the attack-strength
+charge), so the leftover is a small difference of two proportional numbers —
+**it stays tiny no matter how strong the weapon gets, which is exactly "doesn't
+scale with anything and always deals like 2 damage"**, and lands on 0 (no hit at
+all) after a fully-charged swing. Tensura's own Battlewill arts manage
+`invulnerableTime` explicitly for this reason.
+
+Three smaller problems rode along:
+
+- The abilities dealt damage straight through `hurt()`, skipping the on-hit
+  pipeline Tensura's arts run afterwards, so **no engraving fired from an
+  ability** even on a properly engraved weapon, and the weapon's own on-hit
+  effect (Masterwork lifesteal / regeneration) never fired either.
+- The magic slice, the Annihilator shockwave and the Drago Nova blast used an
+  OWNERLESS `damageSources().magic()` — environmental damage as far as Tensura
+  is concerned: no kill credit, no EP gain, no ally/subordinate checks, and no
+  way for the wielder's magicule to push through a target's magic interference.
+- The Annihilator's nova dealt a hardcoded 150 that never grew with the weapon.
+
+**Fix:** new `WeaponAbilities` helper — clears the invulnerability frames before
+an ability hit, runs Tensura's full on-hit pipeline (`hurtEnemy` +
+`EnchantmentHelper.doPostAttackEffectsWithItemSource` +
+`TensuraEnchantmentHelper.doAdditionalAfterDamage/AfterAttack`), and hands out
+attacker-credited damage sources. Ability damage now also floors at the weapon's
+own attack damage read off the stack, so it keeps scaling with the EP evolutions
+even in the off-hand. The Annihilator's nova adds 4× the weapon's attack damage
+on top of the base blast.
+
+⚠ Note for follow-up: the PHYSICAL sweep uses `minecraft:player_attack`, which is
+in `tensura:is_physical` — so against **spiritual** entities it still takes the
+1% physical multiplier described in the 2026-07-10 Ifrit entry below. The MAGIC
+slice (now `tensura:magic`) is unaffected by that and hits spirits for full.
+
+---
+
 ## 2026-07-10 — A Hihiirokane sword does almost no damage to Ifrit (reported as "Ifrit won't take damage from a late-game weapon")
 
 **Status:** NOT A BUG — WORKING AS DESIGNED (Tensura mechanic). Verified against

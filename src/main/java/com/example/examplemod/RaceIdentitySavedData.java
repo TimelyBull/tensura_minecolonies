@@ -180,7 +180,10 @@ public class RaceIdentitySavedData extends SavedData {
 
     public static class PendingRaceMob {
         public final UUID identityId;        // becomes RaceIdentity.identityId on promotion
-        public final String name;            // citizen name once promoted
+        public String name;                  // citizen name once promoted — a
+                                             // re-name before any colony exists
+                                             // updates this in place rather than
+                                             // queueing the same mob twice
         public final UUID mobEntityUUID;     // for stale-check + identity link
         public final UUID ownerPlayerUUID;   // namer's UUID
         public final Race race;              // which race this pending mob is
@@ -325,6 +328,13 @@ public class RaceIdentitySavedData extends SavedData {
 
     public void removePending(PendingRaceMob p) {
         pending.remove(p);
+        setDirty();
+    }
+
+    /** Re-name a queued mob in place — naming the same mob again must not add a
+     *  second pending entry (it would promote to two citizens). */
+    public void renamePending(PendingRaceMob p, String newName) {
+        p.name = newName;
         setDirty();
     }
 

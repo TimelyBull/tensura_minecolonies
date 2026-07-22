@@ -9,7 +9,7 @@
       "attributes": [
         {
           "type": "minecraft:generic.attack_damage",
-          "amount": 8.0,
+          "amount": 5.0,
           "slot": "mainhand"
         }
       ]
@@ -19,7 +19,7 @@
       "attributes": [
         {
           "type": "minecraft:generic.attack_damage",
-          "amount": 18.0,
+          "amount": 7.0,
           "slot": "mainhand"
         }
       ]
@@ -29,7 +29,7 @@
       "attributes": [
         {
           "type": "minecraft:generic.attack_damage",
-          "amount": 30.0,
+          "amount": 9.0,
           "slot": "mainhand"
         }
       ]
@@ -39,7 +39,7 @@
       "attributes": [
         {
           "type": "minecraft:generic.attack_damage",
-          "amount": 45.0,
+          "amount": 11.0,
           "slot": "mainhand"
         }
       ]

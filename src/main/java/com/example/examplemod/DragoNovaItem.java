@@ -55,7 +55,9 @@ public class DragoNovaItem extends Item {
 
     /** Blast radius (blocks) — tunable. */
     public static final double DRAGO_NOVA_RADIUS = 12.0;
-    /** Magic damage dealt to everything caught in the blast. */
+    /** Base magic damage dealt to everything caught in the blast. The item deals
+     *  exactly this; the Absolute Annihilator's charged ability passes a bigger,
+     *  weapon-scaled value (see {@link #triggerAnnihilatorNova}). */
     public static final float DRAGO_NOVA_DAMAGE = 150.0f;
     /** Vanilla explosion power used when terrain damage is enabled. */
     public static final float DRAGO_NOVA_BLOCK_POWER = 8.0f;
@@ -77,11 +79,15 @@ public class DragoNovaItem extends Item {
         final ItemEntity orb;
         final double x, baseY, z;
         final boolean lethal;
+        /** Blast damage this charge will deal — the flat item value, or a bigger
+         *  weapon-scaled one when fired by the Absolute Annihilator. */
+        final float damage;
         int ticks;
         Charge(UUID caster, ResourceKey<Level> dimension, ItemEntity orb,
-               double x, double baseY, double z, boolean lethal) {
+               double x, double baseY, double z, boolean lethal, float damage) {
             this.caster = caster; this.dimension = dimension; this.orb = orb;
             this.x = x; this.baseY = baseY; this.z = z; this.lethal = lethal;
+            this.damage = damage;
         }
     }
 
@@ -106,7 +112,7 @@ public class DragoNovaItem extends Item {
                     new Networking.OpenDragoNovaWarningPayload(lethal));
             return InteractionResultHolder.consume(stack);
         }
-        beginCharge(serverLevel, sp, stack, lethal);
+        beginCharge(serverLevel, sp, stack, lethal, DRAGO_NOVA_DAMAGE);
         return InteractionResultHolder.consume(stack);
     }
 
@@ -117,7 +123,7 @@ public class DragoNovaItem extends Item {
             held = player.getOffhandItem();
             if (!(held.getItem() instanceof DragoNovaItem)) return;
         }
-        beginCharge(player.serverLevel(), player, held, !isWorthy(player));
+        beginCharge(player.serverLevel(), player, held, !isWorthy(player), DRAGO_NOVA_DAMAGE);
     }
 
     /**
@@ -127,9 +133,9 @@ public class DragoNovaItem extends Item {
      * it, then detonates at the top of the rise. Driven by {@link #tickCharges}.
      */
     private static void beginCharge(ServerLevel level, ServerPlayer user, ItemStack stack,
-                                    boolean lethalToUser) {
+                                    boolean lethalToUser, float damage) {
         stack.shrink(1);
-        startCharge(level, user, lethalToUser);
+        startCharge(level, user, lethalToUser, damage);
     }
 
     /**
@@ -137,7 +143,7 @@ public class DragoNovaItem extends Item {
      * used both by the Drago Nova item and by the Absolute Annihilator's
      * charged ability (see {@link #triggerAnnihilatorNova}).
      */
-    static void startCharge(ServerLevel level, ServerPlayer user, boolean lethalToUser) {
+    static void startCharge(ServerLevel level, ServerPlayer user, boolean lethalToUser, float damage) {
         double x = user.getX();
         double baseY = user.getY() + 0.6;   // starts around waist height
         double z = user.getZ();
@@ -149,7 +155,8 @@ public class DragoNovaItem extends Item {
         orb.setUnlimitedLifetime();
         orb.setInvulnerable(true);
         level.addFreshEntity(orb);
-        ACTIVE_CHARGES.add(new Charge(user.getUUID(), level.dimension(), orb, x, baseY, z, lethalToUser));
+        ACTIVE_CHARGES.add(new Charge(user.getUUID(), level.dimension(), orb, x, baseY, z,
+                lethalToUser, damage));
         level.playSound(null, user.blockPosition(), SoundEvents.CONDUIT_ACTIVATE,
                 SoundSource.PLAYERS, 2.0f, 0.7f);
         ExampleMod.LOGGER.info("[TM] drago nova: charge begun by {} (lethal {})",
@@ -159,10 +166,11 @@ public class DragoNovaItem extends Item {
     /**
      * Fire the Drago Nova charge-up from the Absolute Annihilator's charged
      * ability. Same effect as the Drago Nova item (worthiness/lethal check
-     * included) but consumes nothing — the caller applies the cooldown.
+     * included) but consumes nothing — the caller applies the cooldown and
+     * passes the weapon-scaled blast damage.
      */
-    static void triggerAnnihilatorNova(ServerLevel level, ServerPlayer user) {
-        startCharge(level, user, !isWorthy(user));
+    static void triggerAnnihilatorNova(ServerLevel level, ServerPlayer user, float damage) {
+        startCharge(level, user, !isWorthy(user), damage);
     }
 
     /**
@@ -198,7 +206,7 @@ public class DragoNovaItem extends Item {
             if (c.ticks >= CHARGE_TICKS) {
                 c.orb.discard();
                 ServerPlayer caster = server.getPlayerList().getPlayer(c.caster);
-                blast(level, caster, c.lethal, c.x, orbY, c.z);
+                blast(level, caster, c.lethal, c.x, orbY, c.z, c.damage);
                 it.remove();
             }
         }
@@ -245,20 +253,27 @@ public class DragoNovaItem extends Item {
      * AoE still fires; only the lethal-to-user backlash is skipped.
      */
     private static void blast(ServerLevel level, ServerPlayer user, boolean lethalToUser,
-                              double x, double y, double z) {
+                              double x, double y, double z, float damage) {
         level.playSound(null, BlockPos.containing(x, y, z), SoundEvents.DRAGON_FIREBALL_EXPLODE,
                 SoundSource.PLAYERS, 4.0f, 0.6f);
         level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, x, y, z,
                 8, DRAGO_NOVA_RADIUS / 3, 2, DRAGO_NOVA_RADIUS / 3, 0);
         boolean harmAllies = Config.DRAGO_NOVA_HARM_ALLIES.get();
         Vec3 center = new Vec3(x, y, z);
+        // Credit the caster when they're still around: an ownerless source is
+        // treated as environmental damage — no kill credit, no EP, and none of
+        // Tensura's attacker-aware handling.
+        var source = user != null
+                ? WeaponAbilities.magicSource(level, user)
+                : level.damageSources().magic();
         for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class,
                 AABB.ofSize(center, DRAGO_NOVA_RADIUS * 2, DRAGO_NOVA_RADIUS * 2,
                         DRAGO_NOVA_RADIUS * 2))) {
             if (user != null && target == user) continue;
             if (target.distanceToSqr(x, y, z) > DRAGO_NOVA_RADIUS * DRAGO_NOVA_RADIUS) continue;
             if (!harmAllies && isAllyOfUser(target)) continue;
-            target.hurt(level.damageSources().magic(), DRAGO_NOVA_DAMAGE);
+            target.invulnerableTime = 0;
+            target.hurt(source, damage);
         }
         if (Config.DRAGO_NOVA_BREAK_BLOCKS.get()) {
             level.explode(user, x, y, z, DRAGO_NOVA_BLOCK_POWER, Level.ExplosionInteraction.TNT);
@@ -266,9 +281,9 @@ public class DragoNovaItem extends Item {
         if (lethalToUser && user != null) {
             user.hurt(level.damageSources().magic(), Float.MAX_VALUE);
         }
-        ExampleMod.LOGGER.info("[TM] drago nova: detonated at ({}, {}, {}) lethal={}",
+        ExampleMod.LOGGER.info("[TM] drago nova: detonated at ({}, {}, {}) damage={} lethal={}",
                 String.format("%.1f", x), String.format("%.1f", y), String.format("%.1f", z),
-                lethalToUser);
+                String.format("%.1f", damage), lethalToUser);
     }
 
     private static boolean isAllyOfUser(LivingEntity target) {

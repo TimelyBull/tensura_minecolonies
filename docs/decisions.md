@@ -2839,10 +2839,11 @@ The Milim capstone weapon. Design landed over several passes; final state:
 from a `tensura:gear_existence` registry entry keyed by item id (merges across
 namespaces, so we ship it under our own). `GearHandler` stamps the EP components
 on equip/pickup and grows them on kills. No Java EP code needed. Our entry:
-`minEP 10k`, hard cap `maxEP 1M`, `epGain 0.01`, cumulative `uniqueEvolutions`
-(only the highest-reached tier's set applies — confirmed from GearHandler
-bytecode, matching Tensura's own crossbow's absolute-per-tier values) adding
+`minEP 10k`, hard cap `maxEP 1M`, `epGain 0.01`, `uniqueEvolutions` adding
 attack damage + speed + knockback resist + max health at 150k/400k/700k/1M.
+⚠ CORRECTED 2026-07-22 — this originally said "only the highest-reached tier's
+set applies". It does NOT; the tiers compound. See "gear_existence
+uniqueEvolutions COMPOUND" below.
 
 **Charged sprite via an item-model override, not a second item.** A `_charged`
 texture (derived from the base, dark pixels lit to electric cyan) + model, swapped
@@ -2872,3 +2873,259 @@ line's `tsukumogami` because tsukumogami is penalty-only without an activation
 mechanic we don't drive. Durability lowered to 2031 (== a netherite axe, user).
 ⚠ All of the above compiles; NOT yet runtime-verified — esp. the evolution stat
 numbers (compound-vs-replace is Tensura-internal) and the particle look.
+
+## Custom weapons must join Tensura's item tags (0.2.1, 2026-07-22)
+
+**Every custom weapon ships with the item tags its Tensura counterpart has.**
+Tensura's engravings all declare `"supported_items": "#tensura:handheld_enchantable"`,
+which resolves down to the VANILLA tags (`#minecraft:swords` / `#minecraft:axes`
+/ `#minecraft:enchantable/*`), and Tensura populates those from its own datapack.
+A weapon that is in no tag fails `Enchantment.canEnchant` for *every* engraving
+and every vanilla enchantment — and, less obviously, silently never earns the
+random engravings Tensura grants as gear EP crosses its milestones
+(`EngravingHelper.getRandomEngraving` filters the candidate list with that same
+check and just returns null when nothing survives). That's not an error anywhere;
+the weapon simply never gets one. Extending a Tensura item class is NOT enough,
+because tag membership is data, not type.
+
+Rule of thumb: when adding a weapon, find its closest Tensura counterpart and
+copy its tag membership verbatim (we mirror hihiirokane). Deliberately accepted
+side effect: the counterpart's tags can offer enchantments our item can't use
+(Riptide on the spear, Silk Touch on the sickle, since ours are all `SwordItem`s).
+Parity with the counterpart was judged more valuable — and less surprising — than
+hand-curating a tag set per weapon.
+
+## Weapon abilities go through Tensura's on-hit path, never raw `hurt()` (0.2.1, 2026-07-22)
+
+Shared helper: `WeaponAbilities`. Any custom-weapon ability that damages
+something goes through `WeaponAbilities.hit(...)` rather than calling
+`target.hurt(...)` itself. Three reasons, all of which bit us in 0.2.0:
+
+1. **Invulnerability frames.** Vanilla charges a second hit inside a 10-tick
+   window only `amount - lastHurt`, and drops it entirely when it isn't bigger.
+   Since a player naturally swings and then right-clicks, an ability that scales
+   off the same attack-damage attribute as the swing always lands a tiny
+   remainder — the reported "always deals like 2 damage, doesn't scale with
+   anything". Abilities zero `invulnerableTime` first. Tensura's own Battlewill
+   arts do the same thing (they also force it to 40 afterwards to stop
+   multi-hits; we don't need that, our abilities hit each target once).
+2. **The on-hit pipeline.** Engravings run from
+   `TensuraEnchantmentHelper.doAdditionalAfterAttack/AfterDamage`, installed by
+   Tensura's mixin on `Player.attack`. Damage dealt outside that path triggers no
+   engraving at all. `hit()` mirrors the exact recipe Tensura's arts use:
+   `hurtEnemy` → `EnchantmentHelper.doPostAttackEffectsWithItemSource` →
+   `doAdditionalAfterDamage` → `doAdditionalAfterAttack`. The `runItemOnHit`
+   flag exists for splash damage spawned FROM a weapon's on-hit effect, which
+   must not re-enter it (the Annihilator shockwave).
+3. **Named attacker.** An ownerless `damageSources().magic()` is environmental
+   damage to Tensura: no kill credit, no EP gain, no subordinate/ally veto in
+   `DamagingHandler`, and no path for the wielder's magicule to bypass a
+   target's magic interference. Ability sources always name the wielder —
+   `tensura:magic` (`TensuraDamageTypes.MAGIC_GENERIC`) for magic, `player_attack`
+   for physical.
+
+Ability damage is floored at the weapon's own attack damage read off the stack
+(`WeaponAbilities.weaponAttackDamage`, mirroring Tensura's
+`TensuraDamageHelper.getWeaponBaseDamage`), so it keeps scaling with the gear's
+EP evolutions even when the wielder's attack-damage attribute doesn't include the
+weapon (off-hand use).
+
+## gear_existence `uniqueEvolutions` COMPOUND (0.2.1, 2026-07-22)
+
+**The four numbers in an EP ladder are INCREMENTS, not "the stats at that tier".**
+`GearHandler.applyUniqueGearEvolution` picks the LOWEST tier the weapon has
+reached and not yet applied, adds its amounts to the stack's CURRENT
+`ATTRIBUTE_MODIFIERS`, then deletes that tier from the stack's remaining list —
+so over a weapon's life all four amounts sum. 0.2.0 was authored on the opposite
+belief (an earlier note in this file, now corrected, claimed only the
+highest-reached tier applied), which is how a Masterwork katana ended up reading
+184 attack damage against an intended cap of 128.
+
+Two further facts, both verified in the bytecode:
+
+- `getEvolvedAttributeModifiers` only bumps attributes the BASE item ALREADY
+  declares — it iterates the current modifiers and looks each one up in the
+  tier's map, so a tier entry for an attribute the item doesn't have is silently
+  dropped. The Absolute Annihilator's knockback-resistance and max-health steps
+  had never done anything for exactly this reason. **Fix: declare the attribute
+  on the base item at 0.** That costs nothing visually — vanilla's
+  `ItemStack.addModifierTooltip` only renders a line for `amount > 0` or `< 0`,
+  so a zero modifier is invisible until a tier raises it. Any future weapon whose
+  ladder grants an attribute MUST declare that attribute (at 0 if it shouldn't
+  start with it).
+- Stats are **baked into the stack**, so re-tuning the datapack does nothing for
+  weapons that already exist, and a player can't re-forge without spending
+  another Masterwork Core. `GearEvolution.recalibrate` closes that: once a second
+  it rebuilds a stack's stats from the item's current base attributes plus
+  exactly the tiers its EP has reached (folded through Tensura's own helper, so
+  the maths can't drift from `GearHandler`'s), and restores the not-yet-reached
+  tiers to the stack's remaining list. A correct stack compares equal and is left
+  untouched. Any future ladder re-tune now self-heals; do NOT hand-migrate.
+
+## Masterwork weapons are positioned RELATIVE to their counterpart (0.2.1, 2026-07-22, user)
+
+`MasterworkItem.START_OFFSET` (-30) and `MAX_OFFSET` (+2) are the whole balance
+statement: a freshly forged Masterwork sits 30 damage BELOW the hihiirokane
+weapon it consumed, and at max EP ends 2 ABOVE it. `EVOLUTION_STEPS`
+(+5/+7/+9/+11, cumulative) closes exactly that 32-point gap, and
+`ExampleMod.masterwork()` takes the COUNTERPART's damage param so nothing has to
+be recomputed by hand per weapon.
+
+The earlier reading — base = counterpart + 2, growing far beyond — was a
+misinterpretation of "make it +2 over hihiirokane" (user, 2026-07-22: "I meant
+the MAXIMUM damage, not the base"). Hihiirokane weapons are the top of Tensura's
+evolution chain and have NO evolutions of their own, so their number is fixed and
+"+2 at the cap" is unambiguous. The Masterwork's identity is the growth, the
+abilities, the durability/enchantability and the self-repair — not raw damage.
+
+## Naming an EXISTING citizen is a rename, never a second registration (0.2.1, 2026-07-22)
+
+`onRaceNamed` must look the mob up in `RaceIdentitySavedData` before it does
+anything else. A mob standing next to the player is not necessarily a stranger:
+a colony-born child, or any citizen the player summoned out of the colony, still
+owns a `RaceIdentity` and a `CitizenData` — and has no Tensura name yet, so the
+naming menu opens on it normally.
+
+The reason this MUST be guarded rather than merely tidied: `addIdentity` keys the
+reverse index by mob UUID, one entry per mob —
+
+```java
+mobUUIDToIdentityId.put(identity.mobEntityUUID, identity.identityId);
+```
+
+— so a second registration for the same body silently DISPLACES the first. Every
+later lookup (`getByMobUUID`: send trigger, death hook, roster) resolves to the
+new record and the old one becomes unreachable, while its `CitizenData` keeps its
+housing slot and stays travelling-suppressed forever. That is a citizen slot with
+nothing behind it, and nothing in the codebase would ever have noticed.
+
+The same shape applies to the pending pool (`renamePending`, not a second
+`addPending`) — two pending entries for one mob promote to two citizens.
+
+**Rule:** any future path that registers a citizen from a live mob checks
+`getByMobUUID` first. Treat "one mob ⇒ at most one identity" as an invariant of
+`RaceIdentitySavedData`, because the reverse index enforces it destructively
+rather than by rejection.
+
+## A citizen's age must be settled BEFORE its body spawns (0.2.1, 2026-07-22)
+
+MineColonies stamps a new body from the CitizenData in the same tick as the
+spawn (`addFreshEntity` → `registerWithColony` → `registerCivilian` →
+`setEntity` → `setCivilianData` → `initEntityValues` →
+`citizen.setIsChild(this.isChild())`). So any code that spawns a citizen body and
+then corrects its age has already lost: the body is briefly wrong, and the client
+is wrong for much longer than that.
+
+The client part is worth remembering on its own: `EntityCitizen.isBaby()` reads a
+private cached field, NOT the synced `DATA_IS_CHILD`, and that field is assigned
+on the client in exactly one place — `CitizenColonyHandler.updateColonyClient()`,
+which runs from the `ACTIVE_CLIENT` state that a fresh body only reaches after
+leaving `EntityState.INIT`, on a **40-tick** timer. `LivingEntityRenderer` sets
+`model.young = entity.isBaby()` every frame, so a child renders full-size for up
+to two seconds. `mixin/EntityCitizenBabyMixin` closes that by falling back to the
+synced value on the client. Treat `isBaby()` on a freshly spawned citizen as
+UNRELIABLE without that mixin.
+
+## The CITIZEN owns the age, the mob copies it (0.2.1, 2026-07-22)
+
+Two independent child flags exist and both have to be written:
+`EntityCitizen.setIsChild` (the body you see) and `CitizenData.setIsChild` (the
+durable one). MineColonies does not sync them, and only the CitizenData survives
+a body rebuild — writing just the entity's silently reverts.
+
+Direction of truth: on SUMMON the mob's baby state is set from
+`citizenData.isChild()`; on SEND both citizen flags are set from
+`goblin.isBaby()`. Do NOT trust `entitySnapshot` for age. A colony-born child's
+snapshot is captured in `mintRaceChildCitizen` from a transient ADULT mob spawned
+only to roll an appearance, and it is never refreshed by a send — which is why
+summoned babies used to arrive fully grown.
+
+## Colony-born citizens are auto-named subordinates (0.2.1, 2026-07-22, user)
+
+A child born in a race colony is the owner's NAMED SUBORDINATE from birth,
+carrying the name MineColonies gave it — no summon-and-hand-name step. This is
+also what removes the last reason to point the naming menu at your own citizen,
+the action that produced the phantom (see the entry above).
+
+`ExampleMod.applyAutoNaming` is the sole door. It copies the "this is yours and
+it is called X" half of Tensura's naming commit — `IExistence.setName`,
+`setCustomName`, `IExistence.setPermanentOwner`, `TamableAnimal.setTame` +
+`setOwnerUUID` — and deliberately omits two things Tensura's ceremony also does:
+
+- **the name-evolution** (`INameEvolution.onPreNamed`, what turns a named goblin
+  into a hobgoblin). Evolving every newborn would hand the colony a population of
+  hobgoblins for free and make hand-naming meaningless. A child is a baby of its
+  own race and evolves the normal way.
+- **the energy transfer**. Naming spends the namer's magicule and pours it into
+  the named. Nobody is present paying for a birth, so nothing is charged and
+  nothing is granted.
+
+Ownership is only ever CLAIMED, never reassigned — an existing owner and the
+subordinate's chosen command behaviour are left alone — but the NAME is re-synced
+from `CitizenData` on every summon, because the citizen's name is the single
+source of truth (renaming the citizen renames the mob, and our naming-menu guard
+turns "name this citizen" into "rename this citizen"). That re-sync also repairs
+citizens minted before auto-naming existed.
+
+Free side effect: Tensura's own `canName` refuses a mob that is already named or
+already owned by the asker, so the naming menu simply won't open on a colony-born
+citizen — a second, upstream lock on the duplicate-citizen path.
+
+## Only the four RACES take citizen slots (verified 2026-07-22)
+
+Confirmed on request: a named non-humanoid subordinate (direwolf, spider, slime,
+tempest serpent, …) never consumes a colony citizen slot. `onRaceNamed` filters
+on `Races.of(entity.getType())` — which only maps `tensura:goblin`, `orc`,
+`lizardman` and `dwarf` — and returns before any `createAndRegisterCivilianData`.
+Every other citizen-creating call site is accounted for and none of them can be
+reached from naming a mob: the pending-pool drain (entries only ever created
+after that same race filter), `mintRaceChildCitizen` (colony reproduction, race
+drawn from the colony's own member set), the conquest levy and the diplomacy
+lend-return (both plain colonists), and the envoy path (which uses the VISITOR
+manager — visitors are not citizens).
+
+## Barrier size is a per-colony CHOICE inside an earned band (0.2.1, 2026-07-22, user)
+
+Players were outgrowing the barrier: the radius was locked to the primary core's
+tier (16/28/42/60) with no way to cover a bigger colony. The radius is now
+chosen in the core menu, between `MIN_RADIUS` (8) and a maximum the colony earns
+— the primary's tier radius plus, for every OTHER core in the network, that
+core's own tier × `RADIUS_PER_EXTRA_CORE_TIER` (2), i.e. **+2/4/6/8 blocks for an
+extra tier-1/2/3/4 core** (user-specified). Capped at `RADIUS_HARD_CAP` (128).
+Tiering the bonus means a spare tier-4 core is worth four spare tier-1s, so the
+cheap-core-spam route is deliberately weak.
+
+Design points worth keeping:
+
+- **The choice lives on the network PRIMARY**, next to the layer count and the
+  shared pool, and every menu path already routes through `resolveMenuTarget`.
+  That is what makes the whole thing per-COLONY rather than per-block or
+  per-player for free: click any core, edit the same field. Requirement met by
+  the existing network design, not by new code.
+- **Clamp on READ, not on write.** `getRadius()` clamps the stored number into
+  the current band each time it is asked. Losing a core therefore shrinks the
+  field immediately, but the player's chosen size survives, so rebuilding the
+  core restores it instead of silently leaving the barrier small. Writing a
+  clamped value would have thrown their setting away.
+- **`networkCoreCount` is synced** because the client renderer calls
+  `getRadius()`, and the clamp must land on the same number on both sides.
+- Nothing downstream needed touching: layers, collision, raid steering, hostile
+  spawn suppression and the renderer are all derived from `getRadius()` already.
+
+**Size costs fuel (user, 2026-07-22).** The barrier used to be free to hold up
+at one layer, which made the tank matter only for repairs. Now every active
+shell costs `UPKEEP_BASE_PER_LAYER` (10/s) plus `UPKEEP_PER_RADIUS_BLOCK` (1/s)
+per block of ITS OWN radius, so a bigger field, an extra layer, and the fact that
+outer shells sit further out all push the bill up. Charged per shell rather than
+as one figure × layers because that falls out of the geometry and needs no extra
+constant.
+
+The numbers are set so each tier's full tank lasts about an hour at that tier's
+DEFAULT size (t1@16 = 26/s on 100k; t4@60 = 70/s on 250k) — capacity and size
+cost scale together on purpose, so upgrading a core is not secretly a downgrade.
+Dialling down to the minimum stretches a tier-4 tank to ~4 hours; running three
+layers cuts it to ~20 minutes.
+
+Still not done: panel health is per-TIER, not per-area, so a big barrier is
+thinner per unit of wall. Flagged in raid-system.md as an unplayed seam rather
+than guessed at here.

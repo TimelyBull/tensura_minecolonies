@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "CreateColonyMessageMixin",
+    "EntityCitizenBabyMixin",
     "ISubordinateCommandMixin",
     "ReproductionManagerMixin",
     "TensuraBehaviourHelperMixin"

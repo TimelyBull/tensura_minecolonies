@@ -6,6 +6,105 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project aims to follow [Semantic Versioning](https://semver.org/).
 Copy the relevant version's section into the CurseForge release notes on each update.
 
+## [0.2.1] - 2026-07-22
+
+### Changed
+- **Masterwork weapons have been re-scaled.** Their EP upgrades were stacking on
+  top of each other instead of replacing one another, so a fully grown Masterwork
+  katana was hitting for 184 — more than double what it was ever meant to. A
+  Masterwork now starts noticeably weaker than the hihiirokane weapon you forged
+  it from and grows past it, ending **2 damage above** its counterpart at full
+  power (katana: 51 → 83). Its real advantages are unchanged: the abilities, the
+  durability, the enchantability and the self-repair.
+- **The Absolute Annihilator had the same problem** and now tops out at 38 attack
+  damage as intended, rather than 63.
+
+### Fixed (Absolute Annihilator)
+- **The hammer's knockback resistance and bonus hearts now actually arrive.**
+  They were listed as rewards for reaching 400,000 and 700,000 EP but never
+  applied to the weapon at all. You now get knockback resistance at 400,000 EP
+  (more at 1,000,000) and two extra hearts at 700,000 EP (two more at
+  1,000,000), while the hammer is held.
+- **Hold SHIFT on the hammer to see its full ladder** — every ability, the EP it
+  unlocks at, and how much EP the weapon has right now. Unlocked entries are
+  green, locked ones grey.
+- **Weapons you already own fix themselves.** You do not need to re-forge:
+  put a Masterwork weapon or an Annihilator in your inventory and its stats are
+  rebuilt from its current EP within a second. It keeps all its EP and carries on
+  growing normally.
+
+### Added
+- **You can now choose how big your barrier is.** The Barrier Core menu has a
+  **FIELD SIZE** row: `-`/`+` move it 4 blocks at a time, `MIN`/`MAX` jump to the
+  ends of the range, and a bar shows where you are within it. The smallest is 8
+  blocks; the biggest is your strongest core's radius plus a bonus for every
+  OTHER core in the colony — **+2, +4, +6 or +8 blocks** depending on that core's
+  tier (hard ceiling 128). So a colony that has outgrown its barrier extends it by
+  building more cores, and better cores are worth more than more cores. Existing
+  barriers keep the exact size they have now.
+  - Lose a core and the barrier shrinks to fit the narrower range — but your
+    chosen size is remembered, so rebuilding it puts the barrier back.
+  - Every core in a colony still opens the **same** menu, now including the size:
+    one barrier per colony, shared fuel, shared settings, whoever clicks it.
+- **Monsters born in your village are your named subordinates from birth.** They
+  keep the name they were born with, and they already belong to you — summon one
+  and it answers to you straight away, with no trip through the naming menu.
+  They are not evolved by this (a goblin child is a goblin, not a hobgoblin), and
+  it costs you nothing. Hand-naming a wild monster is unchanged: it still costs
+  magicule and still evolves them.
+
+### Changed (barriers)
+- **Holding a barrier up now costs magicule, and a bigger barrier costs more.**
+  Previously a single-layer barrier ran forever for free and your fuel only paid
+  for repairs. Now every layer costs **10 magicule a second plus 1 for each block
+  of its radius** — so size, layers, and the fact that outer layers sit further
+  out all add to the bill. Roughly: a tier-1 core at its default size burns 26/s,
+  a tier-4 at its default size 70/s, and three layers on a large field 225/s. At
+  default sizes a full tank lasts about an hour whatever your tier; shrink the
+  field and it lasts far longer. Keep it fed, or keep it small.
+
+### Fixed
+- **Naming a citizen you summoned no longer creates a phantom citizen.** If you
+  summoned one of your own residents — a monster born in your village, or one
+  that had grown up there — and then named it, the game registered it a SECOND
+  time. The original was left behind as a citizen that doesn't exist: no body,
+  can't be summoned, can't be sent home, and still occupying a house forever.
+  Naming someone who already lives in your colony now simply **renames** them.
+- **Summoning a baby gives you a baby.** Children born in your village were
+  summoned as fully grown adults.
+- **A child sent home is child-sized the moment it appears.** It used to arrive
+  looking like an adult and shrink a second or two later, once the game got
+  around to noticing. This applies to ordinary colony children too, not just
+  Tensura ones.
+- **Babies can grow up properly.** A child that grew up while it was out with you
+  was marked a child again when you sent it back, and the change wouldn't have
+  survived a reload anyway. Age is now kept in step in both directions.
+- **Phantom citizens from earlier versions can be cleaned up.** Run
+  `/recoverorphans`: it now spots them even while their body is standing next to
+  you, and `confirm` turns each one back into a working colonist (or `purge`
+  deletes it and frees the house).
+- **Masterwork weapons and the Absolute Annihilator can be engraved and
+  enchanted again.** They were missing from the item lists the game uses to
+  decide what a weapon accepts, so no engraving and no enchantment could ever
+  be put on them — and, more quietly, they never picked up the random engravings
+  a Tensura weapon earns as it absorbs EP. Now they behave exactly like the
+  hihiirokane weapon they were forged from: engravings apply, engravings you
+  already have (like Barrier Piercing) actually fire on hit, and the weapon
+  starts earning new ones at its EP milestones.
+- **Weapon right-click abilities do their full damage.** The sweep, the magic
+  slice, the Annihilator's shockwave and its Drago Nova blast were all landing
+  inside the brief window of invulnerability left by your previous swing, so the
+  game subtracted that swing's damage from theirs — leaving a couple of points
+  of damage (or none at all) no matter how strong the weapon was. Abilities now
+  land clean.
+- **Ability hits count as real weapon hits.** They now set off your engravings
+  and the weapon's own on-hit effect (the Masterwork's lifesteal / mending), and
+  they are properly credited to you — so kills from an ability grant EP, and
+  your own subordinates and colonists are recognised as yours instead of being
+  treated as bystanders hit by an unowned explosion.
+- **The Absolute Annihilator's Drago Nova blast now grows with the weapon**
+  instead of dealing a fixed amount forever.
+
 ## [0.2.0] - 2026-07-21
 
 ### Added

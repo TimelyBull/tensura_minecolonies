@@ -272,40 +272,53 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             return net.minecraft.world.item.crafting.Ingredient.of(net.minecraft.world.item.Items.NETHERITE_INGOT);
         }
     };
-    /** Register one Masterwork weapon. Every one shares the base damage floor of
-     *  10 (modifier 9) — the prestige floor — and differs only by attack SPEED
-     *  per weapon type; EP evolutions stack damage on top (up to 80). */
-    /** {@code damageParam} is the weapon's own damage value — set to its
-     *  hihiirokane counterpart's param + 2, so that once the shared tier bonus
-     *  (76) is added the Masterwork lands at exactly hihiirokane + 2 damage. */
-    private static DeferredItem<MasterworkItem> masterwork(String name, double damageParam,
+    /**
+     * Register one Masterwork weapon. {@code counterpartDamage} is the weapon's
+     * HIHIIROKANE counterpart's own damage param (read off Tensura's
+     * {@code Simple*Item} constructors) — every Masterwork weapon is positioned
+     * purely relative to the weapon it was forged from:
+     *
+     * <ul>
+     *   <li>freshly forged it sits {@link MasterworkItem#START_OFFSET} BELOW its
+     *       counterpart, and</li>
+     *   <li>at max EP it ends {@link MasterworkItem#MAX_OFFSET} ABOVE it,</li>
+     * </ul>
+     *
+     * with the gap closed by the four {@code uniqueEvolutions} steps in the
+     * weapon's gear_existence file. Those steps are CUMULATIVE — see
+     * {@link MasterworkItem#EVOLUTION_STEPS}, which must keep summing to the
+     * distance between the two offsets.
+     */
+    private static DeferredItem<MasterworkItem> masterwork(String name, double counterpartDamage,
                                                            double attackSpeed, double reach) {
+        double baseDamage = counterpartDamage + MASTERWORK_TIER.getAttackDamageBonus()
+                + MasterworkItem.START_OFFSET;
         return ITEMS.register(name, () -> new MasterworkItem(MASTERWORK_TIER,
                 new net.minecraft.world.item.Item.Properties()
                         .rarity(net.minecraft.world.item.Rarity.EPIC)
                         .fireResistant()
-                        .attributes(masterworkWeaponAttributes(damageParam, attackSpeed, reach))));
+                        .attributes(masterworkWeaponAttributes(baseDamage, attackSpeed, reach))));
     }
 
     // --- The Masterwork weapon line (forged from the matching hihiirokane
     //     weapon + a Masterwork Weapon Core at the Tensura Smithing Bench).
     //     Attack SPEED + REACH are matched to each weapon's Tensura counterpart
     //     (extracted from the Simple*Item constructors, where the first double
-    //     is the ENTITY_INTERACTION_RANGE bonus). Damage is NOT matched — that
-    //     rides the masterwork EP curve (floor 10 → 80).
-    //     damageParam = hihiirokane counterpart's param + 2.
-    public static final DeferredItem<MasterworkItem> MASTERWORK_KATANA      = masterwork("masterwork_katana", 6, -2.2, 0.0);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_SWORD       = masterwork("masterwork_sword", 5, -2.4, 0.0);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_SHORT_SWORD = masterwork("masterwork_short_sword", 3, -2.0, -0.75);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_LONG_SWORD  = masterwork("masterwork_long_sword", 7, -2.6, 0.25);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_GREAT_SWORD = masterwork("masterwork_great_sword", 8, -3.2, 2.0);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_KODACHI     = masterwork("masterwork_kodachi", 3, -2.0, -0.75);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_ODACHI      = masterwork("masterwork_odachi", 8, -3.2, 2.0);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_TACHI       = masterwork("masterwork_tachi", 7, -2.6, 0.25);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_SPEAR       = masterwork("masterwork_spear", 5, -2.6, 2.0);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_SCYTHE      = masterwork("masterwork_scythe", 7, -3.2, 2.0);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_AXE         = masterwork("masterwork_axe", 7, -3.0, 0.0);
-    public static final DeferredItem<MasterworkItem> MASTERWORK_SICKLE      = masterwork("masterwork_sickle", 4, -2.8, 0.0);
+    //     is the ENTITY_INTERACTION_RANGE bonus).
+    //     The first number is the COUNTERPART's damage param, not ours — see
+    //     masterwork() above for how the base and the cap are derived from it.
+    public static final DeferredItem<MasterworkItem> MASTERWORK_KATANA      = masterwork("masterwork_katana", 4, -2.2, 0.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SWORD       = masterwork("masterwork_sword", 3, -2.4, 0.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SHORT_SWORD = masterwork("masterwork_short_sword", 1, -2.0, -0.75);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_LONG_SWORD  = masterwork("masterwork_long_sword", 5, -2.6, 0.25);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_GREAT_SWORD = masterwork("masterwork_great_sword", 6, -3.2, 2.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_KODACHI     = masterwork("masterwork_kodachi", 1, -2.0, -0.75);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_ODACHI      = masterwork("masterwork_odachi", 6, -3.2, 2.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_TACHI       = masterwork("masterwork_tachi", 5, -2.6, 0.25);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SPEAR       = masterwork("masterwork_spear", 3, -2.6, 2.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SCYTHE      = masterwork("masterwork_scythe", 5, -3.2, 2.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_AXE         = masterwork("masterwork_axe", 5, -3.0, 0.0);
+    public static final DeferredItem<MasterworkItem> MASTERWORK_SICKLE      = masterwork("masterwork_sickle", 2, -2.8, 0.0);
 
     /** Every Masterwork weapon — drives the creative tab + the client EP-tier
      *  model property, so adding one here wires it everywhere. */
@@ -315,15 +328,14 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             MASTERWORK_SPEAR, MASTERWORK_SCYTHE, MASTERWORK_AXE, MASTERWORK_SICKLE);
 
     /** Base melee attributes for a Masterwork weapon (EP evolutions add on top).
-     *  {@code reach} mirrors the Tensura counterpart's ENTITY_INTERACTION_RANGE
-     *  bonus (0 for most, +2 for polearms, -0.75 for the short blades). */
+     *  {@code attackDamage} is the FINAL base modifier — the tier bonus is
+     *  already folded in by {@link #masterwork}. {@code reach} mirrors the
+     *  Tensura counterpart's ENTITY_INTERACTION_RANGE bonus (0 for most, +2 for
+     *  polearms, -0.75 for the short blades). */
     private static net.minecraft.world.item.component.ItemAttributeModifiers masterworkWeaponAttributes(
-            double damageParam, double attackSpeed, double reach) {
+            double attackDamage, double attackSpeed, double reach) {
         var op = net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE;
         var mainhand = net.minecraft.world.entity.EquipmentSlotGroup.MAINHAND;
-        // Tensura's createAttributes adds the TIER bonus to the weapon's own
-        // damage param — mirror that so we sit on the same scale.
-        double attackDamage = damageParam + MASTERWORK_TIER.getAttackDamageBonus();
         var builder = net.minecraft.world.item.component.ItemAttributeModifiers.builder()
                 .add(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE,
                         new net.minecraft.world.entity.ai.attributes.AttributeModifier(
@@ -375,6 +387,17 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                                     .fireResistant()
                                     .attributes(absoluteAnnihilatorAttributes())));
 
+    /**
+     * The Absolute Annihilator's base melee attributes.
+     *
+     * <p>Knockback resistance and max health are declared at <b>0</b> on purpose.
+     * Tensura's {@code GearHandler.getEvolvedAttributeModifiers} walks the item's
+     * EXISTING modifiers and raises the ones a reached EP tier names — an
+     * evolution for an attribute the item doesn't declare is silently dropped.
+     * Declaring them empty is what lets the 400k / 700k / 1M tiers grant them.
+     * A zero-amount modifier prints no tooltip line (vanilla only renders
+     * {@code amount > 0} or {@code < 0}), so this is invisible until it grows.</p>
+     */
     private static net.minecraft.world.item.component.ItemAttributeModifiers absoluteAnnihilatorAttributes() {
         var op = net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE;
         var mainhand = net.minecraft.world.entity.EquipmentSlotGroup.MAINHAND;
@@ -389,6 +412,14 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         new net.minecraft.world.entity.ai.attributes.AttributeModifier(
                                 net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "annihilator_reach"),
                                 2.5, op), mainhand)
+                .add(net.minecraft.world.entity.ai.attributes.Attributes.KNOCKBACK_RESISTANCE,
+                        new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "annihilator_knockback_resistance"),
+                                0.0, op), mainhand)
+                .add(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH,
+                        new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "annihilator_max_health"),
+                                0.0, op), mainhand)
                 .build();
     }
 
@@ -615,6 +646,37 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             return EventResult.pass();
         }
 
+        // --- Already one of ours? Rename it, don't mint a second one. -------
+        //
+        // A mob standing next to the player is not necessarily a stranger. A
+        // colony-born child, or any citizen the player summoned out of the
+        // colony, is STILL a registered citizen: it owns a RaceIdentity and a
+        // CitizenData holding a housing slot. Naming it again used to create a
+        // SECOND CitizenData + identity for the same body — and because the
+        // mob->identity index holds one entry per mob UUID, the new record
+        // silently displaced the old one. The orphaned CitizenData then sat in
+        // the colony forever: no body, permanently travelling-suppressed, unable
+        // to be summoned or sent, still eating a housing slot. That is the
+        // reported "phantom citizen".
+        //
+        // Naming an existing citizen is just a rename.
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(serverLevel);
+        RaceIdentitySavedData.RaceIdentity existing = saved.getByMobUUID(entity.getUUID());
+        if (existing != null) {
+            renameExistingCitizen(serverLevel, existing, name.get(), player);
+            return EventResult.pass();
+        }
+        // Same for a mob already queued in the pending pool (named before the
+        // player had a colony) — re-naming it updates the queued name.
+        for (RaceIdentitySavedData.PendingRaceMob queued : saved.getPending()) {
+            if (entity.getUUID().equals(queued.mobEntityUUID)) {
+                saved.renamePending(queued, name.get());
+                LOGGER.info("[TM] naming: '{}' is already queued as pending (id={}) — renamed, not re-queued",
+                        name.get(), queued.identityId);
+                return EventResult.pass();
+            }
+        }
+
         IColonyManager colonyManager = IColonyManager.getInstance();
         IColony colony = colonyManager.getIColonyByOwner(serverLevel, player);
         if (colony == null) {
@@ -627,7 +689,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // pool — it stays a plain subordinate at the player's side, but it
             // will be promoted to a real CitizenData (and the count will
             // increase) on the first ColonyCreatedModEvent.
-            RaceIdentitySavedData saved = RaceIdentitySavedData.get(serverLevel);
             RaceIdentitySavedData.PendingRaceMob p = new RaceIdentitySavedData.PendingRaceMob(
                     UUID.randomUUID(),
                     name.get(),
@@ -674,7 +735,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // is recoverable via /recoverorphans even if its body vanishes before
         // it is ever sent to a colony.
 
-        RaceIdentitySavedData saved = RaceIdentitySavedData.get(serverLevel);
         RaceIdentitySavedData.RaceIdentity identity = new RaceIdentitySavedData.RaceIdentity(
                 UUID.randomUUID(),          // stable identity UUID
                 citizenData.getId(),
@@ -692,6 +752,49 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 identity.identityId, identity.citizenId, identity.mobEntityUUID, race);
 
         return EventResult.pass();
+    }
+
+    /**
+     * Rename the citizen behind an identity the player has just re-named in
+     * Tensura's naming menu. Used when the named mob is ALREADY a citizen
+     * (a colony-born child, or one summoned out of the colony) — everything
+     * else about it stays exactly as it was: same citizen id, same housing
+     * slot, same skills, same happiness, no second registration.
+     */
+    private static void renameExistingCitizen(ServerLevel level,
+                                              RaceIdentitySavedData.RaceIdentity identity,
+                                              String newName,
+                                              net.minecraft.world.entity.player.Player player) {
+        IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
+        ICitizenData citizenData = colony == null
+                ? null : colony.getCitizenManager().getCivilian(identity.citizenId);
+        if (citizenData == null) {
+            LOGGER.warn("[TM] naming: identity {} is already registered but its citizen {} in colony {} is gone — leaving the name alone",
+                    identity.identityId, identity.citizenId, identity.colonyId);
+            return;
+        }
+        // Only the owner renames. A different player naming someone else's
+        // citizen still must NOT mint a duplicate (that's the whole point of
+        // this path) — it just doesn't get to change the name.
+        if (identity.ownerPlayerUUID != null && !identity.ownerPlayerUUID.equals(player.getUUID())) {
+            LOGGER.info("[TM] naming: {} named citizen {} which belongs to {} — no duplicate created, name unchanged",
+                    player.getName().getString(), identity.citizenId, identity.ownerPlayerUUID);
+            if (player instanceof ServerPlayer sp) {
+                sendAdvisoryNotice(sp, "That one already belongs to another colony's owner.");
+            }
+            return;
+        }
+        String oldName = citizenData.getName();
+        citizenData.setName(newName);   // marks the citizen dirty itself
+        // The live body caches its display name; refresh it so the nameplate
+        // updates without waiting for a respawn.
+        citizenData.getEntity().ifPresent(body -> body.setCustomName(
+                net.minecraft.network.chat.Component.literal(newName)));
+        LOGGER.info("[TM] naming: '{}' was already citizen {} (identity {}) — renamed to '{}', no new citizen created",
+                oldName, identity.citizenId, identity.identityId, newName);
+        if (player instanceof ServerPlayer sp) {
+            sendAdvisoryNotice(sp, oldName + " is already one of your citizens — renamed to " + newName + ".");
+        }
     }
 
 
@@ -1203,6 +1306,23 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         mob.finalizeSpawn(level, level.getCurrentDifficultyAt(anchor),
                 net.minecraft.world.entity.MobSpawnType.SPAWN_EGG, null);
 
+        UUID owner = colony.getPermissions().getOwner();
+
+        // It is a NEWBORN and it is ALREADY YOURS. Two things the snapshot has
+        // to carry so the child doesn't have to be summoned and hand-named
+        // (which is what produced the pre-0.2.1 phantom citizen):
+        //   - it is a baby, not the adult the transient mob was rolled as;
+        //   - it is your named subordinate from birth, carrying the name it was
+        //     born with. See applyAutoNaming for what that does and doesn't
+        //     copy from Tensura's naming ceremony.
+        // The summon re-syncs both from the CitizenData, which is the source of
+        // truth — the name MineColonies gives the child is assigned just after
+        // this hook returns, so what we stamp here may still be provisional.
+        if (mob instanceof net.minecraft.world.entity.AgeableMob ageable) {
+            ageable.setBaby(true);
+        }
+        applyAutoNaming(mob, child.getName(), owner);
+
         // Capture the randomised appearance + a full entity snapshot (with the
         // "id" field — goblin.save(tag) writes it) for later summon/send.
         RaceVariantData variant = captureRaceVariant(mob, race);
@@ -1213,7 +1333,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             return;
         }
 
-        UUID owner = colony.getPermissions().getOwner();
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
         RaceIdentitySavedData.RaceIdentity identity = new RaceIdentitySavedData.RaceIdentity(
                 UUID.randomUUID(),
@@ -1674,6 +1793,60 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     /** The supplied happiness factor (1.0 = neutral; below = unhappy):
      *  a subdued-by-naming citizen serves, but resents it a little. */
     private static final double NAMED_HAPPINESS_VALUE = 0.5;
+
+    /**
+     * Make a race mob the owner's NAMED SUBORDINATE without going through
+     * Tensura's naming menu — the "auto naming" a colony-born citizen gets for
+     * free, and the reconciliation every summoned citizen runs.
+     *
+     * <p>Applies the parts of Tensura's naming commit that express "this is
+     * yours and it is called X": the Existence name, the display name, the
+     * permanent owner, and the tame flag. Deliberately NOT applied:</p>
+     *
+     * <ul>
+     *   <li><b>the name-evolution</b> ({@code INameEvolution.onPreNamed} — what
+     *       turns a named goblin into a hobgoblin). A newborn is a baby of its
+     *       own race; evolving every child at birth would hand the colony a
+     *       population of hobgoblins and make hand-naming pointless.</li>
+     *   <li><b>the energy transfer</b>. Naming spends the namer's magicule and
+     *       pours it into the named. Nobody is standing there paying for a
+     *       birth, so nothing is charged and nothing is granted.</li>
+     * </ul>
+     *
+     * <p>The citizen's name is the single source of truth, so this re-syncs the
+     * mob's name on every summon. Ownership is only ever CLAIMED, never
+     * reassigned — an existing owner (and the subordinate's chosen command
+     * behaviour) is left exactly as it is.</p>
+     *
+     * <p>Side effect worth knowing: once a mob is named and owned, Tensura's own
+     * {@code canName} refuses to open the naming menu on it at all
+     * ("already named" / "you already own this one"), which is a second lock on
+     * the duplicate-citizen path.</p>
+     */
+    static void applyAutoNaming(LivingEntity mob, String name, UUID ownerUUID) {
+        boolean named = name != null && !name.isBlank();
+        try {
+            ExistenceStorage existence = readExistence(mob);
+            if (existence != null) {
+                if (named) existence.setName(name);
+                if (ownerUUID != null && existence.getPermanentOwner() == null) {
+                    existence.setPermanentOwner(ownerUUID);
+                }
+                existence.markDirty();
+            }
+            if (named) {
+                mob.setCustomName(net.minecraft.network.chat.Component.literal(name));
+            }
+            if (ownerUUID != null
+                    && mob instanceof net.minecraft.world.entity.TamableAnimal tamable
+                    && tamable.getOwnerUUID() == null) {
+                tamable.setTame(true, false);
+                tamable.setOwnerUUID(ownerUUID);
+            }
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] auto-naming failed for '{}' (owner {})", name, ownerUUID, t);
+        }
+    }
 
     static void applyNamedAcquisitionPenalty(ICitizenData citizenData) {
         try {
@@ -4557,6 +4730,27 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             return;
         }
 
+        // 2c. Settle the child flag BEFORE the body exists. MineColonies stamps
+        //     a newly spawned body from the CitizenData, in the same tick as the
+        //     spawn: spawnCitizenOnPosition -> addFreshEntity ->
+        //     registerWithColony -> registerCivilian -> setEntity ->
+        //     setCivilianData -> CitizenData.initEntityValues(), which does
+        //     citizen.setIsChild(this.isChild()) and writes DATA_IS_CHILD. So
+        //     writing the flag NOW means the very first packet the client gets
+        //     already describes a child. Writing it after the spawn instead
+        //     leaves the body the wrong size until the update lands — and, worse,
+        //     the client caches isBaby() in a field it only refreshes when the
+        //     entity leaves its INIT state, on a 40-TICK timer (see
+        //     EntityCitizenBabyMixin, which closes that side of it).
+        //     The ENTITY's own copy is still set below once the body exists;
+        //     MineColonies keeps the two flags independent.
+        boolean baby = goblin.isBaby();
+        if (citizenData.isChild() != baby) {
+            citizenData.setIsChild(baby);
+            LOGGER.info("[TM] send: citizen {} child flag set to {} before spawn (source mob was {})",
+                    identity.citizenId, baby, baby ? "a baby" : "grown");
+        }
+
         // 3. Allow the respawn loop to run (finishTravelling makes isTravelling() return false).
         //    Not strictly required — spawnOrCreateCivilian(force=true) bypasses the travelling
         //    check — but it leaves the citizen in a clean non-travelling state.
@@ -4636,20 +4830,17 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // and bare-skinned regardless of inventory contents.
             applyEquipmentFromInventory(citizenBody, citizenData.getInventory());
 
-            // Propagate baby/child state. Vanilla Mob.isBaby() drives
-            // hitbox via getAgeScale() (auto, since EntityCitizen.getAgeScale
-            // returns 0.62 for child) and the model's `young` flag via
-            // LivingEntityRenderer (auto). MineColonies' citizen exposes
-            // setIsChild on AbstractEntityCitizen — the AbstractCivilianEntity
-            // type spawnOrCreateCivilian returns is the abstract parent, so
-            // we guard with instanceof before casting. Summon path round-trips
-            // the baby state automatically via the entity NBT snapshot
-            // (vanilla AgeableMob saves/loads the Age int).
-            if (goblin.isBaby() &&
-                    citizenBody instanceof AbstractEntityCitizen citizenAsCitizen) {
-                citizenAsCitizen.setIsChild(true);
-                LOGGER.info("[TM] send: citizen {} marked as child (source goblin was baby)",
-                        identity.citizenId);
+            // Propagate baby/child state onto the BODY. The durable half (the
+            // CitizenData flag, which is what survives a body rebuild and what
+            // MineColonies stamps a new body from) was already written in step
+            // 2c, before the spawn, so the body came out the right size. This is
+            // the ENTITY's own copy — MineColonies keeps the two independent.
+            // Vanilla Mob.isBaby() drives the hitbox via getAgeScale() (auto,
+            // since EntityCitizen.getAgeScale returns 0.62 for child) and the
+            // model's `young` flag via LivingEntityRenderer (auto).
+            if (citizenBody instanceof AbstractEntityCitizen citizenAsCitizen
+                    && citizenAsCitizen.isBaby() != baby) {
+                citizenAsCitizen.setIsChild(baby);
             }
 
             // Stage F1 — attach the RaceTag to the freshly-spawned
@@ -5916,7 +6107,16 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             if (!player.getUUID().equals(id.ownerPlayerUUID)) continue;
             LivingEntity mob = id.mobEntityUUID != null
                     ? findLivingEntityAcrossLevels(server, id.mobEntityUUID) : null;
-            if (mob != null) continue; // live subordinate — not orphaned
+            // DISPLACED duplicate — some OTHER identity now owns this mob UUID.
+            // Only ever produced by the pre-0.2.1 double-registration bug
+            // (naming a mob that was already a citizen minted a second citizen
+            // and took over the mob->identity index). The mob may still be
+            // standing there alive, but it is not this identity's body: this
+            // record is a citizen slot with nothing behind it. Treat it as
+            // orphaned so it can be restored as a colonist or purged.
+            boolean displaced = id.mobEntityUUID != null
+                    && saved.getByMobUUID(id.mobEntityUUID) != id;
+            if (mob != null && !displaced) continue; // live subordinate — not orphaned
             if (id.entitySnapshot != null) recoverable.add(id);
             else identityOnly.add(id);
         }
@@ -6211,6 +6411,28 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             LOGGER.info("[TM] summon: applied citizen RaceTag variant onto wild mob (race={})",
                     srcTag.race());
         }
+
+        // 3c. Age sync — the CITIZEN's child flag is the source of truth.
+        //     A colony-BORN child never went through a send, so its snapshot was
+        //     taken from the transient ADULT mob used to roll its appearance:
+        //     without this, summoning a baby handed you a fully grown one. It
+        //     also covers the reverse — a citizen that grew up in the colony
+        //     must not come back as a baby out of an older snapshot.
+        if (goblin instanceof net.minecraft.world.entity.AgeableMob ageable) {
+            boolean child = citizenData.isChild();
+            if (ageable.isBaby() != child) {
+                ageable.setBaby(child);
+                LOGGER.info("[TM] summon: age synced from citizen {} — baby={}",
+                        identity.citizenId, child);
+            }
+        }
+
+        // 3d. Name + ownership sync — the citizen is the source of truth for
+        //     both. For a colony-BORN citizen this is what makes it arrive as
+        //     your named subordinate instead of a nameless wild mob; for a
+        //     hand-named one it is a no-op (Tensura already set exactly these).
+        //     It also repairs citizens minted before auto-naming existed.
+        applyAutoNaming(goblin, citizenData.getName(), identity.ownerPlayerUUID);
 
         // 4. CRITICAL — regenerate UUID. The tag carries the OLD goblin's UUID;
         //    if we kept it, the reverse map would still point at a stale identity

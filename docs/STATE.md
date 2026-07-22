@@ -9,7 +9,57 @@ MineColonies / Tensura / Nightmare's Utils / Structurize: their APIs, events,
 invariants, and what we consume vs available-but-unused; read before building a
 new system that might hook existing upstream API).
 
-_Last updated: 2026-07-10 — update this every session._
+_Last updated: 2026-07-22 — update this every session._
+
+_**Session 2026-07-22 — 0.2.1 bugfix release + barrier size/upkeep (branch
+`barrier-size-and-weapon-fixes`).** Version bumped to **0.2.1**; CHANGELOG
+`[0.2.1]` cut. Everything below compiles green and is **NOT playtested** —
+entries 00 / 0a / 0b / 0c in playtesting.md carry the recipes._
+
+_Six pieces, from two user bug reports and two feature asks:_
+
+_1. **Weapon engravings never worked.** Our Masterwork / Annihilator weapons were
+in NO item tags, so `Enchantment.canEnchant` was false for every engraving AND
+every vanilla enchantment — and Tensura's EP-milestone engraving grant
+(`EngravingHelper`, which filters on that same check) silently returned nothing.
+Fixed by shipping the tags their hihiirokane counterparts have._
+
+_2. **"Right-click ability always deals 2 damage."** Ability damage was landing
+inside the invulnerability window of the player's own preceding swing, so vanilla
+charged it `amount - lastHurt` — a small difference of two proportional numbers,
+hence "doesn't scale with anything". New `WeaponAbilities` clears the frames,
+runs Tensura's real on-hit pipeline (so engravings fire from abilities) and names
+an attacker on every damage source._
+
+_3. **Masterwork damage re-scale.** `uniqueEvolutions` COMPOUND (verified in
+`GearHandler`); 0.2.0 authored them as absolutes, so a katana read 184. Now
+positioned relative to the counterpart: `START_OFFSET` -30 → `MAX_OFFSET` +2.
+New `GearEvolution.recalibrate` rebuilds ALREADY-FORGED weapons in place, since
+stats are baked into the stack and players can't re-forge without another Core._
+
+_4. **Phantom citizens.** `onRaceNamed` minted a SECOND CitizenData when the
+named mob was already a citizen, displacing the first in the mob→identity index
+(one entry per mob UUID) and stranding a housing slot. Naming an existing citizen
+is now a rename. Plus: babies summoned as adults, babies that could never grow
+up, and an adult→child render pop (new `EntityCitizenBabyMixin`)._
+
+_5. **Colony-born children are auto-named subordinates** (`applyAutoNaming`) —
+yours from birth, no summon-and-name step. Deliberately skips the name-EVOLUTION
+and the magicule transfer._
+
+_6. **Barrier size is now a per-colony choice** inside an earned range
+(8 → primary tier radius + 2×tier per EXTRA core, cap 128), set in the core menu,
+shared by every core in the colony. And upkeep is no longer free: every active
+layer costs 10/s + 1/s per block of ITS radius, so size and layers both bill._
+
+_⚠ Balance guesses to revisit after play: the two upkeep constants, and panel
+health still being per-TIER rather than per-area (a big barrier is thinner per
+unit of wall). The radius bonuses were user-specified._
+
+_Deferred, recorded: parent-based race inheritance for bred children — currently
+race is a uniform draw from the COLONY's race set and the parents aren't even
+assigned yet at our hook point (`trySpawnChild` picks them after
+`createAndRegisterCivilianData`). See future-ideas.md._
 
 _**Session 2026-07-10 (later) — barrier in-field spawn suppression BROADENED (branch
 `patrol-colony-outskirts`, uncommitted).** Implements user-suggestion 2026-07-10 #3.
@@ -42,6 +92,9 @@ a fueled barrier → wave appears outside the field — full recipe in the NEW
 staggering deliberately deferred (future-ideas.md). Records: user-bug-reports.md (RESOLVED entry, awaiting
 player confirmation), raid-system.md (dated section), deps/minecolonies.md
 (gotcha #9), CHANGELOG `[Unreleased]`, wiki raids page._
+
+_(Version note below is historical — see the 2026-07-22 session block above for
+the current version.)_
 
 _Version: **0.1.2 finalized for release** (`mod_version=0.1.2`; CHANGELOG `[0.1.2] - 2026-06-27`
 cut, `[Unreleased]` reopened for 0.1.3). 0.1.2 = gold-pillar marker removed + faction settlements

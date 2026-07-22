@@ -78,9 +78,43 @@ clears it):
 - Legacy saves with raised layers load `LAYER_BUFF_NONE` (no buff) until the
   setter is next online, then the re-check restores the right type.
 
+**2c. SIZE-SCALED UPKEEP (0.2.1, 2026-07-22, user).** Replaces the old
+"layer 1 free, +50/s per extra layer" rule. `getUpkeepPerSecond()` charges EVERY
+active shell `UPKEEP_BASE_PER_LAYER` (10) + `UPKEEP_PER_RADIUS_BLOCK` (1) ×
+`getLayerRadius(i)` — so the bill rises with size, with layer count, and a
+little more per layer because outer shells sit further out. Drained once per
+second in `serverTick`; the menu readout (`getLastDrainPerSecond`) adds the
+measured repair spend on top. Reference points: t1@16 = 26/s, t4@60 = 70/s,
+t4@128 = 138/s, t4@60×3 layers = 225/s — each tier's full tank lasts ≈1 hour at
+its DEFAULT size (capacity and size cost scale together, deliberately).
+
+**2b. ADJUSTABLE FIELD SIZE (0.2.1, 2026-07-22).** Supersedes "extra cores add
+capacity but not radius" — they now add radius RANGE too. The radius is a
+per-colony CHOICE inside an earned band, stored on the PRIMARY beside the layer
+count (`fieldRadius`, persisted + synced; ≤0 = never set = tier default):
+- `getMaxRadius()` = min(`RADIUS_HARD_CAP` 128, primary tier radius +
+  `networkRadiusBonus`); `getMinRadius()` = 8. The bonus is
+  (Σ member tiers − primary tier) × `RADIUS_PER_EXTRA_CORE_TIER` (2), i.e. an
+  extra tier-1/2/3/4 core is worth **2/4/6/8** blocks (user-specified). Both it
+  and `networkCoreCount` come from `resolveNetwork` and are synced, so the
+  CLIENT clamps identically (the renderer reads `getRadius()`).
+- Clamped on READ, not on write — losing a core shrinks the field at once but
+  KEEPS the player's number, so rebuilding restores their chosen size.
+- Menu: 4 new actions (`ACTION_SIZE_MINUS/PLUS/SMALLEST/BIGGEST`, step 4) and 4
+  new payload fields (radius/min/max/cores). All routed through
+  `resolveMenuTarget`, so any core in the colony edits the one shared value.
+- Everything downstream is radius-derived already (`getLayerRadius` →
+  `getEffectiveRadius` → collision, raid steering, spawn suppression, render),
+  so nothing else needed changing.
+- ⚠ Section health is per TIER, NOT per radius: a 128-radius sphere has the same
+  per-panel health as a 16 one. And the per-second collision sweep scans a box
+  around the whole sphere — at the cap that is a large volume. Both unplayed.
+
 ⚠ BALANCE GUESSES (no combat playtest): hero blessing amplifiers
 (`HERO_BLESSING_REGEN_AMPLIFIER` 1 / `HERO_BLESSING_ABSORPTION_AMPLIFIER` 0),
-and the whole "extra cores add capacity but not radius" trade. Follow-on
+and the size + upkeep constants above (`MIN_RADIUS` 8 /
+`RADIUS_PER_EXTRA_CORE_TIER` 2 / `RADIUS_HARD_CAP` 128 / `RADIUS_STEP` 4 /
+`UPKEEP_BASE_PER_LAYER` 10 / `UPKEEP_PER_RADIUS_BLOCK` 1). Follow-on
 recorded in future-ideas.md: Magicule Storage blocks' niche narrowed by core
 stacking (repurpose/keep/remove/rebalance options).
 
@@ -710,6 +744,8 @@ with per-section damage. Upkeep was kept. Retained below for history.)*
   effective radius shrinks inward, and the enemy must advance to reach the
   next layer and drain ITS slice. No magicule is moved between slices —
   the partition is purely a reinterpretation of the one total.
+- ⚠ SUPERSEDED 2026-07-22 by the size-scaled upkeep in §2b — layer 1 is no
+  longer free and the cost now tracks the field's radius. Kept for history.
 - **Passive upkeep RETAINED.** `LAYER_UPKEEP_PER_SECOND` (50 mag/s per
   EXTRA configured layer) is drained from the pool once per second; upkeep
   + attack drain STACK. (The rework first dropped upkeep, then it was

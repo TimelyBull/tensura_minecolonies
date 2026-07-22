@@ -462,7 +462,8 @@ public final class Networking {
     public record OpenBarrierMenuPayload(net.minecraft.core.BlockPos pos, double stored,
                                          double capacity, int layers, boolean canMultiLayer,
                                          double drainPerSec, int tier, String colonyName,
-                                         boolean wallVisible)
+                                         boolean wallVisible, double radius,
+                                         double minRadius, double maxRadius, int cores)
             implements CustomPacketPayload {
         public static final Type<OpenBarrierMenuPayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "open_barrier_menu"));
@@ -477,6 +478,10 @@ public final class Networking {
                     buf.writeByte(p.tier);
                     ByteBufCodecs.STRING_UTF8.encode(buf, p.colonyName);
                     buf.writeBoolean(p.wallVisible);
+                    buf.writeDouble(p.radius);
+                    buf.writeDouble(p.minRadius);
+                    buf.writeDouble(p.maxRadius);
+                    buf.writeByte(p.cores);
                 },
                 buf -> new OpenBarrierMenuPayload(
                         net.minecraft.core.BlockPos.STREAM_CODEC.decode(buf),
@@ -487,18 +492,24 @@ public final class Networking {
                         buf.readDouble(),
                         buf.readByte(),
                         ByteBufCodecs.STRING_UTF8.decode(buf),
-                        buf.readBoolean()));
+                        buf.readBoolean(),
+                        buf.readDouble(),
+                        buf.readDouble(),
+                        buf.readDouble(),
+                        buf.readByte()));
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
     /** C2S: a Barrier Core menu button. Actions: 0 add 3k, 1 take 3k,
      *  2 MIN (withdraw all), 3 MAX (fill from player), 4 layer +,
-     *  5 layer −. Server validates reach + gate and re-sends the menu. */
+     *  5 layer −, 6 wall visibility, 7/8 field size −/+, 9/10 field size
+     *  smallest/biggest. Server validates reach + gate and re-sends the menu. */
     public record BarrierMenuActionPayload(net.minecraft.core.BlockPos pos, byte action)
             implements CustomPacketPayload {
         public static final byte ACTION_ADD = 0, ACTION_TAKE = 1, ACTION_MIN = 2,
                 ACTION_MAX = 3, ACTION_LAYER_PLUS = 4, ACTION_LAYER_MINUS = 5,
-                ACTION_TOGGLE_VISIBLE = 6;
+                ACTION_TOGGLE_VISIBLE = 6, ACTION_SIZE_MINUS = 7, ACTION_SIZE_PLUS = 8,
+                ACTION_SIZE_SMALLEST = 9, ACTION_SIZE_BIGGEST = 10;
         public static final Type<BarrierMenuActionPayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "barrier_menu_action"));
         public static final StreamCodec<ByteBuf, BarrierMenuActionPayload> CODEC = StreamCodec.composite(
@@ -560,7 +571,11 @@ public final class Networking {
                 target.getLastDrainPerSecond(),
                 target.getTier(),
                 colony != null ? colony.getName() : "",
-                target.isWallVisible()));
+                target.isWallVisible(),
+                target.getRadius(),
+                target.getMinRadius(),
+                target.getMaxRadius(),
+                target.getNetworkCoreCount()));
     }
 
     private static void onBarrierMenuAction(BarrierMenuActionPayload payload, IPayloadContext context) {
@@ -590,6 +605,14 @@ public final class Networking {
                         be.trySetLayers(be.getActiveLayers() - 1, sp);
                 case BarrierMenuActionPayload.ACTION_TOGGLE_VISIBLE ->
                         be.setWallVisible(!be.isWallVisible());
+                case BarrierMenuActionPayload.ACTION_SIZE_MINUS ->
+                        be.setFieldRadius(be.getRadius() - BarrierBlockEntity.RADIUS_STEP);
+                case BarrierMenuActionPayload.ACTION_SIZE_PLUS ->
+                        be.setFieldRadius(be.getRadius() + BarrierBlockEntity.RADIUS_STEP);
+                case BarrierMenuActionPayload.ACTION_SIZE_SMALLEST ->
+                        be.setFieldRadius(be.getMinRadius());
+                case BarrierMenuActionPayload.ACTION_SIZE_BIGGEST ->
+                        be.setFieldRadius(be.getMaxRadius());
                 default -> { }
             }
             sendBarrierMenuTo(sp, clicked); // live refresh (routes to primary itself)

@@ -31,7 +31,8 @@ public class BarrierCoreScreen extends Screen {
             "minecolonies", "textures/gui/builderhut/builder_paper_wide2.png");
 
     private static final int PANEL_W = 260;
-    private static final int PANEL_H = 216;
+    /** Tall enough for the FIELD SIZE section appended below the two columns. */
+    private static final int PANEL_H = 254;
     private static final int GAUGE_W = 46;
     private static final int GAUGE_H = 92;
 
@@ -50,6 +51,8 @@ public class BarrierCoreScreen extends Screen {
     private Button layerPlus;
     private Button layerMinus;
     private Button visibilityToggle;
+    private Button sizePlus;
+    private Button sizeMinus;
 
     public BarrierCoreScreen(Networking.OpenBarrierMenuPayload data) {
         super(Component.literal("Barrier Core"));
@@ -153,6 +156,17 @@ public class BarrierCoreScreen extends Screen {
         addRenderableWidget(new PaperButton(px + 238 - 36, py + 184, 36, 14,
                 Component.literal("Close"), b -> onClose()));
 
+        // ---- FIELD SIZE row: [SMALL][-]  readout  [+][BIG] ----
+        int sizeRowY = py + 230;
+        addRenderableWidget(paper(px + 14, sizeRowY, 34, 14, "MIN",
+                Networking.BarrierMenuActionPayload.ACTION_SIZE_SMALLEST));
+        sizeMinus = addRenderableWidget(paper(px + 52, sizeRowY, 22, 14, "-",
+                Networking.BarrierMenuActionPayload.ACTION_SIZE_MINUS));
+        sizePlus = addRenderableWidget(paper(px + 178, sizeRowY, 22, 14, "+",
+                Networking.BarrierMenuActionPayload.ACTION_SIZE_PLUS));
+        addRenderableWidget(paper(px + 204, sizeRowY, 34, 14, "MAX",
+                Networking.BarrierMenuActionPayload.ACTION_SIZE_BIGGEST));
+
         updateButtonStates();
     }
 
@@ -168,6 +182,14 @@ public class BarrierCoreScreen extends Screen {
         layerPlus.setTooltip(data.canMultiLayer() ? null : Tooltip.create(
                 Component.literal("Layers 2–3 require a true Demon Lord or true Hero")));
         layerMinus.active = data.layers() > 1;
+
+        if (sizePlus != null) {
+            sizePlus.active = data.radius() < data.maxRadius() - 1.0e-6;
+            sizeMinus.active = data.radius() > data.minRadius() + 1.0e-6;
+            sizePlus.setTooltip(sizePlus.active ? null : Tooltip.create(Component.literal(
+                    "This colony's barrier can't reach further. Build another Barrier Core "
+                    + "(or a higher tier one) to widen the range.")));
+        }
     }
 
     private void send(byte action) {
@@ -270,6 +292,29 @@ public class BarrierCoreScreen extends Screen {
         // Layer count between the −/+ buttons (button row py+166).
         drawCenteredNoShadow(g, data.layers() + " / " + BarrierBlockEntity.MAX_LAYERS,
                 lx + 55, py + 169, TXT_DARK);
+
+        // ---- FIELD SIZE (full width, below both columns) ----
+        hline(g, px + 12, px + PANEL_W - 12, py + 204, INK);
+        g.drawString(this.font, "FIELD SIZE", px + 14, py + 210, TXT_GRAY, false);
+        // Right-aligned: what is setting the ceiling right now.
+        String cores = data.cores() + (data.cores() == 1 ? " core" : " cores");
+        g.drawString(this.font, cores, px + 238 - this.font.width(cores), py + 210,
+                TXT_GRAY, false);
+
+        // Range bar — where the current radius sits between min and max.
+        int barX0 = px + 14, barX1 = px + 238, barY = py + 222, barH = 6;
+        g.fill(barX0 - 1, barY - 1, barX1 + 1, barY + barH + 1, INK);
+        g.fill(barX0, barY, barX1, barY + barH, GAUGE_BG);
+        double span = Math.max(1.0e-6, data.maxRadius() - data.minRadius());
+        float t = (float) Math.max(0, Math.min(1, (data.radius() - data.minRadius()) / span));
+        int fillW = Math.round((barX1 - barX0) * t);
+        g.fill(barX0, barY, barX0 + fillW, barY + barH, GAUGE_FILL);
+
+        // Readout — sits in the gap between the -/+ buttons (px+74 .. px+178),
+        // so the range can't collide with the MIN/MAX buttons at the row ends.
+        drawCenteredNoShadow(g, String.format(Locale.ROOT, "%.0f blocks  (%.0f-%.0f)",
+                        data.radius(), data.minRadius(), data.maxRadius()),
+                px + 126, py + 233, TXT_DARK);
     }
 
     private static void hline(GuiGraphics g, int x0, int x1, int y, int color) {

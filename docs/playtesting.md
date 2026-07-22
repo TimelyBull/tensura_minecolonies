@@ -15,6 +15,242 @@ test** (concrete steps + what you should see), **status**.
 
 ## OPEN — needs playtesting
 
+### 00. Adjustable per-colony barrier size (2026-07-22, 0.2.1)
+
+**What changed** (`BarrierBlockEntity` field-size block + `resolveNetwork` core
+count + NBT; `Networking.OpenBarrierMenuPayload` +4 fields and 4 new actions;
+`BarrierCoreScreen` FIELD SIZE row, panel 216 -> 254 tall): the barrier's radius
+was fixed at the primary core's tier value, so a colony that outgrew 60 blocks
+had no answer. It is now a per-colony CHOICE inside an earned range.
+
+- `MIN_RADIUS` 8, `RADIUS_PER_EXTRA_CORE_TIER` 2 (user-specified: an extra
+  tier-1/2/3/4 core is worth 2/4/6/8 blocks), `RADIUS_HARD_CAP` 128,
+  `RADIUS_STEP` 4, `UPKEEP_BASE_PER_LAYER` 10, `UPKEEP_PER_RADIUS_BLOCK` 1
+  — the two upkeep numbers are BALANCE GUESSES; the radius bonuses were
+  specified by the user.
+- max = min(HARD_CAP, primary tier radius + (sum of the OTHER cores' tiers) x 2);
+  min = 8.
+- **Upkeep is new**: every active layer costs 10/s + 1/s per block of ITS OWN
+  radius, replacing "layer 1 free, +50/s per extra layer". Nothing is free now.
+- The chosen radius lives on the network PRIMARY next to the layer count and the
+  shared pool, so every core in the colony edits the same value.
+- Clamped on READ, not on write: losing a core shrinks the field immediately but
+  remembers the player's number, so rebuilding restores it.
+- Backward compatible: `fieldRadius` absent in old saves = "tier default", which
+  is exactly the previous behaviour.
+
+**How to test:**
+1. One tier-1 core outside a colony: menu shows `16 blocks (8-16)`, `1 core`.
+   `-` steps down to 8 and stops (button greys out); `MAX` returns to 16. The
+   rendered sphere must resize to match, immediately.
+2. Same core inside a colony: field still centres on the town hall, size control
+   behaves the same.
+3. Build a second core in the colony: the menu (from EITHER core) should read
+   `2 cores` and a max of the primary's tier radius + that second core's bonus
+   (2/4/6/8 by ITS tier). Add more and the bonuses sum.
+4. Mixed tiers: the BASE must come from the highest tier present (the field
+   driver), and every other core contributes its own tier's bonus — e.g. a tier-4
+   primary plus two tier-2 spares = 60 + 4 + 4 = 68.
+4b. **Upkeep.** Watch the menu's drain readout: it must rise when you enlarge the
+   field and when you add a layer, and fall when you shrink it. Sanity numbers:
+   tier-1 at 16 = 26/s, tier-4 at 60 = 70/s, tier-4 at 128 = 138/s, tier-4 at 60
+   with 3 layers = 225/s. Then leave a barrier running and confirm the tank
+   actually empties at roughly that rate and the field falls at zero.
+5. Open the menu from core A, change the size, then open it from core B — B must
+   show A's new size, the same fuel and the same layers. Confirm from a SECOND
+   player too: the barrier is per-colony, not per-player.
+6. Break a core while the field is dialled to the top: the barrier should shrink
+   to the new max. Rebuild it: the barrier should go back to the size you chose.
+7. Verify the size actually drives the mechanics, not just the render — raiders
+   should be blocked at the new sphere, and hostile spawns suppressed inside it
+   (the raid report re-publishes `getEffectiveRadius()` every second).
+8. Reload the world: size persists.
+
+**Watch for:** panel health does NOT scale with size, so a 128-radius sphere has
+the same per-panel health as a 16 one — a big barrier is thinner per unit of
+wall. Also the per-second collision sweep scans a box around the whole sphere;
+at the 128 cap that is a large volume, worth an eye on tick time.
+
+**Status:** OPEN — compiles green, not yet run in-game.
+
+### 0a. Phantom citizen fix + baby age sync + auto-named children (2026-07-22, 0.2.1)
+
+**What changed** (`ExampleMod.onRaceNamed` + new `renameExistingCitizen` + new
+`applyAutoNaming`, `mintRaceChildCitizen`, `summonGoblin` steps 3c/3d, the send
+path's child propagation (steps 2c + body), the `/recoverorphans` orphan scan;
+new `mixin/EntityCitizenBabyMixin`; `RaceIdentitySavedData.renamePending` +
+`PendingRaceMob.name` no longer final): naming a mob that is ALREADY a citizen
+(a colony-born child, or any citizen summoned out to the player's side) used to
+mint a SECOND `CitizenData` + identity, displacing the first in the
+mob→identity index and leaving it as an unreachable citizen slot — the reported
+phantom. Naming an existing citizen is now a rename. Full root cause in
+`docs/user-bug-reports.md` (2026-07-22).
+
+Also: a summoned baby arrived as an adult (a colony-born child's snapshot is
+taken from a transient ADULT mob and is never refreshed by a send), and the
+child flag was one-way and written only to the entity, so a baby that grew up
+while out with the player was re-marked a child on return.
+
+Children are also **auto-named** now: a colony-born citizen is your named
+subordinate from birth, carrying the name MineColonies gave it, so it never has
+to be summoned and hand-named at all. `applyAutoNaming` copies the "this is
+yours and it's called X" half of Tensura's naming commit (Existence name,
+display name, permanent owner, tame flag) and deliberately skips the
+name-EVOLUTION (`INameEvolution.onPreNamed` — what turns a named goblin into a
+hobgoblin) and the magicule transfer. The citizen's name is the source of truth
+and is re-synced onto the mob at every summon, which also repairs citizens minted
+before this existed.
+
+**How to test:**
+1. Breed a race child (`/racegrow force` if you don't want to wait). Note the
+   colony's citizen count.
+2. Summon the child with the roster (G). **It must arrive as a BABY**, already
+   **named** (the citizen's name over its head) and already **yours** — it
+   follows you and obeys subordinate commands without any naming step.
+   It must NOT have evolved (a goblin child is a goblin, not a hobgoblin).
+3. Try to open Tensura's naming menu on it. Tensura should refuse by itself
+   ("already named" / "you already own this one") — that's `canName`, a second
+   lock on the duplicate path. If you CAN still open it (e.g. an older citizen
+   minted before auto-naming, before its first summon), naming must **NOT**
+   raise the citizen count, and you should get "… is already one of your
+   citizens — renamed to X". Check the town hall: one citizen, new name.
+4. Send it back. It returns as a child citizen; the count is still unchanged and
+   there is no extra entry in the roster.
+5. Repeat with a child that has GROWN UP in the colony — summon must give an
+   adult mob, and naming must still not add a citizen.
+6. Leave a summoned baby out long enough to grow up (~20 min), then send it back:
+   the citizen should now be an ADULT, and stay one after a reload (the flag is
+   written to CitizenData, not just the body).
+6b. **The adult-then-child pop** (reported 2026-07-22). Send a child home and
+   watch it closely as it rises out of the materialize circle: it must be
+   child-sized for EVERY frame, including the first. Before the fix it rendered
+   full-size for up to two seconds and then snapped down — the timing merely
+   coincided with the ~1s rise animation, which is why it read as "changes when
+   the animation completes".
+   Two changes together: the CitizenData flag is now written BEFORE the body
+   spawns (so MineColonies' own `initEntityValues` stamps the body correctly in
+   the same tick, and the first packet already describes a child), and
+   `EntityCitizenBabyMixin` makes the CLIENT read the synced `DATA_IS_CHILD`
+   instead of a cached field it only refreshes on a 40-tick timer.
+   Also worth checking on a plain MineColonies child (not one of ours) — the
+   mixin should make those crisper too.
+7. **Existing-save repair:** on a world that already has a phantom, run
+   `/recoverorphans` — it should now list the phantom even while its mob is
+   alive beside you. `confirm` turns it into a working colonist; `purge` deletes
+   it and frees the slot.
+8. Regression: naming a genuinely WILD goblin must still create a citizen
+   exactly as before (count +1, travelling-suppressed, no body until sent), and
+   must still cost the player magicule and evolve the goblin into a hobgoblin —
+   auto-naming must not have leaked into the hand-naming path.
+9. Non-race subordinates: name a direwolf / spider / any non-goblin-orc-
+   lizardman-dwarf mob. It must NOT appear in the roster and the colony's
+   citizen count must not move. (Verified by reading the code — `Races.of()`
+   returns null for anything outside the four races and `onRaceNamed` returns
+   before any citizen is created — but worth one in-game confirmation.)
+
+**Status:** OPEN — compiles green, not yet run in-game.
+
+### 0b. Masterwork / Annihilator damage re-scale + in-place stat repair (2026-07-22, 0.2.1)
+
+**What changed** (new `GearEvolution.java`; `ExampleMod` masterwork
+registration; `MasterworkItem` constants + `inventoryTick`;
+`AbsoluteAnnihilatorItem.inventoryTick`; all 13 gear_existence ladders): a
+Masterwork katana was reading **184** attack damage. The `uniqueEvolutions`
+amounts COMPOUND (`GearHandler.applyUniqueGearEvolution` adds the lowest
+not-yet-applied tier to the stack's CURRENT modifiers and then drops it from the
+list), but 0.2.0 authored them as absolute per-tier values — so all four summed
+on top of a base that was already counterpart+2.
+
+Re-scaled per the user's intent: the **maximum** is counterpart **+2**, not the
+base. A Masterwork now starts **30 below** its hihiirokane counterpart and climbs
++5/+7/+9/+11 (cumulative, sum +32) to **+2 above** it. The Absolute Annihilator's
+ladder had the same authoring error and is re-expressed as increments so it caps
+at the originally intended 38 damage instead of 63.
+
+Because Tensura bakes stats into the stack, retuning the datapack does nothing
+for weapons that already exist — and a player can't re-forge without another
+Masterwork Core. `GearEvolution.recalibrate` therefore rebuilds any Masterwork /
+Annihilator stack in a player's inventory once a second: item base attributes +
+exactly the tiers its EP has reached, folded through Tensura's own helper. A
+correct stack is left untouched.
+
+**How to test:**
+1. Creative: a fresh Masterwork katana should read **51** attack damage
+   (hihiirokane katana is 81); great sword/odachi 53; kodachi/short sword 48.
+2. Feed it EP past 1.1M / 1.4M / 1.7M / 2.0M — damage should step
+   **51 → 56 → 63 → 72 → 83**, ending exactly 2 above the counterpart, with the
+   shimmer changing at the same four moments.
+3. **The migration** — the important one. Load a save from 0.2.0 that has a
+   Masterwork weapon (or an Annihilator) already forged. Within a second of it
+   being in your inventory its tooltip should drop to the correct number for its
+   current EP. Confirm it does NOT keep dropping (it should settle and stay), and
+   that continuing to kill things still advances it normally.
+4. Absolute Annihilator: 20 base, stepping 24 / 28 / 33 / **38** at
+   150k/400k/700k/1M, and — newly working — **+2 knockback resistance** at 400k
+   (+1 more at 1M) and **+2 hearts** at 700k (+2 more at 1M). A fresh hammer must
+   show NO zero-value lines for those two.
+5. Annihilator tooltip: SHIFT lists the four ability unlocks with their EP costs,
+   green once reached and grey while locked, plus the current EP total.
+
+**Status:** OPEN — compiles green, not yet run in-game.
+
+### 0c. Weapon engravings + right-click ability damage (2026-07-22, 0.2.1)
+
+**What changed** (new `WeaponAbilities.java`; `MasterworkItem`,
+`AbsoluteAnnihilatorItem`, `DragoNovaItem`; new tag files under
+`data/tensura/tags/item/` and `data/minecraft/tags/item/`): fixes the two
+reported 0.2.0 weapon bugs — see `docs/user-bug-reports.md` (2026-07-22) for the
+full root-cause writeup.
+
+1. **Tags.** All 12 Masterwork weapons + the Absolute Annihilator are now in the
+   same item tags as their hihiirokane counterparts, so engravings and vanilla
+   enchantments can be applied at all, and Tensura's EP-milestone engraving
+   grant (`EngravingHelper.grantRandomEngraving`, which filters on
+   `canEnchant`) stops coming back empty.
+2. **Abilities clear invulnerability frames before hitting**, so the swing that
+   came just before no longer eats the ability's damage (`amount - lastHurt`).
+3. **Abilities run Tensura's on-hit pipeline** — `hurtEnemy` +
+   `doPostAttackEffectsWithItemSource` + `doAdditionalAfterDamage/AfterAttack`,
+   the same recipe Tensura's own Battlewill arts use — so engravings and the
+   weapon's on-hit effect fire from an ability too.
+4. **Attacker-credited damage sources**: the magic slice now uses
+   `tensura:magic` with the player as the attacker (was an ownerless
+   `minecraft:magic`), the shockwave uses `player_attack`, and the Drago Nova
+   blast is credited to the caster.
+5. **Nova scaling**: fired from the Annihilator it adds 4× the weapon's attack
+   damage to the base 150 (⚠ BALANCE GUESS, unplayed).
+
+**How to test:**
+1. Creative: get a Masterwork weapon. Its tooltip should now let an **enchanting
+   table / anvil** offer enchantments at all — check an anvil with a Sharpness
+   book accepts it (before the fix it refused every book).
+2. Engraving: apply Barrier Piercing (or any engraving) via whatever route your
+   pack uses. Hit a mob with a barrier — the barrier should visibly take the
+   piercing hit and play the barrier-break sound.
+3. **The "2 damage" case** — this is the important one. Swing at a tanky mob,
+   then IMMEDIATELY right-click to fire the branch ability. Before: ~0-2 damage.
+   After: the ability's full damage (0.6× your attack damage for the sweep,
+   0.8× for the slice), regardless of how recently you swung.
+4. Confirm the ability now also triggers the weapon's on-hit: as a majin you
+   should heal a little from an ability hit; as a non-majin you should gain
+   Regeneration.
+5. Kill something with an ability (not a swing) — you should get the EP for it,
+   and your weapon's EP should tick up.
+6. Kill mobs with a Masterwork weapon until its EP crosses a milestone; it
+   should start picking up engravings on its own (50k / 250k / 1M EP thresholds
+   from Tensura's enchantment config; Masterwork weapons start at 800k so the
+   first ones come quickly). 3% chance per grant of a CURSE engraving — same as
+   Tensura's own gear, expected.
+7. Absolute Annihilator at 1M EP: the on-hit shockwave should hurt nearby
+   enemies for a real amount, and the nova blast should hit noticeably harder
+   than it used to.
+
+**Watch for:** the sweep/slice now costs 1 durability per target hit (it runs
+the weapon's real on-hit path). Masterwork weapons self-repair from EP, so this
+should be invisible — flag it if a weapon visibly degrades.
+
+**Status:** OPEN — compiles green (`./gradlew compileJava`), not yet run in-game.
+
 ### 0d. Masterwork weapons — FULL LINE (2026-07-21)
 
 **What changed** (`ExampleMod` items + `MasterworkItem` + `ExampleModClient`,
@@ -25,15 +261,24 @@ Ingot**) grants a **Masterwork Weapon Core** (renamed from Forging Core) + a
 to unlock). At the **Tensura Smithing Bench**: `hihiirokane_<type> + core ->
 masterwork_<type>`, schematic-gated, for all **12 weapon types**.
 
-**Stats (rebased onto the hihiirokane scale 2026-07-21):** MASTERWORK_TIER damage
-bonus **76** (= hihiirokane), durability **4000** (> their 3600), enchantability
-**50** (=), `epGain` **0.04** (=). Each weapon's damage param = its counterpart's
-**+2** (verified exactly +2 on all 12: sword 82, katana 83, odachi/great_sword 85).
+**Stats (re-scaled 2026-07-22, 0.2.1 — supersedes the 2026-07-21 numbers):**
+MASTERWORK_TIER damage bonus **76** (= hihiirokane), durability **4000**
+(> their 3600), enchantability **50** (=), `epGain` **0.04** (=).
 gear_existence: **minEP 800,000, maxEP 2,000,000**, ladder
-**1.1M/1.4M/1.7M/2.0M -> +8/+18/+30/+45** (~127-130 damage at the cap).
-`MasterworkItem.SHIMMER_TIERS` MUST equal those four EPs.
-⚠ The prestige floor is NO LONGER 10 — an EP loss drops the weapon to its base
-(counterpart + 2), forfeiting up to +45.
+**1.1M/1.4M/1.7M/2.0M -> +5/+7/+9/+11**, and those amounts are **CUMULATIVE**
+(sum +32). `MasterworkItem.SHIMMER_TIERS` MUST equal those four EPs and
+`EVOLUTION_STEPS` MUST equal those four amounts.
+
+Each weapon is positioned purely RELATIVE to its hihiirokane counterpart
+(`MasterworkItem.START_OFFSET` -30, `MAX_OFFSET` +2): freshly forged it is **30
+BELOW** its counterpart, at max EP it is **2 ABOVE** it. Katana: 51 -> 83
+(hihiirokane katana is 81). Kodachi/short sword: 48 -> 80. Odachi/great sword:
+53 -> 85.
+⚠ An EP loss drops the weapon back toward its base, forfeiting up to 32.
+⚠ 0.2.0 authored this ladder as ABSOLUTE per-tier values (+8/+18/+30/+45) on the
+mistaken belief that only the highest-reached tier applied — they compound, so a
+katana capped at 184. Weapons forged under those numbers are rebuilt in place by
+`GearEvolution.recalibrate` (see entry 0b).
 
 **Look:** tier 0 = sleek steel (static); tiers 1-4 = 10-frame animated strips
 (+ `.mcmeta`) whose subtle in-place glimmer matches the hihiirokane weapons
@@ -141,11 +386,23 @@ custom effect ladder in `AbsoluteAnnihilatorItem` (see tests 5–7).
    **sonic-boom shockwave** that damages + knocks back nearby HOSTILES only
    (players, citizens, and ally/race-tagged mobs are spared).
 7. **Stat evolutions** (`gear_existence` uniqueEvolutions): as EP crosses
-   150k/400k/700k/1M, confirm the tooltip attack damage climbs (20 → 38) and the
-   later tiers add attack speed, knockback resistance, and +max health (hearts)
-   while held. ⚠ Tensura applies only the highest-reached tier's cumulative set;
-   verify the numbers match the tier and don't double up (compound vs replace is
-   Tensura-internal — this is the thing to watch).
+   150k/400k/700k/1M, confirm the tooltip attack damage climbs **20 → 24 → 28 →
+   33 → 38** and attack speed **1.8 → 2.3**.
+   ⚠ CORRECTED 2026-07-22 (0.2.1): the tiers COMPOUND — each is added to the
+   stack's current stats, not swapped in — so the ladder is now authored as
+   INCREMENTS (+4/+4/+5/+5 damage). Under 0.2.0's absolute values it capped at
+   63 damage instead of 38. Hammers forged under the old numbers are rebuilt in
+   place by `GearEvolution.recalibrate`.
+   ⚠ FIXED 2026-07-22 (was: the knockback-resistance and max-health steps did
+   NOTHING). `GearHandler.getEvolvedAttributeModifiers` only bumps attributes the
+   BASE item already declares, and `absoluteAnnihilatorAttributes()` declared
+   only attack damage / speed / reach — so those two tiers were silently dropped
+   by Tensura. Both attributes are now declared on the base item at **0**, which
+   is what lets the tiers raise them; vanilla renders no tooltip line for a
+   zero-amount modifier (`ItemStack.addModifierTooltip` only prints for
+   `amount > 0` or `< 0`), so nothing shows until it actually grows. VERIFY:
+   a fresh hammer's tooltip has NO "+0 Knockback Resistance" / "+0 Max Health"
+   line, and at 400k / 700k those lines appear with the right values.
 8. **EP reaches the milestones** — confirm the weapon climbs to 500k/1M by
    killing high-EP mobs; EP grows as min(current+gain, maxEP=1M), so 500k is a
    normal midpoint. If it's too slow to test, raise `epGain` or the
