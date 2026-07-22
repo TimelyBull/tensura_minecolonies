@@ -178,13 +178,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS =
             DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
 
-    public static final DeferredBlock<Block> EXAMPLE_BLOCK =
-            BLOCKS.registerSimpleBlock("example_block", BlockBehaviour.Properties.of().mapColor(MapColor.STONE));
-    public static final DeferredItem<BlockItem> EXAMPLE_BLOCK_ITEM =
-            ITEMS.registerSimpleBlockItem("example_block", EXAMPLE_BLOCK);
-    public static final DeferredItem<Item> EXAMPLE_ITEM =
-            ITEMS.registerSimpleItem("example_item", new Item.Properties().food(
-                    new FoodProperties.Builder().alwaysEdible().nutrition(1).saturationModifier(2f).build()));
     // ------------------------------------------------------------------
     // Raid v1 — magicule barrier block + block entity + MC colony-event
     // registry entry. See docs/raid-system.md.
@@ -433,7 +426,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     .withTabsBefore(CreativeModeTabs.COMBAT)
                     .icon(() -> DRAGO_NOVA.get().getDefaultInstance())
                     .displayItems((parameters, output) -> {
-                        output.accept(EXAMPLE_ITEM.get());
                         output.accept(BARRIER_BLOCK_ITEM.get());
                         output.accept(BARRIER_BLOCK_T2_ITEM.get());
                         output.accept(BARRIER_BLOCK_T3_ITEM.get());
@@ -467,7 +459,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // driver lives in its own handler class. The command-cycle branch is
         // hooked from onEntityInteract below.
         NeoForge.EVENT_BUS.register(new SubordinatePatrol());
-        modEventBus.addListener(this::addCreative);
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
         // Faction master switch lives in a per-world SERVER config so the
         // in-game config menu can actually change it (COMMON loads once per
@@ -8260,12 +8251,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     .subscribe(com.minecolonies.api.eventbus.events.colony.buildings.BuildingConstructionModEvent.class,
                             this::onBuildingConstruction);
         });
-    }
-
-    private void addCreative(BuildCreativeModeTabContentsEvent event) {
-        if (event.getTabKey() == CreativeModeTabs.BUILDING_BLOCKS) {
-            event.accept(EXAMPLE_BLOCK_ITEM);
-        }
     }
 
     @SubscribeEvent

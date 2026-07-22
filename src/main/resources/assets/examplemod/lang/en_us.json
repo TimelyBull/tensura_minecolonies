@@ -26,8 +26,6 @@
   "item.tensura_minecolonies.apito_nectar": "Apito Nectar",
   "item.tensura_minecolonies.apitos_jelly": "Apito's Jelly",
   "item.tensura_minecolonies.drago_nova": "Drago Nova",
-  "block.examplemod.example_block": "Example Block",
-  "item.examplemod.example_item": "Example Item",
   "tensura_minecolonies.configuration.title": "Tensura MineColonies Integration",
   "tensura_minecolonies.configuration.section.tensura_minecolonies.common.toml": "Tensura MineColonies Settings",
   "tensura_minecolonies.configuration.section.tensura_minecolonies.common.toml.title": "Tensura MineColonies Settings",

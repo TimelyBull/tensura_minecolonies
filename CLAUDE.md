@@ -431,10 +431,13 @@ Related MDK-rename leftovers (surfaced while fixing config display names):
   NeoForge's config screen looks up `tensura_minecolonies.configuration.*`
   (the real mod id). Fixed by re-prefixing the keys; moving the file into the
   `tensura_minecolonies` namespace folder is deferred cleanup.
-- Vestigial MDK placeholder config options remain in `Config.java`
-  (`logDirtBlock`, `magicNumber`, `magicNumberIntroduction`, `items`) plus the
-  example block/item (`block.examplemod.*` / `item.examplemod.*`). Safe to
-  delete when convenient (also touches the `commonSetup` example logging).
+- ~~Vestigial MDK placeholder config options + the example block/item.~~
+  DONE (2026-07-21, 0.2.0): `logDirtBlock` / `magicNumber` /
+  `magicNumberIntroduction` / `items` + `validateItemName` deleted from
+  `Config.java` (all were referenced only by their own declarations), and
+  `EXAMPLE_BLOCK` / `EXAMPLE_BLOCK_ITEM` / `EXAMPLE_ITEM` + the `addCreative`
+  listener + their two lang keys deleted. Only the `assets/examplemod/` folder
+  name remains (see the item above).
 
 ## Current feature status (Milestone 3 vertical slice)
 

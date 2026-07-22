@@ -289,6 +289,13 @@ config to see any of this.)_
   each world's own config, so existing setups will show it back at its default
   (off) and can re-enable it per world.
 
+### Removed
+- **Leftover template content is gone.** The placeholder "Example Block" and
+  "Example Item" (which showed up in the creative menu with broken, untranslated
+  names) have been removed, along with four unused config options that did
+  nothing: `logDirtBlock`, `magicNumber`, `magicNumberIntroduction`, and `items`.
+  Your existing config file will simply ignore them.
+
 ## [0.1.21] - 2026-06-28
 
 ### Added
