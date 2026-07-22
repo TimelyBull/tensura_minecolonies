@@ -467,26 +467,34 @@ public final class RivalColonies {
     // The wild/colony split — the generation decision
     // ------------------------------------------------------------------
 
-    /** Should a physical-faction boss generation become the COLONY
-     *  version (settlement) under the current config? */
+    /** Chance that a dwarf village becomes a Dwargon COLONY rather than staying
+     *  a plain village. This was the {@code rivalSettlementSomeChance} config
+     *  (same 0.5 default); the config was removed in 0.2.0 because the only
+     *  caller left is the dwarf-village roll — see {@link #rollColony}. */
+    private static final double DWARF_VILLAGE_COLONY_CHANCE = 0.5;
+
+    /** Should this generation become the COLONY version (a settlement) rather
+     *  than being left alone? Only {@link #tickDwarvenVillages} still calls
+     *  this — town factions always populate as colonies (see below). */
     private static boolean rollColony(ServerLevel level) {
-        return switch (Config.RIVAL_SETTLEMENT_MODE.get()) {
-            case ALL -> true;
-            case NONE -> false;
-            case SOME -> level.getRandom().nextDouble() < Config.RIVAL_SETTLEMENT_SOME_CHANCE.get();
-        };
+        return level.getRandom().nextDouble() < DWARF_VILLAGE_COLONY_CHANCE;
     }
 
     // (Stage 4) The old `generate()` wrapper — the proximity-scatter entry that
     // rolled WILD-boss vs COLONY per config — was removed with the scatter. For
     // TOWN factions, a worldgen anchor now ALWAYS populates as a COLONY
     // (populateSettlementAt → generateColony). ⚠ BEHAVIOR CHANGE: the
-    // wild-boss-alone variant + RIVAL_SETTLEMENT_SOME_CHANCE no longer apply to
-    // town natural-gen (RIVAL_SETTLEMENT_MODE NONE still disables via the
-    // settlementsOn gate; the wild/colony roll survives ONLY for Dwargon dwarf
-    // villages, which still call rollColony). Re-add a wild variant later if
-    // wanted (e.g. roll at populate time). The debug command + ALL/colony
-    // callers use generateColony directly.
+    // wild-boss-alone variant no longer applies to town natural-gen; the
+    // wild/colony roll survives ONLY for Dwargon dwarf villages, which still
+    // call rollColony. Re-add a wild variant later if wanted (e.g. roll at
+    // populate time). The debug command + colony callers use generateColony
+    // directly.
+    //
+    // (0.2.0) The RIVAL_SETTLEMENT_MODE config that used to sit in front of all
+    // of this is gone. ALL and SOME had become indistinguishable for towns once
+    // worldgen anchors always populated as colonies, and NONE's "generate no
+    // settlements" job is covered by RIVAL_NATURAL_GEN=false, which now gates
+    // the dwarf-village pass as well as the worldgen-town pass.
 
     /**
      * True only in the vanilla OVERWORLD. Faction settlements are overworld
@@ -941,7 +949,6 @@ public final class RivalColonies {
         if (!WorldReputationManager.isFactionSystemEnabled()) return;
         // #5 — run any due post-placement hut strips (cheap when none queued).
         tickHutStrips(server);
-        boolean settlementsOn = Config.RIVAL_SETTLEMENT_MODE.get() != Config.SettlementMode.NONE;
         boolean ambient = server.getTickCount() % AMBIENT_PERIOD_TICKS == 0;
 
         for (ServerLevel level : server.getAllLevels()) {
@@ -959,8 +966,6 @@ public final class RivalColonies {
             // Stage C — proximity discovery.
             tickDiscovery(level);
 
-            if (!settlementsOn) continue;
-
             // Overworld-only: skip the whole generation scan in the Nether/End
             // (and any other dimension). Faction towns are overworld content;
             // their WORLD_SURFACE placement lookups break under a bedrock roof.
@@ -968,17 +973,21 @@ public final class RivalColonies {
             // in other dimensions because every settlement is overworld.)
             if (!isOverworld(level)) continue;
 
-            // Dwargon: poll for players standing in an unevaluated dwarf
-            // village (a structure lookup per player).
-            tickDwarvenVillages(level);
-
             // Stage 4 — worldgen is now the ONLY natural settlement source.
             // The old proximity scatter (which dropped towns right next to the
             // player, the original complaint) is RETIRED. RIVAL_NATURAL_GEN
             // keeps its meaning: true = our worldgen faction anchors auto-
             // populate into full settlements as players explore; false = anchors
             // stay dormant markers and only the debug commands populate them.
+            // (0.2.0) It now also gates the dwarf-village pass below, taking over
+            // the "generate no settlements at all" job from the removed
+            // RIVAL_SETTLEMENT_MODE=NONE.
             if (!Config.RIVAL_NATURAL_GEN.get()) continue;
+
+            // Dwargon: poll for players standing in an unevaluated dwarf
+            // village (a structure lookup per player).
+            tickDwarvenVillages(level);
+
             tickWorldgenSettlements(level);
         }
     }
@@ -1006,7 +1015,6 @@ public final class RivalColonies {
     /** Per-tick poll: any player standing in an unevaluated dwarf village
      *  triggers a one-time wild/colony roll for that village. */
     private static void tickDwarvenVillages(ServerLevel level) {
-        if (Config.RIVAL_SETTLEMENT_MODE.get() == Config.SettlementMode.NONE) return;
         net.minecraft.world.level.levelgen.structure.Structure dwarfVillage =
                 dwarfVillageStructure(level);
         if (dwarfVillage == null) return;

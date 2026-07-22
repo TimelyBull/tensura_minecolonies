@@ -749,10 +749,13 @@ profession (latest):**
   the id `clayman`, enum `CLAYMAN`, and the Demon Lord character "Clayman"
   are unchanged — "Clayman" in these notes is internal shorthand / the
   character, not the faction's display label.)
-  Wild/colony split via `SettlementMode` config (ALL/SOME/NONE, default
-  SOME) — colony = settlement + FactionMarkTag boss; wild = unmarked
-  boss alone. Our-own scheduler generation pass (not vanilla world-gen),
-  rare/capped/tunable; `rivalNaturalGeneration` toggle. Debug:
+  Wild/colony split — colony = settlement + FactionMarkTag boss; wild =
+  unmarked boss alone. (The `SettlementMode` config ALL/SOME/NONE that
+  used to drive this was REMOVED in 0.2.0; the roll survives only for
+  Dwargon dwarf villages at a hardcoded 50%, and `rivalNaturalGeneration`
+  is now the single "nothing generates on its own" switch — it gates the
+  dwarf-village pass too.) Our-own scheduler generation pass (not vanilla
+  world-gen), rare/capped/tunable. Debug:
   `/rivalcolony spawn|wild <faction>` + `list`. All behind
   enableFactionSystem. Stages B–E extend the Settlement record's
   reserved seams. Records: docs/rival-colony-investigation.md (Stage A

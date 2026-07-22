@@ -20,9 +20,9 @@ which play the same way:
   anchored by Gazel.
 
 Each settlement has an **anchor boss** (the faction's champion) and a
-**garrison** of faction-themed defenders. How many settlements exist is set
-by the [config](../reference/config.md) (`rivalSettlementMode`: all / some /
-none).
+**garrison** of faction-themed defenders. Settlements form as you explore;
+you can stop that entirely with the `rivalNaturalGeneration`
+[config](../reference/config.md) option.
 
 ## Discovery
 

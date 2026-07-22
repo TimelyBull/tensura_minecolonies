@@ -292,6 +292,12 @@ config to see any of this.)_
   (off) and can re-enable it per world.
 
 ### Removed
+- **Two redundant config options are gone:** `rivalSettlementMode` and
+  `rivalSettlementSomeChance`. Its "all" and "some" settings had come to mean the
+  same thing, and "none" did the same job as turning `rivalNaturalGeneration` off.
+  That option is now the single switch for whether faction settlements appear on
+  their own, and it also covers the dwarf villages that become Dwargon
+  settlements. If you had settlement generation turned off, it stays off.
 - **Leftover template content is gone.** The placeholder "Example Block" and
   "Example Item" (which showed up in the creative menu with broken, untranslated
   names) have been removed, along with four unused config options that did

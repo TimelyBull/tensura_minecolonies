@@ -325,9 +325,11 @@ The structural foundation is built. As-built record:
 - **Files:** `RivalColonies` (driver: anchor/pack maps, shared layout,
   placement, wild/colony split, natural pass, debug), `Settlement`
   (the mutable per-settlement record with B–E seams), and
-  `SettlementSavedData` (sole-door storage). Config: `SettlementMode
-  {ALL, SOME, NONE}` (`rivalSettlementMode`, default SOME) +
-  `rivalSettlementSomeChance` (0.5) + `rivalNaturalGeneration` (true).
+  `SettlementSavedData` (sole-door storage). Config:
+  `rivalNaturalGeneration` (true). ⚠ HISTORICAL: this stage also shipped
+  `SettlementMode {ALL, SOME, NONE}` (`rivalSettlementMode`, default SOME)
+  + `rivalSettlementSomeChance` (0.5); BOTH WERE REMOVED IN 0.2.0 — see
+  "Config removal (0.2.0)" at the end of this doc.
   Debug: `/rivalcolony spawn|wild <faction>` + `/rivalcolony list`.
 - **Placement (verified path):** each building =
   `StructurePacks.getBlueprintFuture(packDisplayName, path,
@@ -375,9 +377,10 @@ The structural foundation is built. As-built record:
   settlement anchors; Clayman has no settlement anchor by design). The
   abstractness is reported by `/rivalcolony spawn clayman` ("ABSTRACT
   — no anchor mob, no settlement").
-- **Wild/colony split:** `RivalColonies.generate` rolls per config —
+- **Wild/colony split:** `RivalColonies.generate` rolled per config —
   ALL → colony, NONE → wild boss only (no settlement; layer off), SOME
-  → `rivalSettlementSomeChance` colony else wild. COLONY = settlement
+  → `rivalSettlementSomeChance` colony else wild. (⚠ Both configs removed
+  in 0.2.0; the roll survives only for dwarf villages, at a hardcoded 50%.) COLONY = settlement
   cluster + boss MARKED via the existing `FactionMarkTag` (rep-
   affecting); WILD = anchor boss alone, UNMARKED (the Stage-3 spare-boss
   free-kill behavior — Layer-1 movers ignore it).
@@ -1268,3 +1271,30 @@ A maintenance + feature batch on the rival-colony arc and diplomacy entry.
 - **#1b outbound**: the dispatched subordinate's EP threshold is now scaled
   inverse to faction friendliness — 5,000 floor (Tempest/Jura) up to 15,000
   (Luminous). All `ENVOY_EP_THRESHOLD` values tunable.
+
+---
+
+## Config removal (0.2.0)
+
+`rivalSettlementMode` and `rivalSettlementSomeChance` were **deleted**.
+
+Why: Stage 4 made worldgen anchors ALWAYS populate as colonies, which left
+`ALL` and `SOME` behaving identically for the six town factions — the only
+surviving caller of `rollColony` was the Dwargon dwarf-village pass. And
+`NONE` ("generate no settlements") duplicated `rivalNaturalGeneration=false`.
+Two of the three values were dead and the third was a synonym, so the option
+was three ways of saying something already said elsewhere.
+
+What replaced them:
+- `rollColony` now rolls a hardcoded `DWARF_VILLAGE_COLONY_CHANCE = 0.5` —
+  the same odds the default config produced, so behaviour on defaults is
+  unchanged.
+- `rivalNaturalGeneration=false` now gates `tickDwarvenVillages` as well as
+  `tickWorldgenSettlements`, so it is the single "nothing generates on its
+  own" switch. ⚠ BEHAVIOUR CHANGE for anyone who had set it to false: dwarf
+  villages used to still be adopted as Dwargon settlements under that
+  setting, and no longer are. That matches what the option says it does.
+- The `settlementsOn` local in `tick` is gone.
+
+Debug commands are unaffected — they call `generateColony` directly and never
+consulted either option.
