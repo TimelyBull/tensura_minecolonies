@@ -1209,3 +1209,28 @@ guard-tower approach for the colony-patrol use case.
 The race-citizen pipeline (goblin / orc / dwarf / lizardman) is
 unaffected — those are humanoid, fit the pathfinder, and the
 identity / send / summon flow remains the right home for them.
+
+---
+
+## ⛔ Paused mid-way — faction rewards revamp (2026-07-21, at 0.2.0)
+
+The faction **reward** review was stopped part-finished so 0.2.0 could ship,
+and the release contains **known placeholders**. Full re-entry checklist:
+[faction-rewards-roadmap.md](faction-rewards-roadmap.md) → "⛔ UNFINISHED —
+RESUME HERE" (first section).
+
+The short version:
+- **8 of 9 Covenant capstone rewards are placeholders** (tier-scaled Enchanted
+  Golden Apples). Only Dwargon's is real (Masterwork Weapon Core + schematic).
+  Milim's planned Absolute Annihilator reward was designed but never wired up.
+- **The conquest/raid balance pass (Phase 2) never started** — citizen levies,
+  forced skills and loot pools are untuned.
+- **Cross-axis tuning (Phase 4) never started** — raid payoff vs diplomacy
+  payoff has not been compared.
+- The four-tier faction ladder landed, but §7's per-faction tables still show
+  the old three-tier labels.
+
+Safe to ship in this state only because the whole layer sits behind
+`enableFactionSystem`, which defaults to OFF. **Turning that default on is
+gated on finishing this review** — and on playtesting it, which has never
+happened.

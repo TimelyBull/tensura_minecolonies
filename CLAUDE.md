@@ -13,7 +13,7 @@ Planning documents live in `docs/` and should be kept current as work progresses
 - [docs/dependencies.md](docs/dependencies.md) — exact jar versions in `libs/` and confirmed registry IDs; update when new deps are added
 - [docs/future-ideas.md](docs/future-ideas.md) — recorded (not scheduled) design ideas / deferred follow-ons
 - [docs/user-suggestions.md](docs/user-suggestions.md) — community feature requests captured for future consideration
-- [docs/faction-rewards-roadmap.md](docs/faction-rewards-roadmap.md) — per-faction review of raid/conquest + diplomacy rewards (status matrix, gaps, checklist, phased plan)
+- [docs/faction-rewards-roadmap.md](docs/faction-rewards-roadmap.md) — per-faction review of raid/conquest + diplomacy rewards (status matrix, gaps, checklist, phased plan). **⛔ PAUSED MID-REVIEW at 0.2.0** — 8 of 9 Covenant rewards are placeholders and Phases 2/4 never started; read the "⛔ UNFINISHED — RESUME HERE" section at the top before touching faction rewards
 - [docs/playtesting.md](docs/playtesting.md) — queue of changes that compile but haven't been verified in-game (compiles ≠ works); **add an entry for every nontrivial change** (what changed + concrete test steps), move it to VERIFIED only after a real `runClient` test
 - [CHANGELOG.md](CHANGELOG.md) — player-facing, Keep-a-Changelog style, versioned (Added/Changed/Fixed). **MAINTAIN IT:** every change-set appends an entry (new version heading, or under `[Unreleased]`), written in plain player terms (it's copied into CurseForge release notes) — no API names/class names. Bump `mod_version` in `gradle.properties` to match the version heading on a release.
 

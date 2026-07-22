@@ -18,6 +18,69 @@ actually award and fills the holes.
 
 ---
 
+## ⛔ UNFINISHED — RESUME HERE (paused 2026-07-21 for the 0.2.0 release)
+
+**This review was NOT completed.** Faction work was deliberately stopped
+mid-way to ship 0.2.0, and the reward system went out with **known
+placeholders in it**. This section is the re-entry point — read it first.
+
+Shipping this incomplete was a considered call, not an oversight: the whole
+faction layer is behind `enableFactionSystem`, which defaults to **OFF**, so no
+player sees any of it unless they opt in. That is the only reason placeholders
+were acceptable in a release.
+
+### What is DONE
+
+- **Phase 0** (decisions) and **Phase 1** (structural gaps: Leon / Eastern
+  Empire / Clayman parity, Shizu purge, Tempest skill disambiguation).
+- **§7A catalog deals** — reworked for all nine factions, with the coin ladder
+  (Bronze / Silver / Gold by tier), the no-task-duplicate-rewards rule, and
+  themed tomes/manuals applied. This is the finished part.
+- **§7C–7E** (skill rewards, caravan goods, alliance buffs) — every faction has
+  an entry, so there are no *holes*. They have not had a balance pass.
+
+### What is NOT done
+
+1. **§7B Covenant rewards — 8 of 9 are PLACEHOLDERS.** Only **Dwargon** has its
+   real reward (the Masterwork Weapon Core + schematic). The other eight pay
+   **tier-scaled Enchanted Golden Apples** (Tier I=1, II=2, III=3) standing in
+   for unique per-faction rewards that were never designed. This is the single
+   biggest piece of unfinished work.
+   - Specifically planned but never built: **Milim** was to receive the
+     **Absolute Annihilator** as its covenant reward, with the catalog deal
+     *The Ultimate Brawl* (slay the Warden) dropping to **1 Drago Nova**. The
+     Annihilator exists and is finished; it just still sits on the Milim pact
+     deal instead of the covenant.
+2. **Phase 2 — the conquest/raid balance pass never started.** `PROFILES`
+   citizen counts and skill pairs, the forced Covenant skill, and
+   `factionRewardPool` have never been retuned. The conquest route's rewards
+   are therefore whatever fell out of Stage D, not deliberate values. See
+   [faction-combat-audit.md](faction-combat-audit.md) for the difficulty side,
+   which DOES record confirmed difficulty↔reward mismatches (Eastern Empire /
+   Dwargon / Tempest / Leon).
+3. **Phase 3 tier reconciliation is owed.** The tier ladder was expanded from
+   three tiers to **four** (IV/Apex · III/High · II/Major · I/Minor) on
+   2026-07-10, but **the per-faction tables in §7 still carry the OLD three-tier
+   labels**. Do not trust a "Tier II" label in §7 without re-deriving it from
+   the four-tier list in §6. The old "re-space the covenant emerald guides"
+   note is now moot — those rewards are golden-apple placeholders.
+4. **Phase 4 — cross-axis tuning never started.** Nobody has compared what
+   conquering a faction pays versus what befriending it pays, which was the
+   whole point of locking the diplomacy values first.
+
+### Also worth knowing
+
+- **None of the reward values have been playtested.** Every number here is a
+  paper decision; the faction system has never been exercised in a real game.
+- The **Masterwork Forging Core** is consumed only by the Dwargon covenant and
+  is otherwise a dead-end item (see `future-ideas.md`).
+
+**Suggested order when resuming:** finish §7B (start with Milim, since its
+reward already exists), then Phase 2, then Phase 4. Phase 3's tier-label
+cleanup can happen alongside whichever section you touch.
+
+---
+
 ## 1. Where each reward lives (source of truth)
 
 **Raid / conquest** (fires from `RivalColonies.resolveWin` → `ConquestPayoff`):
@@ -517,14 +580,17 @@ Covenant is forged → 16 Emerald.
 
 ⚠ Note: the Dwargon covenant is the only deal that still consumes a **Masterwork
 Forging Core** — a known dead-end item (see future-ideas.md). Cross-axis: the
-emerald amount matches the tier (III=64, II=48, I=32), but the *task difficulty*
-varies a lot (Pop 25 vs. slay the Wither) — a Phase 4 cross-check candidate.
+placeholder payout scales with the tier (III=3, II=2, I=1 Enchanted Golden
+Apples), but the *task difficulty* varies a lot (Pop 25 vs. slay the Wither) —
+a Phase 4 cross-check candidate. (The old emerald guide of III=64 / II=48 /
+I=32 no longer applies; those payouts were replaced in 0.2.0.)
 
 
-**STATUS (v0.2.0):** the covenant capstones now pay **tier-scaled Enchanted Golden
-Apples as PLACEHOLDERS** (I=1, II=2, III=3) instead of flat emeralds, pending the
-unique per-faction rewards. **Dwargon is done for real** — it grants the Masterwork
-Weapon Core + schematic. Faction development is PAUSED here for the 0.2.0 release.
+**STATUS (v0.2.0): ⛔ UNFINISHED.** Eight of the nine covenant capstones pay
+**tier-scaled Enchanted Golden Apples as PLACEHOLDERS** (I=1, II=2, III=3);
+only **Dwargon** has its real reward. Faction work is PAUSED here — see
+"⛔ UNFINISHED — RESUME HERE" at the top of this document for the full
+re-entry checklist.
 
 **7B REWORK IN PROGRESS (2026-07-16) — each covenant gets a UNIQUE hard task +
 a fully custom reward** (replacing the flat emerald payouts):
@@ -532,7 +598,7 @@ a fully custom reward** (replacing the flat emerald payouts):
   Reward = Masterwork Weapon Core + a schematic that unlocks a smithing-table line
   of player-status-scaling "Masterwork" weapons. INVERTS today's deal (which
   *consumes* a core) — the covenant now GRANTS the core.
-- **Milim** (PLANNED, not yet done) → move the **Absolute Annihilator** to
+- **Milim** (⛔ STILL NOT DONE as of 0.2.0) → move the **Absolute Annihilator** to
   `cov_milim` as its custom covenant reward, and change the catalog "The Ultimate
   Brawl" (slay Warden) reward to **1 Drago Nova**.
 
