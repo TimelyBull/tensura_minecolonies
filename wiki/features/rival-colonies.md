@@ -16,8 +16,8 @@ which play the same way:
 - **Faction towns** — generated clusters of buildings for the five town
   factions (Luminous, Falmuth, Leon, the Eastern Empire, the Jura-Tempest Federation), each themed to its faction.
 - **Dwargon villages** — Dwargon uses existing Tensura dwarven villages
-  rather than a generated town; some of them become Dwargon settlements,
-  anchored by Gazel.
+  rather than a generated town. Every dwarven village you walk into becomes
+  a Dwargon settlement, anchored by Gazel.
 
 Each settlement has an **anchor boss** (the faction's champion) and a
 **garrison** of faction-themed defenders. Settlements form as you explore;

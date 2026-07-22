@@ -380,7 +380,8 @@ The structural foundation is built. As-built record:
 - **Wild/colony split:** `RivalColonies.generate` rolled per config —
   ALL → colony, NONE → wild boss only (no settlement; layer off), SOME
   → `rivalSettlementSomeChance` colony else wild. (⚠ Both configs removed
-  in 0.2.0; the roll survives only for dwarf villages, at a hardcoded 50%.) COLONY = settlement
+  in 0.2.0, and the dwarf-village roll went to 100% right after — there is
+  no wild/colony roll left at all. See "Config removal (0.2.0)" below.) COLONY = settlement
   cluster + boss MARKED via the existing `FactionMarkTag` (rep-
   affecting); WILD = anchor boss alone, UNMARKED (the Stage-3 spare-boss
   free-kill behavior — Layer-1 movers ignore it).
@@ -1286,9 +1287,9 @@ Two of the three values were dead and the third was a synonym, so the option
 was three ways of saying something already said elsewhere.
 
 What replaced them:
-- `rollColony` now rolls a hardcoded `DWARF_VILLAGE_COLONY_CHANCE = 0.5` —
-  the same odds the default config produced, so behaviour on defaults is
-  unchanged.
+- `rollColony` briefly kept a hardcoded `DWARF_VILLAGE_COLONY_CHANCE = 0.5`
+  (the same odds the default config produced). **Superseded immediately —
+  see "Dwarf villages are always colonies" below.**
 - `rivalNaturalGeneration=false` now gates `tickDwarvenVillages` as well as
   `tickWorldgenSettlements`, so it is the single "nothing generates on its
   own" switch. ⚠ BEHAVIOUR CHANGE for anyone who had set it to false: dwarf
@@ -1298,3 +1299,30 @@ What replaced them:
 
 Debug commands are unaffected — they call `generateColony` directly and never
 consulted either option.
+
+---
+
+## Dwarf villages are always colonies (0.2.0)
+
+The dwarf-village colony chance was raised **0.5 → 1.0**: every Tensura
+dwarven village a player walks into now becomes a Dwargon settlement
+anchored by Gazel.
+
+That made the last remaining roll a coin flip that could not come up tails,
+so `rollColony` and `DWARF_VILLAGE_COLONY_CHANCE` were **deleted** rather
+than left as `nextDouble() < 1.0`, and `tickDwarvenVillages` now calls
+`registerDwarvenVillage` unconditionally. The "rolled WILD (plain village)"
+log line is gone with it.
+
+**There is now no wild/colony split anywhere in the generation path.**
+Town-faction worldgen anchors always populate as colonies (Stage 4), dwarf
+villages always become settlements (this change), and the debug commands
+call `generateColony` directly. If a wild variant is ever wanted again, the
+place to add it is at populate time, not as a config in front of the pass.
+
+⚠ Consequence worth knowing before playtesting: dwarven villages are common
+in Tensura worldgen, so a player exploring a dwarf-heavy region can now
+convert several villages into Dwargon settlements in one trip — each with a
+garrison and a marked Gazel. Previously about half of them stayed plain.
+Whether that is too many Dwargon settlements per world is an open balance
+question, untested in-game.

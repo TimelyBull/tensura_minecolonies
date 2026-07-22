@@ -218,6 +218,11 @@ Copy the relevant version's section into the CurseForge release notes on each up
   emeralds and ender pearls in its caravan).
 - **Retired faction tidy-up.** Shizu (long since soft-retired and not part of
   normal play) no longer carries leftover deal/reward data.
+- **Every dwarven village is now a Dwargon settlement.** Previously only about
+  half of the Tensura dwarven villages you found became Dwargon territory (with
+  Gazel and a garrison) and the rest stayed ordinary villages. Now all of them do.
+  Note that dwarven villages are fairly common, so exploring a dwarf-heavy region
+  can put several Dwargon settlements on your map.
 
 _(All faction features are off by default — turn on the faction system in the
 config to see any of this.)_

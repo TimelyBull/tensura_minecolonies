@@ -464,37 +464,29 @@ public final class RivalColonies {
     private RivalColonies() {}
 
     // ------------------------------------------------------------------
-    // The wild/colony split — the generation decision
+    // Generation: everything that generates, generates as a COLONY
     // ------------------------------------------------------------------
-
-    /** Chance that a dwarf village becomes a Dwargon COLONY rather than staying
-     *  a plain village. This was the {@code rivalSettlementSomeChance} config
-     *  (same 0.5 default); the config was removed in 0.2.0 because the only
-     *  caller left is the dwarf-village roll — see {@link #rollColony}. */
-    private static final double DWARF_VILLAGE_COLONY_CHANCE = 0.5;
-
-    /** Should this generation become the COLONY version (a settlement) rather
-     *  than being left alone? Only {@link #tickDwarvenVillages} still calls
-     *  this — town factions always populate as colonies (see below). */
-    private static boolean rollColony(ServerLevel level) {
-        return level.getRandom().nextDouble() < DWARF_VILLAGE_COLONY_CHANCE;
-    }
-
-    // (Stage 4) The old `generate()` wrapper — the proximity-scatter entry that
-    // rolled WILD-boss vs COLONY per config — was removed with the scatter. For
-    // TOWN factions, a worldgen anchor now ALWAYS populates as a COLONY
-    // (populateSettlementAt → generateColony). ⚠ BEHAVIOR CHANGE: the
-    // wild-boss-alone variant no longer applies to town natural-gen; the
-    // wild/colony roll survives ONLY for Dwargon dwarf villages, which still
-    // call rollColony. Re-add a wild variant later if wanted (e.g. roll at
-    // populate time). The debug command + colony callers use generateColony
-    // directly.
     //
-    // (0.2.0) The RIVAL_SETTLEMENT_MODE config that used to sit in front of all
-    // of this is gone. ALL and SOME had become indistinguishable for towns once
-    // worldgen anchors always populated as colonies, and NONE's "generate no
-    // settlements" job is covered by RIVAL_NATURAL_GEN=false, which now gates
-    // the dwarf-village pass as well as the worldgen-town pass.
+    // There is no wild/colony split left anywhere. Every town-faction worldgen
+    // anchor populates as a COLONY (populateSettlementAt → generateColony), and
+    // as of 0.2.0 every dwarf village a player walks into becomes a Dwargon
+    // settlement. The debug commands call generateColony directly.
+    //
+    // How this got here, so it isn't re-litigated:
+    //  - (Stage 4) The `generate()` wrapper — the proximity-scatter entry that
+    //    rolled WILD-boss vs COLONY per config — was removed with the scatter,
+    //    which is what made towns unconditionally colonies. A wild variant could
+    //    be re-added later by rolling at populate time.
+    //  - (0.2.0) That left the roll alive only for dwarf villages, so the
+    //    RIVAL_SETTLEMENT_MODE config in front of it was doing nothing useful:
+    //    ALL and SOME were indistinguishable for towns, and NONE duplicated
+    //    RIVAL_NATURAL_GEN=false. Config deleted.
+    //  - (0.2.0) The dwarf-village chance was then raised 0.5 → 1.0, which made
+    //    the last roll a coin flip that could not come up tails, so `rollColony`
+    //    and its DWARF_VILLAGE_COLONY_CHANCE constant went too.
+    //
+    // To stop settlements appearing at all, set rivalNaturalGeneration=false —
+    // it gates both the dwarf-village pass and the worldgen-town pass.
 
     /**
      * True only in the vanilla OVERWORLD. Faction settlements are overworld
@@ -1012,8 +1004,9 @@ public final class RivalColonies {
                 .get(DWARF_VILLAGE_KEY);
     }
 
-    /** Per-tick poll: any player standing in an unevaluated dwarf village
-     *  triggers a one-time wild/colony roll for that village. */
+    /** Per-tick poll: the first time a player stands in a dwarf village we have
+     *  not seen before, that village becomes a Dwargon settlement (always — see
+     *  the note above). Evaluated villages are remembered so this happens once. */
     private static void tickDwarvenVillages(ServerLevel level) {
         net.minecraft.world.level.levelgen.structure.Structure dwarfVillage =
                 dwarfVillageStructure(level);
@@ -1028,11 +1021,7 @@ public final class RivalColonies {
             BlockPos villageCenter = box.getCenter();
             if (data.isVillageEvaluated(villageCenter)) continue;
             data.markVillageEvaluated(villageCenter);
-            if (rollColony(level)) {
-                registerDwarvenVillage(level, data, villageCenter, box);
-            } else {
-                LOGGER.info("[TM] rival: dwarf village @ {} rolled WILD (plain village)", villageCenter);
-            }
+            registerDwarvenVillage(level, data, villageCenter, box);
         }
     }
 
