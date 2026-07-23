@@ -844,12 +844,18 @@ Implications to work through if pursued:
 
 ## Bred race children: surnames + inherited traits (2026-06-29)
 
+**UPDATE 2026-07-23 (0.2.1): race inheritance itself is now DONE** — a bred
+child takes its race from its parents (`inheritRace`), see decisions.md. What
+remains below (surnames, inherited EP, skill copying, variant/appearance
+inheritance) is still deferred; the note about "no link to its parents beyond
+MC's family tree" now applies only to APPEARANCE and POWER, not race.
+
 Follow-on to the integrated child-growth work (`ExampleMod.onReproductionChild`
 / `mintRaceChildCitizen`) and pairs with the "leave them UNNAMED" idea above.
 Today a bred race child gets a MineColonies pool name (race-agnostic) and a
-freshly-randomised variant with no link to its parents beyond MC's family tree.
-Idea: make lineage MEAN something — a child should carry its parents' name and
-inherit a slice of their power.
+freshly-randomised variant with no link to its parents' APPEARANCE beyond MC's
+family tree. Idea: make lineage MEAN something — a child should carry its
+parents' name and inherit a slice of their power.
 
 **Surnames / lineage.**
 - Give bred children a **surname drawn from their colony parents** (MC already

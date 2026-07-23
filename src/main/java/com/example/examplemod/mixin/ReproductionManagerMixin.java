@@ -1,19 +1,20 @@
 package com.example.examplemod.mixin;
 
 import com.example.examplemod.ExampleMod;
-import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
-import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.llamalad7.mixinextras.sugar.Local;
 import com.minecolonies.api.colony.ICitizenData;
-import com.minecolonies.api.colony.managers.interfaces.ICitizenManager;
 import com.minecolonies.core.colony.Colony;
 import com.minecolonies.core.colony.managers.ReproductionManager;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Stage B — race-aware population growth (integrated child route).
+ * Stage B — race-aware population growth (integrated child route), now with
+ * PARENT-based race inheritance.
  *
  * MineColonies grows a colony's population through
  * {@code ReproductionManager.trySpawnChild()}, which creates and registers a
@@ -26,46 +27,50 @@ import org.spongepowered.asm.mixin.injection.At;
  *
  * Rather than cancel the birth and drop a wild mob at the town hall, we let
  * MineColonies create the child normally and then CONVERT it into a citizen of
- * the colony's race — a goblin/orc/dwarf/lizardman child, tied to its real
- * MineColonies parents, that renders as a baby of that race and grows up like
- * any colonist. This keeps the native reproduction/family system intact.
+ * the race it inherits from its parents.
  *
- * Mechanism: {@code @WrapOperation} around the {@code createAndRegisterCivilianData()}
- * call inside {@code trySpawnChild}. We call the original (so the child is
- * created + registered exactly as vanilla expects), then hand the fresh child
- * to {@link ExampleMod#onReproductionChild}, which mints a race identity for it
- * when the colony has a race composition (and no-ops for legacy / COLONIST
- * colonies, leaving an ordinary colonist). We return the child unchanged so the
- * rest of {@code trySpawnChild} (parents, name, child flag, body spawn) runs
- * normally; the body-join / reconcile pass then stamps the race appearance.
+ * <p><b>Why inject at {@code spawnOrCreateCitizen} rather than at
+ * {@code createAndRegisterCivilianData}</b> (the earlier hook point): the
+ * parents don't exist yet when the child is first registered — {@code
+ * trySpawnChild} picks {@code firstParent} / {@code secondParent} AFTER that.
+ * Injecting just before the body spawns gives us the assigned parents (captured
+ * as {@code @Local}s — verified live at this call: {@code newCitizen} slot 5,
+ * {@code firstParent} slot 6, {@code secondParent} slot 7, MC 1.1.1319), the
+ * child's FINAL name (post-{@code generateName}), and the parent-inherited
+ * skills already applied — while still running before the body exists, which
+ * {@code mintRaceChildCitizen} needs so the body-join handler can stamp the
+ * race appearance. Either parent may be null (colony with a lone breeder).</p>
  *
- * {@code createAndRegisterCivilianData} is a stable {@code ICitizenManager} API
- * method called exactly once in {@code trySpawnChild} (decompile-verified for
- * MC 1.1.1319). If a future MC build removes or renames it, the default
- * {@code require = 1} makes this mixin fail loudly at load.
+ * {@code spawnOrCreateCitizen} is a stable {@code ICitizenManager} API method
+ * called exactly once in {@code trySpawnChild} (decompile-verified for MC
+ * 1.1.1319). The default {@code require = 1} makes this mixin fail loudly at
+ * load if a future MC build removes or renames it.
  */
 @Mixin(ReproductionManager.class)
 public abstract class ReproductionManagerMixin {
 
     @Shadow @Final private Colony colony;
 
-    @WrapOperation(
+    @Inject(
             method = "trySpawnChild",
             at = @At(
                     value = "INVOKE",
                     target = "Lcom/minecolonies/api/colony/managers/interfaces/ICitizenManager;"
-                            + "createAndRegisterCivilianData()Lcom/minecolonies/api/colony/ICitizenData;"
+                            + "spawnOrCreateCitizen(Lcom/minecolonies/api/colony/ICitizenData;"
+                            + "Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)"
+                            + "Lcom/minecolonies/api/colony/ICitizenData;"
             )
     )
-    private ICitizenData tensura_minecolonies$breedRaceChild(
-            ICitizenManager manager, Operation<ICitizenData> original) {
-        ICitizenData child = original.call(manager);
+    private void tensura_minecolonies$breedRaceChild(
+            CallbackInfo ci,
+            @Local(ordinal = 0) ICitizenData newCitizen,
+            @Local(ordinal = 1) ICitizenData firstParent,
+            @Local(ordinal = 2) ICitizenData secondParent) {
         try {
-            ExampleMod.onReproductionChild(colony, child);
+            ExampleMod.onReproductionChild(colony, newCitizen, firstParent, secondParent);
         } catch (Throwable t) {
             // Never let our conversion break MineColonies' birth flow.
             ExampleMod.LOGGER.warn("[TM] race growth: onReproductionChild failed", t);
         }
-        return child;
     }
 }

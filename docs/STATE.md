@@ -9,7 +9,35 @@ MineColonies / Tensura / Nightmare's Utils / Structurize: their APIs, events,
 invariants, and what we consume vs available-but-unused; read before building a
 new system that might hook existing upstream API).
 
-_Last updated: 2026-07-22 — update this every session._
+_Last updated: 2026-07-23 — update this every session._
+
+_**Session 2026-07-23 — race inheritance + envoy seed + free immigration
+(folded into 0.2.1 per user; the earlier 0.2.1 commit 3e325fa is superseded by a
+follow-up commit on main).** Still version 0.2.1.
+Compiles green; the reproduction MIXIN APPLICATION is runtime-verified
+(runGameTestServer booted to player login, no injection error), but the
+race/immigration BEHAVIOUR is unplayed. Recipe: playtesting.md 000._
+
+_1. **Bred children inherit race from parents** (was a uniform colony draw). Rule:
+both parents → 50/50; one → that parent's race; none → colony draw. The
+reproduction mixin moved from @WrapOperation on createAndRegisterCivilianData to
+@Inject before spawnOrCreateCitizen (the only point where both parents exist),
+capturing @Local newCitizen/firstParent/secondParent. Side benefit: race skill
+bias now lands after MC's parent-skill init instead of being clobbered before it._
+
+_2. **Envoy accept seeds one grown citizen** of that race immediately._
+
+_3. **Free immigration**: per-colony, per-second scheduler pass (cooldown 2400t).
+For any race in the set under 3, spawn one grown citizen — 2/3 the fewest, 1/3 a
+random other. COLONIST counts as a race. Keeps races roughly equal; never pushes
+one above 3 (that's births + Tavern). Verified vanilla behaviour: after INITIAL
+(~4) MineColonies grows ONLY by reproduction + paid Tavern hire, so this is the
+"races just show up" system the game itself lacks._
+
+_Balance knobs to revisit: IMMIGRATION_COOLDOWN_TICKS (2400) and the floor (3, the
+floor + 2/3-1/3 split were user-specified). Immigrants spawn at the town hall
+regardless of housing — possible free-bed gate later. Deferred still: surname /
+EP / appearance inheritance (future-ideas.md)._
 
 _**Session 2026-07-22 — 0.2.1 bugfix release + barrier size/upkeep (branch
 `barrier-size-and-weapon-fixes`).** Version bumped to **0.2.1**; CHANGELOG

@@ -15,6 +15,62 @@ test** (concrete steps + what you should see), **status**.
 
 ## OPEN — needs playtesting
 
+### 000. Parent race inheritance + envoy seed + free immigration (2026-07-23, 0.2.1)
+
+**What changed** (`ReproductionManagerMixin` re-pointed; `ExampleMod`
+`onReproductionChild` + new `inheritRace`/`memberOfCitizen`, `mintRaceCitizen`
+(asBaby param) + `spawnColonyMember`/`countColonyMember`/`tryImmigration`, envoy
+accept seed, scheduler wiring; `ColonyRaceConfigSavedData` lastImmigrationTick +
+NBT): three linked systems. Root discussion in the 2026-07-23 STATE.md session.
+
+- **Parent inheritance.** The reproduction mixin moved from `@WrapOperation` on
+  `createAndRegisterCivilianData` to `@Inject` before `spawnOrCreateCitizen`,
+  capturing `@Local` newCitizen/firstParent/secondParent (slots 5/6/7, MC
+  1.1.1319 — verified live). Race rule: both parents → 50/50 of the two; one
+  parent → that race; none → colony draw. A parent's race = its RaceIdentity
+  race, or COLONIST if it has none. **Runtime-verified the mixin APPLIES**
+  (`runGameTestServer` booted to player login, no injection error, debug.log
+  shows "Mixing ReproductionManagerMixin"). The RACE LOGIC itself is unplayed.
+  - Side effect (improvement): race skill bias now lands AFTER MC's parent-skill
+    init instead of before it, so bred children get both. Previously the bias
+    was silently clobbered.
+- **Envoy seed.** Accepting an envoy spawns ONE grown citizen of that race
+  immediately (`spawnColonyMember`).
+- **Immigration.** Per-colony, on the envoy scheduler's per-second loop, cooldown
+  `IMMIGRATION_COOLDOWN_TICKS` 2400. For any race in the colony's set below
+  `IMMIGRATION_RACE_FLOOR` 3, spawn one grown citizen: 2/3 the least-represented,
+  1/3 a random other eligible. COLONIST counts as a race. Gated off for pending /
+  no-town-hall / at-max-citizens / empty-member-set colonies.
+
+**How to test:**
+1. `/setcolonyrace goblin`, breed (`/racegrow` for the real path). Child should be
+   a goblin. Add lizardman to the set, get a lizardman citizen, then breed a
+   goblin×lizardman pair repeatedly — children should be ~50/50 goblin/lizardman.
+2. A colonist×goblin pair should produce ~50/50 human/goblin.
+3. Accept a race envoy (`/spawnenvoy` then accept, or `/envoyforce`) — exactly ONE
+   grown citizen of that race should appear at the town hall right away, named and
+   yours, adult (not a baby).
+4. Immigration: a fresh colony with e.g. {colonist, goblin} — over a few minutes
+   each race should climb to 3 via arrivals (watch the log "immigration: a X
+   joined"), then stop. Add lizardman via envoy; lizardmen should start arriving
+   up to 3 as well. Confirm no race exceeds 3 FROM IMMIGRATION (births may push
+   higher — that's fine).
+5. Balance: with three races all at 0, the fewest-first bias should keep their
+   counts within ~1 of each other as they fill.
+6. Reload mid-fill: `lastImmigrationTick` persists (no burst of catch-up
+   arrivals on load).
+7. Regression: a plain colony that never set a race / accepted an envoy (empty
+   member set) must get NO immigration and NO race births — pure vanilla.
+
+**Watch for:** immigration + the game's own INITIAL top-up (to 4) both run early,
+so a brand-new colony may reach ~6–7 citizens faster than vanilla. Intended, but
+confirm it's not jarring. Also immigrants spawn at the town hall regardless of
+housing — unhoused citizens hurt happiness; if that reads badly, gate on a free
+bed later.
+
+**Status:** OPEN — mixin application runtime-verified; the race/immigration
+BEHAVIOUR is not yet watched in-game.
+
 ### 00. Adjustable per-colony barrier size (2026-07-22, 0.2.1)
 
 **What changed** (`BarrierBlockEntity` field-size block + `resolveNetwork` core

@@ -95,6 +95,11 @@ public class ColonyRaceConfigSavedData extends SavedData {
      *  between envoy spawns. Absent = no envoy has resolved yet. */
     private final Map<Integer, Long> lastEnvoyResolveTick = new HashMap<>();
 
+    /** Game-tick of this colony's last free-immigration arrival — the
+     *  per-colony cooldown anchor for {@code ExampleMod.runImmigrationScheduler}.
+     *  Absent = never immigrated. */
+    private final Map<Integer, Long> lastImmigrationTick = new HashMap<>();
+
     /** UUID of the currently-spawned envoy at this colony, if any. At most
      *  one envoy alive per colony at a time; the scheduler skips spawning
      *  while this is set. Cleared on resolve. */
@@ -387,6 +392,15 @@ public class ColonyRaceConfigSavedData extends SavedData {
         setDirty();
     }
 
+    public long getLastImmigrationTick(int colonyId, long fallback) {
+        return lastImmigrationTick.getOrDefault(colonyId, fallback);
+    }
+
+    public void setLastImmigrationTick(int colonyId, long tick) {
+        lastImmigrationTick.put(colonyId, tick);
+        setDirty();
+    }
+
     public UUID getActiveEnvoyUuid(int colonyId) {
         return activeEnvoyUuid.get(colonyId);
     }
@@ -642,6 +656,15 @@ public class ColonyRaceConfigSavedData extends SavedData {
         }
         tag.put("envoyColonyState", colonyTimers);
 
+        ListTag immigrationTimers = new ListTag();
+        for (Map.Entry<Integer, Long> e : lastImmigrationTick.entrySet()) {
+            CompoundTag entry = new CompoundTag();
+            entry.putInt("colonyId", e.getKey());
+            entry.putLong("tick", e.getValue());
+            immigrationTimers.add(entry);
+        }
+        tag.put("immigrationState", immigrationTimers);
+
         ListTag playerSeen = new ListTag();
         for (Map.Entry<UUID, EnumSet<ColonyMember>> e : playerNonColonistEnvoysSeen.entrySet()) {
             CompoundTag entry = new CompoundTag();
@@ -786,6 +809,14 @@ public class ColonyRaceConfigSavedData extends SavedData {
                 if (entry.hasUUID("activeEnvoyUuid")) {
                     data.activeEnvoyUuid.put(colonyId, entry.getUUID("activeEnvoyUuid"));
                 }
+            }
+        }
+
+        if (tag.contains("immigrationState", Tag.TAG_LIST)) {
+            ListTag immigrationTimers = tag.getList("immigrationState", Tag.TAG_COMPOUND);
+            for (int i = 0; i < immigrationTimers.size(); i++) {
+                CompoundTag entry = immigrationTimers.getCompound(i);
+                data.lastImmigrationTick.put(entry.getInt("colonyId"), entry.getLong("tick"));
             }
         }
 

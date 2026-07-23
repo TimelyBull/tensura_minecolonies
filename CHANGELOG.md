@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project aims to follow [Semantic Versioning](https://semver.org/).
 Copy the relevant version's section into the CurseForge release notes on each update.
 
-## [0.2.1] - 2026-07-22
+## [0.2.1] - 2026-07-23
 
 ### Changed
 - **Masterwork weapons have been re-scaled.** Their EP upgrades were stacking on
@@ -52,6 +52,23 @@ Copy the relevant version's section into the CurseForge release notes on each up
   They are not evolved by this (a goblin child is a goblin, not a hobgoblin), and
   it costs you nothing. Hand-naming a wild monster is unchanged: it still costs
   magicule and still evolves them.
+- **Monsters breed true to their parents.** A child born in your colony now
+  takes its race from its parents instead of a colony-wide dice roll: two
+  goblins have a goblin, a goblin and a lizardman have one or the other at
+  random, a single parent passes their own race down, and only a colony with no
+  parents at all falls back to the old random draw. Human-and-monster pairings
+  can go either way.
+- **Diplomacy actually puts someone in your colony.** Accepting an envoy now
+  brings **one** citizen of that race in straight away, so the alliance shows up
+  instead of only unlocking future arrivals.
+- **Wanderers of your colony's races drift in and settle — no Tavern, no
+  payment.** While any race in your colony has fewer than **3** of its own, one
+  will occasionally arrive on its own and join. It favours whichever race you
+  have the fewest of (about two times in three; otherwise a random one of the
+  others), so your races fill out roughly evenly rather than one taking over.
+  Once a race reaches 3 this way it stops — growth beyond that comes from births
+  and the Tavern as usual. Humans count as a race here too, so they don't quietly
+  crowd everyone out.
 
 ### Changed (barriers)
 - **Holding a barrier up now costs magicule, and a bigger barrier costs more.**

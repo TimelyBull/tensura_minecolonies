@@ -3129,3 +3129,58 @@ layers cuts it to ~20 minutes.
 Still not done: panel health is per-TIER, not per-area, so a big barrier is
 thinner per unit of wall. Flagged in raid-system.md as an unplayed seam rather
 than guessed at here.
+
+## Bred children inherit race from their PARENTS (0.2.1, 2026-07-23, user)
+
+Reproduction used to pick a child's race by a uniform draw from the colony's race
+set (`pickRandomMember`), so two goblins could bear a lizardman. Now the parents
+decide (user rule): both parents → 50/50 of the two parents' races; one parent →
+that parent's race; NO parents → the old colony draw (fallback only). A parent's
+"race" is its `RaceIdentity` race, or COLONIST when it has none. A COLONIST result
+leaves the vanilla human MC already created.
+
+**Why the reproduction mixin had to MOVE.** The old hook was `@WrapOperation` on
+`createAndRegisterCivilianData()` — but `trySpawnChild` assigns firstParent /
+secondParent AFTER that call, so the parents don't exist there. The hook is now
+`@Inject` before the `spawnOrCreateCitizen` invoke, capturing `@Local`
+newCitizen(slot 5)/firstParent(6)/secondParent(7) (LVT-verified for MC 1.1.1319,
+and runtime-verified that the injection applies — see playtesting.md 000).
+Injecting there also lands after `generateName` (child name is final when we
+stamp it) and after MC's parent-skill init, so our race skill bias now layers ON
+TOP of inherited parent skills instead of being clobbered before them — a latent
+bug fixed as a side effect. It still runs before the body spawns, which
+`mintRaceCitizen` requires.
+
+Either parent may be null; guard for it. `mintRaceCitizen` gained an `asBaby`
+param (true for births, false for the grown seed/immigrant intake below).
+
+## Race intake beyond birth — envoy seed + free immigration (0.2.1, 2026-07-23, user)
+
+MineColonies grows a colony from its ~4 INITIAL citizens to the 250 cap almost
+entirely by REPRODUCTION; the only other routes are the paid Tavern hire (HIRED)
+and edge cases. So a diplomacy-unlocked race would never appear on its own — you
+had to go name a wild one. Two additions fix that (user vision, 2026-07-23):
+
+- **Envoy seed.** Accepting an envoy spawns ONE grown citizen of that race at the
+  town hall immediately (`spawnColonyMember`), so the alliance is concrete rather
+  than only a permission.
+- **Free immigration.** A per-colony pass on the envoy scheduler's per-second
+  loop (cooldown `IMMIGRATION_COOLDOWN_TICKS` 2400): for any member of the
+  colony's race set below `IMMIGRATION_RACE_FLOOR` (3), spawn one grown citizen.
+  Pick = 2/3 the least-represented eligible race, 1/3 a random OTHER eligible
+  (user split), which keeps races roughly equal and lets a race appear even with
+  no breeding pair. COLONIST is a race here too, so it can't quietly dominate.
+
+Design choices worth keeping:
+- **The floor is per-RACE, not per-colony**, and immigration NEVER pushes a race
+  above 3 — it can only prevent under-representation, never cause dominance.
+  Growth past 3 is births (parent-driven) + Tavern. This is what makes it
+  "balanced with other spawning mechanisms" without coordinating with them.
+- **Counting:** race count = `RaceIdentity` records for (colony, race); COLONIST
+  count = total citizens − all race identities. Slightly conservative if orphan
+  identities linger (under-serves that race rather than over-spawning) — safe.
+- Immigrants + INITIAL both run early, so a new colony fills a little faster than
+  vanilla. Accepted. Immigrants spawn at the town hall regardless of housing
+  (unhoused = happiness hit); gating on a free bed is a possible later refinement.
+- `IMMIGRATION_COOLDOWN_TICKS` (2400) and the floor (3) are the tunable knobs;
+  the floor and 2/3-1/3 split were user-specified.

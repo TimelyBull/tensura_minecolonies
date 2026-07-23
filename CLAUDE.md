@@ -561,19 +561,27 @@ the design rationale and design-choice history.
   **B2 — reproduction growth (2026-06-29):** the INITIAL event only
   covers the town-hall top-up to `initialCitizenAmount`; ongoing growth
   runs through `ReproductionManager.trySpawnChild()`, which fires NO
-  event. `ReproductionManagerMixin` (`@WrapOperation` on that method's
-  `createAndRegisterCivilianData()` call) hands the fresh child to
+  event. `ReproductionManagerMixin` (`@Inject` before that method's
+  `spawnOrCreateCitizen()` call — moved there 0.2.1 to see the assigned
+  parents, captured as `@Local`) hands the fresh child + both parents to
   `ExampleMod.onReproductionChild` → `mintRaceChildCitizen`, which
-  CONVERTS the born child into a citizen of the colony's race (baby
-  goblin/orc/dwarf/lizardman tied to its real colony parents, grows up)
-  rather than a human colonist. Mints an IN_COLONY `RaceIdentity` +
-  randomised variant + body snapshot (transient `finalizeSpawn`'d mob,
-  never world-added) + race skill profile + named happiness
-  ("auto-named"). Race-gated by `pickRandomMember`. Debug: `/racegrow`
-  (real `trySpawnChild` once) / `/racegrow force` (create+convert,
-  gating-free). Deferred (docs/future-ideas.md): unnamed children +
-  naming ceremony; surnames + inherited traits (EP transfer, skill
-  copy).
+  CONVERTS the born child into a citizen of the race it INHERITS FROM ITS
+  PARENTS (0.2.1: both → 50/50, one → that parent's, none → colony draw;
+  `inheritRace`) rather than a human colonist. Mints an IN_COLONY
+  `RaceIdentity` + randomised variant + body snapshot (transient
+  `finalizeSpawn`'d mob, never world-added) + race skill profile + named
+  happiness ("auto-named"). Debug: `/racegrow` (real `trySpawnChild`
+  once) / `/racegrow force` (create+convert, gating-free). Deferred
+  (docs/future-ideas.md): unnamed children + naming ceremony; surnames +
+  inherited traits (EP transfer, skill copy) — race inheritance itself
+  is now DONE.
+- **Race intake beyond birth (0.2.1):** accepting an envoy SEEDS one
+  grown citizen of that race (`spawnColonyMember`), and free IMMIGRATION
+  (`tryImmigration`, on the envoy scheduler's per-second loop, cooldown
+  2400t) brings grown citizens of any race the colony has FEWER THAN 3
+  of — 2/3 the least-represented eligible race, 1/3 a random other. Both
+  reuse `mintRaceCitizen(asBaby=false)`. COLONIST counts as a race. See
+  decisions.md.
 - Stage H — envoy system (H1-H3b, all four sub-stages). Diplomatic
   emissaries from COLONIST / GOBLIN / ORC factions periodically arrive
   at each colony offering to add their race to its spawn set.

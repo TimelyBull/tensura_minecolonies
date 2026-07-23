@@ -27,16 +27,29 @@ When you found a colony you choose its people: default villagers or a goblin
 colony. The other races — orc, dwarf, lizardman — are added to a colony's mix
 through [diplomacy](diplomacy.md), when an envoy offers to bring their race in.
 
-A colony that has a race grows that race. When it gains a new resident through
-normal colony growth — a child born to its residents — the newcomer is a baby
-of the colony's race: a goblin colony raises goblin children, an orc colony
-raises orc children, and so on. The child is born to its actual colony parents
-and grows up like any citizen. A colony with more than one race raises children
-of each, mixed in proportion.
+A colony that has a race grows that race. Children are born as babies of their
+**parents'** race: two goblins have a goblin, a goblin and a lizardman have one
+or the other, and a monster paired with an ordinary colonist can have either. A
+child born to residents with no monster blood is a plain colonist. Every child is
+born to its actual colony parents and grows up like any citizen.
 
 Grown children join as full citizens right away — they get the same work-skill
-head start named citizens get, so you don't need to name each one. Naming stays
-for monsters you bring in yourself.
+head start named citizens get, so you don't need to name each one, and they are
+your subordinates from birth. Naming stays for monsters you bring in yourself.
+
+### New residents arrive on their own
+
+Two things bring more of a race in without you naming anything:
+
+- **Accepting an envoy** brings **one** of that race into your colony straight
+  away, so an alliance shows up immediately.
+- **Wanderers drift in and settle.** While your colony has fewer than **three**
+  of a race, one will occasionally arrive on its own and join — no Tavern, no
+  payment. This favours whichever of your races you have the fewest of, so they
+  fill out roughly evenly rather than one crowding out the rest. Once a race
+  reaches three this way it stops; beyond that, more come from births (and the
+  Tavern). Ordinary colonists are treated as a race here too, so a monster colony
+  isn't slowly diluted with humans.
 
 ## Naming a monster
 

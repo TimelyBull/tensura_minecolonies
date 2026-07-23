@@ -1231,15 +1231,30 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      * {@code ReproductionManagerMixin} calls this with the freshly-created child
      * {@code CitizenData} (right after MineColonies registers it, while the rest
      * of {@code trySpawnChild} — parents, name, child flag, body spawn — still
-     * runs). For a race colony we CONVERT that child into a citizen of the
-     * colony's race so a goblin/orc/dwarf/lizardman colony breeds its own kind
-     * (tied to its real MineColonies parents) instead of a human colonist.
+     * runs). We CONVERT that child into a citizen of the race it INHERITS FROM
+     * ITS PARENTS, so a goblin/orc/dwarf/lizardman line breeds true instead of
+     * defaulting to human colonists.
      *
-     * No-ops (leaves the vanilla human child) for: pending colonies, legacy /
-     * no-entry colonies, an explicit {@code COLONIST} colony, or a COLONIST
-     * member drawn this tick from a mixed set (e.g. {@code {COLONIST, GOBLIN}}).
+     * <p>Race is decided by the parents (user rule, 2026-07-22):</p>
+     * <ul>
+     *   <li>both parents present → a 50/50 draw between the two parents' races;</li>
+     *   <li>one parent → that parent's race;</li>
+     *   <li>no parents at all → fall back to a random draw from the colony's
+     *       race set (the old behaviour).</li>
+     * </ul>
+     *
+     * <p>A parent's "race" is COLONIST when it has no {@link RaceIdentitySavedData.RaceIdentity}
+     * (a plain human). If the inherited result is COLONIST the child is left the
+     * vanilla human MineColonies already created. No-ops for pending / legacy /
+     * no-race-set colonies.</p>
+     *
+     * <p>Called from {@link com.example.examplemod.mixin.ReproductionManagerMixin}
+     * just BEFORE the body spawns, so both parents are already assigned and the
+     * child's name is final.</p>
      */
-    public static void onReproductionChild(IColony colony, ICitizenData child) {
+    public static void onReproductionChild(IColony colony, ICitizenData child,
+                                           @org.jetbrains.annotations.Nullable ICitizenData firstParent,
+                                           @org.jetbrains.annotations.Nullable ICitizenData secondParent) {
         if (child == null) return;
         if (!(colony.getWorld() instanceof ServerLevel serverLevel)) return;
 
@@ -1250,16 +1265,44 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // (normally unreachable: a pending colony has 0 citizens, so
         // trySpawnChild's own count gate returns before any birth).
         if (config.isPending(colonyId)) return;
+        // Legacy / plain colony with no race set — nothing to inherit or draw.
+        if (config.getMembers(colonyId).isEmpty()) return;
 
-        // Same per-spawn random draw the INITIAL hook uses — a mixed
-        // {COLONIST, GOBLIN} colony breeds humans and goblins in proportion.
-        ColonyMember picked = config.pickRandomMember(colonyId, serverLevel.getRandom());
-        if (picked == null) return;                  // legacy / no entry → human child
-        java.util.Optional<Race> raceOpt = picked.toRace();
-        if (raceOpt.isEmpty()) return;               // COLONIST drawn → human child
-        Race race = raceOpt.get();
+        ColonyMember inherited = inheritRace(serverLevel, colony, config, firstParent, secondParent);
+        if (inherited == null) return;               // no parents AND empty draw → human
+        java.util.Optional<Race> raceOpt = inherited.toRace();
+        if (raceOpt.isEmpty()) return;               // COLONIST inherited → human child
 
-        mintRaceChildCitizen(serverLevel, colony, child, race);
+        mintRaceChildCitizen(serverLevel, colony, child, raceOpt.get());
+    }
+
+    /**
+     * The race a bred child inherits — see {@link #onReproductionChild} for the
+     * rule. Returns {@code null} only in the no-parents case when the colony
+     * draw itself comes back empty (legacy colony).
+     */
+    private static ColonyMember inheritRace(ServerLevel level, IColony colony,
+                                            ColonyRaceConfigSavedData config,
+                                            @org.jetbrains.annotations.Nullable ICitizenData firstParent,
+                                            @org.jetbrains.annotations.Nullable ICitizenData secondParent) {
+        ColonyMember m1 = firstParent == null ? null : memberOfCitizen(level, colony.getID(), firstParent);
+        ColonyMember m2 = secondParent == null ? null : memberOfCitizen(level, colony.getID(), secondParent);
+
+        if (m1 != null && m2 != null) {
+            return level.getRandom().nextBoolean() ? m1 : m2;   // 50/50 draw
+        }
+        if (m1 != null) return m1;
+        if (m2 != null) return m2;
+        // No known parents — fall back to the colony's own composition draw.
+        return config.pickRandomMember(colony.getID(), level.getRandom());
+    }
+
+    /** The colony-member race of an existing citizen: its {@code RaceIdentity}
+     *  race if it has one, else {@link ColonyMember#COLONIST} (a plain human). */
+    private static ColonyMember memberOfCitizen(ServerLevel level, int colonyId, ICitizenData citizen) {
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
+        RaceIdentitySavedData.RaceIdentity id = saved.getByColonyAndCitizen(colonyId, citizen.getId());
+        return id == null ? ColonyMember.COLONIST : ColonyMember.fromRace(id.race);
     }
 
     /**
@@ -1281,6 +1324,17 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      */
     static void mintRaceChildCitizen(ServerLevel level, IColony colony,
                                      ICitizenData child, Race race) {
+        mintRaceCitizen(level, colony, child, race, true);
+    }
+
+    /**
+     * As {@link #mintRaceChildCitizen} but {@code asBaby} chooses whether the
+     * captured body snapshot is a baby (bred children) or an adult (envoy seeds
+     * + immigrants, who arrive grown). The CALLER still owns the CitizenData's
+     * own child flag — this only controls the snapshot the summon reconstructs.
+     */
+    static void mintRaceCitizen(ServerLevel level, IColony colony,
+                                ICitizenData child, Race race, boolean asBaby) {
         ResourceLocation typeId = Races.idFor(race);
         EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(typeId);
         if (type == null) {
@@ -1308,18 +1362,14 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         UUID owner = colony.getPermissions().getOwner();
 
-        // It is a NEWBORN and it is ALREADY YOURS. Two things the snapshot has
-        // to carry so the child doesn't have to be summoned and hand-named
-        // (which is what produced the pre-0.2.1 phantom citizen):
-        //   - it is a baby, not the adult the transient mob was rolled as;
-        //   - it is your named subordinate from birth, carrying the name it was
-        //     born with. See applyAutoNaming for what that does and doesn't
-        //     copy from Tensura's naming ceremony.
-        // The summon re-syncs both from the CitizenData, which is the source of
-        // truth — the name MineColonies gives the child is assigned just after
-        // this hook returns, so what we stamp here may still be provisional.
+        // It is ALREADY YOURS, and it carries the name MineColonies gave it —
+        // so it never has to be summoned and hand-named (which is what produced
+        // the pre-0.2.1 phantom citizen). See applyAutoNaming for what that
+        // copies from Tensura's naming ceremony and what it deliberately skips
+        // (the name-evolution + the magicule cost). Bred children are babies;
+        // envoy seeds + immigrants arrive grown (asBaby=false).
         if (mob instanceof net.minecraft.world.entity.AgeableMob ageable) {
-            ageable.setBaby(true);
+            ageable.setBaby(asBaby);
         }
         applyAutoNaming(mob, child.getName(), owner);
 
@@ -1364,8 +1414,132 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         RaceSkillProfiles.applyForRace(child, race, level.getRandom());
         applyNamedAcquisitionPenalty(child);
 
-        LOGGER.info("[TM] race growth: colony '{}' bred a {} child (citizen {} identity {})",
-                colony.getName(), race, child.getId(), identity.identityId);
+        LOGGER.info("[TM] race growth: colony '{}' minted a {} {} (citizen {} identity {})",
+                colony.getName(), asBaby ? "baby" : "adult", race, child.getId(), identity.identityId);
+    }
+
+    // ------------------------------------------------------------------
+    // Race-citizen intake that is NOT reproduction — envoy seeds + ongoing
+    // free immigration. Both mint a GROWN race citizen with a body at the
+    // town hall, the same shape /racegrow force uses.
+    // ------------------------------------------------------------------
+
+    /** Per-race population floor free immigration fills each colony's races to. */
+    private static final int IMMIGRATION_RACE_FLOOR = 3;
+    /** Minimum gap between free-immigration arrivals at one colony. Keeps them
+     *  a trickle rather than a burst. ⚠ tunable. */
+    private static final long IMMIGRATION_COOLDOWN_TICKS = 2400L;   // ~2 in-game hours
+
+    /**
+     * Spawn a GROWN citizen of {@code member} into {@code colony}, with a body
+     * at the town hall — the shared path for envoy seeds and immigrants. A
+     * {@code COLONIST} member spawns a plain vanilla citizen (no race identity).
+     * Returns the new citizen, or null if it couldn't be created.
+     */
+    private static ICitizenData spawnColonyMember(ServerLevel level, IColony colony, ColonyMember member) {
+        try {
+            ICitizenData data = colony.getCitizenManager().createAndRegisterCivilianData();
+            java.util.Optional<Race> raceOpt = member.toRace();
+            if (raceOpt.isPresent()) {
+                mintRaceCitizen(level, colony, data, raceOpt.get(), false);   // adult
+            }
+            // else COLONIST — leave the plain human MC just created.
+            data.setIsChild(false);
+            net.minecraft.core.BlockPos pos = colony.getServerBuildingManager().hasTownHall()
+                    ? colony.getServerBuildingManager().getTownHall().getPosition()
+                    : colony.getCenter();
+            colony.getCitizenManager().spawnOrCreateCitizen(data, level, pos);
+            return data;
+        } catch (Throwable t) {
+            LOGGER.error("[TM] spawnColonyMember: failed to spawn {} into colony {}",
+                    member, colony.getID(), t);
+            return null;
+        }
+    }
+
+    /** How many citizens of {@code member} the colony currently has. Race members
+     *  are counted from their {@code RaceIdentity} records; COLONIST is everyone
+     *  else (total citizens minus all race identities). */
+    static int countColonyMember(ServerLevel level, IColony colony, ColonyMember member) {
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
+        int colonyId = colony.getID();
+        if (member == ColonyMember.COLONIST) {
+            int raceTotal = 0;
+            for (RaceIdentitySavedData.RaceIdentity id : saved.all()) {
+                if (id.colonyId == colonyId) raceTotal++;
+            }
+            return Math.max(0, colony.getCitizenManager().getCurrentCitizenCount() - raceTotal);
+        }
+        java.util.Optional<Race> raceOpt = member.toRace();
+        if (raceOpt.isEmpty()) return 0;
+        Race race = raceOpt.get();
+        int n = 0;
+        for (RaceIdentitySavedData.RaceIdentity id : saved.all()) {
+            if (id.colonyId == colonyId && id.race == race) n++;
+        }
+        return n;
+    }
+
+    /**
+     * Ongoing free immigration — citizens wander in and join, no Tavern hire.
+     * Runs once per scheduler tick per colony (subject to a per-colony cooldown)
+     * and, for a colony that has any race UNDER the {@link #IMMIGRATION_RACE_FLOOR}
+     * of 3, spawns ONE grown citizen of a chosen race.
+     *
+     * <p>Which race (user rule, 2026-07-22): among the eligible races (those
+     * below the floor), a 2/3 chance to bring in the LEAST-represented one and a
+     * 1/3 chance to bring in a random OTHER eligible race. Combined with the
+     * per-race floor this keeps every race in the colony's set climbing toward
+     * 3, so no single race dominates the early population and diplomacy-unlocked
+     * races actually appear even with nobody of that race to breed from.</p>
+     *
+     * <p>COLONIST is treated as a race here too (it stops at 3 like the others),
+     * so this doesn't quietly flood a mixed colony with humans.</p>
+     */
+    private static void tryImmigration(ServerLevel level, IColony colony,
+                                       ColonyRaceConfigSavedData config) {
+        int colonyId = colony.getID();
+        if (config.isPending(colonyId)) return;
+        java.util.EnumSet<ColonyMember> members = config.getMembers(colonyId);
+        if (members.isEmpty()) return;                       // legacy / plain colony
+        if (!colony.getServerBuildingManager().hasTownHall()) return;
+        if (colony.getCitizenManager().getCurrentCitizenCount()
+                >= colony.getCitizenManager().getMaxCitizens()) return;
+
+        long now = level.getGameTime();
+        long last = config.getLastImmigrationTick(colonyId, Long.MIN_VALUE);
+        if (last != Long.MIN_VALUE && now - last < IMMIGRATION_COOLDOWN_TICKS) return;
+
+        // Eligible = races currently below the floor, with their counts.
+        java.util.EnumMap<ColonyMember, Integer> counts = new java.util.EnumMap<>(ColonyMember.class);
+        int minCount = Integer.MAX_VALUE;
+        for (ColonyMember m : members) {
+            int c = countColonyMember(level, colony, m);
+            if (c < IMMIGRATION_RACE_FLOOR) {
+                counts.put(m, c);
+                minCount = Math.min(minCount, c);
+            }
+        }
+        if (counts.isEmpty()) return;                        // every race already at the floor
+
+        java.util.List<ColonyMember> fewest = new java.util.ArrayList<>();
+        java.util.List<ColonyMember> others = new java.util.ArrayList<>();
+        for (java.util.Map.Entry<ColonyMember, Integer> e : counts.entrySet()) {
+            (e.getValue() == minCount ? fewest : others).add(e.getKey());
+        }
+        var rnd = level.getRandom();
+        // 1/3 → a random race OTHER than the fewest (only when one exists);
+        // otherwise the fewest (ties broken at random).
+        ColonyMember chosen = (!others.isEmpty() && rnd.nextInt(3) == 0)
+                ? others.get(rnd.nextInt(others.size()))
+                : fewest.get(rnd.nextInt(fewest.size()));
+
+        ICitizenData joined = spawnColonyMember(level, colony, chosen);
+        if (joined != null) {
+            config.setLastImmigrationTick(colonyId, now);
+            LOGGER.info("[TM] immigration: a {} joined colony {} ('{}') (had {} of that race)",
+                    chosen, colonyId, colony.getName(), counts.get(chosen));
+        }
     }
 
     // ------------------------------------------------------------------
@@ -3196,6 +3370,14 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     LOGGER.error("[TM] envoy scheduler: tryScheduleEnvoy threw for colony {} ('{}')",
                             colony.getID(), colony.getName(), t);
                 }
+                // Free immigration shares this per-colony loop — same cadence,
+                // its own per-colony cooldown.
+                try {
+                    tryImmigration(level, colony, config);
+                } catch (Throwable t) {
+                    LOGGER.error("[TM] immigration: threw for colony {} ('{}')",
+                            colony.getID(), colony.getName(), t);
+                }
             }
             // Deferred-content per-player passes: structure containment
             // (dwarven village discovery) + disable-flag fallback (catches
@@ -3781,6 +3963,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (accepted) {
             config.addMember(colony.getID(), tag.member());
             config.markEnvoyAccepted(colony.getID(), tag.member());
+            // Seed exactly ONE grown citizen of the accepted race right away, so
+            // the diplomacy actually shows up in the colony instead of only
+            // enabling future spawns. Ongoing supply then comes from immigration
+            // (up to 3 of the race) and from births once there's a breeding pair.
+            ICitizenData seeded = spawnColonyMember(level, colony, tag.member());
+            if (seeded != null) {
+                LOGGER.info("[TM] envoy seed: one {} joined colony {} ('{}') citizen {}",
+                        tag.member(), colony.getID(), colony.getName(), seeded.getId());
+            }
             entity.setData(Attachments.ENVOY_TAG.get(), tag.withState(EnvoyTag.State.ACCEPTED));
             entity.discard();
             // Condition-aware accept text — a dwarven envoy that came
