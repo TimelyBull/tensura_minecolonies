@@ -133,16 +133,17 @@ decision**.
 
 | Faction | Citizen levy | Covenant skill (grant) | Loot pool |
 |---|---|---|---|
-| dwargon | ✅ 15 — Str/Sta "miners" | ✅ `dw_grand_forge` → Body Armor | ✅ rich (magisteel) |
+| dwargon | ✅ 15 — Str/Sta "miners" | ✅ `dw_sentinel` → Body Armor | ✅ rich (magisteel) |
 | falmuth | ✅ 16 — Sta/Str "soldiers" | ✅ `fa_fortress` → Physical-Atk Resist | ✅ |
 | luminous | ✅ 12 — Mana/Knw "clergy" | ✅ `lu_devout` → Holy-Atk Resist | ✅ |
 | leon | ✅ 12 — Str/Mana "retainers" | ✅ `le_flamebearers` → Flame-Atk Resist | ✅ |
 | eastern_empire | ✅ 14 — Str/Sta "imperial soldiers" | ✅ `ow_specialists` → Eye of Truth | ✅ |
-| tempest | ✅ 18 — Knw/Int "sages" | ⚠️ TWO mapped (`tp_joyful`, `ja_sages`) — first wins | ✅ |
+| tempest | ✅ 18 — Knw/Int "sages" | ✅ `tp_slime_pact` → Self-Regeneration | ✅ |
 
 Conquest rewards are **structurally complete** for all 6 — the review here is
-about **balance/appropriateness**, not missing pieces (plus the tempest
-ambiguity below).
+about **balance/appropriateness**, not missing pieces. (The tempest
+two-skill ambiguity flagged in §4 was resolved in Phase 0 — `ja_sages`'s
+mapping was dropped, leaving `tp_slime_pact` as the sole skill.)
 
 ### Diplomacy (all factions)
 
@@ -611,17 +612,21 @@ if owned). The exact same skill is granted by FORCE if you instead CONQUER the
 faction militarily (rival-colony Stage D), so the two routes converge on the same
 capstone skill.
 
-| Faction | Granting deal | Skill | Skill type |
-|---|---|---|---|
-| Dwargon | Forge a Sentinel | Body Armor | Intrinsic |
-| Tempest | A Joyful Haven | Self-Regeneration | Common |
-| Luminous | A Devout Congregation | Holy Attack Resistance | Resistance |
-| Falmuth | A Mighty Defense | Physical Attack Resistance | Resistance |
-| Milim | Warriors to Spar | Strength | Common |
-| Eurazania | A Wild Haven | Giantification | Intrinsic |
-| Clayman | Enforcers for the Cause | Charm | Intrinsic |
-| Leon | Flamebearers Abroad | Flame Attack Resistance | Resistance |
-| Eastern Empire | Specialists Abroad | Eye of Truth | Intrinsic |
+| Faction | Granting deal | Deal id | Skill | Skill type |
+|---|---|---|---|---|
+| Dwargon | Forge a Sentinel | `dw_sentinel` | Body Armor | Intrinsic |
+| Tempest | Rimuru's Blessing | `tp_slime_pact` | Self-Regeneration | Common |
+| Luminous | A Devout Congregation | `lu_devout` | Holy Attack Resistance | Resistance |
+| Falmuth | A Mighty Defense | `fa_fortress` | Physical Attack Resistance | Resistance |
+| Milim | The Ultimate Brawl | `mi_ultimate_brawl` | Strength | Common |
+| Eurazania | The Charybdis Hunt | `ca_wild_haven` | Giantification | Intrinsic |
+| Clayman | The Marionette | `cl_marionette` | Charm | Intrinsic |
+| Leon | Flamebearers Abroad | `le_flamebearers` | Flame Attack Resistance | Resistance |
+| Eastern Empire | Specialists Abroad | `ow_specialists` | Eye of Truth | Intrinsic |
+
+(Deal id is the authoritative key — it's what `DealSpec.SKILL_REWARDS` maps.
+Titles here must match the deal that carries that id in `FACTION_DEALS`; a
+couple drifted when deals were renamed and were corrected 2026-07-26.)
 
 (Shizu's old `sh_pupils → Heat Resistance` was purged in Phase 0; Tempest's
 old second skill `ja_sages → Thought Communication` was dropped so Tempest has
