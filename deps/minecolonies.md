@@ -184,19 +184,23 @@ registry is client-synced (`syncedRegistry`).
 
 ## 7. Gotchas (this version)
 
-1. ⚠⚠ **Colony-event persistence bug — a non-`minecolonies` raid event does NOT
-   survive save/reload.** `core.colony.managers.EventManager.readFromNBT` (L141)
-   hardcodes `new ResourceLocation("minecolonies", tag.getString("name"))` and
-   `writeToNBT` (L165) stores only `getEventTypeID().getPath()` (path, no
-   namespace). Our `tensura_minecolonies:tensura_raid` misses the registry
-   lookup → `"Event is missing registryEntry!"` → the in-progress raid is
-   silently dropped on reload (boss bar, tracked raider set, `isRaided()` flee
-   state all clear). The javadoc in
-   [`TensuraRaidEvent`](../src/main/java/com/example/examplemod/TensuraRaidEvent.java)
-   and [`RaidSavedData`](../src/main/java/com/example/examplemod/RaidSavedData.java)
-   now flags this; the code fix (our own reload-reconstruction, or a mixin on
-   `readFromNBT`) is a separate task — **verify in-game first** (start a raid,
-   save & quit to title, reload, confirm it's gone).
+1. ✅ **Colony-event persistence bug — FIXED (2026-07-26) by
+   [`EventManagerMixin`](../src/main/java/com/example/examplemod/mixin/EventManagerMixin.java).**
+   Originally a non-`minecolonies` raid event did NOT survive save/reload:
+   `core.colony.managers.EventManager.readFromNBT` hardcodes
+   `new ResourceLocation("minecolonies", tag.getString("name"))` and `writeToNBT`
+   stores only `getEventTypeID().getPath()` (path, no namespace), so our
+   `tensura_minecolonies:tensura_raid` missed the registry lookup →
+   `"Event is missing registryEntry!"` → the in-progress raid was silently
+   dropped on reload (boss bar, tracked raider set, `isRaided()` flee state all
+   cleared). The fix is a MixinExtras `@WrapOperation` on the
+   `Registry.get(ResourceLocation)` call at offset 88 of `readFromNBT`: when the
+   forced-`minecolonies` lookup returns null it recovers the event type by
+   matching the stored PATH across the whole colony-event registry (paths are
+   unique; a normally-resolving `minecolonies` event never reaches the scan).
+   Read-side only — no on-disk format change, fixes existing and future saves.
+   **Still verify in-game** (start a raid, save & quit to title, reload, confirm
+   the raid + boss bar resume).
 2. **Colony-event types must register on the MOD bus** via `DeferredRegister`
    before registry freeze — our ctor does it.
 3. **MC event bus ≠ NeoForge bus**; call `IMinecoloniesAPI.getInstance()` after
@@ -248,6 +252,7 @@ registry is client-synced (`syncedRegistry`).
   `INTERACTION_RESPONSE_HANDLERS` for envoy dialogue because
   `IInteractionResponseHandler` is hard-bound to `ICitizenData`; we use a custom
   `EnvoyDialogueScreen` instead ([docs/envoy-system.md](../docs/envoy-system.md)).
-- **Where we brush intended usage:** the raid persistence bug (§7.1) is an
-  undocumented MC namespace limitation, not a fight; the trade tab reflects the
-  `citizen` field because MC exposes no public accessor (acceptable, fragile).
+- **Where we brush intended usage:** the raid persistence bug (§7.1) was an
+  undocumented MC namespace limitation (now worked around by `EventManagerMixin`,
+  read-side path recovery — not a fight); the trade tab reflects the `citizen`
+  field because MC exposes no public accessor (acceptable, fragile).

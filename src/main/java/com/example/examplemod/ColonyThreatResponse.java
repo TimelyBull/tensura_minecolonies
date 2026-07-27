@@ -148,12 +148,23 @@ public final class ColonyThreatResponse {
         return ep >= FORM_SWAP_EP;
     }
 
-    /** Raiders (RAID_TAG mobs) currently loaded near the colony's town hall. */
+    /** Is this entity something a colony defender should fight during a raid?
+     *  Our own Tensura raiders (RAID_TAG) AND MineColonies' NATIVE raiders — the
+     *  threat-response fires on {@code isRaided()}, which is true for both, so a
+     *  swapped-in defender must be able to target both or it just stands there
+     *  during a vanilla-style MC raid. */
+    private static boolean isRaider(net.minecraft.world.entity.Entity e) {
+        return e != null
+                && (e.hasData(Attachments.RAID_TAG.get())
+                    || e instanceof com.minecolonies.api.entity.mobs.AbstractEntityMinecoloniesRaider);
+    }
+
+    /** Raiders (ours or MineColonies') currently loaded near the town hall. */
     private static List<Mob> scanRaiders(ServerLevel level, IColony colony) {
         BlockPos th = colony.getServerBuildingManager().getTownHall().getPosition();
         AABB box = new AABB(th).inflate(RAIDER_SCAN_RADIUS);
         return level.getEntitiesOfClass(Mob.class, box,
-                m -> m.isAlive() && m.hasData(Attachments.RAID_TAG.get()));
+                m -> m.isAlive() && isRaider(m));
     }
 
     /**
@@ -175,9 +186,9 @@ public final class ColonyThreatResponse {
                     new ColonyDefenderTag(id.colonyId));
         }
 
-        // Keep the current target if it's still a live raider.
+        // Keep the current target if it's still a live raider (ours or MC's).
         LivingEntity cur = BrainUtils.getTargetOfEntity(defender);
-        if (cur != null && cur.isAlive() && cur.hasData(Attachments.RAID_TAG.get())) {
+        if (cur != null && cur.isAlive() && isRaider(cur)) {
             if (defender.getTarget() != cur) defender.setTarget(cur);
             return;
         }

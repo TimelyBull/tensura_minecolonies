@@ -17,10 +17,10 @@ import java.util.Map;
  * pattern as {@link ColonyRaceConfigSavedData} / {@link ReputationSavedData}.
  *
  * Only the cooldown lives here; the active raid itself is a
- * {@link TensuraRaidEvent} held in MineColonies' event manager. ⚠ Note that
- * the live event does NOT survive save/reload — MC's {@code EventManager}
- * only rehydrates events in the {@code minecolonies} namespace, so an
- * in-progress {@link TensuraRaidEvent} is dropped on reload. See
+ * {@link TensuraRaidEvent} held in MineColonies' event manager. The live event
+ * now DOES survive save/reload: MC's {@code EventManager} only looked up events
+ * in the {@code minecolonies} namespace, which dropped our foreign-namespace
+ * raid on reload — {@code EventManagerMixin} recovers it by path. See
  * {@link TensuraRaidEvent} header and deps/minecolonies.md for detail.
  *
  * NBT: {@code raids: [{colonyId:int, lastResolveTick:long}]}.

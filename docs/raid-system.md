@@ -10,6 +10,161 @@ Class references confirmed by `javap` against the jars in `libs/`.
 
 ---
 
+## RELOAD PERSISTENCE FIX + RAID KILL-SWITCH + ROUTE-TO-OPENINGS (2026-07-26)
+
+Three changes, plus one investigation that concluded "no change".
+
+**1. In-progress raids now survive save/reload (`EventManagerMixin`).** MC's
+`EventManager` erased the namespace on the persistence round-trip — `writeToNBT`
+stored only `getEventTypeID().getPath()`, and `readFromNBT` rebuilt the id as
+`new ResourceLocation("minecolonies", name)` before the registry lookup, so our
+`tensura_minecolonies:tensura_raid` missed and the live raid was dropped on
+reload (boss bar, tracked-raider set, `isRaided()` flee state all cleared). The
+fix is a MixinExtras `@WrapOperation` on the `Registry.get(ResourceLocation)`
+call (offset 88 of `readFromNBT`): if the forced-`minecolonies` lookup returns
+null, recover the event type by matching the stored PATH across the whole
+colony-event registry (paths are unique; a `minecolonies` event that resolves
+normally never reaches the scan). Read-side only — no on-disk format change,
+fixes old and new saves. `TensuraRaidEvent` already serializes everything needed
+(status, raider UUIDs, endTick, totalSpawned, rosterTier, lore/ally); raid mobs
+re-link by their persisted `RaidTag`. Bytecode confirmed against MC 1.1.1319.
+Full detail in deps/minecolonies.md §7.1. **Verify in-game** (raid → save & quit
+→ reload → raid + bar resume).
+
+**2. `enableRaids` config kill-switch.** New per-world SERVER config
+(`Config.ENABLE_RAIDS`, `worldRestart()`, default true), mirroring
+`enableDefenseSwap`. Gates ONLY the nightfall trigger (`maybeTriggerNightRaid`):
+when false, a colony below NEUTRAL is never newly raided. A raid already underway
+still drives + resolves (the drive/resolution pass is deliberately ungated), and
+`/tensuraraid` still force-starts one for testing. Does NOT gate the
+faction-system lore raids (Orc Disaster) — those stay under `enableFactionSystem`.
+
+**3. Raiders route to a breach in the barrier (`findOpeningToward`).** Previously
+raiders marched at the field CENTER and milled at a sealed wall, only passing
+through a hole opportunistically. Now, in `steerRaider`'s march branch (no live
+target, no citizen in assist range — the raider's state while outside a walled
+colony, since citizens hide inside), the nearest active barrier's
+`BarrierBlockEntity.findOpeningToward(mobPos)` returns a ground-level waypoint at
+a section battered down to a hole THROUGH every standing layer, biased to the gap
+nearest the raider's bearing. The raider funnels to the breach; the instant it's
+through (inside the field) `findOpeningToward` returns null and the existing
+target-assist resumes hunting citizens — so the "switch back to normal killing"
+is automatic, no explicit state. Sealed barrier → null → old behavior (stuck
+outside, correct). Geometry reuses the quad-sphere `sectionIndex`/`cubePoint`
+machinery via a new inverse `sectionDirection(s)`; near-vertical (roof/floor cap)
+gaps are skipped (a ground mob can't use them). Only primaries are consulted
+(`nearestActiveBarrierEntity` guards `isLinkedSecondary`).
+
+**4. Multi-wave raids — investigated → NOW MIRRORS MC's ATTRITION MODEL (see
+next section).** Asked whether to give raids tier-scaled waves (T1 = 1 wave …
+T3 = 3 waves) "like vanilla", conditional on MC actually working that way.
+Bytecode says MC does **not** do discrete waves: a `HordeRaidEvent` spawns its
+ENTIRE horde once in `onStart()`, then continuously REINFORCES/replenishes it
+toward a target headcount for the raid's duration (respawn queue for unloaded
+raiders + top-up when the live count falls below the `Horde.numberOf*` targets),
+where the target drops one per KILL. Horde SIZE = `RaidManager` difficulty ×
+colony raid level; the raid ends on a night-count timer (`daysToGo`) or when
+kills drop the target to ~10% of `initialSize`. There is no wave counter, no
+sequential spawn-wait-spawn, and `EventStatus.WAITING` is unused for waves. So
+"mirror MC" = attrition + reinforcement, NOT waves — implemented below.
+
+---
+
+## WAVE MODEL MIRRORS MINECOLONIES + MC-RAIDER BARRIER DAMAGE (2026-07-26, 0.2.2)
+
+**Attrition wave model (generic raids only).** Our raids already matched the
+SHAPE of MC's (one horde reduced by attrition, no discrete waves); these two
+deltas make it a faithful mirror. `TensuraRaidEvent` gained an `initialTarget`
+(horde size at trigger = the count spawned to meet the EP budget) and a
+`currentTarget` (both NBT-persisted):
+- **Kills shrink the horde.** `onRaidMobDeath` (the `LivingDeathEvent` path — the
+  single kill authority) calls `event.recordKill()`, decrementing `currentTarget`
+  by one. The drive-loop prune only drops UNLOADED uuids and must NOT decrement
+  (matches MC's onEntityDeath-vs-unregister split).
+- **Reinforcement refills only NON-kill losses.** Each drive tick, if
+  `currentTarget − raiderUuids.size() > 0` (a raider discarded/void'd without a
+  death), `reinforceRaid` spawns up to `REINFORCE_MAX_PER_TICK` (2) fresh raiders
+  at the original spawn point with the same `RaidTag`. Because kills lower the
+  target in lockstep, killed raiders are never refilled — the defenders always
+  advance toward the win.
+- **Win at ~90% killed.** `currentTarget ≤ floor(initialTarget × WIN_KILL_FRACTION
+  0.10)` → `resolveVictory` (which now poof-despawns any surviving stragglers).
+  Small raids (initial < 10 → floor = 0) still win only on a full clear, same as
+  before. The night timer + the existing full-clear (`raiderUuids` empty) win are
+  unchanged. Lore raids (Orc Disaster) keep their boss-death win and do NOT
+  reinforce (`initialTarget` stays 0 → attrition disabled). Legacy saves decode
+  `initialTarget = 0` → attrition disabled → old full-clear behaviour.
+- **Boss bar** now shows `currentTarget / initialTarget` for attrition raids (how
+  much of the horde is left to break) instead of the momentary alive/total, which
+  reinforcement would otherwise keep pinned near full.
+
+**MC native raiders can break the barrier (and won't get stuck on it).** MC's own
+raiders (`AbstractEntityMinecoloniesRaider`) were already in the barrier's
+`isBlockableHostile` set — pushed back, draining/chipping sections — but they
+carry no Tensura existence, so they used `FALLBACK_RAIDER_EP` (1000) and chipped
+a section at ~5/s: a 10k tier-1 section took ~30 min solo, so a horde effectively
+got CAUGHT on the wall for the whole night. They now press with a dedicated
+`MC_RAIDER_BARRIER_EP` (3000 baseline, ⚠ balance guess) **scaled by MC's own raid
+difficulty** — `mcRaiderBarrierEp` multiplies the baseline by
+`IRaiderManager.getRaidDifficultyModifier()` (a per-colony double centered near 1
+that rises with MC's raid difficulty — `(raidDifficulty/10 + 0.2) ×
+(config.raidDifficulty/5) × (worldDifficulty/2) × spawnCountAdjusted`), clamped to
+`[MC_RAIDER_DIFFICULTY_MIN_FACTOR 0.5, MC_RAIDER_DIFFICULTY_MAX_FACTOR 4.0]`. So a
+tougher MC raid batters the shield down faster and an easy one slower, staying in
+a sane band whatever the config/world difficulty produce; unreadable colony/
+modifier falls back to the flat baseline. A horde breaks a fueled section in a few
+minutes and pours through the hole (raiders pass BROKEN sections with no push, so
+breakthrough = entry), while a lone raider is still held out a long time (tier
+scales section health). We do NOT actively steer MC raiders to openings:
+they are vanilla-goal + MC-navigation mobs (NOT SmartBrainLib), so our
+`WALK_TARGET` opening-routing can't drive them; instead they rely on
+break-through + opportunistic hole passage. (Our own Tensura raiders keep the
+active opening-routing from the previous section.)
+
+**No double raids (MC native + ours).** MineColonies runs its OWN biome-raid
+scheduler in parallel with ours; our one-active-raid check in `tick()` only scans
+for `TensuraRaidEvent`, so it missed an in-progress MC native raid and could stack
+a reputation raid on top (two hordes, two boss bars). `maybeTriggerNightRaid` now
+early-returns when `colony.getRaiderManager().isRaided()` (which sees BOTH raid
+systems), so a colony already under any raid is skipped until it ends. This is the
+only guard we add; we still let MC's own raids happen — we just don't pile on.
+
+**Defenders fight MC native raiders too.** `ColonyThreatResponse` fires on
+`isRaided()` (true for MC raids as well), but `scanRaiders`/`steerDefender` only
+recognised `RAID_TAG` mobs — so during a vanilla-style MC raid a strong citizen
+would swap into its monster body and then stand idle with no target. A shared
+`isRaider` predicate now also accepts `AbstractEntityMinecoloniesRaider`, so
+place-swapped defenders engage MC's barbarians/pirates the same as our Tensura
+raiders.
+
+**PACT ally support now also reinforces MC native raids.** Previously the
+diplomacy ally-support only fired at the start of OUR raids (`startRaid` /
+`startOrcDisaster`). `spawnAllySupport` was refactored to a reusable
+`(level, colony, eventId, Consumer<Mob> sink)` form, and a new per-second
+`handleMcRaidAllies` pass detects a MineColonies NATIVE raid (`isRaided()` && no
+`TensuraRaidEvent`), spawns the same PACT/COVENANT fighters once (tagged
+`AllyTag(colony, mcEventId, faction)`), steers them onto `AbstractEntityMineco
+loniesRaider`s each tick, and poofs them when the MC raid ends. Reload-safe:
+allies carry a persistent `AllyTag`, so on reload `adoptOrSpawnMcAllies` re-adopts
+the existing fighters (keyed by the MC raid's event id) instead of double-
+spawning; the tracker (`MC_RAID_ALLIES`, keyed `dimension#colonyId`) is in-memory
+only. Mutually exclusive with our own raids' ally support (the double-raid gate +
+MC's own `isRaided()` check keep the two raid types from coexisting).
+⚠ **Watch (docs/potential-bugs.md):** the ally fighters are Tensura goblin/dwarf/
+lizardman mobs; if those are `MobCategory.MONSTER`, MineColonies guard towers may
+auto-target and kill them on arrival. Unverified — flagged for playtest.
+
+**Non-seam confirmed:** MC spawns its raiders via `RaiderMobUtils.spawn` →
+`CompatibilityUtils.addEntity` (no `finalizeSpawn`, no `MobSpawnType`), so the
+barrier's spawn-suppression hooks (`MobSpawnEvent.PositionCheck` /
+`FinalizeSpawnEvent`) never fire for them — a large barrier does NOT accidentally
+cancel MC raider spawns. No change needed there.
+
+⚠ BALANCE GUESSES (no combat playtest): `MC_RAIDER_BARRIER_EP` 3000,
+`REINFORCE_MAX_PER_TICK` 2, `WIN_KILL_FRACTION` 0.10.
+
+---
+
 ## COLONY-CENTERED BARRIER + CORE NETWORKS + LAYER-3 BUFF SPLIT (2026-07-13)
 
 Three coupled changes to `BarrierBlockEntity` (+ `TensuraRaids` registry,

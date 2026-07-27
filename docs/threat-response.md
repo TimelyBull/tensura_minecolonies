@@ -68,9 +68,14 @@ Per colony (town hall required for both swap directions):
 - **Not raided:** for each `defendingColony` identity → `defenseSwapToColony`.
 
 **Targeting** reuses the ally-support dual-write idiom: lock onto the nearest
-living `RAID_TAG` mob via `BrainUtils.setTargetOfEntity` + `setTarget`. The
+living raider via `BrainUtils.setTargetOfEntity` + `setTarget`. The
 autocaster reads `mob.getTarget()`, so once a defender is steered onto a
 raider it casts; with no raider in range it does nothing (combat-only).
+"Raider" here is the shared `isRaider` predicate — our own `RAID_TAG` mobs AND
+MineColonies' native `AbstractEntityMinecoloniesRaider`s. Because the trigger is
+`isRaided()` (true for MC's own raids too), a defender that swapped in during a
+vanilla-style MC raid would otherwise stand idle with nothing tagged `RAID_TAG`
+to fight; accepting MC raiders as targets closes that gap (2026-07-26, 0.2.2).
 
 **Autocaster** (`registerAutocaster`, common setup): one public-API
 `NightmareUtilsApi.registerReflectiveManascoreAutocaster` keyed on the

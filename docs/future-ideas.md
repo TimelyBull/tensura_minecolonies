@@ -28,6 +28,25 @@ follow-on could spawn the wave in 2–3 pulses (e.g. a third of the budget every
 budget loop in `startRaid` would need to persist its remaining budget on the
 event instead of spending it all at trigger time.
 
+## Raid difficulty should weigh player EP — very strong players scare mobs off (2026-07-26)
+
+Today `TensuraRaids.computeColonyStrength` sizes a raid from **citizen** EP +
+building level + population; the ruling player's own power is not a factor. Idea:
+fold the colony owner's EP into the difficulty model, and — past a high EP
+threshold — have raids **taper off or stop entirely** (the mobs are too scared of
+the player to march on their colony). Concretely, a follow-on could:
+
+- read the owner's EP (the same `IExistence` read used everywhere), and
+- above `RAID_FEAR_EP` (a new tunable), scale the nightfall **chance** down
+  toward zero (mobs increasingly refuse to raid), and/or
+- below that, feed owner EP into the strength formula so a strong ruler draws a
+  proportionally bigger raid rather than one sized only to the citizens.
+
+Keep it a smooth curve, not a hard cliff, so mid-game colonies still get raids.
+This pairs with the existing reputation trigger (reputation decides *whether*,
+EP would shape *how big / whether the mobs dare*). Tunables would live beside the
+other `TensuraRaids` difficulty constants.
+
 ## The RIVAL-COLONY ARC is BUILT (A–E, 2026-06-13) — deferred follow-ons
 
 The rival-colony/settlement arc is complete: A (settlement generation —
@@ -51,6 +70,20 @@ full A–E as-built records. Remaining deferred follow-ons:
   could first bulk-summon absent RaceIdentity subordinates (the existing
   bulk-summon path, at its magicule cost) so the picker isn't limited to
   who happens to be standing nearby.
+- **Make faction defenders actual SUBORDINATES of the boss** (idea, 2026-07-23).
+  Right now the garrison spawned when you declare war just stands with the boss
+  — they're independent mobs that happen to share the settlement and get steered
+  onto invaders (`steerGarrisonToInvaders`). Instead, make each defender a real
+  Tensura SUBORDINATE of the settlement's boss (the owner/master relationship
+  Tensura uses for tamed/named minions), so they behave as the boss's minions:
+  follow/defend the boss, benefit from whatever leader-follower behaviour Tensura
+  gives subordinates, and read as "the boss's forces" rather than a loose crowd.
+  Would touch garrison spawn (`RivalColonies`, Stage B) — set the ownership/
+  master link at `finalizeSpawn` time — and interact with the tether/steer logic
+  (a subordinate leash may partly replace the manual `tickGarrison` tether). Note
+  the boss can be revived as a NEW entity on `resetGarrison` (tracked risk) — the
+  subordinate links would need re-pointing at the fresh boss uuid, same as
+  `s.bossUuid` is rewritten today.
 - **Payout / balance tuning** — all the flagged BALANCE-GUESS constants
   (garrison `GARRISON_*` scaling, the `BETRAYAL_MULT_*` tier multipliers)
   want a combat playtest pass.
@@ -973,3 +1006,123 @@ actually costs something (don't optimize on a guess):
 Already banked (not a future idea, just context): multi-core networking made
 only the elected PRIMARY run the field driver, so a colony with N cores went
 from N per-tick entity scans to 1.
+
+## Server — Unique-skill rarity tiers (2026-07-23)
+
+A server-side idea for dividing Unique Skills into rarity tiers that gate
+how a player can obtain them and, at the top end, how many they may hold:
+
+- **Common** — the weakest uniques; earnable through quests.
+- **Rare** — average, solid skills (e.g. Berserker); part of the starting
+  pool.
+- **Epic** — reserved for events.
+- **Sin / Virtue** — the top tier; obtainable only through extremely hard
+  quests, with a hard cap on how many a player can hold at once:
+  - 1 by default,
+  - 2 if the player has **Sage**,
+  - 7 if the player has **Great Sage**,
+  - 14 if the player has **Raphael**.
+
+Not scoped yet — records the rarity model and the Sin/Virtue ownership cap
+progression (Sage → Great Sage → Raphael raising the ceiling).
+
+## Moderate Harlequin Alliance — secret faction unlocked by a random clown (2026-07-23)
+
+Make the `clayman` faction (display "Moderate Harlequin Alliance") a HIDDEN
+faction: it doesn't appear in the diplomacy UI / world-rep listing at all until
+the player unlocks it. Unlock trigger — encountering a rare, randomly-appearing
+CLOWN (a Moderate Harlequin) somewhere in the world; interacting with it opens
+access to the Alliance (adds the faction to the player's known/discovered set,
+same discovery-gate shape the rival-colony arc already uses for Declare-War).
+
+Fits the Alliance's canon character — a shadowy, moderate faction that only
+reveals itself to those it seeks out. Ties into the existing bodiless-faction
+handling (Clayman is already abstract/no-settlement) and the per-player
+discovery pattern.
+
+Not scoped: what the clown is (new entity vs. reskinned existing mob), spawn
+rules (rarity, biome/time gating, one-time vs. repeatable), whether the unlock
+is per-player or per-world, and what the reveal actually grants (diplomacy
+entry, an intro deal, etc.).
+
+## Military / mystic COLONISTS as a race (arch-daemon-modelled), envoy-unlocked (2026-07-26)
+
+Idea (user-suggested, captured for reference — NOT scoped): add a race-citizen
+line that renders as Tensura's **military / mystic colonists** (the humanoid
+combat/caster NPCs), most likely via **arch daemons** since they're humanoid and
+already GeckoLib-modelled. The user's own framing: *"Idk if this would work —
+probably limited to arch daemons since they're sorta humanoid and their models
+are GeckoLib — but if you can get it to work it'd be cool to have colonists that
+are just the military / mystic colonists. Could have them send an envoy if you're
+a daemon already, or if you kill Hinata."*
+
+Notes / unknowns to resolve when scoped:
+- **Render path.** Arch daemons are GeckoLib — so this reuses the **Lizardman
+  shadow-entity pattern** (I2), not the goblin/dwarf PlayerModel path. A
+  per-citizen shadow ArchDaemonEntity fed to Tensura's own renderer, never
+  `tick()`'d (same HARD RULE as orc/lizardman). Confirm the "military colonist"
+  and "mystic colonist" the user means are in fact the arch-daemon entities (or
+  which Tensura entity types they are) before committing.
+- **Envoy unlock conditions (novel — race-side / progression-gated).** The user
+  suggested gating the envoy on player IDENTITY / deeds rather than colony
+  metrics: (a) the player is already a **daemon** (majin/daemon side — reuse the
+  `WorldReputationManager.isMajinSide` classifier / race-side detection), or (b)
+  the player has **killed Hinata** (a per-player permanent flag set from a
+  `LivingDeathEvent` on Hinata's entity — same shape as the Stage-J Orc Disaster
+  / Ifrit defeat flags on `ColonyRaceConfigSavedData`). This fits the existing
+  Stage-J "deferred-content envoy conditions" machinery.
+- Everything else (skill profile, variant record, envoy dialogue voice,
+  nameplate colour, kill-gate) follows the established per-race checklist
+  (Stage I / J). Would be an EARNED race (envoy-only), not a starter.
+
+## Tensura compat for a dedicated WAR / siege mod — HYW 0.7.0r (2026-07-26)
+
+Idea (user-suggested, captured for reference — NOT scoped): now that **sieges**
+are a planned feature (see "Sieges — broken-alliance super-raids" above and the
+rival-colony arc), add a Tensura-flavoured **compat layer for a dedicated
+war/siege mod** rather than (or alongside) building the whole siege system
+ourselves. The user named **HYW 0.7.0r** as the mod to target. User's framing:
+*"yoo fire idea — if I may, I saw you had sieges planned; perhaps a Tensura
+compat for this mod might be worth it. [add compat for the HYW mod 0.7.0r.]"*
+
+Notes / unknowns to resolve when scoped:
+- **Identify the mod precisely.** "HYW" most likely = a *Hundred Years' War* /
+  historical-warfare mod; confirm the exact mod id, its 0.7.0r feature set (does
+  it provide troops/units, siege weapons, a battle/army system, capturable
+  points?), its API surface, and whether it's on NeoForge 1.21.1 and compatible
+  with this pack before any integration work.
+- **What "compat" means here — decide the shape.** Options range from light to
+  heavy: (a) let HYW armies/units count as our faction garrisons / raid forces
+  (Tensura mobs as HYW troops, or HYW units as settlement defenders); (b) drive
+  our siege trigger (rival-colony Stage E betrayal → super-raid) through HYW's
+  battle system instead of our raid engine; (c) reward/faction bridging (winning
+  an HYW siege feeds our world-reputation / diplomacy standing). Pick one lane
+  first.
+- Depends on our **siege system** existing (still deferred — Stage E only
+  supplies the betrayal TRIGGER today; the actual siege encounter is unbuilt).
+  This is a "when we build sieges, consider routing through HYW" note, not a
+  standalone task. Also gate behind a config toggle and a soft-dependency check
+  so the pack works without HYW installed.
+
+## Derive raider barrier-EP from generated stats (2026-07-26)
+
+Today MineColonies-native raiders (barbarians/pirates) carry no Tensura
+existence, so the magicule barrier gives them a flat effective EP
+(`BarrierBlockEntity.MC_RAIDER_BARRIER_EP`, currently 3000) when computing how
+fast they chip a section. That single constant treats a weak trash-mob raider
+and a boss-tier raid captain identically.
+
+Idea: instead of the flat constant, derive each MC raider's effective
+barrier-EP from the STATS it was actually generated with — e.g. a function of
+its `MAX_HEALTH` × `ATTACK_DAMAGE` (optionally armor/level), scaled into an
+EP-equivalent range. A tougher raider (higher raid level / bigger horde tier)
+would then press the wall harder and break through sooner than a weak one,
+so the barrier's hold time against a raid scales with the raid's real threat
+instead of being uniform.
+
+Notes:
+- Keep the flat value as the fallback when no usable attributes are present.
+- Tune the stat→EP mapping so the current 3000-equivalent lands mid-range
+  (a baseline barbarian should feel about like it does now).
+- Applies to both this repo and the shared compat mod (both carry the same
+  `MC_RAIDER_BARRIER_EP` flat constant).

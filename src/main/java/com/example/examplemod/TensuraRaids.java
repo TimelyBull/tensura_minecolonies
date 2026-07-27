@@ -4,6 +4,7 @@ import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.colony.colonyEvents.EventStatus;
 import com.minecolonies.api.colony.colonyEvents.IColonyEvent;
+import com.minecolonies.api.colony.colonyEvents.IColonyRaidEvent;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import io.github.manasmods.tensura.registry.entity.MonsterEntityTypes;
 import io.github.manasmods.tensura.storage.ep.ExistenceStorage;
@@ -26,15 +27,18 @@ import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.AABB;
 import net.tslat.smartbrainlib.util.BrainUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -92,6 +96,19 @@ public final class TensuraRaids {
     /** Wave size clamps per raid level (index = level − 1). */
     static final int WAVE_MIN = 3;
     static final int[] LEVEL_WAVE_MAX = { 6, 10, 14 };
+    // ------------------------------------------------------------------
+    // MC-style attrition (mirrors MineColonies' HordeRaidEvent — a single
+    // horde whittled down, NOT discrete waves). The horde's target headcount
+    // drops one per KILL; reinforcement refills only NON-kill losses; the raid
+    // is won once the target reaches WIN_KILL_FRACTION of its initial size.
+    // ------------------------------------------------------------------
+
+    /** Reinforcements spawned per drive tick (1 s) to refill non-kill losses —
+     *  capped so a sudden gap doesn't dump a batch at once. */
+    static final int REINFORCE_MAX_PER_TICK = 2;
+    /** A generic raid is won when the horde's target headcount falls to this
+     *  fraction of its initial size (~90% killed), like MineColonies. */
+    static final double WIN_KILL_FRACTION = 0.10;
     /** EP assumed for a spawned raider whose existence can't be read
      *  (budget accounting fallback). */
     static final double FALLBACK_SPAWN_EP = 1_000.0;
@@ -152,6 +169,19 @@ public final class TensuraRaids {
     /** A COVENANT faction (any) sends this multiple of its PACT count
      *  — the alliance deepened into a covenant fields more help. */
     static final int COVENANT_SUPPORT_BONUS = 1;
+
+    /** MC-NATIVE-raid ally support: radius (blocks) from colony center to scan
+     *  for already-spawned allies (reload adoption) and for MC raiders to steer
+     *  our allies onto. */
+    static final double ALLY_ADOPT_RADIUS = 96.0;
+    static final double ALLY_TARGET_RADIUS = 80.0;
+
+    /** In-memory tracker of ally fighters sent to a MineColonies NATIVE raid,
+     *  keyed "dimension#colonyId". Not persisted: the allies carry an
+     *  {@link AllyTag} that survives reload, so {@link #adoptOrSpawnMcAllies}
+     *  re-adopts them rather than double-spawning after a reload. */
+    private record McRaidState(int mcEventId, Set<UUID> allyUuids) {}
+    private static final Map<String, McRaidState> MC_RAID_ALLIES = new ConcurrentHashMap<>();
 
     /** Which entity each faction sends — PASSIVE-category Tensura mobs
      *  on purpose: MineColonies guards auto-engage MONSTER-category
@@ -300,6 +330,31 @@ public final class TensuraRaids {
         return best;
     }
 
+    /** The {@link BarrierBlockEntity} (network PRIMARY) of the nearest fueled
+     *  barrier within 160 blocks of {@code around}, or null. Only primaries
+     *  register in {@link #ACTIVE_BARRIERS} (secondaries are tank-only), but we
+     *  guard defensively. Used by the raid steering to read the field's
+     *  per-section holes and funnel raiders through an opening. */
+    static BarrierBlockEntity nearestActiveBarrierEntity(ServerLevel level, BlockPos around) {
+        long now = level.getGameTime();
+        BarrierBlockEntity best = null;
+        double bestDist = 160 * 160;
+        Iterator<Map.Entry<GlobalPos, BarrierEntry>> it = ACTIVE_BARRIERS.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<GlobalPos, BarrierEntry> e = it.next();
+            if (now - e.getValue().lastSeen() > BARRIER_STALE_TICKS) { it.remove(); continue; }
+            if (!e.getKey().dimension().equals(level.dimension())) continue;
+            double d = e.getValue().center().distSqr(around);
+            if (d < bestDist
+                    && level.getBlockEntity(e.getKey().pos()) instanceof BarrierBlockEntity be
+                    && !be.isLinkedSecondary()) {
+                bestDist = d;
+                best = be;
+            }
+        }
+        return best;
+    }
+
     // ------------------------------------------------------------------
     // Per-dimension nightfall detection
     // ------------------------------------------------------------------
@@ -322,10 +377,16 @@ public final class TensuraRaids {
                 try {
                     TensuraRaidEvent active = findActiveRaid(colony);
                     if (active != null) {
+                        // An active raid always resolves — the trigger toggle
+                        // only gates STARTING new raids, never finishing one.
                         driveRaid(level, colony, active);
-                    } else if (nightfall) {
+                    } else if (nightfall && Config.enableRaids()) {
                         maybeTriggerNightRaid(level, colony);
                     }
+                    // PACT ally support for MineColonies' OWN native raids (our
+                    // raids spawn/steer their allies inside driveRaid). Faction-
+                    // gated inside; no-ops when there's no MC raid.
+                    handleMcRaidAllies(level, colony, active != null);
                 } catch (Throwable t) {
                     LOGGER.warn("[TM] raid: tick failed for colony {}", colony.getID(), t);
                 }
@@ -370,6 +431,19 @@ public final class TensuraRaids {
     // ------------------------------------------------------------------
 
     private static void maybeTriggerNightRaid(ServerLevel level, IColony colony) {
+        // Never stack our raid on top of an EXISTING raid. Our one-active-raid
+        // check in tick() only scans for TensuraRaidEvents, so it misses a
+        // MineColonies NATIVE (biome) raid — MC runs its own raid scheduler in
+        // parallel with ours. isRaided() sees BOTH, so a colony already under any
+        // raid is skipped until that raid ends (no double boss bars / double
+        // hordes). Defensive try/catch: a malformed raider manager must not break
+        // the trigger pass for every other colony.
+        try {
+            if (colony.getRaiderManager().isRaided()) return;
+        } catch (Throwable ignored) {
+            return;
+        }
+
         ReputationTier tier = ReputationManager.getTier(colony);
         double chance = switch (tier) {
             case HOSTILE -> RAID_CHANCE_HOSTILE;
@@ -487,6 +561,10 @@ public final class TensuraRaids {
             LOGGER.warn("[TM] raid: colony {} — no raiders could spawn, aborting raid", colony.getID());
             return null;
         }
+
+        // MC-style attrition: the spawned headcount IS the horde target to
+        // maintain (reinforce non-kill losses, win at ~90% killed).
+        event.setWaveTarget(spawned);
 
         colony.getEventManager().addEvent(event);
         event.setStatus(EventStatus.PROGRESSING);
@@ -696,6 +774,20 @@ public final class TensuraRaids {
      * (generic AND lore events). Faction-gated inside via the manager.
      */
     static void spawnAllySupport(ServerLevel level, IColony colony, TensuraRaidEvent event) {
+        spawnAllySupport(level, colony, event.getID(), event::addAlly);
+    }
+
+    /**
+     * Shared ally spawner used by BOTH our own raids and MineColonies' NATIVE
+     * raids ({@link #handleMcRaidAllies}). Spawns each PACT/COVENANT fighter,
+     * tags it {@code AllyTag(colony, eventId, faction)}, adds it to the world,
+     * and hands it to {@code sink} (our raids collect it on the event; MC raids
+     * collect its UUID). {@code eventId} is the raid event's id — our
+     * TensuraRaidEvent's, or the MC raid event's — so allies stay matched to
+     * their raid (event ids are unique within a colony's event manager).
+     */
+    static void spawnAllySupport(ServerLevel level, IColony colony, int eventId,
+                                 java.util.function.Consumer<Mob> sink) {
         if (!WorldReputationManager.isFactionSystemEnabled()) return;
         UUID owner = colony.getPermissions().getOwner();
         if (owner == null) return;
@@ -741,9 +833,9 @@ public final class TensuraRaids {
                 ally.setCustomName(net.minecraft.network.chat.Component
                         .literal(faction.displayName() + " Ally").withStyle(faction.color()));
                 ally.setData(Attachments.ALLY_TAG.get(),
-                        new AllyTag(colony.getID(), event.getID(), faction.id()));
+                        new AllyTag(colony.getID(), eventId, faction.id()));
                 if (!level.addFreshEntity(ally)) break;
-                event.addAlly(ally);
+                sink.accept(ally);
                 spawned++;
                 total++;
             }
@@ -802,6 +894,146 @@ public final class TensuraRaids {
         event.allyUuids().clear();
     }
 
+    // ------------------------------------------------------------------
+    // PACT ally support for MineColonies' OWN native raids. Our raids spawn +
+    // steer their allies inside startRaid/driveRaid; MC's native raids don't run
+    // through our code, so this per-second pass mirrors that for them: spawn once
+    // when an MC raid begins, steer the allies onto MC raiders each tick, and
+    // dismiss them when the MC raid ends.
+    // ------------------------------------------------------------------
+
+    private static String colonyKey(ServerLevel level, IColony colony) {
+        return level.dimension().location() + "#" + colony.getID();
+    }
+
+    /** The id of an ACTIVE MineColonies-native raid event on this colony (any
+     *  {@link IColonyRaidEvent} that isn't ours), or -1 if none. */
+    private static int findActiveMcRaidId(IColony colony) {
+        for (IColonyEvent event : colony.getEventManager().getEvents().values()) {
+            if (event instanceof IColonyRaidEvent
+                    && !(event instanceof TensuraRaidEvent)
+                    && event.getStatus() != EventStatus.DONE
+                    && event.getStatus() != EventStatus.CANCELED) {
+                return event.getID();
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Per-second driver for ally support during a MineColonies NATIVE raid.
+     * {@code ourRaidActive} is true when one of OUR raids is running (which
+     * handles its own allies) — in that case, and whenever there's no MC raid,
+     * we make sure no MC-raid allies linger. Mutually exclusive with our raids
+     * by construction (the double-raid gate + MC's own isRaided() check).
+     */
+    private static void handleMcRaidAllies(ServerLevel level, IColony colony, boolean ourRaidActive) {
+        String key = colonyKey(level, colony);
+
+        // Faction system off (or flipped off mid-raid) → send none / dismiss any.
+        if (!WorldReputationManager.isFactionSystemEnabled()) {
+            McRaidState leftover = MC_RAID_ALLIES.remove(key);
+            if (leftover != null) dismissMcAllies(level, leftover);
+            return;
+        }
+
+        boolean raided;
+        try {
+            raided = colony.getRaiderManager().isRaided();
+        } catch (Throwable t) {
+            return;
+        }
+
+        boolean mcRaid = raided && !ourRaidActive;
+        if (mcRaid) {
+            int mcEventId = findActiveMcRaidId(colony);
+            McRaidState state = MC_RAID_ALLIES.get(key);
+            if (state == null || state.mcEventId() != mcEventId) {
+                // New MC raid (or a different one) — clear any stale allies, then
+                // adopt existing / spawn fresh for this raid.
+                if (state != null) dismissMcAllies(level, state);
+                Set<UUID> uuids = adoptOrSpawnMcAllies(level, colony, mcEventId);
+                state = new McRaidState(mcEventId, uuids);
+                MC_RAID_ALLIES.put(key, state);
+            }
+            steerMcAllies(level, colony, state);
+        } else {
+            McRaidState state = MC_RAID_ALLIES.remove(key);
+            if (state != null) dismissMcAllies(level, state);
+        }
+    }
+
+    /** Reload-safe: adopt any ally already spawned for THIS MC raid (its
+     *  {@link AllyTag} survived the reload) rather than double-spawning; only
+     *  spawn a fresh batch when none exist yet. */
+    private static Set<UUID> adoptOrSpawnMcAllies(ServerLevel level, IColony colony, int mcEventId) {
+        Set<UUID> uuids = new HashSet<>();
+        AABB box = new AABB(colony.getCenter()).inflate(ALLY_ADOPT_RADIUS);
+        for (Mob m : level.getEntitiesOfClass(Mob.class, box,
+                m -> m.isAlive() && m.hasData(Attachments.ALLY_TAG.get()))) {
+            AllyTag tag = m.getData(Attachments.ALLY_TAG.get());
+            if (tag != null && tag.colonyId() == colony.getID() && tag.eventId() == mcEventId) {
+                uuids.add(m.getUUID());
+            }
+        }
+        if (!uuids.isEmpty()) {
+            LOGGER.info("[TM] raid: adopted {} existing ally fighters for MC raid {} at colony {}",
+                    uuids.size(), mcEventId, colony.getID());
+            return uuids;
+        }
+        spawnAllySupport(level, colony, mcEventId, ally -> uuids.add(ally.getUUID()));
+        return uuids;
+    }
+
+    /** Keep each MC-raid ally locked onto the nearest living MC raider — the
+     *  raid steer's dual-write idiom, aimed at {@code AbstractEntityMinecolonies
+     *  Raider}s. Prunes dead/removed allies from the tracker. */
+    private static void steerMcAllies(ServerLevel level, IColony colony, McRaidState state) {
+        List<Mob> raiders = level.getEntitiesOfClass(Mob.class,
+                new AABB(colony.getCenter()).inflate(ALLY_TARGET_RADIUS),
+                m -> m.isAlive()
+                        && m instanceof com.minecolonies.api.entity.mobs.AbstractEntityMinecoloniesRaider);
+        Iterator<UUID> it = state.allyUuids().iterator();
+        while (it.hasNext()) {
+            Entity e = level.getEntity(it.next());
+            if (e == null) continue; // unloaded — keep
+            if (e.isRemoved() || !(e instanceof Mob ally) || !ally.isAlive()) {
+                it.remove();
+                continue;
+            }
+            LivingEntity cur = BrainUtils.getTargetOfEntity(ally);
+            if (cur != null && cur.isAlive()
+                    && cur instanceof com.minecolonies.api.entity.mobs.AbstractEntityMinecoloniesRaider) {
+                if (ally.getTarget() != cur) ally.setTarget(cur);
+                continue;
+            }
+            Mob nearest = null;
+            double best = Double.MAX_VALUE;
+            for (Mob raider : raiders) {
+                double d = raider.distanceToSqr(ally);
+                if (d < best) { best = d; nearest = raider; }
+            }
+            if (nearest != null) {
+                BrainUtils.setTargetOfEntity(ally, nearest);
+                ally.setTarget(nearest);
+            }
+        }
+    }
+
+    /** The MC-raid allies go home (the envoy/our-raid poof). */
+    private static void dismissMcAllies(ServerLevel level, McRaidState state) {
+        for (UUID uuid : state.allyUuids()) {
+            Entity e = level.getEntity(uuid);
+            if (e != null && !e.isRemoved()) {
+                level.sendParticles(ParticleTypes.POOF,
+                        e.getX(), e.getY() + e.getBbHeight() / 2.0, e.getZ(),
+                        24, 0.4, 0.4, 0.4, 0.02);
+                e.discard();
+            }
+        }
+        state.allyUuids().clear();
+    }
+
     /** Envoy/population spawn pattern: create + finalizeSpawn + persist +
      *  RAID_TAG + addFreshEntity, scattered around the wave spawn point. */
     private static Mob spawnRaider(ServerLevel level, EntityType<? extends Mob> type,
@@ -832,6 +1064,33 @@ public final class TensuraRaids {
             return null;
         }
         return mob;
+    }
+
+    /**
+     * MC-style reinforcement — spawn up to {@code count} fresh raiders to refill
+     * a horde that dropped below its current target for a NON-kill reason
+     * (a raider despawned/discarded/fell out of the world). Kills lower the
+     * target instead (see {@link TensuraRaidEvent#recordKill}), so this never
+     * replaces a killed raider. Reinforcements arrive at the original wave
+     * spawn point (re-validated against any barrier raised since the raid began)
+     * and carry the same {@link RaidTag}, so the steering / barrier / death
+     * bookkeeping treat them identically.
+     */
+    private static void reinforceRaid(ServerLevel level, IColony colony,
+                                      TensuraRaidEvent event, int count) {
+        EntityType<? extends Mob>[][] all = rosters();
+        EntityType<? extends Mob>[] roster = all[Math.max(0, Math.min(event.rosterTier(), all.length - 1))];
+        BlockPos spawnPos = event.getSpawnPos();
+        if (spawnPos == null
+                || isInsideFueledBarrier(level, spawnPos.getX() + 0.5, spawnPos.getZ() + 0.5)) {
+            spawnPos = computeSpawnPos(level, colony);
+        }
+        for (int i = 0; i < count; i++) {
+            EntityType<? extends Mob> type = roster[event.totalSpawned() % roster.length];
+            Mob mob = spawnRaider(level, type, spawnPos, colony.getID(), event.getID());
+            if (mob == null) break;
+            event.addRaider(mob);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -868,11 +1127,37 @@ public final class TensuraRaids {
             return;
         }
 
-        // Steer + target-assist the loaded raiders.
+        // MC-style attrition (generic raids only; lore raids end on the lead
+        // boss's death, legacy/0-target raids on a full clear above).
+        if (!event.isLoreEvent() && event.initialTarget() > 0) {
+            // Win once ~90% of the horde is broken — the target headcount has
+            // dropped (one per kill) to WIN_KILL_FRACTION of its initial size.
+            int winAt = (int) Math.floor(event.initialTarget() * WIN_KILL_FRACTION);
+            if (event.currentTarget() <= winAt) {
+                resolveVictory(level, colony, event);
+                return;
+            }
+            // Reinforce non-kill losses (unload-discard, void, etc.) back up to
+            // the CURRENT (kill-shrunk) target — kills lower the target in
+            // lockstep, so killed raiders are never refilled and the defenders
+            // always advance toward the win.
+            int deficit = event.currentTarget() - event.raiderUuids().size();
+            if (deficit > 0) {
+                reinforceRaid(level, colony, event, Math.min(deficit, REINFORCE_MAX_PER_TICK));
+            }
+        }
+
+        // Steer + target-assist the loaded raiders. When a barrier stands, the
+        // raiders march on its field centre; if that field has an OPENING (a
+        // section battered down to a hole), each raider is funnelled through the
+        // gap instead of milling at the wall — and reverts to hunting citizens
+        // once it's through (see steerRaider).
         BlockPos barrier = nearestActiveBarrier(level, colony.getCenter());
+        BarrierBlockEntity barrierBE = barrier != null
+                ? nearestActiveBarrierEntity(level, colony.getCenter()) : null;
         BlockPos destination = barrier != null ? barrier : colony.getCenter();
         for (Mob mob : living) {
-            steerRaider(level, mob, colony, destination);
+            steerRaider(level, mob, colony, destination, barrierBE);
         }
 
         // Stage 3 — keep the ally fighters on the raiders.
@@ -899,8 +1184,20 @@ public final class TensuraRaids {
      * destination (barrier first, else colony center), exactly like
      * SubordinatePatrol — Tensura's idle wander only fires when
      * WALK_TARGET is absent.
+     *
+     * <p>When the destination is a barrier that has been battered OPEN,
+     * {@code barrierBE} lets the mob aim for the hole ({@link
+     * BarrierBlockEntity#findOpeningToward}) rather than the sealed centre —
+     * so raiders funnel through a breach. The moment a raider is through (past
+     * the shell), {@code findOpeningToward} returns null and this pass falls
+     * back to normal citizen-hunting. Note: the opening steer only runs on the
+     * "no live target and no nearby citizen" branch, which is the raider's
+     * state while it's outside a walled colony (citizens hide inside, out of
+     * assist range); so in practice a raider marches to the breach, passes it,
+     * finds citizens in range, and resumes killing.
      */
-    private static void steerRaider(ServerLevel level, Mob mob, IColony colony, BlockPos destination) {
+    private static void steerRaider(ServerLevel level, Mob mob, IColony colony,
+                                    BlockPos destination, BarrierBlockEntity barrierBE) {
         LivingEntity target = BrainUtils.getTargetOfEntity(mob);
         if (target != null && target.isAlive()) {
             // Keep the vanilla slot in sync so Tensura's invalidation
@@ -925,10 +1222,19 @@ public final class TensuraRaids {
             return;
         }
 
-        // No combat — march on the destination (barrier first, else center).
-        if (mob.blockPosition().distSqr(destination) > 9) {
+        // No combat — march on the destination. If the barrier the mob is
+        // marching on has an opening it can use, head for the breach instead of
+        // the sealed centre (heightmap-snapped so a ground raider walks to it).
+        BlockPos march = destination;
+        if (barrierBE != null) {
+            BlockPos opening = barrierBE.findOpeningToward(mob.position());
+            if (opening != null) {
+                march = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, opening);
+            }
+        }
+        if (mob.blockPosition().distSqr(march) > 9) {
             mob.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                    new WalkTarget(destination, RAID_WALK_SPEED, RAID_CLOSE_ENOUGH));
+                    new WalkTarget(march, RAID_WALK_SPEED, RAID_CLOSE_ENOUGH));
         }
     }
 
@@ -937,6 +1243,19 @@ public final class TensuraRaids {
     // ------------------------------------------------------------------
 
     private static void resolveVictory(ServerLevel level, IColony colony, TensuraRaidEvent event) {
+        // An attrition win (≈90% killed) can leave a few live stragglers — they
+        // withdraw with the same poof the timeout uses. A full-clear victory
+        // finds none, so this is a no-op there.
+        for (UUID uuid : new ArrayList<>(event.raiderUuids())) {
+            Entity e = level.getEntity(uuid);
+            if (e != null && !e.isRemoved()) {
+                level.sendParticles(ParticleTypes.POOF,
+                        e.getX(), e.getY() + e.getBbHeight() / 2.0, e.getZ(),
+                        24, 0.4, 0.4, 0.4, 0.02);
+                e.discard();
+            }
+            event.removeRaider(uuid);
+        }
         dismissAllies(level, event);
         event.setStatus(EventStatus.DONE);
         event.onFinish();
@@ -1031,6 +1350,11 @@ public final class TensuraRaids {
         TensuraRaidEvent event = findActiveRaid(colony);
         if (event != null && event.getID() == tag.eventId()) {
             event.removeRaider(victim.getUUID());
+            // A confirmed KILL permanently shrinks the attrition target (a
+            // no-op for lore/legacy raids where initialTarget is 0). This is the
+            // single kill authority — the drive-loop prune only removes unloaded
+            // UUIDs and must NOT decrement the target.
+            event.recordKill();
         }
     }
 

@@ -6,6 +6,7 @@
   "mixins": [
     "CreateColonyMessageMixin",
     "EntityCitizenBabyMixin",
+    "EventManagerMixin",
     "ISubordinateCommandMixin",
     "ReproductionManagerMixin",
     "TensuraBehaviourHelperMixin"

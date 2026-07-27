@@ -40,17 +40,22 @@ import java.util.UUID;
  *       per-colony-tick {@code onUpdate} safety callbacks.</li>
  * </ul>
  *
- * <p><b>⚠ KNOWN LIMITATION — does NOT survive save/reload.</b> Contrary to
- * an earlier note here, MC's {@code EventManager} does NOT rehydrate this
- * event across a save/reload: {@code EventManager.readFromNBT} hardcodes the
- * {@code minecolonies} namespace when looking up the event type
- * ({@code new ResourceLocation("minecolonies", name)}) and only writes the
- * type id's PATH, so our {@code tensura_minecolonies:tensura_raid} id misses
- * the registry lookup and the in-progress raid is silently dropped on reload
- * (boss bar, tracked raider set and {@code isRaided()} flee state all clear).
- * See deps/minecolonies.md §"colony-event persistence bug". Fix (own
- * reload-reconstruction or a mixin) is tracked separately — verify in-game.
- * The mobs are plain Tensura MONSTER-category entities (guard towers
+ * <p><b>Save/reload persistence — FIXED (2026-07-23).</b> MC's
+ * {@code EventManager} originally could not rehydrate this event across a
+ * save/reload: {@code EventManager.readFromNBT} hardcodes the {@code minecolonies}
+ * namespace when looking up the event type
+ * ({@code new ResourceLocation("minecolonies", name)}) and {@code writeToNBT}
+ * stores only the type id's PATH, so our {@code tensura_minecolonies:tensura_raid}
+ * id missed the registry lookup and the in-progress raid was silently dropped on
+ * reload. {@code EventManagerMixin} now wraps that registry lookup: when the
+ * hardcoded-namespace {@code get} returns null it recovers the event type by
+ * matching the stored PATH across the whole colony-event registry, so the raid —
+ * its status, tracked raider UUIDs, end tick, boss-bar denominator and lore/ally
+ * state (all serialized below) — is restored intact, and the raid mobs re-link
+ * by {@link RaidTag} {@code (colonyId, eventId)}. See deps/minecolonies.md
+ * §"colony-event persistence bug".
+ *
+ * <p>The mobs are plain Tensura MONSTER-category entities (guard towers
  * auto-list those), marked with {@link RaidTag}; per-second steering /
  * resolution is driven by {@link TensuraRaids#tick}, not colony ticks.
  *
@@ -81,6 +86,20 @@ public class TensuraRaidEvent implements IColonyRaidEvent {
     private long endTick = 0L;
     /** Roster tier the wave was drawn from (kept for the type getters). */
     private int rosterTier = 0;
+
+    // --- MC-style attrition (docs/raid-system.md) — mirrors MineColonies'
+    //     HordeRaidEvent: a single horde reduced by attrition, NOT discrete
+    //     waves. The target HEADCOUNT drops by one per confirmed KILL (never
+    //     per unload); reinforcement refills only NON-kill losses up to the
+    //     current target, so killed raiders are never replaced and the raid is
+    //     won once the target falls to ~10% of its initial size. Generic raids
+    //     only — 0 means lore/legacy (no attrition; win on boss death or a full
+    //     clear). ---
+    /** Horde size at trigger time — the attrition denominator. */
+    private int initialTarget = 0;
+    /** Current target headcount; drops one per kill, refilled toward by
+     *  reinforcement for non-kill losses only. */
+    private int currentTarget = 0;
 
     // --- Lore-event layer (docs/lore-events.md) — both NBT-OPTIONAL:
     //     absent = generic raid, existing saves rehydrate untouched. ---
@@ -146,6 +165,27 @@ public class TensuraRaidEvent implements IColonyRaidEvent {
         return rosterTier;
     }
 
+    /** Set the attrition horde size at trigger time (initial == current). */
+    void setWaveTarget(int target) {
+        this.initialTarget = target;
+        this.currentTarget = target;
+    }
+
+    int initialTarget() {
+        return initialTarget;
+    }
+
+    int currentTarget() {
+        return currentTarget;
+    }
+
+    /** Record one confirmed KILL — permanently shrinks the horde (a killed
+     *  raider is never refilled by reinforcement). Does NOT touch the UUID set;
+     *  the caller removes the dead UUID. */
+    void recordKill() {
+        if (currentTarget > 0) currentTarget--;
+    }
+
     /** Drop a raider (death or confirmed removal). */
     void removeRaider(UUID uuid) {
         raiderUuids.remove(uuid);
@@ -201,6 +241,11 @@ public class TensuraRaidEvent implements IColonyRaidEvent {
             progress = lead != null
                     ? lead.getHealth() / Math.max(1f, lead.getMaxHealth())
                     : raidBar.getProgress();
+        } else if (initialTarget > 0) {
+            // Attrition raid: the bar tracks how much of the horde is left to
+            // break (target shrinks toward the ~10% win), not the momentary
+            // alive count (which reinforcement keeps roughly full).
+            progress = (float) currentTarget / (float) initialTarget;
         } else {
             progress = totalSpawned == 0
                     ? 0f
@@ -342,6 +387,8 @@ public class TensuraRaidEvent implements IColonyRaidEvent {
         tag.putLong("endTick", endTick);
         tag.putInt("totalSpawned", totalSpawned);
         tag.putInt("rosterTier", rosterTier);
+        tag.putInt("initialTarget", initialTarget);
+        tag.putInt("currentTarget", currentTarget);
         ListTag uuids = new ListTag();
         for (UUID uuid : raiderUuids) {
             CompoundTag entry = new CompoundTag();
@@ -375,6 +422,10 @@ public class TensuraRaidEvent implements IColonyRaidEvent {
         this.endTick = tag.getLong("endTick");
         this.totalSpawned = tag.getInt("totalSpawned");
         this.rosterTier = tag.getInt("rosterTier");
+        // Absent in legacy/pre-attrition saves → 0 → attrition disabled (win by
+        // full clear), which is the correct backward-compatible behaviour.
+        this.initialTarget = tag.getInt("initialTarget");
+        this.currentTarget = tag.getInt("currentTarget");
         this.raiderUuids.clear();
         if (tag.contains("raiders", Tag.TAG_LIST)) {
             ListTag uuids = tag.getList("raiders", Tag.TAG_COMPOUND);

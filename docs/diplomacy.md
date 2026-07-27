@@ -164,6 +164,15 @@ raid-support + action coupling. As-built record:
   10 standing above 80, `ALLY_SUPPORT_MAX_PER_FACTION` = 4,
   `ALLY_SUPPORT_TOTAL_CAP` = 8. Ally uuids persist on the event NBT
   ("allies", optional) so reloads keep them linked.
+  **(2026-07-26, 0.2.2)** Ally support ALSO fires for MineColonies' OWN
+  native raids now, not just our `TensuraRaidEvent`s: `spawnAllySupport`
+  was generalized to `(level, colony, eventId, Consumer<Mob>)`, and
+  `TensuraRaids.handleMcRaidAllies` spawns/steers/dismisses the same
+  PACT/COVENANT fighters for an active MC raid (steered onto
+  `AbstractEntityMinecoloniesRaider`s). MC-raid allies aren't stored on
+  an event NBT (there's no TensuraRaidEvent) — they carry their
+  `AllyTag` and are re-adopted from the world on reload. See
+  docs/raid-system.md.
 - **Pillar 3 — action coupling:**
   - *Majin downgrade (NEW):* a per-second side-watch persists the
     player's last race side; flipping to MAJIN drops every

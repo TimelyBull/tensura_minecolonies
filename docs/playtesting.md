@@ -15,6 +15,85 @@ test** (concrete steps + what you should see), **status**.
 
 ## OPEN — needs playtesting
 
+### 00A. Raid 0.2.2 batch — reload-persistence + `enableRaids` switch + barrier-breach steering + MC-attrition waves + MC-raider barrier damage (difficulty-scaled) + no-double-raid gate + defenders/allies vs MC native raids (2026-07-26, 0.2.2)
+
+**What changed** (new `mixin/EventManagerMixin` + `tensura_minecolonies.mixins.json`;
+`Config` ENABLE_RAIDS/`enableRaids()`; `TensuraRaids` trigger gate +
+`nearestActiveBarrierEntity` + `steerRaider` opening branch; `BarrierBlockEntity`
+`sectionDirection` + `findOpeningToward`): three raid changes.
+
+- **Reload persistence (the fix).** `EventManagerMixin` `@WrapOperation`s the
+  `Registry.get(ResourceLocation)` call in MC's `EventManager.readFromNBT`; when
+  the forced-`minecolonies`-namespace lookup returns null it recovers our event
+  type by matching the stored path across the colony-event registry. Restores an
+  in-progress `TensuraRaidEvent` across save/reload (previously silently dropped).
+- **`enableRaids` config** (per-world SERVER, worldRestart, default true) gates
+  only `maybeTriggerNightRaid`; active raids still resolve; `/tensuraraid` still
+  works. Does not touch lore raids (`enableFactionSystem`).
+- **Barrier-breach steering.** In `steerRaider`'s march branch, raiders route to
+  `findOpeningToward` (a ground waypoint at a hole through every standing layer),
+  then revert to citizen-hunting once inside (opening returns null when the mob
+  is past the shell).
+
+**How to test:**
+1. *Persistence* — colony below Neutral (or `/tensuraraid`) to start a raid; with
+   the raid live and the boss bar up, **save & quit to title**, then reload. The
+   raid, its remaining monsters, the boss bar, and citizen hide/flee should all
+   resume (before this fix: monsters go passive, bar gone, citizens stop hiding).
+   Also test crossing a full server stop/start.
+2. *Config* — set **Enable raids = false** in the mod config, reload the world.
+   A low-standing colony should get NO new nightfall raids. Confirm `/tensuraraid`
+   still force-starts one, and a raid already running when you flip it off still
+   finishes.
+3. *Breach steering* — place a fueled Barrier Core, start a raid, and let raiders
+   (or your own hits) break a wall section into a hole (render shows the gap).
+   Raiders outside should walk to the hole and pass through, then start attacking
+   citizens inside. Re-seal (let it regen / refuel) and new raiders should be shut
+   out at the wall again. Watch that a raider which gets inside does NOT keep
+   walking back out to the old opening.
+4. *Attrition wave model* (generic raids only) — start a level-2/3 raid (needs a
+   ~10+ mob horde for the 90% rule to matter; small raids still require a full
+   clear). As you kill raiders the boss bar should shrink steadily; the raid
+   should END at ~90% killed (a couple of stragglers poof away) rather than
+   forcing you to hunt the last one. Confirm reinforcements only appear to
+   replace raiders LOST WITHOUT being killed (e.g. one that despawns/falls in the
+   void) — killing raiders must NOT spawn replacements, or the raid can't be won.
+   Also: save & reload mid-raid and confirm the kill progress (bar position)
+   carries over. Orc Disaster (`/tensuraraid disaster`) must be UNCHANGED — no
+   reinforcement, still ends when Geld dies.
+5. *MC raiders vs. barrier* — trigger a NATIVE MineColonies raid (barbarians/
+   pirates — e.g. wait for one, or lower the colony's raid pacing) with a fueled
+   Barrier Core up. A group of MC raiders should batter a section down and get
+   through in a few minutes (not be stuck all night); a single raider should be
+   held off far longer. Confirm your own tamed monsters still never damage or get
+   pushed by the barrier.
+6. *No double raids* — while a NATIVE MineColonies raid is active on a
+   low-standing colony, confirm a Tensura reputation raid does NOT also start
+   (only one boss bar / one host). After the MC raid ends, the reputation raid
+   can roll again on a later night. (`/tensuraraid` still force-starts regardless
+   — that's the manual override.)
+7. *Defenders fight MC raiders* — during a NATIVE MC raid, a strong (≥10k EP)
+   non-guard Tensura citizen should swap into its monster body AND actually
+   attack the barbarians/pirates (cast skills, chase them), not stand idle, then
+   swap back when the MC raid ends.
+8. *MC raider break-through scales with difficulty* — compare a low-difficulty
+   vs high-difficulty MC raid against the same barrier tier: the harder raid
+   should chew through a section noticeably faster. (MC's raid difficulty is its
+   server config `raidDifficulty` + the colony's own raid level + world
+   difficulty.) Confirm neither extreme is absurd (clamped 0.5×–4× the baseline).
+9. *Allies help vs MC raids* — with a Pact/Covenant ally faction, trigger a
+   NATIVE MC raid: allied fighters should spawn near the town hall, chase and
+   fight the barbarians/pirates, and poof away when the raid ends. Save & reload
+   mid-MC-raid and confirm the allies are NOT duplicated (they're re-adopted, not
+   re-spawned). With the faction system OFF, no allies appear.
+
+**Status:** OPEN — compiles green (`compileJava` exit 0); not yet run in-game.
+Mixin application (target present in MC 1.1.1319) only verified at load — a
+failed apply would crash on startup (`require = 1`), so a clean world load is
+itself part of the check. Balance constants (`MC_RAIDER_BARRIER_EP` 3000,
+`REINFORCE_MAX_PER_TICK` 2, `WIN_KILL_FRACTION` 0.10) are guesses — watch the
+break-through time and raid length in play and tune.
+
 ### 000. Parent race inheritance + envoy seed + free immigration (2026-07-23, 0.2.1)
 
 **What changed** (`ReproductionManagerMixin` re-pointed; `ExampleMod`

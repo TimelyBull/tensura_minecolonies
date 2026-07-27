@@ -97,6 +97,39 @@ public class Config {
         }
     }
 
+    /** Master switch for the generic (reputation-triggered) Tensura raids. When
+     *  false, the nightfall trigger never fires — a colony whose reputation has
+     *  fallen below NEUTRAL is no longer raided ({@link TensuraRaids}). A raid
+     *  already in progress when this is turned off still resolves normally (the
+     *  drive/resolution pass is not gated), and the {@code /tensuraraid} debug
+     *  command still force-starts one for testing. This does NOT affect the
+     *  faction-system's lore raids (the Orc Disaster etc.) — those are gated by
+     *  {@link #ENABLE_FACTION_SYSTEM}. DEFAULT true = current behaviour. Read via
+     *  {@link #enableRaids()}.
+     *  <p>Per-world SERVER config marked {@code worldRestart()} (same reasoning
+     *  as {@link #ENABLE_FACTION_SYSTEM}): the in-game config menu applies it on
+     *  world reload. */
+    public static final ModConfigSpec.BooleanValue ENABLE_RAIDS = SERVER_BUILDER
+            .comment("Enable generic reputation-triggered raids: when a colony's standing falls",
+                     "below Neutral, hostile Tensura mobs may raid it at nightfall. false = these",
+                     "raids never trigger (a raid already underway still finishes; the debug",
+                     "command still works). Does not affect the faction system's lore raids like",
+                     "the Orc Disaster (those follow the faction-system switch).",
+                     "This is a per-world setting: after changing it, reload the world to apply.")
+            .worldRestart()
+            .define("enableRaids", true);
+
+    /** Safe read of the raids toggle. Returns true (the default) when the config
+     *  isn't loaded yet (main menu — SERVER configs load per world). The
+     *  scheduler only reads this while a world is loaded. */
+    public static boolean enableRaids() {
+        try {
+            return ENABLE_RAIDS.get();
+        } catch (IllegalStateException e) {
+            return true;
+        }
+    }
+
     /** How aggressive innately-hostile Tensura mobs are toward colony
      *  citizens — the extra targeting this compat mod adds on top of vanilla
      *  Tensura (which, by itself, does NOT target citizens). OFF (default) =

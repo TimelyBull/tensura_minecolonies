@@ -81,6 +81,24 @@ public class BarrierBlockEntity extends BlockEntity {
     public static final int BARRIER_HEAL_DURATION_TICKS = 60;
     /** EP assumed for a hostile whose existence storage can't be read. */
     public static final double FALLBACK_RAIDER_EP = 1_000.0;
+    /** BASELINE effective barrier-damage EP for a MineColonies NATIVE raider
+     *  (barbarian, pirate, …) at raid-difficulty modifier ≈ 1. They carry no
+     *  Tensura existence, so the plain fallback made them chip a section at ~5/s
+     *  and never break through within a raid (a 10k tier-1 section is ~30 min
+     *  solo). MC raiders are the "normal" raiders that SHOULD get through, so
+     *  they press the field with this larger effective EP — a horde breaks a
+     *  fueled section over a few minutes and pours in, rather than being caught
+     *  on the wall all night — SCALED by MineColonies' own raid difficulty (see
+     *  {@link #mcRaiderBarrierEp}). The barrier still holds a lone raider out for
+     *  a long time (tier scales section health). ⚠ BALANCE GUESS — tunable. */
+    public static final double MC_RAIDER_BARRIER_EP = 3_000.0;
+    /** Clamp on MC's raid-difficulty modifier when scaling {@link
+     *  #MC_RAIDER_BARRIER_EP}: even a low-difficulty raid does at least
+     *  MIN×base, and a very high-difficulty one no more than MAX×base — so the
+     *  effective EP stays in a sane band whatever MC's config/world-difficulty
+     *  produce. ⚠ BALANCE GUESS. */
+    public static final double MC_RAIDER_DIFFICULTY_MIN_FACTOR = 0.5;
+    public static final double MC_RAIDER_DIFFICULTY_MAX_FACTOR = 4.0;
     /** How far past a section's surface still counts as "pressing" it. */
     public static final double CONTACT_BAND = 1.5;
     /** Player magicule moved per channel/withdraw click (the menu's ±). */
@@ -510,6 +528,22 @@ public class BarrierBlockEntity extends BlockEntity {
         }
     }
 
+    /** Inverse of {@link #sectionIndex}: a unit direction pointing at the
+     *  CENTRE of section {@code section} (0..23). Used by the raid steering to
+     *  aim mobs at a hole. Decodes the face + 2×2 cell exactly as
+     *  {@link #cellSection} encodes them, then takes the cell centre (±0.5 in
+     *  each tangent param). */
+    public static Vec3 sectionDirection(int section) {
+        int perFace = SECTION_GRID * SECTION_GRID;
+        int face = section / perFace;
+        int rem = section % perFace;
+        int cv = rem / SECTION_GRID;   // v-axis cell (0 = negative, 1 = positive)
+        int cu = rem % SECTION_GRID;   // u-axis cell
+        double a = cu == 1 ? 0.5 : -0.5; // u-axis param = cubePoint's `a`
+        double b = cv == 1 ? 0.5 : -0.5; // v-axis param = cubePoint's `b`
+        return cubePoint(face, a, b).normalize();
+    }
+
     // ------------------------------------------------------------------
     // Per-section state accessors
     // ------------------------------------------------------------------
@@ -556,6 +590,62 @@ public class BarrierBlockEntity extends BlockEntity {
         if (r > 0.50) return 1;             // fade1
         if (r > 0.25) return 2;             // fade2
         return 3;                            // fade3 (faintest)
+    }
+
+    /** How far INSIDE the outer shell the opening waypoint sits, so a mob
+     *  steered at it commits through the gap rather than stopping at the wall. */
+    private static final double OPENING_APPROACH_INSET = 2.0;
+
+    /**
+     * Raid-steering helper: a ground-level waypoint at an OPENING in the field
+     * (a direction where EVERY standing layer's section is broken), biased to
+     * the gap nearest — by direction — to {@code fromPos}, or {@code null} when
+     * there's nothing useful to route toward:
+     * <ul>
+     *   <li>the field is down ({@code poolStoredCache <= 0}) or this is a
+     *       tank-only secondary — no wall to route around;</li>
+     *   <li>{@code fromPos} is already INSIDE the field — the mob is past the
+     *       wall, so normal citizen targeting should take over;</li>
+     *   <li>the field is fully sealed (no broken section through all layers), or
+     *       the only gaps are the top/bottom caps a ground mob can't use.</li>
+     * </ul>
+     * The returned point is placed just inside the shell in the gap's HORIZONTAL
+     * bearing (Y left to the caller / heightmap) so a walking raider funnels
+     * through the hole. A hole aligned with an inner-layer intact section is not
+     * counted — the corridor must be clear through every ring.
+     */
+    public BlockPos findOpeningToward(Vec3 fromPos) {
+        ensureSections();
+        if (linkedSecondary || poolStoredCache <= 0) return null;
+        Vec3 c = Vec3.atCenterOf(getFieldCenter());
+        double outerR = getEffectiveRadius();
+        double dx = fromPos.x - c.x, dy = fromPos.y - c.y, dz = fromPos.z - c.z;
+        double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (dist <= outerR) return null;          // already inside the field
+        Vec3 toMob = dist < 1e-6 ? new Vec3(1, 0, 0) : new Vec3(dx / dist, dy / dist, dz / dist);
+
+        Vec3 best = null;
+        double bestDot = -Double.MAX_VALUE;
+        for (int s = 0; s < SECTION_COUNT; s++) {
+            boolean openAllLayers = true;
+            for (int layer = 0; layer < activeLayers; layer++) {
+                if (isSectionIntact(layer, s)) { openAllLayers = false; break; }
+            }
+            if (!openAllLayers) continue;
+            Vec3 dir = sectionDirection(s);
+            double dot = dir.dot(toMob);
+            if (dot > bestDot) { bestDot = dot; best = dir; }
+        }
+        if (best == null) return null;            // fully sealed
+
+        // Use the gap's HORIZONTAL bearing so a ground raider walks to it. A
+        // near-vertical gap (a roof/floor cap) has no usable horizontal bearing.
+        double hlen = Math.sqrt(best.x * best.x + best.z * best.z);
+        if (hlen < 1e-3) return null;
+        double rad = Math.max(2.0, outerR - OPENING_APPROACH_INSET);
+        double px = c.x + (best.x / hlen) * rad;
+        double pz = c.z + (best.z / hlen) * rad;
+        return BlockPos.containing(px, c.y, pz);
     }
 
     /** Apply {@code damage} to one section. Marks it broken when health hits 0,
@@ -657,6 +747,32 @@ public class BarrierBlockEntity extends BlockEntity {
         if (e instanceof com.minecolonies.api.entity.mobs.AbstractEntityMinecoloniesRaider) return true;
         if (e.hasData(Attachments.RAID_TAG.get())) return true;
         return e.getType().builtInRegistryHolder().is(TensuraRaids.HOSTILE_MONSTER_TAG);
+    }
+
+    /** Effective barrier-damage EP for a MineColonies native raider, =
+     *  {@link #MC_RAIDER_BARRIER_EP} × MC's own raid-difficulty modifier
+     *  ({@code IRaiderManager.getRaidDifficultyModifier()} — a per-colony double
+     *  centered near 1 that rises with MC's raid difficulty), clamped to
+     *  [{@link #MC_RAIDER_DIFFICULTY_MIN_FACTOR}, {@link
+     *  #MC_RAIDER_DIFFICULTY_MAX_FACTOR}]. So a tougher MC raid batters the
+     *  barrier down faster and an easy one slower, without letting either
+     *  extreme run away. Falls back to the flat baseline if the colony/modifier
+     *  can't be read. */
+    private static double mcRaiderBarrierEp(
+            com.minecolonies.api.entity.mobs.AbstractEntityMinecoloniesRaider raider) {
+        double factor = 1.0;
+        try {
+            com.minecolonies.api.colony.IColony c = raider.getColony();
+            if (c != null) {
+                double mod = c.getRaiderManager().getRaidDifficultyModifier();
+                if (mod > 0) factor = mod;
+            }
+        } catch (Throwable ignored) {
+            // Unreadable difficulty → baseline; never break the field sweep.
+        }
+        factor = Math.max(MC_RAIDER_DIFFICULTY_MIN_FACTOR,
+                Math.min(MC_RAIDER_DIFFICULTY_MAX_FACTOR, factor));
+        return MC_RAIDER_BARRIER_EP * factor;
     }
 
     /** True when the player bears true-demon-lord or true-hero status — the
@@ -1165,7 +1281,14 @@ public class BarrierBlockEntity extends BlockEntity {
 
                 // EP-scaled contact damage → this section's health ONLY.
                 ExistenceStorage exist = ExampleMod.readExistence(mob);
-                double ep = exist != null && exist.getEP() > 0 ? exist.getEP() : FALLBACK_RAIDER_EP;
+                double ep;
+                if (exist != null && exist.getEP() > 0) {
+                    ep = exist.getEP();
+                } else if (mob instanceof com.minecolonies.api.entity.mobs.AbstractEntityMinecoloniesRaider mcRaider) {
+                    ep = mcRaiderBarrierEp(mcRaider);
+                } else {
+                    ep = FALLBACK_RAIDER_EP;
+                }
                 double attack = FALLBACK_ATTACK_DAMAGE;
                 try {
                     if (mob.getAttributes().hasAttribute(

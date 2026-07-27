@@ -6,6 +6,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project aims to follow [Semantic Versioning](https://semver.org/).
 Copy the relevant version's section into the CurseForge release notes on each update.
 
+## [0.2.2] - 2026-07-26
+
+### Added
+- **You can switch off reputation raids.** A new world setting, **Enable raids**
+  (on by default), controls whether a colony with low standing gets attacked by
+  monsters at night. Turn it off and those raids simply never happen. A raid
+  that's already underway still plays out, and this doesn't affect faction story
+  raids like the Orc Disaster. Change it from the mod's config screen and reload
+  the world to apply.
+
+### Changed
+- **Raiders push through a gap in your barrier instead of milling outside it.**
+  If part of your barrier has been battered down to a hole, attackers now head
+  for the breach and pour through, then go back to hunting your citizens once
+  they're inside — rather than piling up harmlessly against the nearest wall.
+  Seal the hole and they're shut out again.
+- **Raids now wear you down like a normal MineColonies siege.** A raid is a
+  single host that you grind down: as raiders die the raid shrinks toward its
+  end, stragglers that wander off or vanish are replaced so the pressure holds,
+  and the raid is won once you've broken about 90% of them — you no longer have
+  to chase down the last one or two to end it. The raid bar now shows how much of
+  the host is left to break.
+- **Ordinary MineColonies raiders can break through a magicule barrier.** Before,
+  barbarians and pirates would batter a fuelled barrier so slowly they'd just get
+  stuck against it for the whole night. A group of them can now wear a section
+  down and pour through the gap in a few minutes, while a lone raider is still
+  held off for a long time (tougher cores hold longer). Your own tamed monsters
+  still never touch the barrier. **How fast they break through now scales with
+  the raid's difficulty** — a harder MineColonies raid batters the barrier down
+  faster, an easy one slower.
+- **Your faction allies now help defend against ordinary MineColonies raids too.**
+  Fighters from factions you've allied with (Pact / Covenant) used to only turn
+  up for the monster raids tied to your standing. They now also march in to help
+  fight off a regular MineColonies raid, and head home when it's over.
+
+### Fixed
+- **A raid no longer disappears when you save and reload.** Leaving and
+  re-entering a world mid-raid used to wipe the attack — the monsters would go
+  passive, the raid bar vanished, and your citizens stopped hiding. The raid now
+  carries over intact: the same attackers, the same timer, the same boss bar.
+- **You won't get hit by two raids at once.** A monster raid tied to your
+  standing will no longer start while a regular MineColonies raid is already
+  attacking your colony — it waits until that one is over.
+- **Strong residents actually fight during a regular MineColonies raid.** Your
+  powerful monster citizens would transform to defend the colony but then just
+  stand around, because they only recognised our own raiders. They now go after
+  MineColonies' barbarians and pirates too.
+
 ## [0.2.1] - 2026-07-23
 
 ### Changed

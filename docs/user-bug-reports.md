@@ -8,6 +8,168 @@ are broken.
 
 ---
 
+## 2026-07-26 — [HIGH PRIORITY] Losing a raid WIPES the colony ("This block is missing its respective building, try restarting or loading a backup")
+
+**Status:** INVESTIGATED (2026-07-26) — NOT an intended feature, and NOT caused by
+our raid code. Traced to a MineColonies colony-data DESYNC (colony record present,
+building objects gone). Definitive root-cause of the desync needs a `latest.log`
+from a wipe. See "INVESTIGATION (2026-07-26)" below.
+
+### INVESTIGATION (2026-07-26) — verified against the minecolonies-1.1.1319 jar + our source
+
+**The error identifies the failure category precisely.** The string is the
+`com.minecolonies.coremod.gui.nobuilding` key, emitted by MineColonies'
+`GetColonyInfoMessage` (the packet the client sends when you right-click a hut to
+open its GUI). MC has TWO distinct messages:
+- `gui.nocolony` — "…missing its colony…" → the block resolves to NO colony at all.
+- `gui.nobuilding` — the one reported → the colony **is found**, but
+  `colony.getBuildingManager().getBuilding(pos)` returns **null**.
+
+So the colony record still exists; its **building objects are gone** (or the hut
+blocks point at a colony whose building map came up empty). That is a
+save/load DESYNC or partial data loss — not a designed "you lost, colony
+deleted" mechanic.
+
+**Neither MineColonies nor our mod deletes a colony/buildings on a lost raid:**
+- MC's `RaidManager` (bytecode) has no colony/building deletion on loss — losing a
+  raid only adjusts future difficulty (`LOST_CITIZEN_DIFF_REDUCE_PCT` /
+  `_INCREASE_PCT`, `nightsSinceLastRaid`) and kills some citizens. No lang string
+  for "colony deleted after losing a raid" exists.
+- Our `TensuraRaidEvent` explicitly defers building damage ("Multi-wave, lore
+  variants, and building damage are deferred"). Our `TensuraRaids` never calls
+  `getBuildingManager()` / `removeBuilding` / any colony/citizen deletion — the
+  loss path (`resolveTimeout`) just withdraws leftover mobs. Confirmed by grep.
+- Our only touch on colony SAVE/LOAD is `EventManagerMixin`, a read-side
+  `@WrapOperation` that recovers our foreign-namespace event id; on a genuinely
+  unknown event it returns null and defers to MC's original null-handling (it does
+  not throw), so it can't zero out a building map.
+
+**One real MC building-loss path exists but doesn't match the symptom:**
+`raidersbreakblocks` defaults to **TRUE** (`defineBoolean("raidersbreakblocks",
+true)`), so MC's OWN raider entities (`AbstractEntityMinecolonies{Raider,Monster}`,
+pirates) physically break blocks — including hut blocks, which really removes the
+building. BUT that also removes the BLOCK, and the report is about interacting
+with hut blocks that are still standing → this is desync, not physical demolition.
+(Our Tensura raid mobs are plain Tensura entities, not `AbstractEntityMinecolonies*`,
+so they never use this griefing path at all.)
+
+**Most likely trigger of the desync (needs a log to confirm):** the colony NBT
+isn't saving/loading cleanly, and a lost raid is simply WHEN it surfaces —
+a lost raid is a heavy-load / player-death / rage-quit / force-close moment, and on
+an **Essential LAN host** an unclean shutdown mid-raid means the world (and colony
+data) never saves cleanly → buildings missing on next load. Aggravating suspects in
+the attached mod list: `PureSuffering` (forces extra invasions ON TOP of MC + our
+Tensura raids — three raid sources stacking), `MineColonies_Tweaks` /
+`betterwithminecolonies` / `smallcolonies` (colony-behaviour mods), or a mid-raid
+crash from any mod. A per-tick exception during colony tick/save would produce
+exactly this.
+
+### NEXT STEP TO CLOSE THIS OUT
+
+The category is certain (desync/partial data loss); the exact trigger is not, and
+a `latest.log` / `debug.log` from around a wipe is what pins it — look for an
+exception during colony save/load or a raid tick, or a "colony X couldn't load
+building at …" line. Ask whether it reproduces on MC + Tensura + this mod ALONE
+(isolating `PureSuffering` / `MineColonies_Tweaks`), and whether the host ever
+crashed/force-closed during the losing raid.
+
+**Reporter answer / mitigation given (2026-07-26):** it is not intended and not our
+raid code; recover via MineColonies' automatic backup (world-save `backup/`
+folder — the message's own "load a backup" advice); prevent recurrence by clean
+shutdowns, keeping MC auto-backups, not stacking three raid systems (consider
+`enableRaids=false` on our side and/or taming PureSuffering), and optionally
+`raidersbreakblocks=false`.
+
+---
+
+**Original triage (kept):** Reporter asks whether this is intended. It is **not**
+intended: failing to defend against a raid must not destroy colony data.
+
+**Report (as phrased):** "Whenever I failed to protect my colony from a raid,
+the colony data would get wiped, resulting in the need to restart the entire
+colony. This line appears when interacting with buildings: *'This block is
+missing its respective building, try restarting or loading a backup.'* Is this
+an intended feature?"
+
+**Attached:** the reporter supplied their **server mod list** (an Essentials LAN
+server; file in Downloads — `message-4.txt`) — useful for spotting a mod
+conflict as part of triage. Notable colony/AI/faction-adjacent mods in that
+list to keep in mind: MineColonies 1.1.1319 + `MineColonies_Tweaks-3.30` +
+`betterwithminecolonies` + `smallcolonies 1.8`, `easy_factions`, `WarNTaxes`,
+`PureSuffering` (raid/invasion mod), plus our own `tensura_minecolonies-0.2.1`.
+
+**What this means:** after a raid the reporter *couldn't* defend, their colony
+became unusable — the town-hall/building data appears gone, and interacting with
+placed hut blocks throws MineColonies' *"This block is missing its respective
+building…"* error (MC's message for a hut block whose backing `IBuilding` no
+longer exists in colony data). The practical result was having to rebuild the
+whole colony.
+
+**Leading hypotheses (to verify — none confirmed yet):**
+- Our `TensuraRaidEvent` / `TensuraRaids` corrupts or desyncs colony data on a
+  LOST raid (vs. a repelled one). The victory/timeout paths are exercised; the
+  "colony overrun / raid lost" path is worth auditing for anything that could
+  remove buildings or the colony record. Note `TensuraRaidEvent implements
+  IColonyRaidEvent` and is registered in MC's `colonyeventtypes` registry — a
+  bad NBT (de)serialization or event-cleanup step could damage the colony save.
+- A **MineColonies-side** raid-loss consequence (MC can raze/damage buildings on
+  a lost raid) compounded by another mod. `MineColonies_Tweaks`,
+  `PureSuffering`, or `easy_factions` could be interacting. Confirm whether the
+  wipe reproduces with only MineColonies + our mod, or needs the full pack.
+- Save/backup timing on a **LAN-hosted** world (the report is from an Essentials
+  LAN server) — a mid-raid crash or unclean shutdown could truncate the colony
+  save independently of raid logic.
+
+**Where to look:** `TensuraRaidEvent` (NBT persistence + the
+`onFinish`/cleanup path), `TensuraRaids` (raid resolution — victory vs.
+loss/timeout branches), `RaidSavedData`. Cross-reference MineColonies' own
+raid-loss building-damage behaviour and whether it's amplified by a pack mod.
+
+**Ask the reporter to confirm:** (1) does it happen on a *repelled* raid too, or
+only a lost one; (2) is it MC's own raid or our Tensura raid that precedes the
+wipe; (3) a `latest.log` from around the wipe; (4) does it reproduce with just
+MineColonies + Tensura + this mod (to isolate from `PureSuffering` /
+`MineColonies_Tweaks` / `easy_factions`).
+
+---
+
+## 2026-07-26 — Faction settlement generation still buggy — a building spawned at the bottom of the sea
+
+**Status:** UNRESOLVED — needs investigation. Sibling of the 2026-06-30
+below-bedrock/above-bedrock placement bug (RESOLVED 2026-07-04) and the
+placement-polish work in `docs/future-ideas.md` (Stage 6) — the dimension gate
+and terrain-following passes fixed the dimension + slope cases but **water**
+sites are still landing wrong.
+
+**Report (as phrased):** faction generation "still has some bugs" — one building
+spawned "at the bottom of the sea."
+
+**What this means:** a faction settlement building was placed on the **sea
+floor** (underwater) instead of on dry land. The 2026-07-04 fix stopped
+buildings anchoring on bedrock/ceilings; the Stage-6 terrain-following pass laid
+per-building ground-matched pads. Neither guarantees the chosen site isn't
+**submerged** — `groundSurfaceY` scans down to true ground, which under an ocean
+is the seabed, so a settlement (or a single stray building of it) can generate
+underwater.
+
+**Leading hypothesis (to verify):** the settlement center / per-building
+placement in `RivalColonies` (`findBuildableCenter` / `groundSurfaceY` /
+`levelBuildingPad`) does not reject **water columns** — it accepts the seabed as
+"ground." Needs a water/ocean-biome rejection (or a search-for-dry-land retry)
+before committing a building's Y, applied both to the town center pick and to
+each individual building's local ground Y (the Stage-6 per-building placement is
+where a single building could end up over water even if the center is on land).
+
+**Where to look:** `RivalColonies` — `groundSurfaceY`, `findBuildableCenter`,
+`surfaceRange`, `levelBuildingPad`, and the per-building Y computation added in
+the Stage-6 terrain-following rework (see `docs/future-ideas.md` "Settlement
+placement polish — Stage 6"). Cross-reference the 2026-06-30 placement bug entry
+below for the Y-resolution code paths. Consider: reject sites whose surface
+block is water / that are in an ocean or river biome, and/or lift a submerged
+building to the water surface or relocate it to the nearest dry column.
+
+---
+
 ## 2026-07-22 — Naming a colony-born baby (or a grown-up one) leaves a PHANTOM citizen; summoned babies arrive as adults
 
 **Status:** RESOLVED (fix implemented 2026-07-22, 0.2.1) — awaiting the
