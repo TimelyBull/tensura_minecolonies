@@ -44,6 +44,9 @@ Copy the relevant version's section into the CurseForge release notes on each up
   fighters that arrive to defend a raid used to be treated as hostile monsters by
   your own guard towers, which would cut them down on arrival. Your guards now
   leave your allies alone and focus on the actual raiders.
+- **Reshuffled which monsters lead each raid tier.** The weakest raids now field
+  Hound Dogs and Direwolves; Giant Ants and Black Spiders have moved up into the
+  mid-tier raids (alongside Evil Centipedes). The toughest raids are unchanged.
 
 ### Fixed
 - **A raid no longer disappears when you save and reload.** Leaving and

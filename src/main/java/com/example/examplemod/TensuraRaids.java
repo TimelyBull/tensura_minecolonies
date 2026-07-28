@@ -218,9 +218,9 @@ public final class TensuraRaids {
     @SuppressWarnings("unchecked")
     private static EntityType<? extends Mob>[][] rosters() {
         return new EntityType[][] {
-                { MonsterEntityTypes.GIANT_ANT.get(), MonsterEntityTypes.BLACK_SPIDER.get() },
-                { MonsterEntityTypes.HOUND_DOG.get(), MonsterEntityTypes.EVIL_CENTIPEDE.get(),
-                  MonsterEntityTypes.DIREWOLF.get() },
+                { MonsterEntityTypes.HOUND_DOG.get(), MonsterEntityTypes.DIREWOLF.get() },
+                { MonsterEntityTypes.GIANT_ANT.get(), MonsterEntityTypes.BLACK_SPIDER.get(),
+                  MonsterEntityTypes.EVIL_CENTIPEDE.get() },
                 { MonsterEntityTypes.KNIGHT_SPIDER.get(), MonsterEntityTypes.BLADE_TIGER.get(),
                   MonsterEntityTypes.EVIL_CENTIPEDE.get() },
         };

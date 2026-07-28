@@ -973,8 +973,8 @@ zero).
 
 **Bands (tuning values):** Level 1 < 15,000 ≤ Level 2 < 60,000 ≤ Level 3.
 
-**Per-level scaling:** roster by level (the former tier rosters:
-ant/spider → hound/centipede/direwolf → knight spider/blade tiger) and
+**Per-level scaling:** roster by level (Level 1 hound/direwolf → Level 2
+ant/spider/centipede → Level 3 knight spider/blade tiger/centipede) and
 wave cap 6 / 10 / 14. The wave is spawned mob-by-mob until the spawned
 mobs' ACTUAL summed EP reaches
 `strength × RAID_STRENGTH_COEFFICIENT (1.15)` — the raid meets and
