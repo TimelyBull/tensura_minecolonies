@@ -9,6 +9,15 @@ Copy the relevant version's section into the CurseForge release notes on each up
 ## [0.2.2] - 2026-07-26
 
 ### Added
+- **Tensura block-wrecking no longer damages your colony.** Giant monsters
+  like the Orc Lord and Charybdis normally smash through walls just by walking
+  into them, and terrain-shaping skills (Earth Manipulation and the like) can
+  carve up the ground — neither used to respect your colony's protected area,
+  so a raid or a wandering giant could demolish your buildings. Now blocks
+  inside a colony are safe from both. Two new world settings let you turn each
+  guard off if you'd rather have the old free-for-all: **Protect Colony From
+  Mob Griefing** and **Protect Colony From Skill Griefing** (both on by
+  default, changeable from the mod's config screen, and they apply right away).
 - **You can switch off reputation raids.** A new world setting, **Enable raids**
   (on by default), controls whether a colony with low standing gets attacked by
   monsters at night. Turn it off and those raids simply never happen. A raid

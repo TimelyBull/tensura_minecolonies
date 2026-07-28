@@ -518,6 +518,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // so returning interruptFalse() here aborts the assist-target without a mixin.
         EntityEvents.LIVING_CHANGE_TARGET.register(ExampleMod::onSubordinateChangeTarget);
 
+        // Protect colony builds from Tensura's block-breaking. The skill-cast
+        // half (Earth Manipulation etc.) listens to a cancellable Tensura event,
+        // wired here; the giant-mob collision half (Orc Lord etc.) has no event
+        // and is handled by IGiantMobMixin. Both config-gated, default on.
+        GriefProtection.registerSkillGriefListener();
+
         // Stage C2a — networking foundation. Payload registration is mod-bus.
         modEventBus.addListener(Networking::register);
 

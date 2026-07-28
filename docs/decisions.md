@@ -3217,3 +3217,49 @@ wild. It's an ACQUISITION-time veto (blocks committing the vanilla target), not 
 threat-table exclusion — a residual target-thrash risk (a guard fixating on a
 low-threat ally) is flagged for playtest in potential-bugs.md, with the escalation
 (mixin `TargetAI.isEntityValidTarget`) noted if it appears.
+
+## Colony grief protection (block-break) — ported from the sibling mod (0.2.2)
+
+**Problem.** Tensura destroys terrain two ways, and NEITHER is colony-aware —
+both only consult the vanilla `mobGriefing` gamerule:
+1. **Giant mobs** (`IGiantMob`: Orc Lord, Charybdis, Megalodon, Knight Spider,
+   Armorsaurus, Giant Ant, …) break blocks by colliding with them. Gated by the
+   interface's `cantBreakBlock` / `breakableBlocks` / `diggableBlocks`, which are
+   plain method returns — **no cancellable event**, so MineColonies' own
+   boundary protection (which works by listening to events) never runs.
+2. **Terraforming skills** (Earth Manipulation/Domination, Molecular
+   Manipulation, Fusionist, Degenerate, …) funnel their breaking through one
+   shared **cancellable** hook, `TensuraSkillEvents.SKILL_GRIEF_PRE`.
+
+This bites THIS mod harder than upstream Tensura because our raids, faction
+garrisons, and lore bosses are made of exactly these mobs — an unprotected
+colony can be demolished mid-raid.
+
+**Decision.** Port both halves from the sibling mod (Jinjer's
+`tensura-minecolonies-compat`), adapted to our package + config:
+- `GriefProtection` (new) — the single colony-membership check
+  (`getColonyByPosFromWorld != null`, **fail-open** on API error) plus the two
+  config-gated helpers `blockMobGrief` / `blockSkillGrief` and the
+  `SKILL_GRIEF_PRE` registration.
+- `mixin/IGiantMobMixin` (new, interface mixin, `remap=false`) — `@Inject` at
+  RETURN of the three grief gates; only ever NARROWS toward "can't break".
+  Coarse `cantBreakBlock` early-exit on the mob's own position + precise
+  per-block `breakableBlocks`/`diggableBlocks` gate.
+
+**Why two separate configs (both SERVER, per-world, default true).** The two
+paths are independent mechanisms with different feel — a player might want
+monster-proof walls but still allow a skill-user to reshape terrain, or vice
+versa — so `protectColoniesFromMobGriefing` and `protectColoniesFromSkillGriefing`
+are split. They are read LIVE inside the mixin/listener (not `worldRestart`), so
+toggling applies immediately without a reload — unlike the scheduler-gated
+switches (`enableFactionSystem`/`enableRaids`/`enableDefenseSwap`) which cache at
+tick level and are marked `worldRestart`.
+
+**Scope note.** Protection is "inside any claimed colony area," matching how MC
+already blocks creeper/zombie griefing. It does NOT key on the barrier field —
+a deliberate choice to keep it simple and always-on for the whole colony;
+barrier-scoped protection was considered and deferred.
+
+**Relationship to the two target vetoes.** Distinct concern. This is BLOCK
+protection (mobs/skills vs terrain); the subordinate→citizen and ally→citizen
+vetoes are TARGET protection (mobs vs citizens). No code overlap.

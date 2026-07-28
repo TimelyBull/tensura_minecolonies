@@ -35,6 +35,8 @@
   "tensura_minecolonies.configuration.enableFactionSystem": "Enable Faction System",
   "tensura_minecolonies.configuration.enableAssassins": "Enable Assassins",
   "tensura_minecolonies.configuration.enableDefenseSwap": "Citizens Transform to Defend Raids",
+  "tensura_minecolonies.configuration.protectColoniesFromMobGriefing": "Protect Colony From Mob Griefing",
+  "tensura_minecolonies.configuration.protectColoniesFromSkillGriefing": "Protect Colony From Skill Griefing",
   "tensura_minecolonies.configuration.rivalSettlementMode": "Rival Settlement Mode",
   "tensura_minecolonies.configuration.rivalSettlementSomeChance": "Rival Settlement Chance (SOME mode)",
   "tensura_minecolonies.configuration.rivalNaturalGeneration": "Rival Settlements Generate Naturally",

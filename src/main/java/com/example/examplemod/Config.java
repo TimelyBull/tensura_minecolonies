@@ -130,6 +130,63 @@ public class Config {
         }
     }
 
+    /** Protect colony builds from Tensura giant-mob block breaking. Tensura's
+     *  {@code IGiantMob} mobs (Orc Lord, Charybdis, Megalodon, Knight Spider,
+     *  Giant Ant, …) smash blocks by walking into them, and Tensura only checks
+     *  the vanilla {@code mobGriefing} gamerule — it is NOT colony-aware, so a
+     *  colony gets wrecked even though MineColonies would normally protect it.
+     *  When true (DEFAULT) these mobs cannot break blocks inside any colony's
+     *  claimed area. When false, this mod adds no protection (vanilla Tensura
+     *  behaviour). Handled by {@code IGiantMobMixin} via
+     *  {@link GriefProtection#blockMobGrief}. Read via
+     *  {@link #protectColoniesFromMobGriefing()}.
+     *  <p>Per-world SERVER config: changeable from the in-game config menu and
+     *  read live on every break attempt, so it applies immediately. */
+    public static final ModConfigSpec.BooleanValue PROTECT_FROM_MOB_GRIEF = SERVER_BUILDER
+            .comment("Protect colony blocks from Tensura giant mobs (Orc Lord, Charybdis, etc.)",
+                     "that break blocks by walking into them. true (default) = these mobs cannot",
+                     "break blocks inside a colony's claimed area. false = no protection added",
+                     "(they break blocks as vanilla Tensura allows). Applies immediately.")
+            .define("protectColoniesFromMobGriefing", true);
+
+    /** Safe read of the mob-grief protection toggle. Returns true (the default)
+     *  if the config isn't loaded yet (very early startup). */
+    public static boolean protectColoniesFromMobGriefing() {
+        try {
+            return PROTECT_FROM_MOB_GRIEF.get();
+        } catch (IllegalStateException e) {
+            return true;
+        }
+    }
+
+    /** Protect colony builds from Tensura terraforming-SKILL block breaking.
+     *  Skills like Earth Manipulation / Domination, Molecular Manipulation,
+     *  Fusionist and Degenerate reshape terrain and, like the mobs above, only
+     *  respect the vanilla {@code mobGriefing} gamerule. When true (DEFAULT)
+     *  these skills cannot break blocks inside any colony's claimed area (the
+     *  cast still fires elsewhere; only the colony-interior blocks are spared).
+     *  When false, this mod adds no protection. Handled by the
+     *  {@code SKILL_GRIEF_PRE} listener via {@link GriefProtection#blockSkillGrief}.
+     *  Read via {@link #protectColoniesFromSkillGriefing()}.
+     *  <p>Per-world SERVER config: changeable from the in-game config menu and
+     *  read live on every cast, so it applies immediately. */
+    public static final ModConfigSpec.BooleanValue PROTECT_FROM_SKILL_GRIEF = SERVER_BUILDER
+            .comment("Protect colony blocks from Tensura terraforming skills (Earth Manipulation,",
+                     "Molecular Manipulation, Fusionist, Degenerate, etc.). true (default) = these",
+                     "skills cannot break blocks inside a colony's claimed area. false = no",
+                     "protection added (they grief as vanilla Tensura allows). Applies immediately.")
+            .define("protectColoniesFromSkillGriefing", true);
+
+    /** Safe read of the skill-grief protection toggle. Returns true (the default)
+     *  if the config isn't loaded yet (very early startup). */
+    public static boolean protectColoniesFromSkillGriefing() {
+        try {
+            return PROTECT_FROM_SKILL_GRIEF.get();
+        } catch (IllegalStateException e) {
+            return true;
+        }
+    }
+
     /** How aggressive innately-hostile Tensura mobs are toward colony
      *  citizens — the extra targeting this compat mod adds on top of vanilla
      *  Tensura (which, by itself, does NOT target citizens). OFF (default) =

@@ -15,6 +15,39 @@ test** (concrete steps + what you should see), **status**.
 
 ## OPEN — needs playtesting
 
+### 00. Colony grief protection — giant-mob + terraforming-skill block breaking (2026-07-27, 0.2.2)
+
+**What changed** (new `GriefProtection`; new `mixin/IGiantMobMixin` +
+`tensura_minecolonies.mixins.json`; `ExampleMod` registers the
+`SKILL_GRIEF_PRE` listener next to `LIVING_CHANGE_TARGET`; `Config`
+`PROTECT_FROM_MOB_GRIEF`/`PROTECT_FROM_SKILL_GRIEF` + safe-read accessors;
+two config lang keys). Tensura block-breaking is now refused inside a colony's
+claimed area, via two paths — the `IGiantMob` collision gate (mixin) and the
+`TensuraSkillEvents.SKILL_GRIEF_PRE` event (listener) — each behind its own
+per-world SERVER config (default on, read live).
+
+**How to test:**
+1. **Mob path.** In a colony, spawn a block-breaking giant (e.g. an Orc Lord or
+   Charybdis) and let it path into a colony wall. Expected: it can NOT break
+   colony blocks. Confirm the mixin wove: look for no crash and that blocks
+   survive; outside the colony boundary the same mob SHOULD still break blocks
+   (protection is colony-interior only).
+2. **Skill path.** Cast Earth Manipulation / Molecular Manipulation aimed at
+   ground inside the colony. Expected: colony-interior blocks are spared; the
+   same skill still breaks blocks outside the colony. Log line at startup:
+   `[TM] registering colony skill-grief protection`.
+3. **Config toggles.** In the in-game config screen (per-world), set
+   **Protect Colony From Mob Griefing** = false → giants break colony blocks
+   again immediately (no reload). Same for **Protect Colony From Skill
+   Griefing**. Flip back on → protection returns immediately.
+4. **Fail-open sanity.** No crashes if a break is attempted before the colony
+   manager is ready (very early world load).
+
+**Status:** OPEN — compiles green (`compileJava` BUILD SUCCESSFUL); not yet
+`runClient`-verified. Ported/adapted from the sibling mod; the interface-mixin
+weave (`IGiantMob`) and the exact giant-mob roster that routes through these
+gates are the main things to confirm live.
+
 ### 00A. Raid 0.2.2 batch — reload-persistence + `enableRaids` switch + barrier-breach steering + MC-attrition waves + MC-raider barrier damage (difficulty-scaled) + no-double-raid gate + defenders/allies vs MC native raids (2026-07-26, 0.2.2)
 
 **What changed** (new `mixin/EventManagerMixin` + `tensura_minecolonies.mixins.json`;

@@ -280,6 +280,18 @@ MDK-1.21.1-ModDevGradle-main/
                                        # subordinate body — the autocaster
                                        # predicate key. (colonyId)
 
+        # — Colony grief protection (block-break) —
+        GriefProtection.java           # Stops Tensura block-breaking wrecking
+                                       # colony builds. isInColony(getColonyBy
+                                       # PosFromWorld, fail-open) + config-gated
+                                       # blockMobGrief/blockSkillGrief helpers +
+                                       # the SKILL_GRIEF_PRE listener (registered
+                                       # from ExampleMod). Giant-mob half is
+                                       # IGiantMobMixin. Two SERVER configs
+                                       # (protectColoniesFromMob/SkillGriefing,
+                                       # default on, read LIVE — no worldRestart).
+                                       # Ported/adapted from the sibling mod.
+
         # — Raid system (v1 + difficulty levels) —
         TensuraRaidEvent.java          # IColonyRaidEvent impl registered in
                                        # minecolonies:colonyeventtypes —
@@ -404,6 +416,16 @@ MDK-1.21.1-ModDevGradle-main/
                                         # freshly spawned child rendered adult
                                         # for up to 2s. Client-side only, falls
                                         # back to the synced DATA_IS_CHILD.
+          IGiantMobMixin.java           # Interface mixin (remap=false) on
+                                        # Tensura's IGiantMob (Orc Lord,
+                                        # Charybdis, Megalodon, …). @Inject at
+                                        # RETURN of cantBreakBlock/breakableBlocks
+                                        # /diggableBlocks — only NARROWS toward
+                                        # "can't break" so those mobs can't smash
+                                        # colony-interior blocks. Gated by
+                                        # GriefProtection.blockMobGrief. (The
+                                        # skill-cast half uses a real cancellable
+                                        # event, so it's a listener not a mixin.)
           ISubordinateCommandMixin.java # @Inject at HEAD of Tensura's
                                         # ISubordinate.cycleCommands (interface
                                         # default method) — inserts the PATROL
