@@ -87,6 +87,7 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
@@ -4707,6 +4708,47 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     //     CitizenDiedModEvent.
     // So a swap cannot reach either of these handlers. No runtime guard needed.
     // ------------------------------------------------------------------
+
+    /**
+     * Ally-targeting veto — a colony's own GUARDS must not attack the PACT/
+     * COVENANT ally fighters we send to help defend it.
+     *
+     * <p><b>Why this is needed:</b> the ally fighters are ordinary Tensura mobs
+     * ({@code tensura:goblin} / {@code tensura:lizardman} are
+     * {@code MobCategory.MONSTER} — verified in the Tensura jar), and MineColonies
+     * auto-lists every {@code MobCategory.MONSTER} type as a guard-attackable mob
+     * ({@code CompatibilityManager.discoverMobs()}). So without this, a guard tower
+     * would target and cut down the allies the instant they arrive. See
+     * docs/potential-bugs.md.
+     *
+     * <p><b>Why this hook:</b> MC guards pick a target from a ThreatTable and
+     * COMMIT it via {@code TargetAI.onTargetChange → Mob.setTarget} (verified in
+     * the MC jar) — which fires this NeoForge {@link LivingChangeTargetEvent}. We
+     * cancel the change when a colony citizen is about to target an ally fighter
+     * of the SAME colony (or one whose colony we can't resolve — conservative,
+     * favouring the ally). This is an acquisition-time veto: the guard never
+     * commits a vanilla target on the ally, so its melee/ranged goals (which read
+     * {@code getTarget()}) never engage it. A different player's colony guards
+     * (colony id mismatch) are left free to treat the mob as they would any wild
+     * one. Tightly gated (citizen attacker first, then the {@code ALLY_TAG} check)
+     * so the whole-game target-change traffic early-returns cheaply.
+     */
+    @SubscribeEvent
+    public void onLivingChangeTarget(LivingChangeTargetEvent event) {
+        if (!(event.getEntity() instanceof AbstractEntityCitizen citizen)) return;
+        LivingEntity target = event.getNewAboutToBeSetTarget();
+        if (target == null || !target.hasData(Attachments.ALLY_TAG.get())) return;
+        AllyTag tag = target.getData(Attachments.ALLY_TAG.get());
+        if (tag == null) return;
+        IColony colony = citizen.getCitizenColonyHandler() != null
+                ? citizen.getCitizenColonyHandler().getColony() : null;
+        // Veto for the ally's own colony guards; also veto when the guard's colony
+        // can't be resolved (favour the ally). A confirmed OTHER colony's guards
+        // (id mismatch) may still target it.
+        if (colony == null || colony.getID() == tag.colonyId()) {
+            event.setCanceled(true);
+        }
+    }
 
     /**
      * Case A — goblin dies while materialized as a subordinate (NeoForge bus).

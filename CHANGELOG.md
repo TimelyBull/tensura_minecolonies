@@ -40,6 +40,10 @@ Copy the relevant version's section into the CurseForge release notes on each up
   Fighters from factions you've allied with (Pact / Covenant) used to only turn
   up for the monster raids tied to your standing. They now also march in to help
   fight off a regular MineColonies raid, and head home when it's over.
+- **Your guards no longer attack the allies sent to help you.** The faction
+  fighters that arrive to defend a raid used to be treated as hostile monsters by
+  your own guard towers, which would cut them down on arrival. Your guards now
+  leave your allies alone and focus on the actual raiders.
 
 ### Fixed
 - **A raid no longer disappears when you save and reload.** Leaving and

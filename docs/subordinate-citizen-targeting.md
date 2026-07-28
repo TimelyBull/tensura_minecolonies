@@ -2,6 +2,16 @@
 
 **Status:** investigation only, no code written yet (2026-06-06).
 
+> **Related, but a DIFFERENT hook (2026-07-26):** a sibling problem — MC GUARDS
+> attacking our faction ally fighters — WAS fixed
+> (`ExampleMod.onLivingChangeTarget`). That one uses NeoForge's
+> `LivingChangeTargetEvent`, NOT the ManasCore `LIVING_CHANGE_TARGET` this doc
+> recommends below, because the attacker there is an MC citizen (guard) that
+> commits targets via `Mob.setTarget`, not a Tensura mob routing through
+> `RetaliateOrTarget`. This subordinate→citizen case (Tensura-mob attacker) still
+> needs the ManasCore hook and is still unbuilt. See decisions.md "Guards don't
+> attack faction ALLIES".
+
 **Bug:** When the player hits a colony citizen, the player's Tensura subordinates
 (named goblins/orcs at the player's side) join in and can kill that citizen.
 We want to EXCLUDE the player's own colony citizens from subordinate

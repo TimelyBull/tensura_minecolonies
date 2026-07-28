@@ -3184,3 +3184,36 @@ Design choices worth keeping:
   (unhoused = happiness hit); gating on a free bed is a possible later refinement.
 - `IMMIGRATION_COOLDOWN_TICKS` (2400) and the floor (3) are the tunable knobs;
   the floor and 2/3-1/3 split were user-specified.
+
+## Guards don't attack faction ALLIES — NeoForge target veto, not ManasCore (0.2.2, 2026-07-26)
+
+The PACT/COVENANT ally fighters we spawn to help defend a raid are Tensura
+`goblin`/`lizardman` mobs, which are `MobCategory.MONSTER` (bytecode-confirmed) —
+so MineColonies guard towers auto-list and attack them. Fixed by
+`ExampleMod.onLivingChangeTarget`, a NeoForge `LivingChangeTargetEvent` handler
+that cancels a colony citizen targeting an `ALLY_TAG` mob of its own colony.
+
+**Why NeoForge's event, not ManasCore's `LIVING_CHANGE_TARGET`** (the one
+`subordinate-citizen-targeting.md` recommends for the mirror "subordinates attack
+my citizens" case): the two problems have DIFFERENT attackers.
+- Subordinate→citizen: the attacker is a TENSURA mob; it commits assist-targets
+  through Tensura's `RetaliateOrTarget`, which fires ManasCore's Architectury
+  `EntityEvents.LIVING_CHANGE_TARGET`. That's the right hook there.
+- Guard→ally: the attacker is an MC `AbstractEntityCitizen`, NOT a Tensura mob.
+  It picks from a `ThreatTable` and commits via `TargetAI.onTargetChange →
+  Mob.setTarget` (verified in the MC jar). `Mob.setTarget` fires NeoForge's
+  `LivingChangeTargetEvent` for ANY mob, so that's what catches a guard; the
+  ManasCore event would never fire for a non-Tensura entity.
+
+So the project now has TWO sibling target vetoes for two entity families. The
+subordinate→citizen veto (ManasCore) is still unbuilt (separate investigation);
+this one (NeoForge) is built for the ally case.
+
+**Scope + caveats.** Gated attacker-first (`instanceof AbstractEntityCitizen`)
+then the `ALLY_TAG` attachment check, so whole-game target traffic early-returns
+cheaply. Vetoes for the ally's OWN colony (or an unresolvable colony —
+conservative); a confirmed different colony's guards may still treat the mob as
+wild. It's an ACQUISITION-time veto (blocks committing the vanilla target), not a
+threat-table exclusion — a residual target-thrash risk (a guard fixating on a
+low-threat ally) is flagged for playtest in potential-bugs.md, with the escalation
+(mixin `TargetAI.isEntityValidTarget`) noted if it appears.

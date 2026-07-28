@@ -150,9 +150,14 @@ the existing fighters (keyed by the MC raid's event id) instead of double-
 spawning; the tracker (`MC_RAID_ALLIES`, keyed `dimension#colonyId`) is in-memory
 only. Mutually exclusive with our own raids' ally support (the double-raid gate +
 MC's own `isRaided()` check keep the two raid types from coexisting).
-⚠ **Watch (docs/potential-bugs.md):** the ally fighters are Tensura goblin/dwarf/
-lizardman mobs; if those are `MobCategory.MONSTER`, MineColonies guard towers may
-auto-target and kill them on arrival. Unverified — flagged for playtest.
+**Guards don't attack allies (fixed 2026-07-26).** The ally fighters are Tensura
+goblin/lizardman mobs, which ARE `MobCategory.MONSTER` (bytecode-confirmed) — so
+MineColonies guard towers would auto-target and kill them on arrival.
+`ExampleMod.onLivingChangeTarget` (a NeoForge `LivingChangeTargetEvent` veto)
+cancels a colony citizen's attempt to target an `ALLY_TAG` mob of its own colony;
+MC guards commit targets via `TargetAI.onTargetChange → setTarget`, so the veto
+fires. See docs/potential-bugs.md (confirmed + fixed, with a residual
+target-thrash check for playtest) and decisions.md.
 
 **Non-seam confirmed:** MC spawns its raiders via `RaiderMobUtils.spawn` →
 `CompatibilityUtils.addEntity` (no `finalizeSpawn`, no `MobSpawnType`), so the

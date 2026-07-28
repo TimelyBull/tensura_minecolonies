@@ -12,46 +12,44 @@ when a playtest shows it's fine, delete it with a note.
 
 ---
 
-## 2026-07-26 — [needs playtest] MineColonies guards may attack our faction ALLY fighters
+## 2026-07-26 — [CONFIRMED then FIXED, verify no target-thrash in playtest] MineColonies guards attacking our faction ALLY fighters
 
 **Where:** `TensuraRaids.spawnAllySupport` / `allyTypeFor` — the PACT/COVENANT
 ally fighters spawned to help defend a raid (both our own raids and, as of
 0.2.2, MineColonies native raids via `handleMcRaidAllies`).
 
-**The suspicion.** The ally fighters are ordinary Tensura mobs —
-`tensura:dwarf` (Dwargon), `tensura:lizardman` (Milim/Eurazania),
-`tensura:goblin` (everyone else). The ally code comments assert these are
-"PASSIVE-category on purpose: MineColonies guards auto-engage MONSTER-category
-types" — i.e. the assumption is that guards will leave the allies alone. But
-elsewhere the project notes (see `CLAUDE.md` / the barrier spawn-prevention
-work) that **Tensura registers goblins / lizardmen as `MobCategory.MONSTER`**
-despite being passive-natured. If that's true for the ally entity types, then
-MineColonies guard towers — which auto-list every `MobCategory.MONSTER` entity
-in their attack lists (`CompatibilityManager.discoverMobs()`) — would target and
-kill the allies we just sent to help.
+**CONFIRMED (bytecode, 2026-07-26).** The ally fighters are ordinary Tensura
+mobs — `tensura:dwarf` (Dwargon), `tensura:lizardman` (Milim/Eurazania),
+`tensura:goblin` (everyone else). Verified in the Tensura jar: **`goblin` and
+`lizardman` are registered `MobCategory.MONSTER`** (`MonsterEntityTypes`);
+`dwarf` looks like `MobCategory.CREATURE` (`HumanEntityTypes`, the exception).
+MineColonies auto-lists every `MobCategory.MONSTER` type as guard-attackable
+(`CompatibilityManager.discoverMobs()`), and `TargetAI.isAttackableTarget`
+accepts `Enemy`/listed types — so guard towers WOULD target and kill the goblin/
+lizardman allies (the default types) the moment they arrive. Latent all along
+(ally support is an "UNPLAYED" seam); 0.2.2's MC-raid ally support just spawns
+them right next to your towers, making it prominent.
 
-**Why it matters more now (0.2.2).** Allies used to only appear for our own
-Tensura raids; they now also spawn for MineColonies' own native raids, i.e.
-right next to your guard towers during a vanilla-style siege. If guards attack
-them, the "allies help you fight" feature becomes "allies get cut down by your
-own guards the moment they arrive."
+**FIXED (2026-07-26) — `ExampleMod.onLivingChangeTarget`.** MC guards commit a
+chosen target via `TargetAI.onTargetChange → Mob.setTarget` (verified in the MC
+jar), which fires NeoForge's `LivingChangeTargetEvent`. A new `@SubscribeEvent`
+handler cancels that change when a colony citizen is about to target an
+`ALLY_TAG` mob of the SAME colony (or one whose colony can't be resolved —
+conservative). Acquisition-time veto: the guard never commits a vanilla target
+on the ally, so its melee/ranged goals (which read `getTarget()`) never engage
+it. A DIFFERENT player's colony guards (colony-id mismatch) may still treat the
+mob as wild. Chose the NeoForge event over the ManasCore `LIVING_CHANGE_TARGET`
+used for Tensura-mob targeting because the attacker here is an MC citizen, not a
+Tensura mob — the ManasCore event wouldn't fire. See decisions.md.
 
-**Not introduced by 0.2.2** — this is pre-existing ally behavior; the 0.2.2
-MC-raid ally support just makes it more visible/likely to be noticed.
+**Residual to verify in playtest (docs/playtesting.md).** The veto is
+acquisition-time only. If a guard's ThreatTable ranks a nearby ally as its top
+entry, it may repeatedly re-select → get vetoed → stall (target thrash) instead
+of engaging real raiders. Expected to be rare (a friendly ally accrues ~no
+threat vs. raiders damaging citizens), but confirm guards fight raiders normally
+with allies present. If thrash shows up, additionally exclude `ALLY_TAG` mobs
+from the guard's target search (mixin `TargetAI.isEntityValidTarget` /
+`skipSearch`) so allies never enter the threat table.
 
-**How to check.** Trigger a raid with a Pact/Covenant ally faction and a built
-guard tower nearby. Watch whether guards path to and attack the arriving
-"&lt;Faction&gt; Ally" mobs. Confirm both cases: our Tensura raid AND a native
-MineColonies raid.
-
-**If confirmed, options.**
-- Give allies an explicit friendly/no-target marker the guard targeting
-  respects (cleanest — a tag the guard attack-list or a targeting veto honors,
-  mirroring the `subordinate-citizen-targeting.md` `LIVING_CHANGE_TARGET` veto
-  idea).
-- Or switch the ally entity types to genuinely passive/non-`MONSTER` Tensura
-  mobs guards won't auto-engage.
-- Or accept it and document that allies are fragile near guards.
-
-**Status:** UNVERIFIED. Recorded from the raid-integration audit; deferred to a
-playtest per the 0.2.2 conversation.
+**Status:** FIXED (compiles green); awaiting in-game confirmation that guards
+leave allies alone AND still fight raiders without thrash.

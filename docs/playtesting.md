@@ -86,6 +86,13 @@ test** (concrete steps + what you should see), **status**.
    fight the barbarians/pirates, and poof away when the raid ends. Save & reload
    mid-MC-raid and confirm the allies are NOT duplicated (they're re-adopted, not
    re-spawned). With the faction system OFF, no allies appear.
+10. *Guards don't attack allies* — with a built guard tower near the town hall,
+    trigger a raid that brings faction allies (goblin/lizardman "&lt;Faction&gt;
+    Ally" mobs). Confirm your **guards ignore the allies** and attack the raiders
+    instead — before the fix a guard would path to and kill the allies. Watch for
+    TARGET THRASH: a guard should not fixate on a nearby ally (repeatedly trying
+    to target it and stalling) while raiders go unengaged. Test both a Tensura
+    reputation raid and a native MC raid.
 
 **Status:** OPEN — compiles green (`compileJava` exit 0); not yet run in-game.
 Mixin application (target present in MC 1.1.1319) only verified at load — a
