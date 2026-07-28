@@ -26,6 +26,15 @@ sourceSets.main.resources {
     exclude("src/generated/**/.cache") // datagen cache files
 }
 
+// Ship the GPLv3 license text inside the built jar under META-INF/, so the
+// license travels with the binary (GPLv3 requires recipients get the license
+// alongside the software). The file lives at the repo root.
+tasks.named('jar', Jar).configure {
+    from(rootProject.file('LICENSE')) {
+        into 'META-INF'
+    }
+}
+
 repositories {
     // Add here additional repositories if required by some of the dependencies below.
 
@@ -190,7 +199,11 @@ dependencies {
     // references BOScreen / BOWindow / MainWindowCitizen for the citizen-side
     // trade button injection. MainWindowCitizen extends BlockUI types so
     // BlockUI must be on the compile classpath, not just runtime.
-    implementation files('libs/blockui-1.0.209-1.21.1.jar')
+    // compileOnly (not implementation): BlockUI is supplied at runtime by the
+    // separately-installed BlockUI mod, so it must NOT go on our runtime
+    // classpath or published POM — same scoping as every other dep above.
+    compileOnly files('libs/blockui-1.0.209-1.21.1.jar')
+    localRuntime files('libs/blockui-1.0.209-1.21.1.jar')
     localRuntime files('libs/domum-ornamentum-1.0.231-main.jar')
     localRuntime files('libs/multipiston-1.2.58-1.21.1.jar')
     localRuntime files('libs/towntalk-1.2.0.jar')
