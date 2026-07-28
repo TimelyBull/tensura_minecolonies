@@ -302,9 +302,17 @@ public record DealSpec(
         // (Jura's old cov_jura "The Grand Academy" dropped — the merged
         // Jura-Tempest Federation keeps Tempest's cov_tempest as its one
         // Covenant deal.)
-        map.put("milim", new DealSpec("cov_milim", "Apito's Jelly",
-                new SupplyItems(ExampleMod.APITOS_JELLY.get(), 1),
-                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 3)),   // PLACEHOLDER (tier III)
+        // The Ultimate Brawl ★ — Milim's Covenant capstone. Swapped in from her
+        // old PACT deal (2026-07-28): slay the Warden for the custom ABSOLUTE
+        // ANNIHILATOR (granted PLAIN — earns its own holy_coat engraving + EP
+        // growth via gear_existence). Also grants the STRENGTH skill: SKILL_REWARDS
+        // now keys on cov_milim, which is safe because Milim is an ABSTRACT faction
+        // (no conquest path, so covenantSkillFor is never consulted) and fulfillDeal
+        // grants the skill on covenant completion just like a catalog deal. Deal id
+        // stays cov_milim; only the content moved (see mi_ultimate_brawl below).
+        map.put("milim", new DealSpec("cov_milim", "The Ultimate Brawl",
+                new SlayEntities(java.util.Set.of("minecraft:warden"), 1, "the Warden"),
+                List.of(new ItemStack(ExampleMod.ABSOLUTE_ANNIHILATOR.get())),
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         map.put("falmuth", new DealSpec("cov_falmuth", "Prove Your Might",
                 new SlayEntities(java.util.Set.of("minecraft:wither"), 1, "the Wither"),
@@ -483,7 +491,11 @@ public record DealSpec(
         m.put("tp_slime_pact", io.github.manasmods.tensura.registry.skill.CommonSkills.SELF_REGENERATION);
         m.put("lu_devout", io.github.manasmods.tensura.registry.skill.ResistanceSkills.HOLY_ATTACK_RESISTANCE);
         m.put("fa_fortress", io.github.manasmods.tensura.registry.skill.ResistanceSkills.PHYSICAL_ATTACK_RESISTANCE);
-        m.put("mi_ultimate_brawl", io.github.manasmods.tensura.registry.skill.CommonSkills.STRENGTH);
+        // Milim's STRENGTH rides with the Warden fight, which is now her Covenant
+        // deal (cov_milim), not a catalog deal (swapped 2026-07-28). fulfillDeal
+        // grants it on covenant completion; Milim is abstract so covenantSkillFor
+        // (catalog-only) is never consulted for her.
+        m.put("cov_milim", io.github.manasmods.tensura.registry.skill.CommonSkills.STRENGTH);
         m.put("ca_wild_haven", io.github.manasmods.tensura.registry.skill.IntrinsicSkills.GIANTIFICATION);
         m.put("cl_marionette", io.github.manasmods.tensura.registry.skill.IntrinsicSkills.CHARM);
         m.put("le_flamebearers", io.github.manasmods.tensura.registry.skill.ResistanceSkills.FLAME_ATTACK_RESISTANCE);
@@ -1014,14 +1026,15 @@ public record DealSpec(
                         List.of(new ItemStack(Items.DIAMOND, 6), new ItemStack(Items.GOLD_INGOT, 8),
                                 new ItemStack(Items.GOLDEN_APPLE, 1), new ItemStack(ten("silver_coin"), 8)),
                         7.0, 5.0, 5 * DAY, 0, FactionTier.FRIENDLY, false),
-                // The Ultimate Brawl ★ — Milim's capstone (grants the STRENGTH
-                // skill). Rewards the custom ABSOLUTE ANNIHILATOR, granted PLAIN
-                // (no pre-applied enchants/engravings): it earns its own
-                // engraving (holy_coat) + growth via its gear_existence entry.
-                new DealSpec("mi_ultimate_brawl", "The Ultimate Brawl",
-                        new SlayEntities(java.util.Set.of("minecraft:warden"), 1, "the Warden"),
-                        List.of(new ItemStack(ten("gold_coin"), 2),
-                                new ItemStack(ExampleMod.ABSOLUTE_ANNIHILATOR.get())),
+                // Apito's Jelly — swapped in from Milim's old Covenant deal
+                // (2026-07-28): an ALLIED-tier (pact) delivery paying golden
+                // apples. Deal id stays mi_ultimate_brawl; only the content moved.
+                // No skill reward now — STRENGTH moved with the Warden fight to
+                // cov_milim above. (The old 2 gold coins were dropped so the
+                // covenant's Annihilator is the clean signature reward.)
+                new DealSpec("mi_ultimate_brawl", "Apito's Jelly",
+                        new SupplyItems(ExampleMod.APITOS_JELLY.get(), 1),
+                        List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 3)),
                         9.0, 5.0, 15 * DAY, 0, FactionTier.ALLIED, false)));
 
         // 🦁 EURAZANIA (the Beast Kingdom; renamed from carrion) — monster

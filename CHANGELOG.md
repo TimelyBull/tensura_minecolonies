@@ -26,6 +26,12 @@ Copy the relevant version's section into the CurseForge release notes on each up
   the world to apply.
 
 ### Changed
+- **Milim's alliance rewards, reshuffled.** Her top prize — the legendary
+  **Absolute Annihilator** hammer (and her Strength skill) — now comes from
+  *forging the Covenant* with her by slaying the Warden, rather than from an
+  earlier allied deal. That earlier slot instead becomes a simple *Apito's Jelly*
+  delivery paying enchanted golden apples. (Faction features are off by default —
+  turn on the faction system to see this.)
 - **Raiders push through a gap in your barrier instead of milling outside it.**
   If part of your barrier has been battered down to a hole, attackers now head
   for the breach and pour through, then go back to hunting your citizens once

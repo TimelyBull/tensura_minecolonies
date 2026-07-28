@@ -41,16 +41,15 @@ were acceptable in a release.
 
 ### What is NOT done
 
-1. **§7B Covenant rewards — 8 of 9 are PLACEHOLDERS.** Only **Dwargon** has its
-   real reward (the Masterwork Weapon Core + schematic). The other eight pay
-   **tier-scaled Enchanted Golden Apples** (Tier I=1, II=2, III=3) standing in
-   for unique per-faction rewards that were never designed. This is the single
-   biggest piece of unfinished work.
-   - Specifically planned but never built: **Milim** was to receive the
-     **Absolute Annihilator** as its covenant reward, with the catalog deal
-     *The Ultimate Brawl* (slay the Warden) dropping to **1 Drago Nova**. The
-     Annihilator exists and is finished; it just still sits on the Milim pact
-     deal instead of the covenant.
+1. **§7B Covenant rewards — 7 of 9 are PLACEHOLDERS.** **Dwargon** (Masterwork
+   Weapon Core + schematic) and **Milim** (Absolute Annihilator, done 2026-07-28)
+   have real rewards. The other seven pay **Enchanted Golden Apples** (1–3, old
+   three-tier scheme) standing in for unique per-faction rewards that were never
+   designed. This is the single biggest piece of unfinished work.
+   - ✅ **Milim — DONE (2026-07-28).** Her Covenant and pact deals were swapped:
+     the Covenant is now *The Ultimate Brawl* (slay the Warden → **Absolute
+     Annihilator**, and it grants the Strength skill), and the old covenant task
+     became the pact deal *Apito's Jelly* (deliver 1 → 3 golden apples).
 2. **Phase 2 — the conquest/raid balance pass never started.** `PROFILES`
    citizen counts and skill pairs, the forced Covenant skill, and
    `factionRewardPool` have never been retuned. The conquest route's rewards
@@ -475,7 +474,7 @@ Schematic — needs the time-windowed-slay mechanic; see future-ideas.md.)*
 | Keep Them Cheerful | Deliver 8 Cake + 64 Cookie | 1 Enchanted Golden Apple + 8 Diamond + 8 Silver Coin | FRIENDLY |
 | Champions for Milim | Lend 2 × Strength≥10 | 6 Diamond + 2 Golden Apple + Battlewill Manual | FRIENDLY |
 | Prove Your Strength | Slay the Wither | 2 Enchanted Golden Apple + 12 Diamond + 4 Gold Coin + Battlewill Manual | ALLIED |
-| The Ultimate Brawl ★ | Slay the Warden | **Absolute Annihilator** (custom PLAIN weapon: 20 dmg, 1.8 spd, +2.5 reach, gold ench, netherite-axe durability; earns holy_coat engraving + EP-scaling powers via gear_existence — see future-ideas.md "Absolute Annihilator") + 2 Gold Coin | ALLIED |
+| Apito's Jelly | Deliver 1 Apito's Jelly | 3 Enchanted Golden Apple | ALLIED |
 | Warriors to Spar | Lend 2 × Athletics≥8 | 8 Diamond + 1 Enchanted Golden Apple | ALLIED |
 
 **Eurazania** (Tier III — beast kingdom): *reworked 2026-07-16 — monster leather +
@@ -572,7 +571,7 @@ each relationship.
 | Dwargon | The Masterwork Commission | Deliver 1 Netherite Block + 1 Hihiirokane Ingot | **Masterwork Weapon Core + Masterwork Schematic** (unlocks the Masterwork weapon line) | IV |
 | Luminous | The Grand Offering | Deliver 8 Diamond Block + 16 Gold Block | 3 Enchanted Golden Apple *(placeholder)* | IV |
 | Tempest | A Thriving Metropolis | Pop 25 | 2 Enchanted Golden Apple *(placeholder)* | II |
-| Milim | Apito's Jelly | Deliver 1 Apito's Jelly | 3 Enchanted Golden Apple *(placeholder)* | IV |
+| Milim | The Ultimate Brawl | Slay the Warden | **Absolute Annihilator** (custom growing weapon — 20 dmg, +2.5 reach, netherite-axe durability; earns holy_coat engraving + EP-scaling powers via gear_existence, see future-ideas.md) — also grants the Strength skill | IV |
 | Falmuth | Prove Your Might | Slay the Wither | 2 Enchanted Golden Apple *(placeholder)* | II |
 | Leon | Tribute to the Platinum Saber | Deliver 16 Gold Block + 16 Blaze Rod + 1 Netherite Ingot | 3 Enchanted Golden Apple *(placeholder)* | IV |
 | Eastern Empire | The Imperial Compact | Deliver 4 Diamond Block + 32 Amethyst + 16 Redstone Block | 2 Enchanted Golden Apple *(placeholder)* | III |
@@ -588,18 +587,18 @@ Forging Core** — a known dead-end item (see future-ideas.md). The placeholder
 apple counts were assigned under the OLD three-tier scheme (3 / 2 / 1) and were
 deliberately **not** re-scaled when the tier LABELS were corrected to the
 four-tier ladder (2026-07-28) — they're throwaway, so a now-Tier-IV faction
-(Luminous / Milim / Leon) still shows 3 apples. Task difficulty also varies a
+(Luminous / Leon) still shows 3 apples. Task difficulty also varies a
 lot (Pop 25 vs. slay the Wither) — a Phase 4 cross-check candidate. (The old
 emerald guide of III=64 / II=48 / I=32 no longer applies; those payouts were
 replaced in 0.2.0.)
 
 
-**STATUS (v0.2.0): ⛔ UNFINISHED.** Eight of the nine covenant capstones pay
+**STATUS: ⛔ UNFINISHED.** Seven of the nine covenant capstones pay
 **Enchanted Golden Apples as PLACEHOLDERS** (1–3 apples, assigned under the old
 three-tier scheme and NOT re-scaled to the corrected four-tier labels — they're
-temporary); only **Dwargon** has its real reward. Faction work is PAUSED here —
-see "⛔ UNFINISHED — RESUME HERE" at the top of this document for the full
-re-entry checklist.
+temporary); **Dwargon** (Masterwork Core + schematic) and **Milim** (Absolute
+Annihilator, 2026-07-28) have their real rewards. See "⛔ UNFINISHED — RESUME
+HERE" at the top of this document for the full re-entry checklist.
 
 **7B REWORK IN PROGRESS (2026-07-16) — each covenant gets a UNIQUE hard task +
 a fully custom reward** (replacing the flat emerald payouts):
@@ -607,13 +606,24 @@ a fully custom reward** (replacing the flat emerald payouts):
   Reward = Masterwork Weapon Core + a schematic that unlocks a smithing-table line
   of player-status-scaling "Masterwork" weapons. INVERTS today's deal (which
   *consumes* a core) — the covenant now GRANTS the core.
-- **Milim** (⛔ STILL NOT DONE as of 0.2.0) → move the **Absolute Annihilator** to
-  `cov_milim` as its custom covenant reward, and change the catalog "The Ultimate
-  Brawl" (slay Warden) reward to **1 Drago Nova**.
+- **Milim** (✅ DONE 2026-07-28) → the Covenant and pact deals were **swapped**.
+  `cov_milim` is now *The Ultimate Brawl* (slay the Warden → **Absolute
+  Annihilator** + the Strength skill); the old covenant task became the pact
+  catalog deal `mi_ultimate_brawl` *Apito's Jelly* (deliver 1 → 3 golden apples).
+  (Superseded the earlier idea of a Drago Nova on the pact deal — the swap keeps
+  it simpler.) NB: deal **ids** stayed put (cov_milim / mi_ultimate_brawl), so an
+  id no longer matches its display name; the content moved, not the keys.
 
 ### 7C. Skill rewards
 
-**What it is / in game:** each faction has ONE catalog deal (the ★ rows above)
+² Milim is the exception: her Strength skill rides her **Covenant** deal
+(`cov_milim`, "The Ultimate Brawl" / slay the Warden), not a catalog deal —
+the Warden fight and its skill were swapped into the covenant 2026-07-28.
+`fulfillDeal` grants it on covenant completion; conquest's catalog-only
+`covenantSkillFor` is never consulted for Milim (abstract faction).
+
+**What it is / in game:** each faction has ONE deal (the ★ rows above — for
+Milim, her Covenant deal; see ²)
 that, on completion, also teaches you the faction's signature Tensura skill — you
 LEARN it (or it master-upgrades if you already have it; resistances simply no-op
 if owned). The exact same skill is granted by FORCE if you instead CONQUER the
@@ -626,7 +636,7 @@ capstone skill.
 | Tempest | Rimuru's Blessing | `tp_slime_pact` | Self-Regeneration | Common |
 | Luminous | A Devout Congregation | `lu_devout` | Holy Attack Resistance | Resistance |
 | Falmuth | A Mighty Defense | `fa_fortress` | Physical Attack Resistance | Resistance |
-| Milim | The Ultimate Brawl | `mi_ultimate_brawl` | Strength | Common |
+| Milim | The Ultimate Brawl | `cov_milim` ² | Strength | Common |
 | Eurazania | The Charybdis Hunt | `ca_wild_haven` | Giantification | Intrinsic |
 | Clayman | The Marionette | `cl_marionette` | Charm | Intrinsic |
 | Leon | Flamebearers Abroad | `le_flamebearers` | Flame Attack Resistance | Resistance |
