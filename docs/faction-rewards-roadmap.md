@@ -58,12 +58,14 @@ were acceptable in a release.
    [faction-combat-audit.md](faction-combat-audit.md) for the difficulty side,
    which DOES record confirmed difficulty↔reward mismatches (Eastern Empire /
    Dwargon / Tempest / Leon).
-3. **Phase 3 tier reconciliation is owed.** The tier ladder was expanded from
-   three tiers to **four** (IV/Apex · III/High · II/Major · I/Minor) on
-   2026-07-10, but **the per-faction tables in §7 still carry the OLD three-tier
-   labels**. Do not trust a "Tier II" label in §7 without re-deriving it from
-   the four-tier list in §6. The old "re-space the covenant emerald guides"
-   note is now moot — those rewards are golden-apple placeholders.
+3. **Phase 3 catalog value re-tuning is owed** (tier LABELS are now fixed). The
+   ladder went from three tiers to **four** (IV/Apex · III/High · II/Major ·
+   I/Minor) on 2026-07-10; the §7 per-faction table LABELS were corrected to
+   match on 2026-07-28. What remains is a balance judgment, not a relabel:
+   several factions changed tier (Dwargon II→IV, Luminous/Milim/Leon III→IV,
+   Eurazania/Eastern Empire II→III), so their catalog deal VALUES should be
+   lifted/adjusted to their new standing. The covenant-emerald guides are moot —
+   those are golden-apple placeholders now.
 4. **Phase 4 — cross-axis tuning never started.** Nobody has compared what
    conquering a faction pays versus what befriending it pays, which was the
    whole point of locking the diplomacy values first.
@@ -277,10 +279,12 @@ match. Philosophy: **TIERED by difficulty** (user decision). Full record in
   **IV/Apex** Luminous, Leon, Dwargon, Milim · **III/High** Eastern Empire,
   Eurazania · **II/Major** Falmuth, Tempest · **I/Minor** Clayman. (Tiers = canon
   KINGDOM power, not the placeholder boss mob; Dwargon → IV 2026-07-10.)
-  ⚠ Reward reconciliation owed: re-space the Covenant-emerald guides
-  (were 64/48/32 for 3 tiers) across the four tiers, and lift/adjust each moved
-  faction's catalog to its new tier — the per-faction tables in §7 still show
-  the OLD tier labels.
+  ⚠ Reward reconciliation: the §7 per-faction tier LABELS were corrected to this
+  four-tier ladder on 2026-07-28. The old Covenant-emerald guides (64/48/32) are
+  moot — those payouts are golden-apple placeholders now. STILL OWED (a balance
+  judgment, not a relabel): lift/adjust each MOVED faction's catalog VALUES to
+  its new tier — Dwargon II→IV, Luminous/Milim/Leon III→IV, Eurazania/Eastern
+  Empire II→III.
 - ✅ Leon + Eastern Empire catalogs expanded 4 → 10 deals.
 - ✅ `cov_clayman` reward fixed (empty → 32 emeralds).
 - ⬜ Catalog deals being reworked MANUALLY (user-led) against the updated tiers.
@@ -353,7 +357,7 @@ water (Tempest). **Battlewill Manuals** (physical combat aura) may **replace or
 accompany** a tome when the deal is martial/combat-themed (e.g. holy-warrior /
 war-faction deals) — use whichever fits the faction's flavor.
 
-**Dwargon** (Tier II — craft/industry; reworked 2026-06-28 to give Tensura
+**Dwargon** (Tier IV — craft/industry; reworked 2026-06-28 to give Tensura
 weapon/tool SCHEMATICS + smith-craft items — the smith-kingdom teaches the
 smithing tree and forges staves, steel thread, earth cores, and metal golems.
 Ingot-gear schematics are omitted since they auto-unlock with the metal.
@@ -414,7 +418,7 @@ an engraved katana. 24 deals):
 **Rimuru's Blessing** (the catalog slime deal), moved off Medicine for the Realm.
 This is the CATALOG capstone, not the `COVENANT_DEALS` milestone (`cov_tempest`).
 
-**Luminous** (Tier III — premium holy; milestone deals converted to active
+**Luminous** (Tier IV — premium holy; milestone deals converted to active
 deals 2026-07-06 — grimoires, holy healing, the Orc-Disaster crusade):
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
@@ -457,7 +461,7 @@ Schematic — needs the time-windowed-slay mechanic; see future-ideas.md.)*
 (The I Need More Steel! Diamond Sword is granted ENCHANTED — the enchant/engrave
 -at-grant mechanic is now built; see decisions.md "Enchanted/engraved rewards".)
 
-**Milim** (Tier III — feast/brawl):
+**Milim** (Tier IV — feast/brawl):
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
 | A Feast Worthy of Me! | Deliver 64 Cooked Porkchop | 16 Golden Carrot + 8 Gold | NEUTRAL |
@@ -474,7 +478,7 @@ Schematic — needs the time-windowed-slay mechanic; see future-ideas.md.)*
 | The Ultimate Brawl ★ | Slay the Warden | **Absolute Annihilator** (custom PLAIN weapon: 20 dmg, 1.8 spd, +2.5 reach, gold ench, netherite-axe durability; earns holy_coat engraving + EP-scaling powers via gear_existence — see future-ideas.md "Absolute Annihilator") + 2 Gold Coin | ALLIED |
 | Warriors to Spar | Lend 2 × Athletics≥8 | 8 Diamond + 1 Enchanted Golden Apple | ALLIED |
 
-**Eurazania** (Tier II — beast kingdom): *reworked 2026-07-16 — monster leather +
+**Eurazania** (Tier III — beast kingdom): *reworked 2026-07-16 — monster leather +
 beast mats + coin ladder; the 4 milestone deals converted to active (supply/hunt).*
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
@@ -517,7 +521,7 @@ completed by declaring war on a rival settlement and WINNING it. Event-driven �
 polled), same shape as `SlayEntities`. This is the first deal that ties the
 diplomacy board to the rival-colony war system.
 
-**Leon** (Tier III — the Platinum Saber: fire-wielding SWORDSMAN + spirit
+**Leon** (Tier IV — the Platinum Saber: fire-wielding SWORDSMAN + spirit
 summoner, signature spirit Ifrit): *reworked 2026-07-16 — milestones → active,
 coin ladder, martial/saber spine (Battlewill + the Platinum Blade fire-katana),
 blaze-rod spam cut; canon check confirmed fire is his element VIA Ifrit, so kept.*
@@ -537,7 +541,7 @@ blaze-rod spam cut; canon check confirmed fire is his element VIA Ifrit, so kept
 | The Platinum Blade | Deliver 4 High Magisteel | **High Magisteel Katana (Fire Aspect II + Sharpness IV)** + 3 Gold Coin | ALLIED |
 
 
-**Eastern Empire** (Tier II — magitech/imperial): *reworked 2026-07-16 — milestones
+**Eastern Empire** (Tier III — magitech/imperial): *reworked 2026-07-16 — milestones
 → active, coin ladder, summoning/imperial theme; some deals renamed to match.*
 | Deal | Task | Reward | Tier |
 |---|---|---|---|
@@ -565,14 +569,14 @@ each relationship.
 
 | Faction | Deal | Task | Reward | Tier value |
 |---|---|---|---|---|
-| Dwargon | The Masterwork Commission | Deliver 1 Netherite Block + 1 Hihiirokane Ingot | **Masterwork Weapon Core + Masterwork Schematic** (unlocks the Masterwork weapon line) | II |
-| Luminous | The Grand Offering | Deliver 8 Diamond Block + 16 Gold Block | 3 Enchanted Golden Apple *(placeholder)* | III |
+| Dwargon | The Masterwork Commission | Deliver 1 Netherite Block + 1 Hihiirokane Ingot | **Masterwork Weapon Core + Masterwork Schematic** (unlocks the Masterwork weapon line) | IV |
+| Luminous | The Grand Offering | Deliver 8 Diamond Block + 16 Gold Block | 3 Enchanted Golden Apple *(placeholder)* | IV |
 | Tempest | A Thriving Metropolis | Pop 25 | 2 Enchanted Golden Apple *(placeholder)* | II |
-| Milim | Apito's Jelly | Deliver 1 Apito's Jelly | 3 Enchanted Golden Apple *(placeholder)* | III |
+| Milim | Apito's Jelly | Deliver 1 Apito's Jelly | 3 Enchanted Golden Apple *(placeholder)* | IV |
 | Falmuth | Prove Your Might | Slay the Wither | 2 Enchanted Golden Apple *(placeholder)* | II |
-| Leon | Tribute to the Platinum Saber | Deliver 16 Gold Block + 16 Blaze Rod + 1 Netherite Ingot | 3 Enchanted Golden Apple *(placeholder)* | III |
-| Eastern Empire | The Imperial Compact | Deliver 4 Diamond Block + 32 Amethyst + 16 Redstone Block | 2 Enchanted Golden Apple *(placeholder)* | II |
-| Eurazania | The Great Hunt | Slay 3 great beasts (Wither / Warden / Elder Guardian / Charybdis / Ifrit) | 2 Enchanted Golden Apple *(placeholder)* | II |
+| Leon | Tribute to the Platinum Saber | Deliver 16 Gold Block + 16 Blaze Rod + 1 Netherite Ingot | 3 Enchanted Golden Apple *(placeholder)* | IV |
+| Eastern Empire | The Imperial Compact | Deliver 4 Diamond Block + 32 Amethyst + 16 Redstone Block | 2 Enchanted Golden Apple *(placeholder)* | III |
+| Eurazania | The Great Hunt | Slay 3 great beasts (Wither / Warden / Elder Guardian / Charybdis / Ifrit) | 2 Enchanted Golden Apple *(placeholder)* | III |
 | Clayman | Souls for the Core | Slay 10 Villagers | 1 Enchanted Golden Apple *(placeholder)* | I |
 
 Plus one **Covenant-only training deal**: Tempest's *Warrior Training* — a lend
@@ -580,17 +584,21 @@ Plus one **Covenant-only training deal**: Tempest's *Warrior Training* — a len
 Covenant is forged → 16 Emerald.
 
 ⚠ Note: the Dwargon covenant is the only deal that still consumes a **Masterwork
-Forging Core** — a known dead-end item (see future-ideas.md). Cross-axis: the
-placeholder payout scales with the tier (III=3, II=2, I=1 Enchanted Golden
-Apples), but the *task difficulty* varies a lot (Pop 25 vs. slay the Wither) —
-a Phase 4 cross-check candidate. (The old emerald guide of III=64 / II=48 /
-I=32 no longer applies; those payouts were replaced in 0.2.0.)
+Forging Core** — a known dead-end item (see future-ideas.md). The placeholder
+apple counts were assigned under the OLD three-tier scheme (3 / 2 / 1) and were
+deliberately **not** re-scaled when the tier LABELS were corrected to the
+four-tier ladder (2026-07-28) — they're throwaway, so a now-Tier-IV faction
+(Luminous / Milim / Leon) still shows 3 apples. Task difficulty also varies a
+lot (Pop 25 vs. slay the Wither) — a Phase 4 cross-check candidate. (The old
+emerald guide of III=64 / II=48 / I=32 no longer applies; those payouts were
+replaced in 0.2.0.)
 
 
 **STATUS (v0.2.0): ⛔ UNFINISHED.** Eight of the nine covenant capstones pay
-**tier-scaled Enchanted Golden Apples as PLACEHOLDERS** (I=1, II=2, III=3);
-only **Dwargon** has its real reward. Faction work is PAUSED here — see
-"⛔ UNFINISHED — RESUME HERE" at the top of this document for the full
+**Enchanted Golden Apples as PLACEHOLDERS** (1–3 apples, assigned under the old
+three-tier scheme and NOT re-scaled to the corrected four-tier labels — they're
+temporary); only **Dwargon** has its real reward. Faction work is PAUSED here —
+see "⛔ UNFINISHED — RESUME HERE" at the top of this document for the full
 re-entry checklist.
 
 **7B REWORK IN PROGRESS (2026-07-16) — each covenant gets a UNIQUE hard task +
