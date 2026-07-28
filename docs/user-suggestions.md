@@ -6,6 +6,23 @@ not yet evaluated for feasibility. When one is picked up, move the design work
 into `docs/future-ideas.md` / `docs/roadmap.md` and a decision into
 `docs/decisions.md`.
 
+## 2026-07-27
+
+1. **MineColonies barbarians should count toward the Tensura "human soul" kill
+   count.** The player likes the current behaviour and adds this on top: when a
+   player kills the barbarian raiders that MineColonies spawns during its own
+   raids, those kills should register against Tensura's human-soul kill counter
+   (the same counter Tensura increments for slaying humans), so MC raiders feed
+   Tensura's soul-based progression like any other human kill.
+   - *Dev note:* not yet evaluated. Barbarians here = MineColonies' native raider
+     entities (its own barbarian/pirate/etc. raid mobs), distinct from this mod's
+     `TensuraRaidEvent` raiders (which are Tensura MONSTER types, not humans).
+     Would need to identify MC's raider entity types and, on their death, credit
+     the Tensura human-soul count via whatever API Tensura exposes for that
+     counter. Check whether MC barbarians even read as "human" to Tensura today;
+     if not, this is an explicit on-kill hook. Feasibility + the exact Tensura
+     soul-count API are unconfirmed.
+
 ## 2026-07-22
 
 1. **Adjustable, per-colony barrier size.** [QUEUED — the user has asked for this

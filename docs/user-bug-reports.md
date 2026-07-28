@@ -8,12 +8,187 @@ are broken.
 
 ---
 
+## 2026-07-27 — Interacting with the Magicule Barrier block crashes the game
+
+**Status:** UNRESOLVED — reported 2026-07-27. **Awaiting crash report / logs.**
+
+**Report (as phrased):** "Hello, I have discovered a bug, where interacting with
+the magicule barrier block, crashes the game."
+
+**Reporter note:** "might have something to do with servers or tensura version."
+
+**What this means:** interacting with the Barrier Core block (right-click, which
+is supposed to open the core menu) hard-crashes the game instead of opening the
+UI. The reporter suspects it may be environment-specific (dedicated/LAN server
+vs. singleplayer) and/or tied to a particular Tensura version. NOTE: distinct
+from the 2026-07-04 "Subordinates attack the magicule barrier" entry below —
+that's mob behaviour, this is a crash on player interaction.
+
+**Where to look (pending logs):** `BarrierBlock` (the right-click /
+`useWithoutItem` handler that opens the core menu), `BarrierBlockEntity`, and the
+`OpenBarrierMenuPayload` → `BarrierCoreScreen` path. A server/client mismatch on
+the menu-open (client-only code reached server-side, or a payload built from data
+present on only one side) is the leading class of cause for an "open menu =
+crash" symptom. Cannot triage further until a crash log is provided.
+
+---
+
+## 2026-07-27 — Game crashes when opening the Restaurant / dining hall food menu
+
+**Status:** DIAGNOSED (2026-07-27) — **NOT our mod.** Root cause is a mixin
+injection failure in a THIRD-PARTY MineColonies addon, **`mctier_engine`
+("MineColonies Food Tier Engine" v1.0.0)**, incompatible with the pack's
+MineColonies **snapshot** build. `tensura_minecolonies` appears nowhere in the
+crash. Fix is on the pack/player side (update or remove `mctier_engine`, or use a
+MineColonies version it supports). See "ROOT CAUSE (verified against the crash
+report)" below.
+
+### ROOT CAUSE (verified against the crash report `crash-2026-07-27_00.56.21-client.txt`)
+
+The crash is `Ticking screen` → a `MixinTransformerError` thrown while
+class-loading MineColonies' `RestaurantMenuModuleWindow`. That class is loaded the
+instant the player opens the restaurant food menu — the trace is
+`RestaurantMenuModuleWindow.onOpened → updateStockList` (line 327). Hence "crashes
+every time I open the dining hall food menu."
+
+The `Caused by` is exact and unambiguous:
+
+> `InjectionError: Critical injection failure: Redirector`
+> `proxyItemForResourceList(Lnet/minecraft/world/item/ItemStack;)Lnet/minecraft/world/item/Item;`
+> `in mctier_engine.mixins.client.json:RestaurantResourceTooltipMixin from mod`
+> `mctier_engine failed injection check, (0/1) succeeded. Scanned 0 target(s).`
+> `No refMap loaded.`
+
+Reading it: the mod **`mctier_engine`** ships a mixin (`RestaurantResourceTooltipMixin`
++ `RestaurantWindowMixin`) that `@Redirect`s a method inside MineColonies'
+restaurant window. The redirect **scanned 0 targets** — the method it targets no
+longer exists / changed signature in the pack's MineColonies build — and
+**"No refMap loaded"** means the mixin's obfuscation-mapping file is missing from
+its jar. Either way the mixin cannot apply, so mixin aborts class-load with a
+critical error, and the game dies the moment that screen is opened.
+
+**Version mismatch that causes it:** the pack runs MineColonies
+**`1.1.1358-1.21.1-snapshot`** (a snapshot, NEWER than our supported 1.1.1319),
+while `mctier_engine v1.0.0` was built against an older MineColonies whose
+restaurant window still had the redirected method. `mctier_engine` is simply out
+of date for this MineColonies.
+
+**Exact broken injection point + 1.1.1319 compatibility (bytecode-verified):**
+Decompiled `mctier_engine-1.0.0.jar`. Its `RestaurantResourceTooltipMixin`
+is `@Mixin(targets="…RestaurantMenuModuleWindow$2")` with
+`@Redirect(method="updateElement", at=@At(target="Lnet/minecraft/world/item/ItemStack;getItem()Lnet/minecraft/world/item/Item;"))`
+(handler `proxyItemForResourceList` → `FoodHelper.getGuiItem`). The sibling
+`RestaurantTooltipMixin` is the same on `$1`; `RestaurantWindowMixin` redirects
+`ItemStorage.getItem()` in `updateStockList`. Checked these targets against our
+pinned **`minecolonies-1.1.1319`** jar: `RestaurantMenuModuleWindow$1` and `$2`
+both **have `updateElement(int, Pane)` and both call `ItemStack.getItem()`**, and
+`updateStockList` exists with the `ItemStorage.getItem()` call — i.e. EVERY
+injection point the mod requires is present in 1.1.1319. The jar ships **no
+refmap**, but NeoForge 1.21.1 runs Mojmap names at runtime and the mixins use
+Mojmap names directly, so the names already match — the "No refMap loaded" warn
+is harmless AT 1.1.1319. On **1.1.1358-snapshot** MineColonies refactored that
+inner-class `updateElement` / call site, so the `@Redirect` binds 0 targets and
+(with `required=true`, `defaultRequire=1`) aborts class-load → the crash.
+CONCLUSION: `mctier_engine v1.0.0` is compatible with MineColonies **1.1.1319**
+(and up to whatever build in `(1319,1358]` performed that refactor); it is
+incompatible with **1.1.1358-snapshot**. Fix = pin MineColonies to a pre-refactor
+build (e.g. 1.1.1319), or update/remove `mctier_engine`.
+
+**What `mctier_engine` is (verified):** a THIRD-PARTY, publicly published
+MineColonies food-tier addon — "MineColonies Food Tier Engine" / the "MCTier
+Library" ecosystem by author **zackman634**. Its whole job is slotting modded
+food items into MineColonies' tiered food (restaurant) system, which is why it
+mixins the restaurant window. Verified from the pack's `latest.log` (jar
+`mctier_engine-1.0.0.jar` loaded from the "Tempest Protocol" instance; two mixin
+configs; refmap `mixins.mctier_engine.refmap.json` "could not be read") and from
+its public listing. The pack bundles its companion patches too
+(`minecoloniesvanillafoodcompat`, `minecoloniesphfe`, `minecoloniesphfc`,
+`minecolonies_solcarrot`). Nothing to do with our mod.
+
+### CONFIRMED NOT OUR MOD
+
+- `tensura_minecolonies` (v0.2.1 in this pack) appears **zero** times in the crash
+  stack trace. The only mixins annotated on the crashing class are
+  `mctier_engine`'s.
+- Our mod ships **no restaurant / food-menu mixin** (grep of
+  `tensura_minecolonies.mixins.json` + `mixin/` = none), and does not touch
+  `RestaurantMenuModuleWindow` or MC's food list. Our earlier "where to look" hunch
+  (our custom consumables appearing in the food list) is **ruled out** — the crash
+  is in mixin *application*, before any item/food logic runs.
+- The reporter's environment is the confounder that made this look like it could be
+  ours: an edited Tensura ("Tempest Protocol"), a snapshot MineColonies, and a
+  large addon stack (`betterwithminecolonies`, `stylecolonies`, `mctier_engine`, …)
+  from the `uknRoPdy` pack.
+
+### FIX (player / pack side — nothing to change in our mod)
+
+Tell the reporter (any one of these resolves it):
+1. **Update `mctier_engine`** to a build compatible with MineColonies
+   1.1.1358-snapshot (preferred if the author has released one), OR
+2. **Remove `mctier_engine`** (MineColonies Food Tier Engine) — the restaurant menu
+   then uses MineColonies' own vanilla behaviour and opens fine, OR
+3. **Use the MineColonies version `mctier_engine v1.0.0` was built for** (i.e. don't
+   run it against a newer snapshot).
+
+This is a pack-maintainer issue (a snapshot MineColonies paired with an addon that
+hasn't updated to it). No action in `tensura_minecolonies`.
+
+### Original triage notes (kept for reference)
+
+**Report (as phrased):** "Game crashes whenever I try to open the dining hall
+food menu."
+- **Singleplayer or Server:** Server (Bisect Hosting), 2 players.
+- **Other mods installed:** Edited "Tempest Protocol" Tensura, MineColonies, and
+  others. CurseForge modpack code: `uknRoPdy`.
+- **What happened:** game crashes whenever trying to open the dining hall food
+  menu.
+- **Expected:** food menu should open, allowing selection of restaurant foods.
+- **Steps to reproduce:** open the food menu at any dining hall.
+- **Every time?** Always (100% reproducible).
+
+**What this means:** opening the Restaurant hut's food-selection menu crashes
+every time. Reproducible, so the crash log's stack trace should pinpoint the
+cause directly.
+
+**Note on the environment:** the reporter is on an EDITED Tensura ("Tempest
+Protocol") and a modpack (`uknRoPdy`), NOT our pinned/supported jars — a
+Tensura-version or third-mod interaction is on the table alongside our own code.
+
+**Where to look:** read the provided crash log's stack trace FIRST — a "crash on
+a specific screen open" trace usually names the offending class directly.
+Consider whether anything we ship reaches the Restaurant/food menu — our custom
+consumables (Apito Nectar, Apito's Jelly, Drago Nova) could appear in a food
+list; a malformed food component could crash the menu open. Confirm whether it
+reproduces WITHOUT this mod (isolates ours vs. the edited Tensura / modpack).
+
+---
+
 ## 2026-07-26 — [HIGH PRIORITY] Losing a raid WIPES the colony ("This block is missing its respective building, try restarting or loading a backup")
 
 **Status:** INVESTIGATED (2026-07-26) — NOT an intended feature, and NOT caused by
 our raid code. Traced to a MineColonies colony-data DESYNC (colony record present,
 building objects gone). Definitive root-cause of the desync needs a `latest.log`
 from a wipe. See "INVESTIGATION (2026-07-26)" below.
+
+### SECOND, INDEPENDENT REPORT (2026-07-27) — with an isolating detail
+
+A second player reported the same symptom independently:
+
+"whenever your colony is attacked, if you lose the raid, you have to remake your
+whole colony because none of the buildings will allow you access anymore. this is
+especially annoying when you're on a server and can't be on to protect it 24/7.
+Interacting with any building gives the line 'This block is missing its
+respective building, try restarting or loading a backup'. **I tried minecolonies
+without this mod and this issue wasn't there.**"
+
+**Why this matters:** the 2026-07-26 investigation concluded the wipe is a
+MineColonies-side save/load DESYNC, NOT our raid code. This reporter's last
+sentence — that MineColonies WITHOUT our mod does not show the issue — is
+evidence pointing back at our mod (or at our mod being the trigger that surfaces
+the desync). It does not overturn the investigation (they may still have other
+mods, and "without this mod" may also mean without the whole pack), but it
+raises the priority of getting a `latest.log` and a clean MC + Tensura + our-mod
+ONLY repro. Both reporters are on servers/LAN.
 
 ### INVESTIGATION (2026-07-26) — verified against the minecolonies-1.1.1319 jar + our source
 
