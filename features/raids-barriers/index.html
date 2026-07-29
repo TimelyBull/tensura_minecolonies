@@ -1379,13 +1379,12 @@ one raid runs at a time. Raise reputation above Neutral and raids stop. You
 can also switch reputation raids off entirely with the <code>enableRaids</code>
 <a href="../../reference/config/">config</a> option.</p>
 <p>A raid spawns Tensura monsters at the edge of your colony's territory; they
-march in and attack citizens, and your guards engage them. Like a normal
-MineColonies siege, a raid is <strong>one host you grind down</strong>: as raiders die the
-raid shrinks toward its end, stragglers that wander off are replaced so the
-pressure holds, and you <strong>win once you've broken about 90% of the host</strong> — you
-don't have to hunt down the last one or two. The raid bar shows how much of the
-host is left. Winning raises reputation; if the night ends first, the survivors
-withdraw. A raid carries over intact across a save-and-reload.</p>
+march in and attack citizens, and your guards engage them. Like a MineColonies
+siege, a raid is a single host: killed raiders aren't replaced, but stragglers
+that wander off are, and you <strong>win once about 90% of the host is dead</strong> — no
+need to chase the last one or two. The raid bar shows how much is left. Winning
+raises reputation; if the night ends first, the survivors withdraw. A raid
+carries over intact across a save-and-reload.</p>
 <h3 id="difficulty">Difficulty<a class="headerlink" href="#difficulty" title="Permanent link">&para;</a></h3>
 <p>Raid difficulty is set by your colony's <strong>strength</strong> (mostly the total EP of
 your citizens, plus its size and development), not by reputation —
@@ -1401,20 +1400,18 @@ strength, in three levels:</p>
 <p>Beyond ordinary raids, an angered <a href="../world-reputation/">faction</a> can send a
 scripted <strong>lore event</strong>. The one currently in the game is the <strong>Orc
 Disaster</strong>: if you provoke the <strong>Moderate Harlequin Alliance</strong> (by killing its
-marked bosses) and your standing with it is low, Clayman can march a horde led
-by <strong>Geld, the Orc Disaster</strong> on a colony. Killing the lead boss breaks the
-horde. (More lore
-events are planned — see the <a href="../../roadmap/">Roadmap</a>.)</p>
+marked bosses), Clayman can march a horde led by <strong>Geld, the Orc Disaster</strong> on a
+colony. Killing the lead boss breaks the horde. (More lore events are planned —
+see the <a href="../../roadmap/">Roadmap</a>.)</p>
 <h3 id="citizens-that-fight-back">Citizens That Fight Back<a class="headerlink" href="#citizens-that-fight-back" title="Permanent link">&para;</a></h3>
 <p>When a raid hits, your <strong>guards</strong> engage as normal and ordinary citizens flee
 and hide the MineColonies way. But a strong <strong>Tensura-race citizen</strong> (roughly
 10,000 EP or more, and not already a guard) does something extra: it
 <strong>transforms into its full Tensura monster body</strong> on the spot and fights the
-raiders with its skills, then changes back once the raid is over. It's a free,
-in-place swap — no magicule cost, no roster, no summoning circle.</p>
-<p>If you'd rather your citizens didn't turn into monsters mid-raid, switch it off
-with the <code>enableDefenseSwap</code> <a href="../../reference/config/">config</a> option; guards
-still guard and everyone else flees as usual.</p>
+raiders with its skills, then changes back when the raid ends. The swap happens
+in place, with no magicule cost, roster, or summoning circle.</p>
+<p>To stop citizens transforming mid-raid, switch it off with the
+<code>enableDefenseSwap</code> <a href="../../reference/config/">config</a> option.</p>
 <h2 id="the-barrier">The Barrier<a class="headerlink" href="#the-barrier" title="Permanent link">&para;</a></h2>
 <p>The barrier is a Barrier Core block you place that projects a protective
 <strong>sphere</strong> while it holds magicule fuel. The sphere sinks partway into the
@@ -1467,10 +1464,8 @@ plus a bonus for every OTHER core in the colony based on that core's tier:</p>
 reaches 92. There is a hard ceiling of <strong>128</strong> whatever you build.</p>
 <p>Set it in the core menu with the <strong>FIELD SIZE</strong> row: <code>-</code> and <code>+</code> move it 4
 blocks at a time, <code>MIN</code> and <code>MAX</code> jump to the ends of the range, and the bar
-shows where you are within it. Making it smaller keeps the sphere tight around
-what actually needs protecting <strong>and costs less fuel to run</strong>; making it bigger
-covers more ground but gives attackers more wall to break and burns through your
-magicule faster.</p>
+shows where you are within it. A smaller field costs less fuel; a larger one
+costs more and gives attackers more wall to break.</p>
 <p>If you lose a core the range narrows and the barrier shrinks to fit — but your
 chosen size is remembered, so rebuilding the core puts it back where you had
 it.</p>
@@ -1578,10 +1573,9 @@ on which title the raiser holds:</p>
 <p>If the raiser loses their title, the extra layers collapse back to one and the
 buff ends.</p>
 <h3 id="upkeep">Upkeep<a class="headerlink" href="#upkeep" title="Permanent link">&para;</a></h3>
-<p>A barrier is never free. While it is up it burns magicule every second, and the
-bill depends on how big it is and how many layers it has: <strong>10 per second for
-each layer, plus 1 per second for every block of that layer's radius.</strong> Outer
-layers are bigger, so each one you add costs a little more than the last.</p>
+<p>While it is up, a barrier burns magicule every second: <strong>10 per second for each
+layer, plus 1 per second for every block of that layer's radius.</strong> Outer layers
+are bigger, so each one costs a little more than the last.</p>
 <p>Some examples of what that means for a full tank:</p>
 <table>
 <thead>
@@ -1620,8 +1614,7 @@ layers are bigger, so each one you add costs a little more than the last.</p>
 </tbody>
 </table>
 <p>Repairing broken panels costs fuel on top of that. If the pool runs dry the
-barrier falls, so a big barrier or a stack of layers is a standing commitment —
-keep it fed, or keep it small.</p>
+barrier falls. Larger fields and extra layers need steady refueling.</p>
 <p>The Barrier Core's menu (right-click) shows fuel, lets you move magicule
 between yourself and the core, sets the field size and the layer count, and
 toggles whether the walls are visible. Any core in the colony opens the same
