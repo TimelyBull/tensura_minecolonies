@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -31,7 +31,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -446,6 +446,8 @@
       
         
       
+        
+      
     
     
     
@@ -534,6 +536,34 @@
     
   
     Colony Reputation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/colony-protection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Colony Protection
   
 
     
@@ -984,8 +1014,9 @@
 
 
 <h1 id="config">Config<a class="headerlink" href="#config" title="Permanent link">&para;</a></h1>
-<p>The mod's options live in its common config file. The settings that affect
-gameplay:</p>
+<p>The mod's options are split across its <strong>common</strong> config (applies at game
+launch) and its per-world <strong>server</strong> config (some need a world reload to take
+effect, as noted below). The settings that affect gameplay:</p>
 <table>
 <thead>
 <tr>
@@ -996,9 +1027,9 @@ gameplay:</p>
 </thead>
 <tbody>
 <tr>
-<td><code>factionSystemEnabled</code></td>
-<td><code>true</code></td>
-<td>Master switch for the whole faction layer — <a href="../../features/world-reputation/">world reputation</a>, faction standings, <a href="../../features/diplomacy/">diplomacy</a>, and <a href="../../features/rival-colonies/">rival colonies</a>. Off: no faction standing, no envoys, no deals, no settlements, no wars. Colony-level systems (citizens, <a href="../../features/colony-reputation/">colony reputation</a>, raids) are unaffected, and boss kills behave as if the faction layer didn't exist.</td>
+<td><code>enableFactionSystem</code></td>
+<td><code>false</code></td>
+<td>Master switch for the whole faction system — <a href="../../features/world-reputation/">world reputation</a>, faction standings, <a href="../../features/diplomacy/">diplomacy</a>, and <a href="../../features/rival-colonies/">rival colonies</a>. <strong>Defaults to off</strong>, so a fresh install is the plain "Tensura mobs as colony citizens" experience. Off: no faction standing, no diplomacy envoys, deals or trades, no settlements generating, no wars, and the <strong>Diplomacy and Wars buttons are hidden</strong> from the roster screen. Colony-level systems stay on regardless — your citizens, the race emissaries that add new races to a colony, <a href="../../features/colony-reputation/">colony reputation</a>, and raids — and boss kills behave as if the faction layer didn't exist. Set it to <code>true</code> to turn the faction system on. Per-world setting — reload the world after changing it.</td>
 </tr>
 <tr>
 <td><code>enableAssassins</code></td>
@@ -1006,19 +1037,34 @@ gameplay:</p>
 <td>Enables the <a href="../../features/assassins/">assassin</a> system. Off: no new assassins form, existing plots that haven't struck defuse, and no strikes occur (an already-active assassin boss stays until killed).</td>
 </tr>
 <tr>
-<td><code>rivalSettlementMode</code></td>
-<td><code>SOME</code></td>
-<td>How many faction <a href="../../features/rival-colonies/">settlements</a> generate. <strong>ALL</strong> — every physical faction boss gets a settlement. <strong>SOME</strong> — a per-boss chance (see below). <strong>NONE</strong> — no settlements (faction bosses still appear as free-roaming wild bosses).</td>
+<td><code>enableRaids</code></td>
+<td><code>true</code></td>
+<td>Whether a colony with low <a href="../../features/colony-reputation/">reputation</a> gets <a href="../../features/raids-barriers/">raided</a> by monsters at night. Off: those raids never trigger (a raid already underway still finishes, and the debug command still works). Does <strong>not</strong> affect faction story raids like the Orc Disaster. Per-world setting — reload the world after changing it.</td>
 </tr>
 <tr>
-<td><code>rivalSettlementSomeChance</code></td>
-<td><code>0.5</code></td>
-<td>Under <code>SOME</code> mode, the chance (0–1) that a physical faction boss generates as a settlement rather than a wild boss.</td>
+<td><code>enableDefenseSwap</code></td>
+<td><code>true</code></td>
+<td>Whether strong Tensura-race citizens transform into their monster body to fight during a raid (see <a href="../../features/raids-barriers/">Raids &amp; Barriers</a>). Off: no citizen ever transforms — guards still guard, everyone else flees the MineColonies way. Per-world setting — reload the world after changing it.</td>
+</tr>
+<tr>
+<td><code>protectColoniesFromMobGriefing</code></td>
+<td><code>true</code></td>
+<td>Stops Tensura <strong>giant monsters</strong> (Orc Lord, Charybdis, and the like) from smashing blocks inside a colony just by walking into them. Off: giant mobs break colony blocks freely (as vanilla <code>mobGriefing</code> allows). Applies immediately, no reload.</td>
+</tr>
+<tr>
+<td><code>protectColoniesFromSkillGriefing</code></td>
+<td><code>true</code></td>
+<td>Stops Tensura <strong>terrain-shaping skills</strong> (Earth Manipulation and similar) from carving up blocks inside a colony. Off: those skills reshape colony terrain freely. Applies immediately, no reload.</td>
+</tr>
+<tr>
+<td><code>citizenAggression</code></td>
+<td><code>OFF</code></td>
+<td>How aggressively naturally-hostile Tensura mobs hunt your colony's citizens — extra targeting this mod adds on top of vanilla Tensura (which by itself ignores citizens). <strong><code>OFF</code></strong> (default): mobs never single out citizens as prey. <strong><code>MEDIUM</code></strong>: roughly half of encounters treat a citizen as prey. <strong><code>HIGH</code></strong>: citizens are prey on sight.</td>
 </tr>
 <tr>
 <td><code>rivalNaturalGeneration</code></td>
 <td><code>true</code></td>
-<td>Whether rival settlements generate naturally over time. Off: settlements only appear via debug commands.</td>
+<td>Whether faction <a href="../../features/rival-colonies/">settlements</a> appear as you explore — both the faction towns and the dwarf villages that become Dwargon settlements. Off: no settlement ever forms on its own, and faction bosses stay free-roaming wild bosses.</td>
 </tr>
 <tr>
 <td><code>dragoNovaHarmAllies</code></td>
@@ -1130,7 +1176,7 @@ gameplay:</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "search.suggest", "search.highlight", "content.code.copy", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

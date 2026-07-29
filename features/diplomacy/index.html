@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -31,7 +31,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -448,6 +448,8 @@
       
         
       
+        
+      
     
     
     
@@ -539,6 +541,34 @@
     
   
     Colony Reputation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../colony-protection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Colony Protection
   
 
     
@@ -734,7 +764,7 @@
   <a href="#opening-relations" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Opening relations
+        Opening Relations
       
     </span>
   </a>
@@ -745,19 +775,19 @@
   <a href="#deals-the-heart-of-diplomacy" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Deals: the heart of diplomacy
+        Deals: The Heart Of Diplomacy
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Deals: the heart of diplomacy">
+    <nav class="md-nav" aria-label="Deals: The Heart Of Diplomacy">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#lending-citizens" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Lending citizens
+        Lending Citizens
       
     </span>
   </a>
@@ -773,7 +803,7 @@
   <a href="#relationship-tiers" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Relationship tiers
+        Relationship Tiers
       
     </span>
   </a>
@@ -784,19 +814,19 @@
   <a href="#ending-relations" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Ending relations
+        Ending Relations
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Ending relations">
+    <nav class="md-nav" aria-label="Ending Relations">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#the-rite-of-atonement" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The Rite of Atonement
+        The Rite Of Atonement
       
     </span>
   </a>
@@ -812,7 +842,7 @@
   <a href="#quick-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Quick reference
+        Quick Reference
       
     </span>
   </a>
@@ -1101,7 +1131,7 @@
   <a href="#opening-relations" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Opening relations
+        Opening Relations
       
     </span>
   </a>
@@ -1112,19 +1142,19 @@
   <a href="#deals-the-heart-of-diplomacy" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Deals: the heart of diplomacy
+        Deals: The Heart Of Diplomacy
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Deals: the heart of diplomacy">
+    <nav class="md-nav" aria-label="Deals: The Heart Of Diplomacy">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#lending-citizens" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Lending citizens
+        Lending Citizens
       
     </span>
   </a>
@@ -1140,7 +1170,7 @@
   <a href="#relationship-tiers" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Relationship tiers
+        Relationship Tiers
       
     </span>
   </a>
@@ -1151,19 +1181,19 @@
   <a href="#ending-relations" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Ending relations
+        Ending Relations
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Ending relations">
+    <nav class="md-nav" aria-label="Ending Relations">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#the-rite-of-atonement" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The Rite of Atonement
+        The Rite Of Atonement
       
     </span>
   </a>
@@ -1179,7 +1209,7 @@
   <a href="#quick-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Quick reference
+        Quick Reference
       
     </span>
   </a>
@@ -1211,25 +1241,41 @@
 complete deals to raise standing, and progress through three relationship
 tiers that unlock rewards. It runs in parallel with
 <a href="../rival-colonies/">Rival Colonies</a>; you can use both.</p>
+<p>Diplomacy is part of the faction system, which is <strong>off by default</strong>. Set
+<code>enableFactionSystem</code> to <code>true</code> in the <a href="../../reference/config/">config</a> to
+enable it. While it's off, the <strong>Diplomacy</strong> tab is hidden from the roster
+and no diplomatic envoys arrive.</p>
 <div class="admonition info">
 <p class="admonition-title">Where to find it</p>
 <p>Open your roster with the <strong><code>G</code></strong> key and click the <strong>Diplomacy</strong> tab.
 Each known faction is a row showing its current standing and any offered
 deals.</p>
 </div>
-<h2 id="opening-relations">Opening relations<a class="headerlink" href="#opening-relations" title="Permanent link">&para;</a></h2>
-<p>Before you can deal with a faction, you have to be on speaking terms. There
-are two ways relations open:</p>
+<h2 id="opening-relations">Opening Relations<a class="headerlink" href="#opening-relations" title="Permanent link">&para;</a></h2>
+<p>You must <strong>own a colony</strong> (have a town hall) before you can send an envoy or
+a gift — the buttons are disabled until then. There are two ways relations
+open:</p>
 <ul>
 <li><strong>They send an envoy to you.</strong> Friendly and neutral factions occasionally
   send a diplomatic envoy that appears near your town hall. Right-click it to
   hear them out and accept — relations open on the spot.</li>
 <li><strong>You send an envoy to them.</strong> On the Diplomacy tab, press <strong>Send Envoy</strong>
-  for a faction. You can attach a gift (it's taken from your inventory and
-  earns a little goodwill). After about a day, they reply: if your standing
-  is high enough, relations open. If not, they decline — but asking costs you
-  nothing except the gift.</li>
+  for a faction. You dispatch one of your <strong>Tensura subordinates</strong> as the
+  envoy: a picker lists the subordinates at your side that are strong enough
+  for the trip (their EP must meet the faction's requirement — higher for
+  more dangerous factions). Pick one and it leaves on the mission. After
+  about a day the faction replies: if your standing is high enough, relations
+  open; otherwise they decline. <strong>Either way your subordinate returns to your
+  side</strong> when the mission resolves — it's only away temporarily, never lost.
+  You can attach a gift (taken from your inventory) for a little extra
+  goodwill.</li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">Your envoy is away while travelling</p>
+<p>A subordinate sent as an envoy is unavailable until the mission
+resolves — you can't summon or use it in the meantime. It comes back
+automatically (even across a logout) when the faction replies.</p>
+</div>
 <div class="admonition warning">
 <p class="admonition-title">Race matters</p>
 <p>Some factions are picky about who they'll deal with. The Holy Empire and
@@ -1239,7 +1285,7 @@ envoy, and they're a harder sell. A few factions (schemers and the truly
 aloof) never send envoys at all, but may still open relations if you make
 the first move.</p>
 </div>
-<h2 id="deals-the-heart-of-diplomacy">Deals: the heart of diplomacy<a class="headerlink" href="#deals-the-heart-of-diplomacy" title="Permanent link">&para;</a></h2>
+<h2 id="deals-the-heart-of-diplomacy">Deals: The Heart Of Diplomacy<a class="headerlink" href="#deals-the-heart-of-diplomacy" title="Permanent link">&para;</a></h2>
 <p>Once relations are open, a faction offers <strong>deals</strong> — tasks in exchange for
 items and standing. Each faction offers tasks themed to it, and completing
 deals is the main way standing rises.</p>
@@ -1279,7 +1325,7 @@ reward and a bump in standing; let it expire and your standing takes a hit
 (failing stings more than never accepting in the first place). You'll see a
 progress bar on the active deal, and a faction's row shows its current deal
 at a glance.</p>
-<h3 id="lending-citizens">Lending citizens<a class="headerlink" href="#lending-citizens" title="Permanent link">&para;</a></h3>
+<h3 id="lending-citizens">Lending Citizens<a class="headerlink" href="#lending-citizens" title="Permanent link">&para;</a></h3>
 <p>Some deals ask you to <strong>lend</strong> a few citizens with a particular skill. When
 you accept, a picker opens so you choose exactly who goes. Those colonists
 leave your workforce for the agreed time — their jobs genuinely go unstaffed,
@@ -1292,7 +1338,7 @@ interrupted, the colony they came from is gone (they'll join another
 colony you own), or relations break down mid-loan (they come straight
 home, untrained but unharmed).</p>
 </div>
-<h2 id="relationship-tiers">Relationship tiers<a class="headerlink" href="#relationship-tiers" title="Permanent link">&para;</a></h2>
+<h2 id="relationship-tiers">Relationship Tiers<a class="headerlink" href="#relationship-tiers" title="Permanent link">&para;</a></h2>
 <p>Relations progress through three tiers, each unlocking more.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Diplomacy</label><label for="__tabbed_1_2">Alliance</label><label for="__tabbed_1_3">Covenant</label></div>
 <div class="tabbed-content">
@@ -1303,9 +1349,11 @@ and a large enough drop in standing ends relations. An active
 relationship does not decay.</p>
 </div>
 <div class="tabbed-block">
-<p>Reached by completing a faction's <strong>Alliance Pact</strong> deal, offered once
-your standing with it is high. An alliance survives standing drops that
-would end Diplomacy, and unlocks:</p>
+<p>Formed by accepting the <strong>alliance offer</strong> — a prompt that appears once
+your standing rises into the alliance range (it is not a deal you complete).
+An alliance decays far more slowly than plain Diplomacy, so passive neglect
+takes much longer to break it — though a sharp standing crash still
+shatters it (see <em>Ending relations</em> below). It unlocks:</p>
 <ul>
 <li><strong>No raids from the faction</strong> — its monster events won't target your
   colony.</li>
@@ -1325,12 +1373,13 @@ for example:</p>
 <ul>
 <li><strong>Dwargon</strong> — a daily generator of industrial goods, plus a masterwork
   forging recipe.</li>
-<li><strong>Milim</strong> — the <strong>Drago Nova</strong>, a one-use area blast (once per
-  real-world hour).</li>
+<li><strong>Milim</strong> — the <strong>Absolute Annihilator</strong>, a custom growing hammer, for
+  slaying the Warden (also grants her Strength skill), plus a <strong>Drago Nova</strong>
+  blast you can claim about once an hour.</li>
 <li><strong>Luminous</strong> — starter elemental spirits (only if you have none).</li>
 <li><strong>Falmuth</strong> — stronger faction reinforcements during raids.</li>
-<li><strong>Clayman</strong> — advance notice of incoming raids, and a tame Orc Disaster
-  to kill without penalty.</li>
+<li><strong>Moderate Harlequin Alliance</strong> — advance notice of incoming raids, and
+  a tame Orc Disaster to kill without penalty.</li>
 </ul>
 <p>Covenant also reduces supply-deal costs and increases raid reinforcements.</p>
 </div>
@@ -1343,7 +1392,7 @@ You can earn it through diplomacy, or by
 <a href="../rival-colonies/">conquering that faction's settlement</a> — both grant the
 same skill.</p>
 </div>
-<h2 id="ending-relations">Ending relations<a class="headerlink" href="#ending-relations" title="Permanent link">&para;</a></h2>
+<h2 id="ending-relations">Ending Relations<a class="headerlink" href="#ending-relations" title="Permanent link">&para;</a></h2>
 <p>Two things end relations:</p>
 <ul>
 <li><strong>Decay</strong> — idle Diplomacy-tier relations decay and can lapse. Alliances
@@ -1352,14 +1401,14 @@ same skill.</p>
   faction's marked bosses, or <a href="../rival-colonies/">declaring war on it</a>)
   resets relations to none, cancels active deals, and returns lent citizens.</li>
 </ul>
-<h3 id="the-rite-of-atonement">The Rite of Atonement<a class="headerlink" href="#the-rite-of-atonement" title="Permanent link">&para;</a></h3>
+<h3 id="the-rite-of-atonement">The Rite Of Atonement<a class="headerlink" href="#the-rite-of-atonement" title="Permanent link">&para;</a></h3>
 <p>If a faction is pushed far enough that it refuses to deal with you at all, it
 offers one deal while in that state: the <strong>Rite of Atonement</strong>. It costs a
 tribute of diamonds plus the sacrifice of your strongest named subordinate
 (the subordinate must be present). Completing it reopens relations at the
 lowest standing — you restart from near zero rather than recovering the prior
 relationship. It is repeatable; each performance costs another subordinate.</p>
-<h2 id="quick-reference">Quick reference<a class="headerlink" href="#quick-reference" title="Permanent link">&para;</a></h2>
+<h2 id="quick-reference">Quick Reference<a class="headerlink" href="#quick-reference" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Open the Diplomacy tab:</strong> press <code>G</code>, then click <strong>Diplomacy</strong>.</li>
 <li><strong><code>/diplomacy</code></strong> — shows your current relations and active deals for every
@@ -1473,7 +1522,7 @@ relationship. It is repeatable; each performance costs another subordinate.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "search.suggest", "search.highlight", "content.code.copy", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

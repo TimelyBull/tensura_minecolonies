@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -31,7 +31,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -448,6 +448,8 @@
       
         
       
+        
+      
     
     
     
@@ -539,6 +541,34 @@
     
   
     Colony Reputation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../colony-protection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Colony Protection
   
 
     
@@ -673,7 +703,18 @@
   <a href="#faction-events" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Faction events
+        Faction Events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#citizens-that-fight-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Citizens That Fight Back
       
     </span>
   </a>
@@ -689,19 +730,41 @@
   <a href="#the-barrier" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The barrier
+        The Barrier
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="The barrier">
+    <nav class="md-nav" aria-label="The Barrier">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#size" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Size
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#panels-and-holes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Panels And Holes
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#tiers-cumulative" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tiers (cumulative)
+        Tiers (Cumulative)
       
     </span>
   </a>
@@ -734,7 +797,18 @@
   <a href="#concentric-layers-demon-lords-heroes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Concentric layers (Demon Lords / Heroes)
+        Concentric Layers (Demon Lords / Heroes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upkeep" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upkeep
       
     </span>
   </a>
@@ -1135,7 +1209,18 @@
   <a href="#faction-events" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Faction events
+        Faction Events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#citizens-that-fight-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Citizens That Fight Back
       
     </span>
   </a>
@@ -1151,19 +1236,41 @@
   <a href="#the-barrier" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The barrier
+        The Barrier
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="The barrier">
+    <nav class="md-nav" aria-label="The Barrier">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#size" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Size
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#panels-and-holes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Panels And Holes
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#tiers-cumulative" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tiers (cumulative)
+        Tiers (Cumulative)
       
     </span>
   </a>
@@ -1196,7 +1303,18 @@
   <a href="#concentric-layers-demon-lords-heroes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Concentric layers (Demon Lords / Heroes)
+        Concentric Layers (Demon Lords / Heroes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upkeep" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upkeep
       
     </span>
   </a>
@@ -1256,12 +1374,18 @@ The chance scales with how low it sits:</p>
 </tr>
 </tbody>
 </table>
-<p>There's a cooldown of a few in-game days between raids on a colony, and only
-one raid runs at a time. Raise reputation above Neutral and raids stop.</p>
-<p>A raid spawns a wave of Tensura monsters that head for your colony and
-attack citizens. Your guards engage them. <strong>Win</strong> by killing the whole wave
-before the night ends (this raises reputation); if the night ends first, the
-survivors withdraw.</p>
+<p>There's a cooldown of <strong>3 in-game days</strong> between raids on a colony, and only
+one raid runs at a time. Raise reputation above Neutral and raids stop. You
+can also switch reputation raids off entirely with the <code>enableRaids</code>
+<a href="../../reference/config/">config</a> option.</p>
+<p>A raid spawns Tensura monsters at the edge of your colony's territory; they
+march in and attack citizens, and your guards engage them. Like a normal
+MineColonies siege, a raid is <strong>one host you grind down</strong>: as raiders die the
+raid shrinks toward its end, stragglers that wander off are replaced so the
+pressure holds, and you <strong>win once you've broken about 90% of the host</strong> — you
+don't have to hunt down the last one or two. The raid bar shows how much of the
+host is left. Winning raises reputation; if the night ends first, the survivors
+withdraw. A raid carries over intact across a save-and-reload.</p>
 <h3 id="difficulty">Difficulty<a class="headerlink" href="#difficulty" title="Permanent link">&para;</a></h3>
 <p>Raid difficulty is set by your colony's <strong>strength</strong> (mostly the total EP of
 your citizens, plus its size and development), not by reputation —
@@ -1269,88 +1393,239 @@ reputation only decides <em>whether</em> a raid fires. Stronger colonies face
 tougher waves, drawn to roughly match and slightly exceed the colony's
 strength, in three levels:</p>
 <ul>
-<li><strong>Level 1</strong> — giant ants, black spiders.</li>
-<li><strong>Level 2</strong> — hound dogs, evil centipedes, direwolves.</li>
+<li><strong>Level 1</strong> — hound dogs, direwolves.</li>
+<li><strong>Level 2</strong> — giant ants, black spiders, evil centipedes.</li>
 <li><strong>Level 3</strong> — knight spiders, blade tigers, evil centipedes.</li>
 </ul>
-<h3 id="faction-events">Faction events<a class="headerlink" href="#faction-events" title="Permanent link">&para;</a></h3>
+<h3 id="faction-events">Faction Events<a class="headerlink" href="#faction-events" title="Permanent link">&para;</a></h3>
 <p>Beyond ordinary raids, an angered <a href="../world-reputation/">faction</a> can send a
 scripted <strong>lore event</strong>. The one currently in the game is the <strong>Orc
-Disaster</strong>: if you provoke <strong>Clayman</strong> (by killing his marked bosses) and
-your standing with him is low, he can march a horde led by <strong>Geld, the Orc
-Disaster</strong> on a colony. Killing the lead boss breaks the horde. (More lore
+Disaster</strong>: if you provoke the <strong>Moderate Harlequin Alliance</strong> (by killing its
+marked bosses) and your standing with it is low, Clayman can march a horde led
+by <strong>Geld, the Orc Disaster</strong> on a colony. Killing the lead boss breaks the
+horde. (More lore
 events are planned — see the <a href="../../roadmap/">Roadmap</a>.)</p>
-<h2 id="the-barrier">The barrier<a class="headerlink" href="#the-barrier" title="Permanent link">&para;</a></h2>
-<p>The barrier is a block you craft and place that projects a protective field
-around itself while it has magicule fuel <strong>and</strong> a raid is active. The field
-is a square footprint centred on the block.</p>
-<h3 id="tiers-cumulative">Tiers (cumulative)<a class="headerlink" href="#tiers-cumulative" title="Permanent link">&para;</a></h3>
-<p>There are four <strong>Barrier Core</strong> tiers. Each higher tier has a larger radius,
-more fuel capacity, and adds an effect on top of the lower tiers'. The wall
-is colour-coded by tier:</p>
+<h3 id="citizens-that-fight-back">Citizens That Fight Back<a class="headerlink" href="#citizens-that-fight-back" title="Permanent link">&para;</a></h3>
+<p>When a raid hits, your <strong>guards</strong> engage as normal and ordinary citizens flee
+and hide the MineColonies way. But a strong <strong>Tensura-race citizen</strong> (roughly
+10,000 EP or more, and not already a guard) does something extra: it
+<strong>transforms into its full Tensura monster body</strong> on the spot and fights the
+raiders with its skills, then changes back once the raid is over. It's a free,
+in-place swap — no magicule cost, no roster, no summoning circle.</p>
+<p>If you'd rather your citizens didn't turn into monsters mid-raid, switch it off
+with the <code>enableDefenseSwap</code> <a href="../../reference/config/">config</a> option; guards
+still guard and everyone else flees as usual.</p>
+<h2 id="the-barrier">The Barrier<a class="headerlink" href="#the-barrier" title="Permanent link">&para;</a></h2>
+<p>The barrier is a Barrier Core block you place that projects a protective
+<strong>sphere</strong> while it holds magicule fuel. The sphere sinks partway into the
+ground. Where it is centred depends on where you place the core:</p>
+<ul>
+<li><strong>Inside your colony's claimed area:</strong> the sphere is centred on your <strong>town
+  hall</strong>, wherever in the claim the core block sits.</li>
+<li><strong>Outside any colony:</strong> the sphere is centred on the core block itself.</li>
+</ul>
+<p>Placing <strong>more than one core inside the same colony</strong> does not create separate
+barriers — all the cores merge into <strong>one</strong> barrier around the town hall. The
+strongest core (highest tier) sets the panel strength and the top of the size
+range, every core's fuel tank pools together, and <strong>each extra core lets you
+make the barrier bigger</strong> (see below). Right-clicking any core in the colony
+opens the same menu, showing the same fuel, size and layers — there is one
+barrier per colony, not one per block, and it is shared by everyone who can use
+it. Note that the core block only projects the field; if it sits far from the
+town hall it can end up outside its own sphere, unprotected.</p>
+<h3 id="size">Size<a class="headerlink" href="#size" title="Permanent link">&para;</a></h3>
+<p>You choose how big the barrier is, between a minimum of <strong>8 blocks</strong> and a
+maximum your colony has to earn. The maximum is the strongest core's tier radius,
+plus a bonus for every OTHER core in the colony based on that core's tier:</p>
+<table>
+<thead>
+<tr>
+<th>Extra core</th>
+<th>Adds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tier 1</td>
+<td>+2 blocks</td>
+</tr>
+<tr>
+<td>Tier 2</td>
+<td>+4 blocks</td>
+</tr>
+<tr>
+<td>Tier 3</td>
+<td>+6 blocks</td>
+</tr>
+<tr>
+<td>Tier 4</td>
+<td>+8 blocks</td>
+</tr>
+</tbody>
+</table>
+<p>So one tier-4 core alone tops out at 60; add four more tier-4 cores and it
+reaches 92. There is a hard ceiling of <strong>128</strong> whatever you build.</p>
+<p>Set it in the core menu with the <strong>FIELD SIZE</strong> row: <code>-</code> and <code>+</code> move it 4
+blocks at a time, <code>MIN</code> and <code>MAX</code> jump to the ends of the range, and the bar
+shows where you are within it. Making it smaller keeps the sphere tight around
+what actually needs protecting <strong>and costs less fuel to run</strong>; making it bigger
+covers more ground but gives attackers more wall to break and burns through your
+magicule faster.</p>
+<p>If you lose a core the range narrows and the barrier shrinks to fit — but your
+chosen size is remembered, so rebuilding the core puts it back where you had
+it.</p>
+<h3 id="panels-and-holes">Panels And Holes<a class="headerlink" href="#panels-and-holes" title="Permanent link">&para;</a></h3>
+<p>The sphere is divided into <strong>24 panels</strong>, each with its own health. Attacks
+land on the specific panel being hit: that panel fades through three stages and
+then <strong>shatters into a hole</strong> — only that panel, while the rest of the sphere
+stays up. Enemies, their arrows, and their spells pass through an open hole;
+intact panels block them and shove enemies straight back. A panel's health
+depends on the core tier (below).</p>
+<p>A broken panel <strong>repairs itself</strong>: 15 seconds after it was last hit it grows
+back one stage at a time. Each repair step draws magicule from the core's fuel
+pool (it costs exactly the health it restores), so a barrier with no fuel can't
+mend its holes until you refuel.</p>
+<h3 id="tiers-cumulative">Tiers (Cumulative)<a class="headerlink" href="#tiers-cumulative" title="Permanent link">&para;</a></h3>
+<p>Four <strong>Barrier Core</strong> tiers. Higher tiers have a larger radius, more fuel
+capacity, tougher panels, and add an effect on top of the lower tiers'. Each
+tier's sphere is colour-coded:</p>
 <table>
 <thead>
 <tr>
 <th>Tier</th>
-<th>Radius</th>
+<th>Max radius</th>
+<th>Panel health</th>
+<th>Fuel capacity</th>
 <th>Effect (cumulative)</th>
-<th>Wall colour</th>
+<th>Colour</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>1</td>
 <td>16</td>
-<td><strong>Wall</strong> — blocks hostiles from entering</td>
+<td>10,000</td>
+<td>100,000</td>
+<td><strong>Wall</strong> — blocks hostiles</td>
 <td>Blue</td>
 </tr>
 <tr>
 <td>2</td>
 <td>28</td>
+<td>20,000</td>
+<td>150,000</td>
 <td>+ <strong>Heal</strong> — Regeneration to non-hostiles inside</td>
 <td>Green</td>
 </tr>
 <tr>
 <td>3</td>
 <td>42</td>
-<td>+ <strong>Eject</strong> — teleports hostiles back out</td>
+<td>40,000</td>
+<td>200,000</td>
+<td>(larger and tougher)</td>
 <td>Magenta</td>
 </tr>
 <tr>
 <td>4</td>
 <td>60</td>
-<td>(all of the above)</td>
+<td>60,000</td>
+<td>250,000</td>
+<td>(larger and tougher)</td>
 <td>Gold</td>
 </tr>
 </tbody>
 </table>
-<p>While fueled, a barrier also <strong>prevents hostile mobs from spawning</strong> inside
-its footprint.</p>
+<p>A tier's radius is the size the barrier starts at and the top of its range
+before extra cores are counted; you can always dial it down.</p>
+<p>While fueled, a barrier also <strong>prevents hostile mobs from spawning</strong> inside its
+footprint — both vanilla monsters and Tensura hostiles, whether from night-time
+wild spawns, mob spawners, trial spawners, pillager patrols, or reinforcements.
+Mobs you place on purpose (spawn eggs, commands, dispensers) and your own tamed
+or summoned creatures are not affected. It also stops enemy arrows, spells, and
+breath attacks at its panels (these still pass through an open hole). Raid waves
+never appear inside a fueled barrier either — raiders always show up outside it
+and have to break through.</p>
 <h3 id="fuel">Fuel<a class="headerlink" href="#fuel" title="Permanent link">&para;</a></h3>
 <p>The barrier runs on magicule:</p>
 <ul>
-<li><strong>Right-click</strong> it with empty hand to channel your own magicule in (or
-  open its menu for finer control).</li>
-<li><strong>Right-click</strong> with magic crystals to add fixed amounts (low / medium /
-  high quality crystals add increasing amounts).</li>
+<li><strong>Right-click</strong> with an empty hand to open its menu (move your own magicule
+  in or out, set the layer count, show or hide the walls).</li>
+<li><strong>Right-click</strong> with Tensura magic crystals to add fixed amounts (low /
+  medium / high quality add increasing amounts).</li>
 </ul>
-<p>Hostiles pressing the wall drain its fuel — harder-hitting, higher-EP mobs
-drain it faster. At zero fuel the field drops (with a warning); refuel to
-raise it again. The wall's transparency shows its fuel level at a glance.</p>
+<p>The fuel pool is spent on keeping extra layers raised and on repairing broken
+panels — <strong>attacks themselves no longer drain it</strong>. At zero fuel the whole
+barrier drops (with a warning); refuel and it raises again with every panel
+restored to full. Each panel's transparency shows its remaining health.</p>
 <h3 id="magicule-storage">Magicule Storage<a class="headerlink" href="#magicule-storage" title="Permanent link">&para;</a></h3>
-<p><strong>Magicule Storage</strong> blocks (four tiers) extend a barrier's fuel capacity.
-Place them adjacent to a Barrier Core (or chained to one through other
-storage blocks); each adds capacity, and the network updates automatically
-as you build or break it.</p>
-<h3 id="concentric-layers-demon-lords-heroes">Concentric layers (Demon Lords / Heroes)<a class="headerlink" href="#concentric-layers-demon-lords-heroes" title="Permanent link">&para;</a></h3>
-<p>A Barrier Core can project up to <strong>three concentric square shells</strong>,
-expanding outward. The first layer is available to anyone; raising it to two
-or three requires you to be a true Demon Lord or true Hero. Extra layers
-cost ongoing magicule upkeep from the core's fuel pool, on top of raider
-drain. When the pool can't pay, the outermost layer drops first, then the
-next, down to the always-available first layer.</p>
+<p><strong>Magicule Storage</strong> blocks (four tiers) extend a barrier's fuel capacity by
+<strong>+25,000 / +75,000 / +150,000 / +300,000</strong> for tiers 1–4. Place them adjacent
+to a Barrier Core (or chained to one through other storage blocks); each adds
+its capacity, and the network updates automatically as you build or break it.</p>
+<h3 id="concentric-layers-demon-lords-heroes">Concentric Layers (Demon Lords / Heroes)<a class="headerlink" href="#concentric-layers-demon-lords-heroes" title="Permanent link">&para;</a></h3>
+<p>A Barrier Core can project up to <strong>three concentric spheres</strong>, expanding
+outward. The first layer is available to anyone; raising it to two or three
+requires you to be a true Demon Lord or true Hero. Each extra layer costs
+ongoing magicule upkeep from the fuel pool.</p>
+<p>Raising the <strong>third layer</strong> also grants a buff inside the barrier, depending
+on which title the raiser holds:</p>
+<ul>
+<li><strong>True Demon Lord:</strong> players inside regenerate their own magicule <strong>10%
+  faster</strong>.</li>
+<li><strong>True Hero:</strong> citizens inside receive <strong>Regeneration II</strong> and <strong>Absorption</strong>
+  (extra hearts), on any core tier.</li>
+</ul>
+<p>If the raiser loses their title, the extra layers collapse back to one and the
+buff ends.</p>
+<h3 id="upkeep">Upkeep<a class="headerlink" href="#upkeep" title="Permanent link">&para;</a></h3>
+<p>A barrier is never free. While it is up it burns magicule every second, and the
+bill depends on how big it is and how many layers it has: <strong>10 per second for
+each layer, plus 1 per second for every block of that layer's radius.</strong> Outer
+layers are bigger, so each one you add costs a little more than the last.</p>
+<p>Some examples of what that means for a full tank:</p>
+<table>
+<thead>
+<tr>
+<th>Setup</th>
+<th>Cost</th>
+<th>A full tank lasts</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tier 1, default size 16</td>
+<td>26/s</td>
+<td>about an hour</td>
+</tr>
+<tr>
+<td>Tier 4, default size 60</td>
+<td>70/s</td>
+<td>about an hour</td>
+</tr>
+<tr>
+<td>Tier 4, shrunk to 8</td>
+<td>18/s</td>
+<td>about four hours</td>
+</tr>
+<tr>
+<td>Tier 4, at the 128 ceiling</td>
+<td>138/s</td>
+<td>about half an hour</td>
+</tr>
+<tr>
+<td>Tier 4 at 60, three layers</td>
+<td>225/s</td>
+<td>about twenty minutes</td>
+</tr>
+</tbody>
+</table>
+<p>Repairing broken panels costs fuel on top of that. If the pool runs dry the
+barrier falls, so a big barrier or a stack of layers is a standing commitment —
+keep it fed, or keep it small.</p>
 <p>The Barrier Core's menu (right-click) shows fuel, lets you move magicule
-between yourself and the core, and sets the layer count.</p>
+between yourself and the core, sets the field size and the layer count, and
+toggles whether the walls are visible. Any core in the colony opens the same
+menu.</p>
 
 
 
@@ -1449,7 +1724,7 @@ between yourself and the core, and sets the layer count.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "search.suggest", "search.highlight", "content.code.copy", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

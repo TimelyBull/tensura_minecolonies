@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -31,7 +31,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -448,6 +448,8 @@
       
         
       
+        
+      
     
     
     
@@ -539,6 +541,34 @@
     
   
     Colony Reputation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../colony-protection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Colony Protection
   
 
     
@@ -706,7 +736,7 @@
   <a href="#how-an-assassin-forms" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How an assassin forms
+        How An Assassin Forms
       
     </span>
   </a>
@@ -717,7 +747,7 @@
   <a href="#detecting-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Detecting it
+        Detecting It
       
     </span>
   </a>
@@ -728,7 +758,7 @@
   <a href="#defusing-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Defusing it
+        Defusing It
       
     </span>
   </a>
@@ -739,7 +769,7 @@
   <a href="#the-strike" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The strike
+        The Strike
       
     </span>
   </a>
@@ -750,7 +780,7 @@
   <a href="#power-theft-and-reclaim" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Power theft and reclaim
+        Power Theft And Reclaim
       
     </span>
   </a>
@@ -1067,7 +1097,7 @@
   <a href="#how-an-assassin-forms" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How an assassin forms
+        How An Assassin Forms
       
     </span>
   </a>
@@ -1078,7 +1108,7 @@
   <a href="#detecting-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Detecting it
+        Detecting It
       
     </span>
   </a>
@@ -1089,7 +1119,7 @@
   <a href="#defusing-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Defusing it
+        Defusing It
       
     </span>
   </a>
@@ -1100,7 +1130,7 @@
   <a href="#the-strike" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The strike
+        The Strike
       
     </span>
   </a>
@@ -1111,7 +1141,7 @@
   <a href="#power-theft-and-reclaim" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Power theft and reclaim
+        Power Theft And Reclaim
       
     </span>
   </a>
@@ -1144,30 +1174,32 @@ breed an assassin from among your own named citizens. The assassin waits for
 a moment of weakness, attacks you, and — if it kills you — steals your power.
 The system can be turned off in the <a href="../../reference/config/">config</a>
 (<code>enableAssassins</code>).</p>
-<h2 id="how-an-assassin-forms">How an assassin forms<a class="headerlink" href="#how-an-assassin-forms" title="Permanent link">&para;</a></h2>
+<h2 id="how-an-assassin-forms">How An Assassin Forms<a class="headerlink" href="#how-an-assassin-forms" title="Permanent link">&para;</a></h2>
 <p>While a colony's reputation is below Wary <strong>and</strong> its average happiness is
-low, one of its named citizens slowly builds resolve over several days. Past
-a threshold it becomes a hidden assassin, ready to strike. If the colony's
-happiness recovers before then, that resolve decays and the plot defuses.</p>
+under 4, one of its named citizens builds resolve at +1 per day. At resolve 2
+it becomes a hidden assassin (lurking); at resolve 4 it is armed and ready to
+strike. If the colony's happiness recovers before then, that resolve decays
+again (−1 per day) and the plot defuses.</p>
 <p>Only <strong>one assassin per colony, ever</strong> — once a colony has produced one, it
 won't breed another.</p>
-<h2 id="detecting-it">Detecting it<a class="headerlink" href="#detecting-it" title="Permanent link">&para;</a></h2>
+<h2 id="detecting-it">Detecting It<a class="headerlink" href="#detecting-it" title="Permanent link">&para;</a></h2>
 <p>If you have the <strong>Great Sage</strong> skill, a hidden assassin shows a red
 <strong>"Assassin"</strong> label above the citizen it has chosen. Without Great Sage,
 there's no visible tell.</p>
-<h2 id="defusing-it">Defusing it<a class="headerlink" href="#defusing-it" title="Permanent link">&para;</a></h2>
+<h2 id="defusing-it">Defusing It<a class="headerlink" href="#defusing-it" title="Permanent link">&para;</a></h2>
 <p>Raise the colony's happiness back up. While the plot is still forming,
 recovering happiness above the threshold clears the assassin's resolve and
 ends the plot — fix the colony and the danger passes.</p>
-<h2 id="the-strike">The strike<a class="headerlink" href="#the-strike" title="Permanent link">&para;</a></h2>
+<h2 id="the-strike">The Strike<a class="headerlink" href="#the-strike" title="Permanent link">&para;</a></h2>
 <p>Once armed, the assassin strikes the next time you're vulnerable — when
-you're at low health, sleeping, wearing no armour, at the start of a
-festival, or just after a prestige reset. The chosen citizen drops its
-disguise, manifests as its Tensura body, and attacks you as a boss (with a
-boss health bar and boosted stats). While the plot is active, that colony
+you're at low health (35% or less), sleeping, wearing no armour, at the start
+of a festival, or just after a prestige reset. The chosen citizen drops its
+disguise, manifests as its Tensura body, and attacks you as a boss: a boss
+health bar plus roughly <strong>3× its normal health</strong>, <strong>2.5× damage</strong>, and a bit
+more speed. While the plot is active, that colony
 also gives you the cold shoulder — its citizens won't trade or assist
 through the mod's menus.</p>
-<h2 id="power-theft-and-reclaim">Power theft and reclaim<a class="headerlink" href="#power-theft-and-reclaim" title="Permanent link">&para;</a></h2>
+<h2 id="power-theft-and-reclaim">Power Theft And Reclaim<a class="headerlink" href="#power-theft-and-reclaim" title="Permanent link">&para;</a></h2>
 <p>If the assassin <strong>kills you</strong>, it steals from you:</p>
 <ul>
 <li><strong>Half your EP</strong> — taken from your maximum magicule and aura, and given to
@@ -1277,7 +1309,7 @@ killed.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "search.suggest", "search.highlight", "content.code.copy", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
