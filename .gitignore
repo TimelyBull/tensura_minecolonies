@@ -47,3 +47,8 @@ repo/
 site/
 serve.log
 serve.out
+
+# Claude / dev context — kept local, not published to the public repo
+docs/
+deps/
+CLAUDE.md
