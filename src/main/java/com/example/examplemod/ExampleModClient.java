@@ -51,5 +51,18 @@ public class ExampleModClient {
                         (stack, level, entity, seed) -> MasterworkItem.shimmerTier(stack));
             }
         });
+
+        // Trial of Light & Dark chalice: one item, both kinds and all fill stages.
+        // Encode (kind, fill) into a single monotonic value so the model overrides
+        // pick the sprite — holy at 0.0/0.1/0.2/0.3, blood at 0.5/0.6/0.7/0.8.
+        event.enqueueWork(() -> ItemProperties.register(
+                ExampleMod.TRIAL_CHALICE.get(),
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "trial_state"),
+                (stack, level, entity, seed) -> {
+                    int fill = TrialChalice.fillOf(stack);
+                    return TrialChalice.kindOf(stack) == TrialChalice.Kind.HOLY
+                            ? fill * 0.1f
+                            : 0.5f + fill * 0.1f;
+                }));
     }
 }

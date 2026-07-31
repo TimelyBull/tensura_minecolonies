@@ -112,9 +112,23 @@ public record DealSpec(
     /** What the faction asks for. Sealed — the extension seam. */
     public sealed interface Requirement
             permits SupplyItems, BuildingLevel, Population, Happiness, LendCitizens,
-                    MendingRite, SupplyBundle, SlayEntities, WinWar {
+                    MendingRite, SupplyBundle, SlayEntities, WinWar, TwoFacedTrial {
         /** Player-facing one-liner ("Supply 64 Iron Ingot"). */
         String summary();
+    }
+
+    /** Luminous's Covenant capstone, "The Trial of Light &amp; Dark" — a two-part
+     *  ritual with no simple item cost. On accept the player is granted two empty
+     *  {@link TrialChalice}s; the "Show of Faith" (light) and "The Blood Sacrifice"
+     *  (dark) trackers fill them as their milestones are met, and the deal is
+     *  fulfilled by turning in BOTH full chalices. All the real work lives in the
+     *  {@code TrialManager} trackers + the trial branch of {@code DiplomacyManager}
+     *  accept/deliver — this marker just tags the deal. Both halves get HARDER for
+     *  a majin (see docs/faction-rewards-roadmap.md). */
+    public record TwoFacedTrial() implements Requirement {
+        @Override public String summary() {
+            return "Complete the Trial of Light & Dark, then bring the two full chalices";
+        }
     }
 
     /** Deliver a BUNDLE of different items in one act (all-or-nothing
@@ -324,11 +338,15 @@ public record DealSpec(
                         3, "great beasts (Wither / Warden / Elder Guardian / Charybdis / Ifrit)"),
                 List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),   // PLACEHOLDER (tier II)
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
-        map.put("luminous", new DealSpec("cov_luminous", "The Grand Offering",
-                new SupplyBundle(List.of(new ItemStack(Items.DIAMOND_BLOCK, 8),
-                        new ItemStack(Items.GOLD_BLOCK, 16))),
-                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 3)),   // PLACEHOLDER (tier III)
-                10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
+        // Luminous's Covenant — "The Trial of Light & Dark" (real reward, 2026-07-28).
+        // A two-faced ritual: prove faith by redeeming villagers (light) AND spill
+        // subordinate blood (dark), each filling a chalice; deliver both full to
+        // forge the Covenant and receive the Twin Grail. Both halves get harder for
+        // a majin. All logic in TrialManager + the trial branch of accept/deliver.
+        map.put("luminous", new DealSpec("cov_luminous", "The Trial of Light & Dark",
+                new TwoFacedTrial(),
+                List.of(new ItemStack(ExampleMod.TWIN_GRAIL.get())),
+                10.0, 0.0, 0, 0, FactionTier.ALLIED, true));
         map.put("clayman", new DealSpec("cov_clayman", "Souls for the Core",
                 new SlayEntities(java.util.Set.of("minecraft:villager"), 10,
                         "villagers (their souls feed the Charybdis core)"),

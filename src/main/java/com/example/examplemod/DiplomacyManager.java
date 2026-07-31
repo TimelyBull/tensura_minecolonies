@@ -699,8 +699,18 @@ public final class DiplomacyManager {
         deal.dealId = dealId;
         deal.colonyId = colony != null ? colony.getID() : -1;
         deal.acceptedTick = level.getGameTime();
-        deal.deadlineTick = level.getGameTime() + spec.deadlineTicks();
+        // deadlineTicks <= 0 means NO deadline (never fail) — the Trial of Light &
+        // Dark is a long ritual grind that shouldn't lapse on a timer.
+        deal.deadlineTick = spec.deadlineTicks() <= 0
+                ? Long.MAX_VALUE
+                : level.getGameTime() + spec.deadlineTicks();
         data.setDeal(uuid, faction.id(), deal);
+
+        // The Trial of Light & Dark — hand the player the two empty chalices they
+        // will fill, and start tracking their progress.
+        if (spec.requirement() instanceof DealSpec.TwoFacedTrial) {
+            TrialManager.onAccept(player);
+        }
         // Remove from offers.
         List<DiplomacySavedData.Offer> remaining = new ArrayList<>(data.getOffers(uuid, faction.id()));
         remaining.removeIf(o -> o.dealId().equals(dealId));
@@ -891,6 +901,16 @@ public final class DiplomacyManager {
         // Stage 4 — the mending rite is performed, not delivered.
         if (spec.requirement() instanceof DealSpec.MendingRite rite) {
             return performMendingRite(player, faction, deal, rite);
+        }
+        // The Trial of Light & Dark — turn in BOTH full chalices (not plain
+        // delivery: the fill state lives in CUSTOM_DATA, which consumeItems can't
+        // match). TrialManager verifies + consumes them; then forge the covenant.
+        if (spec.requirement() instanceof DealSpec.TwoFacedTrial) {
+            if (!TrialManager.tryTurnIn(player)) {
+                return "both chalices must be full — complete Show of Faith and the Blood Sacrifice first";
+            }
+            fulfillDeal(level, uuid, faction, deal, spec);
+            return null;
         }
         // Covenant commissions: a BUNDLE delivered all-or-nothing.
         if (spec.requirement() instanceof DealSpec.SupplyBundle bundle) {
@@ -1248,6 +1268,8 @@ public final class DiplomacyManager {
             case DealSpec.SlayEntities ignored -> false;
             // Wars fulfil through the rival-colony win hook (onWarWon).
             case DealSpec.WinWar ignored -> false;
+            // The trial is fulfilled by turning in both full chalices (deliver).
+            case DealSpec.TwoFacedTrial ignored -> false;
         };
     }
 
@@ -1416,7 +1438,8 @@ public final class DiplomacyManager {
                             && !(spec.requirement() instanceof DealSpec.LendCitizens)
                             && !(spec.requirement() instanceof DealSpec.SupplyBundle)
                             && !(spec.requirement() instanceof DealSpec.SlayEntities)
-                            && !(spec.requirement() instanceof DealSpec.WinWar)) {
+                            && !(spec.requirement() instanceof DealSpec.WinWar)
+                            && !(spec.requirement() instanceof DealSpec.TwoFacedTrial)) {
                         ActiveDeal probe = new ActiveDeal();
                         probe.colonyId = colony.getID();
                         if (isRequirementMet(level, probe, spec)) continue;

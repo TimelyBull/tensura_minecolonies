@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "tensura_minecolonies:item/trial_chalice_blood_0"
+  }
+}

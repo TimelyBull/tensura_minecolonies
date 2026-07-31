@@ -9,6 +9,18 @@ Copy the relevant version's section into the CurseForge release notes on each up
 ## [0.2.2] - 2026-07-26
 
 ### Added
+- **Luminous's alliance now ends in a real ritual — The Trial of Light & Dark.**
+  Reaching the Covenant with Luminous no longer just asks for a pile of blocks.
+  She hands you two empty chalices and sets a two-faced trial: a **Show of Faith**
+  (cure zombie villagers and raise them to the top of their trade, filling a
+  chalice with holy water) and **The Blood Sacrifice** (kill your own subordinates,
+  filling a chalice with blood). Bring both full chalices back and she forges them
+  into the **Twin Grail** — a two-faced relic that heals and cleanses you by day,
+  and grants strength, speed, and life-drain by night. If you follow the majin
+  (monster) path, Luminous demands more of you on both counts: your redeemed
+  villagers must breed and raise a whole new generation, and the blood must come
+  from your three *strongest* subordinates. (Faction features are off by default —
+  turn on the faction system to see this.)
 - **Tensura block-wrecking no longer damages your colony.** Giant monsters
   like the Orc Lord and Charybdis normally smash through walls just by walking
   into them, and terrain-shaping skills (Earth Manipulation and the like) can

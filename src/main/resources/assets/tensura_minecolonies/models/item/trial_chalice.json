@@ -1,0 +1,50 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "tensura_minecolonies:item/trial_chalice_holy_0"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "tensura_minecolonies:trial_state": 0.1
+      },
+      "model": "tensura_minecolonies:item/trial_chalice_holy_1"
+    },
+    {
+      "predicate": {
+        "tensura_minecolonies:trial_state": 0.2
+      },
+      "model": "tensura_minecolonies:item/trial_chalice_holy_2"
+    },
+    {
+      "predicate": {
+        "tensura_minecolonies:trial_state": 0.3
+      },
+      "model": "tensura_minecolonies:item/trial_chalice_holy_3"
+    },
+    {
+      "predicate": {
+        "tensura_minecolonies:trial_state": 0.5
+      },
+      "model": "tensura_minecolonies:item/trial_chalice_blood_0"
+    },
+    {
+      "predicate": {
+        "tensura_minecolonies:trial_state": 0.6
+      },
+      "model": "tensura_minecolonies:item/trial_chalice_blood_1"
+    },
+    {
+      "predicate": {
+        "tensura_minecolonies:trial_state": 0.7
+      },
+      "model": "tensura_minecolonies:item/trial_chalice_blood_2"
+    },
+    {
+      "predicate": {
+        "tensura_minecolonies:trial_state": 0.8
+      },
+      "model": "tensura_minecolonies:item/trial_chalice_blood_3"
+    }
+  ]
+}

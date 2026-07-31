@@ -257,6 +257,19 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      *  use() is overridden rather than inherited. */
     public static final DeferredItem<net.minecraft.world.item.Item> MASTERWORK_SCHEMATIC =
             ITEMS.register("masterwork_schematic", MasterworkSchematicItem::new);
+    /** Luminous Covenant ("The Trial of Light & Dark") task chalice — one item
+     *  carries both the holy-water and the blood chalice via CUSTOM_DATA state.
+     *  Granted (one of each, empty) on accepting the deal; filled by the two
+     *  world-side trackers; the FULL pair is turned in for the reward. */
+    public static final DeferredItem<net.minecraft.world.item.Item> TRIAL_CHALICE =
+            ITEMS.register("trial_chalice",
+                    () -> new TrialChalice(new net.minecraft.world.item.Item.Properties()));
+    /** Luminous Covenant reward — the day/night "Twin Grail": holy heal + cleanse
+     *  by day, vampiric might by night. Granted by Luminous when the two full
+     *  chalices are delivered. */
+    public static final DeferredItem<net.minecraft.world.item.Item> TWIN_GRAIL =
+            ITEMS.register("twin_grail",
+                    () -> new TwinGrailItem(new net.minecraft.world.item.Item.Properties()));
     /** Masterwork weapon tier — high, netherite-ish; durability is EP-backed
      *  (gear_existence EP_DURABILITY) so vanilla uses matter little. */
     public static final net.minecraft.world.item.Tier MASTERWORK_TIER = new net.minecraft.world.item.Tier() {
@@ -473,6 +486,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         output.accept(DRAGO_NOVA.get());
                         output.accept(ABSOLUTE_ANNIHILATOR.get());
                         output.accept(MASTERWORK_SCHEMATIC.get());
+                        output.accept(TRIAL_CHALICE.get());
+                        output.accept(TWIN_GRAIL.get());
                         for (var weapon : MASTERWORK_WEAPONS) output.accept(weapon.get());
                     })
                     .build());
@@ -2098,6 +2113,14 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public void onLivingDamagePost(net.neoforged.neoforge.event.entity.living.LivingDamageEvent.Post event) {
         if (!(event.getEntity().level() instanceof ServerLevel level)) return;
         if (event.getNewDamage() <= 0f) return;
+
+        // Twin Grail — the vampire's blessing: while it holds (right-clicked at
+        // night), the wielder's hits heal them for a fraction of the damage dealt.
+        if (event.getSource().getEntity() instanceof ServerPlayer grailAttacker
+                && event.getEntity() != grailAttacker
+                && hasGrailNightBlessing(grailAttacker)) {
+            grailAttacker.heal(event.getNewDamage() * TwinGrailItem.NIGHT_LIFESTEAL);
+        }
 
         // World reputation — attacking a MARKED faction boss shifts that
         // faction's standing down (no ripple — only kills are
@@ -4761,17 +4784,70 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      * Look up the dying entity in our reverse map; if it's one of ours, remove
      * its CitizenData (count drops) and delete the identity record.
      */
+    /**
+     * Luminous's Covenant — "Show of Faith". A zombie villager finishing its cure
+     * near a player running the Trial claims that villager as part of their flock.
+     * Attribution is by proximity (the nearest trial player within 32 blocks whose
+     * flock isn't full), which is robust without reading MineCraft's private
+     * conversion-starter field.
+     */
+    @SubscribeEvent
+    public void onLivingConversion(net.neoforged.neoforge.event.entity.living.LivingConversionEvent.Post event) {
+        if (!(event.getEntity().level() instanceof ServerLevel level)) return;
+        if (!(event.getEntity() instanceof net.minecraft.world.entity.monster.ZombieVillager)) return;
+        if (!(event.getOutcome() instanceof net.minecraft.world.entity.npc.Villager cured)) return;
+        ServerPlayer nearest = null;
+        double best = 32.0 * 32.0;
+        for (ServerPlayer player : level.players()) {
+            double d = player.distanceToSqr(cured);
+            if (d <= best && TrialSavedData.get(level).has(player.getUUID())) {
+                best = d;
+                nearest = player;
+            }
+        }
+        if (nearest != null) TrialManager.onZombieCured(nearest, cured);
+    }
+
+    /**
+     * Luminous's Covenant — "The Next Generation" (majin). A villager born to two
+     * flock parents counts toward the majin's harder light half.
+     */
+    @SubscribeEvent
+    public void onBabyVillagerSpawn(net.neoforged.neoforge.event.entity.living.BabyEntitySpawnEvent event) {
+        if (!(event.getChild() instanceof net.minecraft.world.entity.npc.Villager child)) return;
+        if (!(child.level() instanceof ServerLevel level)) return;
+        if (!(event.getParentA() instanceof net.minecraft.world.entity.npc.Villager pa)) return;
+        if (!(event.getParentB() instanceof net.minecraft.world.entity.npc.Villager pb)) return;
+        TrialManager.onVillagerBorn(level, child, pa.getUUID(), pb.getUUID());
+    }
+
     @SubscribeEvent
     public void onLivingDeath(LivingDeathEvent event) {
         // Server-side only. NeoForge fires LivingDeathEvent on the logical server.
         if (!(event.getEntity().level() instanceof ServerLevel serverLevel)) return;
 
+        // Luminous's Covenant — "The Blood Sacrifice". Killing your OWN
+        // subordinate while running the Trial of Light & Dark is the ritual: it
+        // fills the blood chalice and, when it counts, is exempt from collateral
+        // (below we skip the envoy kill-gate for it). The identity cleanup further
+        // down still removes the subordinate permanently, which is intended.
+        boolean trialSacrifice = false;
+        if (event.getEntity() instanceof net.minecraft.world.entity.Mob dyingSub
+                && dyingSub instanceof ISubordinate
+                && event.getSource().getEntity() instanceof ServerPlayer sacrificer
+                && sacrificer.getUUID().equals(SubordinateHelper.getSubordinateOwnerUUID(dyingSub))) {
+            trialSacrifice = TrialManager.onSubordinateSacrificed(sacrificer, dyingSub);
+        }
+
         // Stage 3b — kill-gate. Killing a Tensura race (that you haven't
         // accepted via diplomacy) resets that race's envoy unlock condition
         // for every colony YOU own. Runs before the named-citizen cleanup
         // below so a player murdering their own named-race subordinate
-        // also resets the condition (consistent with "kin killed").
-        processEnvoyKillGate(serverLevel, event);
+        // also resets the condition (consistent with "kin killed"). A counted
+        // trial sacrifice is EXEMPT — it's a sanctioned ritual, not a betrayal.
+        if (!trialSacrifice) {
+            processEnvoyKillGate(serverLevel, event);
+        }
 
         // Deferred-content envoy conditions — three death-detection passes
         // independent of the kill-gate (which handles race-mob kills only):
@@ -7365,6 +7441,29 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         MasterworkItem.tickQol(sp, holding);
     }
 
+    /** Twin Grail night blessing — player UUID → server gameTime the vampiric
+     *  life-drain window expires. Set by {@link #markGrailNightBlessing}, read by
+     *  the {@code onLivingDamagePost} lifesteal branch. Transient (re-earned by
+     *  right-clicking the Grail at night); no persistence needed. */
+    private static final java.util.Map<java.util.UUID, Long> GRAIL_NIGHT_BLESSING =
+            new java.util.HashMap<>();
+
+    /** Grant the wielder the Grail's night life-drain for {@code durationTicks}. */
+    public static void markGrailNightBlessing(ServerPlayer player, int durationTicks) {
+        GRAIL_NIGHT_BLESSING.put(player.getUUID(), player.level().getGameTime() + durationTicks);
+    }
+
+    /** True while the player's Grail night blessing is still active. */
+    public static boolean hasGrailNightBlessing(ServerPlayer player) {
+        Long expiry = GRAIL_NIGHT_BLESSING.get(player.getUUID());
+        if (expiry == null) return false;
+        if (player.level().getGameTime() >= expiry) {
+            GRAIL_NIGHT_BLESSING.remove(player.getUUID());
+            return false;
+        }
+        return true;
+    }
+
     /** Masterwork soulbound (20+ mastered skills): items kept on death, held
      *  here between death and respawn, keyed by player UUID. */
     private static final java.util.Map<java.util.UUID, java.util.List<net.minecraft.world.item.ItemStack>>
@@ -7431,6 +7530,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // Tensura citizens to fight during a raid, steer them onto
             // raiders, and swap them back when the threat ends.
             ColonyThreatResponse.tick(server);
+            // Luminous's Covenant trial — poll the "Show of Faith" flock for
+            // villagers reaching Master (+ bred children), fill the holy chalice.
+            TrialManager.tick(server);
             // FIX 2 (Option B) — re-stamp the race appearance onto any IN_COLONY
             // citizen body that came back without its RACE_TAG (MineColonies
             // rebuilt it from CitizenData, or a chunk-NBT relog dropped it). The
