@@ -5541,6 +5541,40 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                                                 ReputationManager.MAX_REPUTATION))
                                         .executes(this::handleReputationSetCommand)))
         );
+        // Luminous Covenant trial debug (op) — exercise "The Trial of Light &
+        // Dark" without grinding the whole diplomacy chain to a Covenant offer.
+        //   /trial start   — grant the two chalices + start tracking
+        //   /trial status  — dump light/dark progress
+        //   /trial turnin  — if both chalices full, grant the Twin Grail
+        event.getDispatcher().register(
+                Commands.literal("trial")
+                        .requires(src -> src.hasPermission(2))
+                        .then(Commands.literal("start")
+                                .executes(ctx -> handleTrialCommand(ctx, "start")))
+                        .then(Commands.literal("status")
+                                .executes(ctx -> handleTrialCommand(ctx, "status")))
+                        .then(Commands.literal("turnin")
+                                .executes(ctx -> handleTrialCommand(ctx, "turnin")))
+        );
+    }
+
+    private int handleTrialCommand(CommandContext<CommandSourceStack> ctx, String action) {
+        CommandSourceStack src = ctx.getSource();
+        ServerPlayer player;
+        try {
+            player = src.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            src.sendFailure(Component.literal("/trial must be run by a player"));
+            return 0;
+        }
+        String result = switch (action) {
+            case "start"  -> TrialManager.debugStart(player);
+            case "status" -> TrialManager.debugStatus(player);
+            case "turnin" -> TrialManager.debugTurnIn(player);
+            default -> "unknown action";
+        };
+        src.sendSuccess(() -> Component.literal(result), true);
+        return 1;
     }
 
     /** {@code /tensuraraid} — force-start a raid at the player's colony. */

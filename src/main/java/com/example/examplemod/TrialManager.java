@@ -112,6 +112,58 @@ final class TrialManager {
     }
 
     // ------------------------------------------------------------------
+    // Debug (/trial) — start/status/turnin without the diplomacy chain
+    // ------------------------------------------------------------------
+
+    /** {@code /trial start} — begin a trial as if the covenant were accepted
+     *  (grants the chalices + tracking), bypassing the diplomacy grind. */
+    static String debugStart(ServerPlayer player) {
+        if (TrialSavedData.get(player.serverLevel()).has(player.getUUID())) {
+            return "you already have an active trial (use /trial status)";
+        }
+        onAccept(player);
+        return "trial started ("
+                + (WorldReputationManager.isMajinSide(player) ? "MAJIN" : "human")
+                + " difficulty) — two empty chalices granted";
+    }
+
+    /** {@code /trial status} — dump the player's current progress. */
+    static String debugStatus(ServerPlayer player) {
+        CompoundTag tag = active(player);
+        if (tag == null) return "no active trial (use /trial start)";
+        boolean majin = tag.getBoolean(K_MAJIN);
+        StringBuilder sb = new StringBuilder();
+        sb.append(majin ? "MAJIN" : "human").append(" trial — ");
+        sb.append("HOLY ").append(holyFill(tag)).append("/3 ")
+          .append("[flock ").append(uuidCount(tag.getList(K_FLOCK, Tag.TAG_INT_ARRAY)))
+          .append("/").append(FLOCK_REQUIRED)
+          .append(", mastered ").append(uuidCount(tag.getList(K_FLOCK_MASTERED, Tag.TAG_INT_ARRAY)));
+        if (majin) {
+            sb.append(", children ").append(uuidCount(tag.getList(K_CHILDREN, Tag.TAG_INT_ARRAY)))
+              .append("/").append(CHILDREN_REQUIRED)
+              .append(", children mastered ").append(uuidCount(tag.getList(K_CHILDREN_MASTER, Tag.TAG_INT_ARRAY)));
+        }
+        sb.append("]; BLOOD ").append(bloodFill(tag)).append("/3 [");
+        if (majin) {
+            sb.append("targets ").append(uuidCount(tag.getList(K_DARK_TARGETS, Tag.TAG_INT_ARRAY)))
+              .append(", done ").append(uuidCount(tag.getList(K_DARK_DONE, Tag.TAG_INT_ARRAY)));
+        } else {
+            sb.append("sacrifices ").append(tag.getInt(K_DARK_COUNT)).append("/").append(DARK_REQUIRED);
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    /** {@code /trial turnin} — if both chalices are full, consume them and grant
+     *  the Twin Grail directly (bypasses the diplomacy deliver path). */
+    static String debugTurnIn(ServerPlayer player) {
+        if (!tryTurnIn(player)) return "both chalices must be FULL first (see /trial status)";
+        ItemStack grail = new ItemStack(ExampleMod.TWIN_GRAIL.get());
+        if (!player.getInventory().add(grail)) player.drop(grail, false);
+        return "chalices consumed — the Twin Grail is yours";
+    }
+
+    // ------------------------------------------------------------------
     // Light half — "Show of Faith"
     // ------------------------------------------------------------------
 
