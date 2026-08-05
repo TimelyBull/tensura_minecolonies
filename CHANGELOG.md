@@ -87,6 +87,14 @@ Copy the relevant version's section into the CurseForge release notes on each up
   powerful monster citizens would transform to defend the colony but then just
   stand around, because they only recognised our own raiders. They now go after
   MineColonies' barbarians and pirates too.
+- **Masterwork weapons no longer lose their damage the moment you hold them.**
+  A freshly made Masterwork weapon looked fine in the creative menu and in your
+  inventory, but as soon as you selected it on the hotbar its attack damage
+  (and attack speed and reach) dropped to nothing. The weapon's "keep the stats
+  in sync with its Existence Points" upkeep was rebuilding the stats from an
+  empty starting point and wiping them out. It now rebuilds from the weapon's
+  real base stats, so the numbers stay correct as the weapon grows. Weapons that
+  were already blanked by this bug repair themselves the next time you hold them.
 
 ## [0.2.1] - 2026-07-23
 

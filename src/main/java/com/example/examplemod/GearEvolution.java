@@ -68,7 +68,14 @@ final class GearEvolution {
         if (ladder.isEmpty()) return;
 
         List<UniqueGearEvolutionData> remaining = new ArrayList<>();
-        ItemAttributeModifiers expected = stack.getItem().getDefaultAttributeModifiers();
+        // The base attributes must come from the item's DEFAULT ATTRIBUTE_MODIFIERS
+        // COMPONENT — NOT Item.getDefaultAttributeModifiers(), which in 1.21.1 is a
+        // legacy shim that always returns ItemAttributeModifiers.EMPTY. Seeding from
+        // EMPTY made getEvolvedAttributeModifiers (which only bumps attributes that
+        // already exist) produce EMPTY too, so recalibrate wiped the weapon's damage,
+        // speed and reach the moment Tensura stamped EP onto it (i.e. on first hold).
+        ItemAttributeModifiers expected = stack.getItem().components()
+                .getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY);
         for (UniqueGearEvolutionData tier : ladder) {
             if (ep >= tier.EP()) {
                 expected = GearHandler.getEvolvedAttributeModifiers(expected, tier).build();
