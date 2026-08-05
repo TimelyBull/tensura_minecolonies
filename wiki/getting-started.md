@@ -2,36 +2,26 @@
 
 ## Requirements
 
-This is a NeoForge mod for **Minecraft 1.21.1**. It requires both base mods
-(and their own dependencies) installed alongside it:
+This is a NeoForge mod for **Minecraft 1.21.1**. It requires:
 
 | Mod | Version |
 |---|---|
 | Minecraft | 1.21.1 |
-| NeoForge | 21.1.233+ |
-| Tensura: Reincarnated | 2.0.1.0+ |
-| MineColonies | 1.1.1319+ |
+| NeoForge | 21.1.233 |
+| Tensura: Reincarnated | 2.0.1.0 |
+| MineColonies | 1.1.1319 |
+| Nightmare's Tensura Utils | 0.1.2 |
 
-!!! warning "MineColonies version matters"
-    This mod **requires MineColonies 1.1.1319 or newer**. MineColonies changed
-    its citizen API in that build, so on an older version (e.g. 1.1.1281) the
-    mod would crash when you invite a creature to your colony. It now refuses to
-    load on an incompatible version with a clear message instead of crashing —
-    so if the game won't start, check your MineColonies version first.
+!!! warning "MineColonies Version Matters"
+    This mod is built against **MineColonies 1.1.1319**. Older builds are known
+    to crash and won't load — the crash screen names the incompatible version.
+    Newer MineColonies builds are untested and may have changed things. If the
+    game won't launch, check your MineColonies version.
 
-MineColonies also pulls in Structurize, BlockUI, Domum Ornamentum, and
-MultiPiston; Tensura pulls in ManasCore, GeckoLib, SmartBrainLib, and
-TerraBlender. Install the full set your launcher/modpack lists for each.
+MineColonies and Tensura each pull in their own dependencies. Install the full
+set your launcher or modpack lists.
 
-## Installation
-
-1. Install NeoForge 1.21.1.
-2. Drop this mod's jar into `mods/` along with Tensura, MineColonies, and
-   all of their dependencies.
-3. Launch. If a dependency is missing, the loader names it on the crash
-   screen.
-
-## How the mod works
+## How The Mod Works
 
 The mod connects a named Tensura monster to a MineColonies citizen. The
 same creature can take either role and switch between them:
@@ -40,14 +30,15 @@ same creature can take either role and switch between them:
   and combat behaviour.
 - **In your colony** — a MineColonies citizen with a job and work skills.
 
-Switching costs magicule but preserves the creature's identity (name,
-progress, type). See [Races & Citizens](features/races-citizens.md) for the
-full swap.
+You move a creature between the two roles from the **roster** (press **`G`**):
+**Send** a subordinate into your colony to make it a citizen, or **Summon** a
+citizen back to your side. Switching costs magicule but keeps the creature's
+identity — its name, progress, and type carry across. See
+[Races & Citizens](features/races-citizens.md) for the full swap.
 
-## First steps
+## First Steps
 
-1. **Found a colony** the normal MineColonies way (place a Town Hall from
-   the Supply Camp/Ship, then a Builder's Hut).
+1. **Found a colony** the normal MineColonies way.
 2. **Name a Tensura monster** — a goblin, orc, dwarf, or lizardman — using
    Tensura's naming. A named monster becomes one of your subordinates.
 3. **Send it to your colony** to add it as a citizen, or keep it at your
@@ -57,5 +48,5 @@ full swap.
 From there, the colony earns [reputation](features/colony-reputation.md),
 the Tensura [factions](features/world-reputation.md) start tracking you, and
 you can pursue [diplomacy](features/diplomacy.md) or
-[conquest](features/rival-colonies.md). The whole faction layer is optional
+[conquest](features/warfare.md). The whole faction layer is optional
 and can be disabled in the [config](reference/config.md).

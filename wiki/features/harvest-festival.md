@@ -1,10 +1,10 @@
 # Harvest Festival
 
-The Harvest Festival grants a one-time, colony-wide work-skill boost to your
-citizens, plus an EP gift to your colony-working monsters. It ties into
-Tensura's demon-lord Harvest Festival event.
+Tensura's demon-lord **Harvest Festival** is an existing event this mod builds
+on. When the festival is held, it grants a one-time, colony-wide work-skill
+boost to your citizens, plus an EP gift to your colony-working monsters.
 
-## What it does
+## What It Does
 
 **Citizen skill boost (once per colony).** Each citizen gains a permanent
 boost to its top work skills, ranked by the citizen's Tensura EP:
@@ -20,15 +20,13 @@ boost to its top work skills, ranked by the citizen's Tensura EP:
 This boost is applied once per colony. It raises productivity and can push
 skills past the normal cap. A prestige (race) reset cleanly removes it.
 
-**EP gift.** Every time a festival is held, your monsters currently working
-as citizens receive an EP gift — mirroring how Tensura re-gifts a demon
-lord's subordinates at a festival. Unlike the skill boost, this applies each
-festival, not just once.
+**EP gift.** Each colony-working monster receives a one-time EP gift, at the
+first festival it's present for and never again — so a monster that joins later
+still earns its gift at the next festival. (A prestige reset clears this,
+letting it be earned again.)
 
-## How to run it
+## How To Run It
 
-The festival fires from Tensura's Harvest Festival / awakening event — the
-demon-lord celebration that Tensura already provides. Holding that festival
-applies the colony boost.
+Hold Tensura's Harvest Festival / awakening event and the colony boost applies.
 
 For testing, `/festival run` (operator) triggers it directly on your colony.

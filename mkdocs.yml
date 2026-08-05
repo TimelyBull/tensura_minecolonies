@@ -6,8 +6,6 @@ site_description: "Player guide for the Tensura: Reincarnated × MineColonies in
 # theme styling works on the subpath regardless; site_url is still set for a
 # correct sitemap.xml and canonical links.)
 site_url: https://timelybull.github.io/tensura_minecolonies/
-repo_url: https://github.com/TimelyBull/tensura_minecolonies
-repo_name: TimelyBull/tensura_minecolonies
 docs_dir: wiki
 site_dir: site
 
@@ -46,6 +44,7 @@ theme:
 markdown_extensions:
   - admonition
   - attr_list
+  - md_in_html
   - def_list
   - footnotes
   - tables
@@ -64,6 +63,10 @@ markdown_extensions:
 
 plugins:
   - search
+  - redirects:
+      redirect_maps:
+        # Warfare was formerly titled "Rival Colonies"; forward the old URL.
+        'features/rival-colonies.md': 'features/warfare.md'
 
 nav:
   - Home: index.md
@@ -71,12 +74,13 @@ nav:
   - Features:
       - Races & Citizens: features/races-citizens.md
       - Colony Reputation: features/colony-reputation.md
+      - Colony Protection: features/colony-protection.md
       - World Reputation & Factions: features/world-reputation.md
       - Raids & Barriers: features/raids-barriers.md
       - Harvest Festival: features/harvest-festival.md
       - Assassins: features/assassins.md
       - Diplomacy: features/diplomacy.md
-      - Rival Colonies: features/rival-colonies.md
+      - Warfare: features/warfare.md
   - Reference:
       - Config: reference/config.md
       - Commands: reference/commands.md

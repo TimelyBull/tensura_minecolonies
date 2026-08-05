@@ -3,19 +3,19 @@
 Diplomacy is the non-combat way to deal with factions: open relations,
 complete deals to raise standing, and progress through three relationship
 tiers that unlock rewards. It runs in parallel with
-[Rival Colonies](rival-colonies.md); you can use both.
+[Warfare](warfare.md), and you can use both.
 
 Diplomacy is part of the faction system, which is **off by default**. Set
 `enableFactionSystem` to `true` in the [config](../reference/config.md) to
 enable it. While it's off, the **Diplomacy** tab is hidden from the roster
 and no diplomatic envoys arrive.
 
-!!! info "Where to find it"
+!!! info "Where To Find It"
     Open your roster with the **`G`** key and click the **Diplomacy** tab.
     Each known faction is a row showing its current standing and any offered
     deals.
 
-## Opening relations
+## Opening Relations
 
 You must **own a colony** (have a town hall) before you can send an envoy or
 a gift — the buttons are disabled until then. There are two ways relations
@@ -30,61 +30,54 @@ open:
   for the trip (their EP must meet the faction's requirement — higher for
   more dangerous factions). Pick one and it leaves on the mission. After
   about a day the faction replies: if your standing is high enough, relations
-  open; otherwise they decline. **Either way your subordinate returns to your
+  open. Otherwise they decline. **Either way your subordinate returns to your
   side** when the mission resolves — it's only away temporarily, never lost.
   You can attach a gift (taken from your inventory) for a little extra
   goodwill.
 
-!!! note "Your envoy is away while travelling"
+!!! note "Your Envoy Is Away While Travelling"
     A subordinate sent as an envoy is unavailable until the mission
     resolves — you can't summon or use it in the meantime. It comes back
     automatically (even across a logout) when the faction replies.
 
-!!! warning "Race matters"
-    Some factions are picky about who they'll deal with. The Holy Empire and
-    its allies court **humans** readily but will never *reach out* to a
-    majin — if you've gone down the majin path, you'll have to send your own
-    envoy, and they're a harder sell. A few factions (schemers and the truly
-    aloof) never send envoys at all, but may still open relations if you make
-    the first move.
+!!! warning "Race Matters"
+    Luminous and Falmuth send envoys only to human players. A majin must send
+    their own, starting from lower standing. Clayman, Leon, and the Eastern
+    Empire never send envoys — open relations by sending yours.
 
-## Deals: the heart of diplomacy
+## Deals
 
 Once relations are open, a faction offers **deals** — tasks in exchange for
-items and standing. Each faction offers tasks themed to it, and completing
-deals is the main way standing rises.
+items and standing. Completing deals is the main way standing rises.
 
 A deal asks for one of:
 
 | The faction wants… | You fulfil it by… |
 |---|---|
 | **Supplies** (e.g. 64 iron, a food bundle) | Pressing **Deliver** on the tab — the items are taken from your inventory |
-| **A building** at a certain level (e.g. a Library L3) | Building/upgrading it in your colony |
-| **A population** (e.g. 15 citizens) | Growing your colony to that size |
-| **Happiness** (e.g. average ≥ 7) | Keeping your colonists content |
+| **Kills** (a boss, or a number of a mob) | Killing the named target |
 | **Lent citizens** (see below) | Sending some colonists to work for them a while |
 
-Every deal has a **deadline**. Complete it in time and you collect the
-reward and a bump in standing; let it expire and your standing takes a hit
-(failing stings more than never accepting in the first place). You'll see a
-progress bar on the active deal, and a faction's row shows its current deal
-at a glance.
+(Two more asks appear only as Covenant capstones — reaching a citizen count, or
+conquering the faction's settlement — see the
+[Quest Catalog](../reference/quest-catalog.md).)
 
-### Lending citizens
+Every deal has a **deadline**. Complete it in time for the reward and a standing
+gain. Let it expire and standing drops. The active deal shows a progress bar,
+and the faction's row shows its current deal.
 
-Some deals ask you to **lend** a few citizens with a particular skill. When
-you accept, a picker opens so you choose exactly who goes. Those colonists
-leave your workforce for the agreed time — their jobs genuinely go unstaffed,
-so it's a real cost — and when the deal pays off, they **come home trained**,
-returning with that skill noticeably higher than when they left.
+### Lending Citizens
 
-!!! success "Your citizens are never lost"
-    Lent colonists are always returned safely — even if the deal is
-    interrupted, the colony they came from is gone (they'll join another
-    colony you own), or relations break down mid-loan (they come straight
-    home, untrained but unharmed).
+Some deals ask you to **lend** a few citizens with a particular skill. You pick
+exactly who goes. Those colonists leave your workforce for the deal's duration
+(their jobs go unstaffed) and return with that skill raised.
 
-## Relationship tiers
+!!! success "Your Citizens Are Never Lost"
+    Lent colonists always return. If the deal is interrupted or relations
+    break, they come home untrained. If their colony is gone, they join
+    another colony you own.
+
+## Relationship Tiers
 
 Relations progress through three tiers, each unlocking more.
 
@@ -97,9 +90,10 @@ Relations progress through three tiers, each unlocking more.
 
 === "Alliance"
 
-    Reached by completing a faction's **Alliance Pact** deal, offered once
-    your standing with it is high. An alliance survives standing drops that
-    would end Diplomacy, and unlocks:
+    Formed by accepting the **alliance prompt** that appears at alliance-range
+    standing (not a deal). Alliances decay far slower than Diplomacy, but a
+    sharp standing crash still shatters one (see *Ending relations* below). It
+    unlocks:
 
     - **No raids from the faction** — its monster events won't target your
       colony.
@@ -108,19 +102,20 @@ Relations progress through three tiers, each unlocking more.
       the alliance holds.
     - **A daily trade caravan** — claim a bundle of that faction's items once
       per day.
-    - **Caravan Home** — teleport to your town hall.
+    - **Caravan Home** — teleport to your town hall from faction settlements.
 
 === "Covenant"
 
     The top tier. After Alliance, standing rises slowly toward a Covenant
-    threshold; crossing it unlocks the faction's unique **milestone deal**.
+    threshold. Crossing it unlocks the faction's unique **milestone deal**.
     Completing it forms the Covenant and grants that faction's unique reward,
     for example:
 
     - **Dwargon** — a daily generator of industrial goods, plus a masterwork
       forging recipe.
-    - **Milim** — the **Drago Nova**, a one-use area blast (once per
-      real-world hour).
+    - **Milim** — the **Absolute Annihilator**, a custom growing hammer, for
+      slaying the Warden (also grants her Strength skill), plus a **Drago Nova**
+      blast you can claim about once an hour.
     - **Luminous** — starter elemental spirits (only if you have none).
     - **Falmuth** — stronger faction reinforcements during raids.
     - **Moderate Harlequin Alliance** — advance notice of incoming raids, and
@@ -128,32 +123,32 @@ Relations progress through three tiers, each unlocking more.
 
     Covenant also reduces supply-deal costs and increases raid reinforcements.
 
-!!! tip "Two ways to a faction's skill"
+!!! tip "Two Ways To A Faction's Skill"
     Each faction teaches a Tensura skill as the reward for its hardest deal.
     You can earn it through diplomacy, or by
-    [conquering that faction's settlement](rival-colonies.md) — both grant the
+    [conquering that faction's settlement](warfare.md) — both grant the
     same skill.
 
-## Ending relations
+## Ending Relations
 
 Two things end relations:
 
 - **Decay** — idle Diplomacy-tier relations decay and can lapse. Alliances
   decay much more slowly, but a fully abandoned one eventually breaks.
 - **Standing crash** — a large drop in standing (e.g. killing one of the
-  faction's marked bosses, or [declaring war on it](rival-colonies.md))
+  faction's marked bosses, or [declaring war on it](warfare.md))
   resets relations to none, cancels active deals, and returns lent citizens.
 
-### The Rite of Atonement
+### The Rite Of Atonement
 
 If a faction is pushed far enough that it refuses to deal with you at all, it
 offers one deal while in that state: the **Rite of Atonement**. It costs a
 tribute of diamonds plus the sacrifice of your strongest named subordinate
 (the subordinate must be present). Completing it reopens relations at the
 lowest standing — you restart from near zero rather than recovering the prior
-relationship. It is repeatable; each performance costs another subordinate.
+relationship. It is repeatable — each performance costs another subordinate.
 
-## Quick reference
+## Quick Reference
 
 - **Open the Diplomacy tab:** press `G`, then click **Diplomacy**.
 - **`/diplomacy`** — shows your current relations and active deals for every
@@ -162,8 +157,8 @@ relationship. It is repeatable; each performance costs another subordinate.
   a reroll button that swaps them for a few high magic crystals (with a
   cooldown).
 - The entire faction layer — diplomacy included — can be turned off in the
-  [config](../reference/config.md) if you'd rather build in peace.
+  [config](../reference/config.md).
 
-!!! note "Want the full list of factions and their flavour?"
+!!! note "Want The Full List Of Factions And Their Flavour?"
     See the [Factions reference](../reference/factions.md) and the
     [Quest Catalog](../reference/quest-catalog.md).

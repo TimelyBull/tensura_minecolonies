@@ -4,7 +4,7 @@ Commands you can use to inspect your standing, plus operator/debug commands
 for testing. **Operator commands** are marked — they need permission level 2
 (a server operator or single-player cheats enabled).
 
-## Player readouts
+## Player Readouts
 
 | Command | What it shows |
 |---|---|
@@ -12,7 +12,7 @@ for testing. **Operator commands** are marked — they need permission level 2
 | `/worldrep` | Your standing with every [faction](../features/world-reputation.md), tier-coloured, plus your overall notoriety. |
 | `/diplomacy` | Your [relations](../features/diplomacy.md) and active deals for each faction. |
 
-## Operator / debug commands
+## Operator / Debug Commands
 
 These force or inspect systems for testing.
 
@@ -24,12 +24,14 @@ These force or inspect systems for testing.
 | `/diplomacy open <faction>` | ✅ | Force-open relations with a faction. |
 | `/diplomacy offers` | ✅ | Force-refresh a faction's deal offers. |
 | `/diplomacy reply <faction>` | ✅ | Force the pending envoy reply. |
+| `/recoverorphans [confirm\|purge]` | ✅ | Reconcile named subordinates that lost their colony link (dry-run by default: `confirm` restores them, `purge` deletes them). |
 | `/festival run` | ✅ | Run the [Harvest Festival](../features/harvest-festival.md) on your colony. |
+| `/festival reset` | ✅ | Prestige-reset your colony (removes the festival's skill bonus so it can be earned again). |
 | `/tensuraraid` | ✅ | Start a [raid](../features/raids-barriers.md) on your colony now. |
 | `/tensuraraid disaster` | ✅ | Start the Orc Disaster lore event. |
 | `/tensuraraid end` | ✅ | End the active raid. |
 | `/assassin [state\|arm\|strike\|defuse]` | ✅ | Inspect or drive the [assassin](../features/assassins.md) plot for your colony. |
-| `/rivalcolony spawn <faction>` | ✅ | Generate a [settlement](../features/rival-colonies.md) (for Dwargon, stand in a dwarven village). |
+| `/rivalcolony spawn <faction>` | ✅ | Generate a [settlement](../features/warfare.md) (for Dwargon, stand in a dwarven village). |
 | `/rivalcolony wild <faction>` | ✅ | Spawn a wild (unmarked) faction boss. |
 | `/rivalcolony list` | ✅ | List generated settlements. |
 | `/rivalcolony garrison <id>` | ✅ | Show a settlement's garrison, assault, and discovery state. |

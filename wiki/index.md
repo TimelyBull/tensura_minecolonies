@@ -5,12 +5,7 @@ A NeoForge mod that integrates **Tensura: Reincarnated** with
 join your colony as citizens, and the Tensura world's factions track their
 standing with you and can be allied with or attacked.
 
-!!! note "What this guide covers"
-    These pages explain what each feature does and how to use it — not how
-    it's coded. New players should start with
-    [Getting Started](getting-started.md).
-
-## Core concept: two bodies, one identity
+## Core Concept: Two Bodies, One Identity
 
 A named Tensura monster can exist in either of two roles, and you switch it
 between them on demand (for a magicule cost):
@@ -21,7 +16,7 @@ between them on demand (for a magicule cost):
   skills, and lives in a house.
 
 Switching roles preserves the same identity — name, progress, and creature
-type carry across. Every other system is built on this swap.
+type carry across.
 
 ## Systems
 
@@ -36,7 +31,7 @@ type carry across. Every other system is built on this swap.
 
 -   :material-thumbs-up-down: **Colony Reputation**
 
-    A per-colony score that rises and falls with how you run the colony; low
+    A per-colony score that rises and falls with how you run the colony. Low
     reputation triggers monster raids.
 
     [:octicons-arrow-right-24: Colony Reputation](features/colony-reputation.md)
@@ -62,33 +57,34 @@ type carry across. Every other system is built on this swap.
 
     [:octicons-arrow-right-24: Diplomacy](features/diplomacy.md)
 
--   :material-castle: **Rival Colonies**
+-   :material-castle: **Warfare**
 
     Discover a faction settlement, declare war, and bring a war party to
-    defeat its garrison and boss; winning grants citizens, a skill, and loot.
+    defeat its garrison and boss. Winning grants citizens, a skill, and loot.
 
-    [:octicons-arrow-right-24: Rival Colonies](features/rival-colonies.md)
+    [:octicons-arrow-right-24: Warfare](features/warfare.md)
 
 </div>
 
-Two more systems: a [Harvest Festival](features/harvest-festival.md) that
-grants periodic bonuses to a healthy colony, and
-[Assassins](features/assassins.md) that factions send against colonies that
-have wronged them.
+A few more systems: [Colony Protection](features/colony-protection.md) that
+keeps Tensura's block-breaking from wrecking your builds,
+[Harvest Festival](features/harvest-festival.md) bonuses that give your colony a
+one-time work-skill boost, and [Assassins](features/assassins.md) that a mistreated
+colony can breed from its own citizens.
 
-## Two ways to deal with factions
+## Two Ways To Deal With Factions
 
-| | Diplomacy | Rival Colonies |
+| | Diplomacy | Warfare |
 |---|---|---|
 | **Method** | Open relations, complete deals | Discover a settlement, declare war |
 | **Progression** | Diplomacy → Alliance → Covenant | Win the assault (kill the boss + ≥60% of the garrison) |
 | **Rewards** | Buffs, trade caravans, gifts, a faction skill | Citizens, the faction's skill, loot |
-| **Cost / risk** | Slow; relations decay or shatter | A combat fight; warring an allied faction scales its garrison up |
+| **Cost / risk** | Slow — relations decay or shatter | A combat fight — warring an allied faction scales its garrison up |
 
 Both are optional. The entire faction layer can be disabled in the
 [config](reference/config.md).
 
 ---
 
-!!! tip "New here?"
+!!! tip "New Here?"
     See [Getting Started](getting-started.md), or open any system above.
