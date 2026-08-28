@@ -100,6 +100,14 @@ public final class Networking {
                 OpenCollapseConfirmPayload.CODEC,
                 Networking::onOpenCollapseConfirm
         );
+        // Which citizens are currently away as subordinates, so the hiring
+        // window can gray them out. MineColonies' citizen view carries no such
+        // flag, so we ship the id set ourselves.
+        registrar.playToClient(
+                SyncSubordinateCitizensPayload.TYPE,
+                SyncSubordinateCitizensPayload.CODEC,
+                Networking::onSyncSubordinateCitizens
+        );
         // Stage B picker — server tells client to open the race picker
         // for a newly-created or still-pending colony.
         registrar.playToClient(
@@ -691,6 +699,33 @@ public final class Networking {
      *       tracking an already-tagged citizen (relog, chunk re-enter,
      *       dimension change).
      */
+    /**
+     * S2C — the citizens of {@code colonyId} that are currently out of the colony
+     * as Tensura subordinates, and so have no body to work a job with.
+     *
+     * <p>Always a FULL list for that colony; the client replaces its set rather
+     * than merging, so a citizen coming home is communicated by its absence. An
+     * empty list means "nobody is away", which is the normal state.</p>
+     *
+     * <p>Consumed only by the hiring window's gray-out. The server enforces the
+     * actual refusal, so this being stale is cosmetic.</p>
+     */
+    public record SyncSubordinateCitizensPayload(int colonyId, List<Integer> citizenIds)
+            implements CustomPacketPayload {
+
+        public static final Type<SyncSubordinateCitizensPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "sync_subordinate_citizens"));
+
+        public static final StreamCodec<ByteBuf, SyncSubordinateCitizensPayload> CODEC =
+                StreamCodec.composite(
+                        ByteBufCodecs.VAR_INT,                            SyncSubordinateCitizensPayload::colonyId,
+                        ByteBufCodecs.VAR_INT.apply(ByteBufCodecs.list()), SyncSubordinateCitizensPayload::citizenIds,
+                        SyncSubordinateCitizensPayload::new
+                );
+
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
     public record SyncRaceTagPayload(UUID entityUuid, boolean present,
                                      UUID identityId, byte raceId, byte[] variant,
                                      String profession)
@@ -935,6 +970,14 @@ public final class Networking {
     private static void onRosterResponse(RosterResponsePayload payload, IPayloadContext context) {
         // Registered as playToClient → only fires on the logical client.
         context.enqueueWork(() -> rosterClientHandler.accept(payload));
+    }
+
+    private static void onSyncSubordinateCitizens(SyncSubordinateCitizensPayload payload,
+                                                  IPayloadContext context) {
+        // Registered as playToClient → only fires on the logical client, so
+        // touching the client-only store here is safe.
+        context.enqueueWork(() -> SubordinateClientStore.accept(
+                payload.colonyId(), SubordinateClientStore.copyOf(payload.citizenIds())));
     }
 
     private static void onFestivalBonus(FestivalBonusPayload payload, IPayloadContext context) {

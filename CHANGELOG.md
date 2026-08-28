@@ -6,6 +6,88 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project aims to follow [Semantic Versioning](https://semver.org/).
 Copy the relevant version's section into the CurseForge release notes on each update.
 
+## [Unreleased]
+
+### Changed
+- **Built against a newer MineColonies.** The mod is now built against
+  MineColonies 1.1.1368 (it was 1.1.1319). That newer MineColonies brings a
+  sizeable rework of how citizens find their way around — they take better
+  routes, get stuck on stairs and ladders less, and guards handle fights more
+  cleanly. None of this mod's own features changed; you simply get the
+  improvements that come with the newer MineColonies. The mod still runs on
+  MineColonies 1.1.1319 and above, so updating MineColonies is recommended but
+  not required.
+
+  Two things you may notice after updating MineColonies itself: citizens eat
+  noticeably more while working, and new arrivals appear at your Town Hall a
+  little differently. Both are MineColonies' own changes, not this mod's.
+
+### Fixed
+- **Colony founding messages are correct again.** Two things were wrong when you
+  placed a town hall. The stock "News spreads swiftly of the newly founded
+  settlement..." line appeared immediately, before the race picker had even
+  opened, instead of after you chose. And — more importantly — if your chosen
+  spot was rejected for being too far from world spawn or too close to another
+  colony, the game said nothing at all, leaving you with no idea why nothing
+  happened. Both are fixed: the founding flavour text now waits for your race
+  choice, and site-rejection messages always reach you. The founding message
+  also displays in its proper gold colour again, matching the rest of the
+  colony messages.
+- **Faction offers no longer dry up for good.** After a while with a faction
+  the deal list could go permanently empty — the tab just read "No offers on
+  the table today.", and rerolling produced nothing. Letting offers expire
+  slowly lowers your standing with that faction, and once it slipped below
+  Neutral there were no deals left that the faction was willing to put on the
+  table. Since deals are the main way to earn standing back, the relationship
+  could never recover. A faction you still have relations with now always
+  offers its basic deals, whatever your standing, so you can always work your
+  way back up. Factions already stuck like this fix themselves on the next
+  in-game day.
+- **Colonies no longer vanish after a server restart.** If a colony was saved
+  while one of this mod's Tensura raids was still running, that colony could
+  fail to load on the next boot — the town hall reset itself, every hut block
+  became un-interactable, and MineColonies renamed the colony's backup file to
+  `.dat.delete`. Because the broken colony was then missing from the next save,
+  restoring the backup only bought you a boot or two before it disappeared
+  again. Saved raids now reload correctly, and — as a safety net — a colony
+  that contains any event this mod can't recognise (for example one left behind
+  by a mod you've since removed) now skips just that event and loads normally
+  instead of being lost. Colonies already deleted this way can't be brought
+  back, but restoring a `.dat.delete` backup with this version installed will
+  now stick.
+- **Faction deals that ask for a bundle of goods can now actually be handed
+  in.** Deals like "Caravan Tolls" — the ones that want several different items
+  at once — showed no **Deliver** button, so there was no way to complete them
+  no matter how much you carried. The Trial of Light & Dark had the same
+  problem: full chalices could not be turned in. Both now show Deliver like
+  every other supply deal. Deals already sitting in your list are fixed too;
+  you don't need to start them over.
+- **You can send a subordinate home from anywhere.** Sending one back to the
+  colony used to fail whenever you were far enough away that the colony wasn't
+  loaded — you got "the town hall area may not be loaded, try again from closer"
+  and had to physically walk back before you could hand them over. The colony is
+  now loaded for you automatically, so a send works from any distance. If nobody
+  is nearby to watch, the arrival skips its rise animation and the citizen simply
+  appears at the town hall.
+- **Fixed the "ghost worker" that jammed a building for good.** Players were
+  ending up with a builder that wasn't real — usually showing up as just
+  "Goblin" — that couldn't be fired, killed, recalled, or teleported. Firing it
+  hired it straight back on the next tick, and there was no body anywhere to
+  remove, so the building was stuck permanently. These are residents whose
+  monster form was lost somewhere along the way, leaving a worker with no body
+  in either form. **Colonies that are already stuck now repair themselves a few
+  seconds after you load the world** — the building releases the ghost and is
+  free to hire a real worker again. Nothing for you to do.
+  - Huts can no longer hire a resident who is out with you in the first place,
+    so this can't start happening again.
+  - Residents who are away with you now show **grayed out** in a hut's hiring
+    list with a small "subordinate" note, instead of looking hireable and then
+    quietly doing nothing.
+  - **Taking your own subordinates out is unaffected.** A resident who already
+    has a job keeps it while they're away with you — the job just goes undone
+    until you send them home, which is how it's meant to work. You never have to
+    think about job assignments before summoning someone.
+
 ## [0.2.2] - 2026-07-26
 
 ### Added

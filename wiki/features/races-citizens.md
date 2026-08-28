@@ -77,7 +77,14 @@ The creature keeps its name, type, and progress across the switch:
 - **Summon to your side** — the citizen returns as a Tensura creature.
 
 You can move several at once. Some evolved forms (Orc Lord, Orc Disaster)
-can't be sent to a colony.
+can't be sent to a colony. Sending works from any distance — you don't have to
+be near the colony.
+
+**Jobs while a monster is away with you.** A citizen who already has a job keeps
+it while it is out at your side; the job simply goes undone until you send it
+home. You never have to unassign anything before summoning someone. A hut can't
+*newly* hire a resident who is currently away — those residents show grayed out
+in the hut's hiring list, marked "subordinate".
 
 ## The Roster
 

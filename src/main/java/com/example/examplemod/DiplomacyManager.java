@@ -147,6 +147,11 @@ public final class DiplomacyManager {
     static final int MAX_OFFERS = 3;
     /** Un-accepted offers expire (and nudge standing −1) after this. */
     static final long OFFER_EXPIRY_TICKS = 3 * DAY;
+    /** The floor for the offer-draw tier. While relations stand, a
+     *  faction always offers at least its base-tier (NEUTRAL) deals —
+     *  see the note in {@link #refreshOffers}. Below this the deal pool
+     *  would be empty and the relationship could never be repaired. */
+    static final FactionTier MIN_OFFER_TIER = FactionTier.NEUTRAL;
     /** Offer-draw tier weighting: a deal one tier below the player's
      *  current tier is this fraction as likely to be drawn; two below
      *  is this-squared, etc. Lower-tier deals stay ELIGIBLE (never
@@ -1395,7 +1400,21 @@ public final class DiplomacyManager {
                             STANDING_OFFER_EXPIRED, WorldRepReason.DIPLOMACY);
                 }
 
+                // The DRAW tier. Every deal in every faction table gates
+                // at NEUTRAL or above, so a live relationship whose
+                // standing has slipped into WARY (20-39) would draw an
+                // EMPTY pool — the tab reads "No offers on the table
+                // today." forever, and because deals are the main way to
+                // earn standing back, nothing can ever refill it. That
+                // dead zone is what the 0.2.2 "offers stop appearing
+                // after a few days" report was. Having relations at all
+                // means the faction still trades at its BASE level, so
+                // the draw tier is floored at MIN_OFFER_TIER while
+                // relations stand; the standing itself is untouched (the
+                // faction row still reads Wary, and collapse below 20
+                // still shatters the relationship).
                 FactionTier tier = WorldReputationManager.getTier(level, player, faction);
+                if (tier.compareTo(MIN_OFFER_TIER) < 0) tier = MIN_OFFER_TIER;
                 ActiveDeal active = data.getDeal(player, e.getKey());
                 // Stage 2 — offers come from THIS faction's flavored
                 // table. Eligible specs are collected first and drawn
@@ -2187,9 +2206,16 @@ public final class DiplomacyManager {
                 d.putBoolean("lend", lendDeal);
                 d.putInt("returnHours", (int) Math.max(0, (deal.payoffAtTick - now) / 1000));
                 d.putBoolean("rite", spec.requirement() instanceof DealSpec.MendingRite);
+                // Every requirement shape that deliver() actually handles must
+                // be listed here, or the deal has NO way to be completed: the
+                // Deliver button is the only entry point, and isRequirementMet
+                // deliberately returns false for these (they deliver by hand).
+                // Bundles + the trial were missing — see user-bug-reports.md.
                 d.putBoolean("canDeliver", deal.state == ActiveDeal.STATE_ACTIVE
                         && (spec.requirement() instanceof DealSpec.SupplyItems
-                                || spec.requirement() instanceof DealSpec.MendingRite));
+                                || spec.requirement() instanceof DealSpec.MendingRite
+                                || spec.requirement() instanceof DealSpec.SupplyBundle
+                                || spec.requirement() instanceof DealSpec.TwoFacedTrial));
                 d.putBoolean("canCollect", deal.state == ActiveDeal.STATE_READY);
                 f.put("active", d);
             }

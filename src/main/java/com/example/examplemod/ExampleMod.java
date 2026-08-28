@@ -15,6 +15,7 @@ import com.minecolonies.api.eventbus.events.colony.citizens.CitizenAddedModEvent
 import com.minecolonies.api.eventbus.events.colony.citizens.CitizenDiedModEvent;
 import com.minecolonies.api.inventory.InventoryCitizen;
 import com.minecolonies.api.util.EntityUtils;
+import com.minecolonies.api.util.MessageUtils;
 
 import java.util.EnumSet;
 import io.github.manasmods.manascore.storage.api.StorageHolder;
@@ -129,6 +130,13 @@ public class ExampleMod {
     private static final float CIRCLE_SIZE          = 3.0f;  // ~3× the default MagicCircle visual scale
     private static final double SINK_DEPTH          = 3.0;   // blocks the dissolve body falls during the delay
     private static final double RISE_START_OFFSET   = 2.0;   // blocks below surface the materialize body spawns
+    /** How long a rise keeps waiting for a body whose chunk unloaded mid-animation.
+     *  The body is underground and invulnerable until the rise finishes, so giving
+     *  up early strands it; 10 in-game minutes is long enough to cover a player
+     *  wandering off and coming back. In-memory only — a server restart inside the
+     *  window loses the retry, and the citizen is then recoverable with
+     *  MineColonies' own "recall worker to town hall". */
+    private static final long  STRANDED_RISE_GRACE_TICKS = 12000L;
 
     /** Queued circle entity awaiting discard after its lifetime expires. */
     private record PendingCircleDiscard(UUID circleUUID, ResourceKey<Level> dim, long discardAtTick) {}
@@ -1384,16 +1392,29 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         UUID owner = colony.getPermissions().getOwner();
 
-        // It is ALREADY YOURS, and it carries the name MineColonies gave it —
-        // so it never has to be summoned and hand-named (which is what produced
-        // the pre-0.2.1 phantom citizen). See applyAutoNaming for what that
-        // copies from Tensura's naming ceremony and what it deliberately skips
-        // (the name-evolution + the magicule cost). Bred children are babies;
-        // envoy seeds + immigrants arrive grown (asBaby=false).
+        // ONLY BABIES ARE AUTO-NAMED (2026-08-20, by request). Bred children are
+        // born into the colony already named; every GROWN arrival (envoy seeds,
+        // free immigration) turns up UNNAMED so the player still gets to perform
+        // the naming themselves — that is the point of the goblin loop.
+        //
+        // The seam is applyAutoNaming's own `name == null` branch: passing null
+        // skips existence.setName() + setCustomName() but STILL claims permanent
+        // ownership. That combination is deliberate, and it is what keeps the mob
+        // nameable later. Tensura's naming gate (RequestNamingKeyPacket.canName)
+        // blocks on two SEPARATE conditions:
+        //   - "already_named"  — existence has a name        -> we no longer set one
+        //   - "had_owner"      — owner exists AND != you     -> owner IS you, so OK
+        // so an unnamed-but-owned arrival stays hand-nameable by its owner.
+        //
+        // This does NOT reopen the pre-0.2.1 phantom citizen. That bug was a
+        // SECOND identity being registered for one mob; the real lock against it
+        // is onRaceNamed's getByMobUUID check, which turns naming a mob that
+        // already has an identity into a plain RENAME. Auto-naming was only ever
+        // a belt-and-braces second lock.
         if (mob instanceof net.minecraft.world.entity.AgeableMob ageable) {
             ageable.setBaby(asBaby);
         }
-        applyAutoNaming(mob, child.getName(), owner);
+        applyAutoNaming(mob, asBaby ? child.getName() : null, owner);
 
         // Capture the randomised appearance + a full entity snapshot (with the
         // "id" field — goblin.save(tag) writes it) for later summon/send.
@@ -1430,14 +1451,18 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     child.getId(), identity.identityId, t);
         }
 
-        // "Auto-named" treatment — same starting bias + happiness a hand-named
-        // citizen gets. (Future idea: leave bred children UNNAMED so the player
-        // chooses which to evolve — see docs/future-ideas.md.)
+        // Race skill bias is INTRINSIC — every race citizen gets it however it
+        // arrived. The happiness penalty is not: it models the cost of the NAMED
+        // acquisition, so only the auto-named babies carry it. A grown immigrant
+        // arrives unnamed and is just an ordinary new colonist of its race.
         RaceSkillProfiles.applyForRace(child, race, level.getRandom());
-        applyNamedAcquisitionPenalty(child);
+        if (asBaby) {
+            applyNamedAcquisitionPenalty(child);
+        }
 
-        LOGGER.info("[TM] race growth: colony '{}' minted a {} {} (citizen {} identity {})",
-                colony.getName(), asBaby ? "baby" : "adult", race, child.getId(), identity.identityId);
+        LOGGER.info("[TM] race growth: colony '{}' minted {} {} {} (citizen {} identity {})",
+                colony.getName(), asBaby ? "a baby" : "an adult",
+                asBaby ? "NAMED" : "UNNAMED", race, child.getId(), identity.identityId);
     }
 
     // ------------------------------------------------------------------
@@ -4520,29 +4545,51 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 // chose colonists" from "legacy / pre-menu colony" — which
                 // the envoy system will need to mix in additional members.
                 config.setSingleMember(colonyId, ColonyMember.COLONIST);
-                // DELIBERATELY no message sent here. The vanilla MC
-                // "colony_founded" / "colony_reactivated" chat already fires
-                // for the DEFAULT pick path (the CreateColonyMessageMixin
-                // wraps the sendTo at ordinals 2 and 3, but in current MC
-                // builds these still pass through for the DEFAULT-equivalent
-                // outcome the player sees). Re-issuing it from here produced
-                // a visible duplicate. For GOBLIN / ORC the mixin's
-                // suppression keeps the MC message hidden and we issue our
-                // race-specific flavour message in those branches instead.
+                // Re-issue MineColonies' own founding line. The mixin
+                // suppresses it at creation time so the race picker owns that
+                // moment; on a DEFAULT pick the player should still get the
+                // standard flavour, so we replay it here. GOBLIN / ORC send
+                // their own race-specific text in the branches below instead.
+                //
+                // HISTORY (2026-08-20): this replay used to be commented out,
+                // with a note saying re-issuing it "produced a visible
+                // duplicate" and that MC's message "still passes through for
+                // the DEFAULT-equivalent outcome". Both observations were real
+                // but the diagnosis was wrong — CreateColonyMessageMixin was
+                // targeting sendTo ordinals 2/3, which are the two SITE-
+                // REJECTION ERRORS, not the success messages (those are 4/5).
+                // So MC's line leaked for EVERY pick, which is what made the
+                // replay look like a duplicate, and GOBLIN / ORC players were
+                // quietly seeing BOTH the stock line and their race flavour.
+                // With the ordinals corrected the suppression works, so this
+                // replay is required or a DEFAULT pick shows nothing at all.
+                // See docs/decisions.md.
+                // Sent through MineColonies' OWN MessageUtils path with
+                // MessagePriority.IMPORTANT rather than a plain
+                // sendSystemMessage — IMPORTANT carries ChatFormatting.GOLD, so
+                // a plain system message rendered WHITE and visibly differed
+                // from the line MC itself would have sent. Using their builder
+                // means the styling matches by construction and stays matched
+                // if MineColonies ever restyles the priority.
+                MessageUtils.format("com.minecolonies.coremod.progress.colony_founded")
+                        .withPriority(MessageUtils.MessagePriority.IMPORTANT)
+                        .sendTo(player);
                 LOGGER.info("[TM] race choice: colony {} ('{}') → COLONIST (vanilla MC citizens)",
                         colonyId, colony.getName());
             }
             case Networking.RaceChoicePayload.CHOICE_GOBLIN -> {
                 config.setSingleMember(colonyId, ColonyMember.GOBLIN);
-                player.sendSystemMessage(Component.translatable(
-                        "tensura_minecolonies.colony.created.goblin"));
+                MessageUtils.format("tensura_minecolonies.colony.created.goblin")
+                        .withPriority(MessageUtils.MessagePriority.IMPORTANT)
+                        .sendTo(player);
                 LOGGER.info("[TM] race choice: colony {} ('{}') → GOBLIN",
                         colonyId, colony.getName());
             }
             case Networking.RaceChoicePayload.CHOICE_ORC -> {
                 config.setSingleMember(colonyId, ColonyMember.ORC);
-                player.sendSystemMessage(Component.translatable(
-                        "tensura_minecolonies.colony.created.orc"));
+                MessageUtils.format("tensura_minecolonies.colony.created.orc")
+                        .withPriority(MessageUtils.MessagePriority.IMPORTANT)
+                        .sendTo(player);
                 LOGGER.info("[TM] race choice: colony {} ('{}') → ORC",
                         colonyId, colony.getName());
             }
@@ -4666,7 +4713,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      * Iterates all server levels so we don't miss a goblin in a different
      * dimension from the new colony.
      */
-    private static LivingEntity findLivingEntityAcrossLevels(MinecraftServer server, UUID uuid) {
+    // Package-visible: SubordinateJobGuard uses this to tell a healthy
+    // subordinate (body resolves somewhere) from a ghost (body nowhere).
+    static LivingEntity findLivingEntityAcrossLevels(MinecraftServer server, UUID uuid) {
         for (ServerLevel level : server.getAllLevels()) {
             Entity e = level.getEntity(uuid);
             if (e instanceof LivingEntity le && le.isAlive()) {
@@ -5028,6 +5077,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
         BlockPos townHallPos = colony.getServerBuildingManager().getTownHall().getPosition();
 
+        // 2a. Load the destination if nobody is near it, so a send works from
+        //     anywhere instead of only from within the colony's loaded area.
+        //     Also tells us whether anyone could be watching the arrival — see
+        //     the animation gate at step 5c.
+        boolean destinationWasLoaded = ensureDestinationLoaded(serverLevel, townHallPos);
+
         // 2b. EARLY variant capture — must happen BEFORE the citizen body
         //     is spawned. This is the most throw-prone read on the goblin
         //     (it crashed historically on Tensura's -1 head sentinel), so
@@ -5082,9 +5137,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (spawned == null || spawned.getEntity().isEmpty()) {
             // spawnOrCreateCivilian returns the data even if the spawn failed (chunk not loaded).
             // Detect failure by checking whether an entity was actually linked.
-            LOGGER.warn("[TM] send: EntityCitizen did not spawn (chunk not loaded?) — re-suppressing respawn");
+            // The destination was loaded for us at step 2a, so this is no longer
+            // "you are too far away" — something else refused the spawn (no safe
+            // spot near the town hall, MOVE_IN off, a full colony).
+            LOGGER.warn("[TM] send: EntityCitizen did not spawn even with the destination loaded — re-suppressing respawn");
             sendAdvisoryNotice(triggeringPlayer, citizenData.getName() +
-                    " couldn't reach the colony — the town hall area may not be loaded. Try again from closer.");
+                    " couldn't reach the colony — there may be no clear space near the town hall.");
             colony.getTravellingManager().startTravellingTo(citizenData, townHallPos, Integer.MAX_VALUE);
             return;
         }
@@ -5123,18 +5181,28 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // race to empty if MineColonies' internals clear it. Treat as
             // chunk-not-loaded.
             sendAdvisoryNotice(triggeringPlayer, citizenData.getName() +
-                    " couldn't reach the colony — try again from closer.");
+                    " couldn't reach the colony — there may be no clear space near the town hall.");
             colony.getTravellingManager().startTravellingTo(citizenData, townHallPos, Integer.MAX_VALUE);
             return;
         }
         com.minecolonies.api.entity.citizen.AbstractCivilianEntity citizenBody = bodyOpt.get();
 
         try {
-            // Capture the citizen's surface Y BEFORE we lower it, then queue
-            // the rise. The body appears underground first and visually
-            // emerges from the materialize-end circle.
-            double citizenSurfaceY = citizenBody.getY();
-            markMaterializedBody(serverLevel, citizenBody, citizenSurfaceY);
+            // 5c. Capture the citizen's surface Y BEFORE we lower it, then queue
+            //     the rise. The body appears underground first and visually
+            //     emerges from the materialize-end circle.
+            //
+            //     SKIPPED when the destination had to be loaded for this send
+            //     (step 2a): the rise is driven over RISE_DURATION_TICKS by the
+            //     server-tick pass, and the chunk's temporary ticket can expire
+            //     before it finishes — which would save the citizen to disk still
+            //     sunk underground and still invulnerable. Nobody is there to see
+            //     the animation anyway, so the body is simply placed at the
+            //     surface.
+            if (destinationWasLoaded) {
+                double citizenSurfaceY = citizenBody.getY();
+                markMaterializedBody(serverLevel, citizenBody, citizenSurfaceY);
+            }
 
             // Sync the goblin's equipment onto the citizen ENTITY's slots
             // so it visually renders with the same armor + weapon. Items
@@ -6577,6 +6645,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 saved.updateMode(id, RaceIdentitySavedData.Mode.IN_COLONY);
                 saved.setDefendingColony(id, false); // clear any stale defense flag
                 colony.getTravellingManager().finishTravellingFor(cd);
+                // Nothing to do about jobs here: a citizen never loses its job
+                // by being away, so a recovered orphan still holds whatever it
+                // held. If the repair sweep already stripped the job (it does
+                // that for ghosts, which is what this orphan was), the citizen
+                // rejoins the hiring pool like any other idle colonist.
                 restored++;
                 LOGGER.info("[TM] FIX3: recovered orphan identity {} (citizen {} race {}) as colonist in colony {}",
                         id.identityId, id.citizenId, id.race, id.colonyId);
@@ -6909,6 +6982,16 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         saved.updateMobUUID(identity, goblin.getUUID());
 
         // 11. Update mode to SUBORDINATE.
+        //
+        // The citizen KEEPS any colony job it holds. Taking your own subordinate
+        // out and walking around with it is normal play, and a job sitting idle
+        // while its worker is away with you is the mod working as intended — the
+        // worker is simply not there to do it, and picks it straight back up when
+        // you send them home. (An earlier build released the job here and
+        // reclaimed it on return; that was the wrong call and was removed, since
+        // it silently reshuffled players' huts every time they summoned somebody.
+        // See decisions.md.) Only a GHOST — an identity with no body anywhere at
+        // all — has its job released, by SubordinateJobGuard's repair sweep.
         saved.updateMode(identity, RaceIdentitySavedData.Mode.SUBORDINATE);
 
         LOGGER.info("[TM] summon: complete — '{}' is now SUBORDINATE (goblin uuid={})",
@@ -7366,7 +7449,16 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // Summon → 3 blocks ahead in the player's look direction.
             materializePos = summonMaterializePos(player);
         }
-        spawnSwapCircle(level, player, materializePos);
+        // Only spawn the arrival circle if somebody could actually see it. Now
+        // that a send can target a colony nobody is near, this would otherwise
+        // drop a MagicCircle into an unloaded chunk: our discard pass can't
+        // resolve the entity to remove it and drops the tracker anyway, so the
+        // circle would sit there un-ticked until a player next walked into the
+        // colony and then spin for its full Tensura lifetime. Skipping it costs
+        // nothing — there is no viewer either way.
+        if (level.isLoaded(BlockPos.containing(materializePos))) {
+            spawnSwapCircle(level, player, materializePos);
+        }
 
         // Dissolve-body sink: lower the live body SINK_DEPTH blocks over the
         // delay so it visually falls through its circle into the ground. Set
@@ -7427,6 +7519,53 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      * RISE_DURATION_TICKS. Call this AFTER spawn/addFreshEntity for the
      * materialize-side body in both send and summon.
      */
+    /**
+     * Make sure the area around {@code center} is loaded so a citizen body can
+     * be spawned there, and report whether it was ALREADY loaded beforehand.
+     *
+     * <p>Sending a subordinate home used to fail outright whenever the colony
+     * was outside the player's loaded area — the player got "the town hall area
+     * may not be loaded, try again from closer" and had to physically walk back.
+     * MineColonies' {@code spawnOrCreateCivilian} gates each spawn hint on
+     * {@code WorldUtil.isEntityBlockLoaded}, and that is the ONLY thing that was
+     * stopping it, so loading the destination first is enough to make a send work
+     * from anywhere.</p>
+     *
+     * <p>{@code ServerLevel.getChunk(x, z)} loads synchronously to
+     * {@code ChunkStatus.FULL} and registers a short-lived {@code UNKNOWN}
+     * ticket, which is exactly the {@code FullChunkStatus.FULL} that
+     * {@code isEntityBlockLoaded} tests for. The ticket times out on its own, so
+     * there is nothing to release and no risk of leaking a permanently forced
+     * chunk into the level's saved data.</p>
+     *
+     * <p>A 3×3 is loaded rather than a single chunk because MineColonies runs
+     * {@code EntityUtils.getSpawnPoint} to find a safe spot near the town hall,
+     * and that search can cross a chunk boundary.</p>
+     *
+     * @return true if the centre was already loaded — i.e. somebody is plausibly
+     *         watching, so the arrival animation is safe to play.
+     */
+    private static boolean ensureDestinationLoaded(ServerLevel level, BlockPos center) {
+        boolean alreadyLoaded = level.isLoaded(center);
+        if (alreadyLoaded) return true;
+
+        int cx = net.minecraft.core.SectionPos.blockToSectionCoord(center.getX());
+        int cz = net.minecraft.core.SectionPos.blockToSectionCoord(center.getZ());
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                try {
+                    level.getChunk(cx + dx, cz + dz);
+                } catch (Throwable t) {
+                    LOGGER.warn("[TM] send: could not load chunk {},{} near the destination",
+                            cx + dx, cz + dz, t);
+                }
+            }
+        }
+        LOGGER.info("[TM] send: destination around {} was unloaded — loaded a 3x3 so the citizen can arrive",
+                center);
+        return false;
+    }
+
     private static void markMaterializedBody(ServerLevel level, LivingEntity body, double surfaceY) {
         long now = level.getServer().getTickCount();
         double lockX = body.getX();
@@ -7583,6 +7722,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (now > 0 && now % AMBIENT_PERIOD_TICKS == 0) {
             runEnvoyScheduler(server);
             tickReputationDrift(server);
+            // Free any hut squatted by a GHOST — a citizen with no body in
+            // either form. Repairs saves that softlocked before the job guards
+            // existed. Ordinary away subordinates keep their jobs.
+            SubordinateJobGuard.tickReconcile(server);
+            // Push the away-subordinate id set so the hiring window can gray
+            // those citizens out. Silent when nothing changed.
+            SubordinateJobGuard.tickSyncToClients(server);
             // Refresh the stored snapshot of every loaded subordinate so a
             // vanished body can be recovered from a recent form (and never
             // lands in the unrecoverable "identity-only" bucket).
@@ -7640,7 +7786,21 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     if (m.clearInvulnerableOnEnd()) {
                         le.setInvulnerable(false);
                     }
+                    vit.remove();
+                    continue;
                 }
+                // The body isn't resolvable right now — almost always because its
+                // chunk unloaded partway through the rise. Do NOT drop the
+                // movement: it was left BELOW its target (the rise starts
+                // underground), so forgetting it here would strand the citizen
+                // inside blocks and permanently invulnerable, since the
+                // invulnerable flag is saved with the entity. Keep retrying so
+                // the moment the chunk comes back we snap it up to the surface
+                // and hand it its vulnerability back.
+                if (now < m.endTick() + STRANDED_RISE_GRACE_TICKS) continue;
+                LOGGER.warn("[TM] rise: body {} never came back within {} ticks — giving up; "
+                        + "if it is stuck underground, recall it to the town hall",
+                        m.entityUUID(), STRANDED_RISE_GRACE_TICKS);
                 vit.remove();
                 continue;
             }

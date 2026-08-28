@@ -103,13 +103,20 @@ config="${mod_id}.mixins.json"
     ordering="AFTER"
     side="BOTH"
 
-# MineColonies — the colony half of the integration. Floor pinned to the build
-# this mod COMPILES against (1.1.1319): the citizen/entity-manager "Civilian"
+# MineColonies — the colony half of the integration.
+# COMPILE TARGET: 1.1.1368. DECLARED FLOOR: 1.1.1319. These are deliberately
+# DECOUPLED — the 1319 -> 1368 window introduced no API this mod consumes, so
+# the built jar still runs on 1319 and there is no reason to lock players out
+# of it. Only raise this floor when we actually start calling something that
+# does not exist in 1319.
+# Why the floor is 1319 and not lower: the citizen/entity-manager "Civilian"
 # API (spawnOrCreateCivilian / getCivilian / removeCivilian /
 # createAndRegisterCivilianData) used throughout the citizen pipeline does NOT
 # exist in older builds (e.g. 1.1.1281), so an older MineColonies would crash
 # mid-game with a NoSuchMethodError. This required range makes an incompatible
 # version refuse to load with a clear message instead.
+# NOTE: 1.1.1368+ is RECOMMENDED (it carries MineColonies' pathfinding rework
+# and guard-AI fixes) but is not required.
 [[dependencies.${mod_id}]]
     modId="minecolonies"
     type="required"
@@ -118,11 +125,17 @@ config="${mod_id}.mixins.json"
     side="BOTH"
 
 # Structurize — MineColonies' schematic engine; settlement blueprint placement
-# uses its StructurePacks + placement APIs. Floor = the build target.
+# uses its StructurePacks + placement APIs.
+# Floor RAISED to 1.0.832 (2026-08-20) and this one is a HARD requirement, not a
+# build-target echo: MineColonies 1.1.1368 itself declares
+# structurize >= 1.0.832-1.21.1-snapshot, so a player on 1.0.830 cannot load
+# MineColonies at all. Unlike the minecolonies floor (deliberately left at 1319),
+# this must track upward. Structurize 1.0.832 in turn needs blockui >= 1.0.191
+# and domum_ornamentum >= 1.0.203 — both already below our declared floors.
 [[dependencies.${mod_id}]]
     modId="structurize"
     type="required"
-    versionRange="[1.0.830,)"
+    versionRange="[1.0.832,)"
     ordering="AFTER"
     side="BOTH"
 
