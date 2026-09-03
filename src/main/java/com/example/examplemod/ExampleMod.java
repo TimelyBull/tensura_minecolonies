@@ -178,7 +178,27 @@ public class ExampleMod {
         static ChargeOutcome notCharged() { return new ChargeOutcome(false, 0.0); }
     }
 
+    /**
+     * A roster action waiting on the target's chunk to finish loading.
+     *
+     * <p>Reaching a subordinate (or a colony citizen) whose chunk is unloaded is
+     * done by LOADING that chunk and then acting on the real body — never by
+     * rebuilding one from the snapshot, which would spawn a twin the moment the
+     * chunk came back (decisions.md, 2026-08-28, Decision 1). The load itself is
+     * synchronous, but a chunk's ENTITIES are read from the separate entity file
+     * asynchronously, so the body is usually not resolvable in the same tick.
+     * This record holds the action open for the few ticks that takes.</p>
+     */
+    private record PendingReach(UUID playerUUID,
+                                UUID identityId,
+                                ResourceKey<Level> dim,
+                                int chunkX,
+                                int chunkZ,
+                                long giveUpTick,
+                                boolean resumed) {}
+
     private static final java.util.List<PendingCircleDiscard> pendingCircles           = new java.util.ArrayList<>();
+    private static final java.util.List<PendingReach>         pendingReaches           = new java.util.ArrayList<>();
     private static final java.util.List<PendingSwap>          pendingSwaps             = new java.util.ArrayList<>();
     private static final java.util.List<VerticalMovement>     pendingVerticalMovements = new java.util.ArrayList<>();
 
@@ -1601,6 +1621,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     private static final long TICKS_PER_DAY = 24000L;
     /** Required gap between envoy resolves at a single colony. */
     private static final long ENVOY_RESOLVE_GAP_TICKS = 3L * TICKS_PER_DAY;
+    /** The CitizenData display name stamped on every COLONIST envoy's
+     *  visitor record at spawn. Doubles as the ghost-sweep discriminator:
+     *  a visitor record with THIS name whose entity carries no ENVOY_TAG
+     *  is a clone MineColonies re-spawned from a leaked record (see
+     *  {@link #sweepGhostColonistEnvoys}). Never give a regular visitor
+     *  this name. */
+    static final String COLONIST_ENVOY_VISITOR_NAME = "Colonist Envoy";
     /** Required colony age before the first COLONIST envoy is eligible. */
     private static final long COLONIST_UNLOCK_AGE_TICKS = 3L * TICKS_PER_DAY;
     /** Named-goblin count required for GOBLIN envoy eligibility. */
@@ -2608,16 +2635,50 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // the cold shoulder extends to envoys (our-surfaces scope).
         if (Assassins.isColdShouldered(level, colonyId)) return;
 
+        // Gate 0b: the town-hall area must exist AND be entity-ticking.
+        // Every check below — getEntity in Gate 1, the presence scan in
+        // Gate 1b — silently answers "nothing there" for entities in
+        // unloaded chunks. Without this gate a waiting envoy in an
+        // unloaded colony was declared stale, and 3 days later a SECOND
+        // envoy spawned beside it (the "envoys pile up at the town hall"
+        // report). Envoys also shouldn't materialise where nobody is
+        // around to receive them.
+        if (!colony.getServerBuildingManager().hasTownHall()) return;
+        BlockPos thPos = colony.getServerBuildingManager().getTownHall().getPosition();
+        if (!level.isPositionEntityTicking(thPos)) return;
+
+        // Ghost sweep: drop any leftover "Colonist Envoy" visitor record
+        // that no longer has a live, tagged envoy entity behind it —
+        // otherwise MineColonies' VisitorManager keeps re-spawning an
+        // inert, untagged clone of it at the town hall forever. Runs
+        // every pass (cheap map walk) so it also retro-cleans existing
+        // saves that already accumulated a crowd.
+        sweepGhostColonistEnvoys(level, colony, config);
+
         // Gate 1: at most one active envoy per colony.
         UUID active = config.getActiveEnvoyUuid(colonyId);
         if (active != null) {
             net.minecraft.world.entity.Entity stillThere = level.getEntity(active);
-            if (stillThere != null && !stillThere.isRemoved()
-                    && stillThere.hasData(Attachments.ENVOY_TAG.get())) {
-                return;   // still alive — keep waiting
+            if (stillThere != null && !stillThere.isRemoved()) {
+                if (stillThere.hasData(Attachments.ENVOY_TAG.get())) {
+                    return;   // still alive — keep waiting
+                }
+                // A live entity under the active UUID WITHOUT our tag is
+                // MineColonies' doing: VisitorManager re-spawns a fresh
+                // VisitorCitizen (same UUID as the visitor data, but no
+                // NBT copied → no attachment, no invulnerability) whenever
+                // the envoy's body is missing or its chunk isn't fully
+                // loaded. Heal the clone — re-stamp the tag and spawn-time
+                // state — instead of declaring the envoy stale.
+                if (restampColonistEnvoy(level, colony, stillThere, config)) {
+                    return;   // healed — keep waiting
+                }
             }
             // Stale reference: entity gone but never resolved. Treat as a
-            // silent resolve so the gap timer can start.
+            // silent resolve so the gap timer can start. (Safe to judge
+            // here: Gate 0b guarantees the town-hall area — where envoys
+            // are restricted to — is loaded, so "not found" means gone,
+            // not merely unloaded.)
             config.setActiveEnvoyUuid(colonyId, null);
             config.setLastEnvoyResolveTick(colonyId, level.getGameTime());
             LOGGER.info("[TM] envoy scheduler: stale active envoy at colony {} ('{}') — cleared",
@@ -2629,11 +2690,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // activeEnvoyUuid check above covers our own race envoys; this also
         // rejects when a diplomacy FACTION envoy is currently waiting at the
         // town hall (the two systems are otherwise independent).
-        if (colony.getServerBuildingManager().hasTownHall()) {
-            BlockPos thPos = colony.getServerBuildingManager().getTownHall().getPosition();
-            if (hasAnyEnvoyNear(level, thPos, ENVOY_PRESENCE_SCAN_RADIUS)) {
-                return;
-            }
+        if (hasAnyEnvoyNear(level, thPos, ENVOY_PRESENCE_SCAN_RADIUS)) {
+            return;
         }
 
         // Gate 2: 3-day cooldown since the last resolve.
@@ -2815,10 +2873,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         // Visual: same poof effect as accept/decline.
                         despawnEnvoyWithEffect(level, envoy);
                         // Colonist envoys need the VisitorData unwound.
-                        if (envoy instanceof com.minecolonies.api.entity.citizen.AbstractEntityCitizen ce
-                                && ce.getCitizenData() != null) {
-                            colony.getVisitorManager().removeCivilian(ce.getCitizenData());
-                        }
+                        removeColonistEnvoyVisitorData(colony, envoy);
                         envoy.discard();
                         config.setLastEnvoyResolveTick(colonyId, now);
                         config.setActiveEnvoyUuid(colonyId, null);
@@ -3562,7 +3617,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // override to "Colonist Envoy" so the floating name shows only the
             // envoy label — MC renders the citizen data name as part of the
             // entity tag, separate from setCustomName.
-            colonistVisitorData.setName("Colonist Envoy");
+            colonistVisitorData.setName(COLONIST_ENVOY_VISITOR_NAME);
         } else {
             ResourceLocation typeId = switch (member) {
                 case GOBLIN -> Races.idFor(Race.GOBLIN);
@@ -3581,6 +3636,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (!(created instanceof net.minecraft.world.entity.Mob mob)) {
             LOGGER.error("[TM] envoy spawn: factory for '{}' returned {} — not a Mob",
                     type, created != null ? created.getClass().getName() : "null");
+            // Same cleanup as the addFreshEntity-failure path below: a
+            // registered VisitorData with no entity behind it would be
+            // re-spawned by MineColonies as a permanent untagged ghost.
+            if (colonistVisitorData != null) {
+                colony.getVisitorManager().removeCivilian(colonistVisitorData);
+            }
             return null;
         }
 
@@ -3991,11 +4052,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // Colonist envoys are registered IVisitorData — must be removed via
         // the visitor manager (which also discards the entity), not just by
         // a raw entity.discard(). Without this the visitor lingers in the
-        // colony's visitor map referencing a removed entity.
-        if (entity instanceof com.minecolonies.api.entity.citizen.AbstractEntityCitizen citizenEnvoy
-                && citizenEnvoy.getCitizenData() != null) {
-            colony.getVisitorManager().removeCivilian(citizenEnvoy.getCitizenData());
-        }
+        // colony's visitor map and MineColonies re-spawns an untagged clone
+        // of it at the town hall forever (the ghost-envoy bug).
+        removeColonistEnvoyVisitorData(colony, entity);
 
         // Stage 3a — record the resolve so the 3-day cooldown takes effect,
         // and clear the active-envoy reference so the scheduler is unblocked
@@ -4062,6 +4121,144 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         level.playSound(null, cx, cy, cz,
                 net.minecraft.sounds.SoundEvents.PLAYER_TELEPORT,
                 net.minecraft.sounds.SoundSource.NEUTRAL, 0.8f, 1.2f);
+    }
+
+    // ------------------------------------------------------------------
+    // COLONIST-envoy visitor-record lifecycle (the ghost-envoy fix)
+    // ------------------------------------------------------------------
+    //
+    // The COLONIST envoy is the only envoy backed by a MineColonies
+    // IVisitorData. MineColonies' VisitorManager exists to keep an entity
+    // alive for every registered visitor record: whenever the record's
+    // entity is missing, dead, or in a chunk that isn't entity-ticking,
+    // VisitorData.updateEntityIfNecessary() re-spawns a FRESH VisitorCitizen
+    // at the town hall — same UUID as the record, but with none of the old
+    // entity's NBT, so no ENVOY_TAG, no invulnerability, no nameplate rules.
+    // Two consequences we have to manage:
+    //   1. The ACTIVE envoy can be silently replaced by an untagged clone
+    //      (e.g. the town-hall chunk loads before the envoy's chunk on a
+    //      player's return — the late-loading original is then dropped as a
+    //      UUID duplicate). → restampColonistEnvoy heals the clone.
+    //   2. A visitor record that outlives its envoy (any cleanup path that
+    //      missed removeCivilian) is re-spawned as an inert "Colonist Envoy"
+    //      ghost at the town hall FOREVER. → sweepGhostColonistEnvoys
+    //      deletes such records (and retro-cleans old saves).
+    // See docs/user-bug-reports.md (2026-08-28 pile-up report).
+
+    /**
+     * Re-stamp the envoy state onto an untagged {@code VisitorCitizen} that
+     * MineColonies re-spawned under the active envoy's UUID. Restores the
+     * {@code ENVOY_TAG} (conditions re-captured — the original spawn mask
+     * died with the old entity's NBT), invulnerability, nameplate, and the
+     * town-hall roam restriction.
+     *
+     * @return true if the entity was a visitor clone and was healed; false
+     *     if it's some other untagged entity (caller falls through to the
+     *     stale-reference handling).
+     */
+    private static boolean restampColonistEnvoy(ServerLevel level, IColony colony,
+                                                net.minecraft.world.entity.Entity entity,
+                                                ColonyRaceConfigSavedData config) {
+        // Only the COLONIST envoy runs through the VisitorManager, so only
+        // a VisitorCitizen can lose its tag this way.
+        if (!(entity instanceof com.minecolonies.api.entity.citizen.AbstractEntityCitizen citizen)
+                || entity.getType() != com.minecolonies.api.entity.ModEntities.VISITOR) {
+            return false;
+        }
+        java.util.EnumSet<EnvoyCondition> captured =
+                captureMetConditions(level, colony, ColonyMember.COLONIST, config);
+        citizen.setData(Attachments.ENVOY_TAG.get(), new EnvoyTag(
+                colony.getID(), ColonyMember.COLONIST, EnvoyTag.State.ALIVE,
+                EnvoyCondition.toMask(captured)));
+        // Re-apply the spawn-time state the fresh clone lost with its NBT
+        // (mirrors the tail of spawnEnvoy).
+        citizen.setInvulnerable(true);
+        citizen.setPersistenceRequired();
+        citizen.setCustomName(EnvoyDialogue.nameplate(ColonyMember.COLONIST));
+        citizen.setCustomNameVisible(true);
+        if (colony.getServerBuildingManager().hasTownHall()) {
+            citizen.restrictTo(colony.getServerBuildingManager().getTownHall().getPosition(),
+                    ENVOY_ROAM_RADIUS);
+        }
+        LOGGER.info("[TM] envoy scheduler: re-stamped MineColonies-respawned COLONIST envoy "
+                + "at colony {} ('{}') (uuid={})",
+                colony.getID(), colony.getName(), citizen.getUUID());
+        return true;
+    }
+
+    /**
+     * Delete every "{@value #COLONIST_ENVOY_VISITOR_NAME}"-named visitor
+     * record that no longer has a live, {@code ENVOY_TAG}-carrying entity
+     * behind it. Each such record is a leak: MineColonies re-spawns an
+     * inert, untagged clone of it at the town hall every colony tick, which
+     * is how the reported envoy crowd formed. {@code removeCivilian} also
+     * discards the clone entity if one is currently loaded; an unloaded
+     * clone self-discards on next load (MineColonies drops visitor entities
+     * whose record is gone).
+     *
+     * <p>Skips the registered active envoy (Gate 1 heals that one instead
+     * of deleting it) and any record whose entity still carries the tag
+     * (an orphaned-but-real envoy the player can still answer).
+     */
+    private static void sweepGhostColonistEnvoys(ServerLevel level, IColony colony,
+                                                 ColonyRaceConfigSavedData config) {
+        UUID active = config.getActiveEnvoyUuid(colony.getID());
+        // Collect first, remove after: getCivilianDataMap() is an
+        // unmodifiable VIEW of the live visitor map, and removeCivilian
+        // mutates that map.
+        java.util.List<com.minecolonies.api.colony.ICivilianData> ghosts = null;
+        for (com.minecolonies.api.colony.ICivilianData data
+                : colony.getVisitorManager().getCivilianDataMap().values()) {
+            if (!COLONIST_ENVOY_VISITOR_NAME.equals(data.getName())) continue;
+            if (data.getUUID().equals(active)) continue;
+            net.minecraft.world.entity.Entity entity = level.getEntity(data.getUUID());
+            if (entity != null && !entity.isRemoved()
+                    && entity.hasData(Attachments.ENVOY_TAG.get())) {
+                continue;
+            }
+            if (ghosts == null) ghosts = new java.util.ArrayList<>();
+            ghosts.add(data);
+        }
+        if (ghosts == null) return;
+        for (com.minecolonies.api.colony.ICivilianData ghost : ghosts) {
+            colony.getVisitorManager().removeCivilian(ghost);
+            LOGGER.info("[TM] envoy sweep: removed ghost '{}' visitor record {} (uuid={}) "
+                    + "at colony {} ('{}')",
+                    COLONIST_ENVOY_VISITOR_NAME, ghost.getId(), ghost.getUUID(),
+                    colony.getID(), colony.getName());
+        }
+    }
+
+    /**
+     * Unregister a COLONIST envoy's visitor record on resolve (accept /
+     * decline / kin-kill). No-op for non-citizen envoy entities (the other
+     * races never touch the VisitorManager).
+     *
+     * <p>Must NOT rely on {@code getCitizenData()} alone: the entity only
+     * binds its data on its first server tick ({@code VisitorCitizen.aiStep
+     * → registerWithColony}), so an envoy answered before that — or a clone
+     * that never finished binding — returns null there. Fall back to
+     * matching the visitor map by entity UUID (spawnEnvoy force-aligns the
+     * entity UUID to the record's).
+     */
+    private static void removeColonistEnvoyVisitorData(IColony colony,
+                                                       net.minecraft.world.entity.Entity envoy) {
+        if (!(envoy instanceof com.minecolonies.api.entity.citizen.AbstractEntityCitizen citizenEnvoy)) {
+            return;
+        }
+        com.minecolonies.api.colony.ICitizenData data = citizenEnvoy.getCitizenData();
+        if (data != null) {
+            colony.getVisitorManager().removeCivilian(data);
+            return;
+        }
+        // Copy first: the map getter is an unmodifiable view of live storage.
+        for (com.minecolonies.api.colony.ICivilianData candidate : java.util.List.copyOf(
+                colony.getVisitorManager().getCivilianDataMap().values())) {
+            if (envoy.getUUID().equals(candidate.getUUID())) {
+                colony.getVisitorManager().removeCivilian(candidate);
+                return;
+            }
+        }
     }
 
     /** {@code /envoystate} — print Stage 3a envoy state for the player's
@@ -4713,9 +4910,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      * Iterates all server levels so we don't miss a goblin in a different
      * dimension from the new colony.
      */
-    // Package-visible: SubordinateJobGuard uses this to tell a healthy
-    // subordinate (body resolves somewhere) from a ghost (body nowhere).
-    static LivingEntity findLivingEntityAcrossLevels(MinecraftServer server, UUID uuid) {
+    private static LivingEntity findLivingEntityAcrossLevels(MinecraftServer server, UUID uuid) {
         for (ServerLevel level : server.getAllLevels()) {
             Entity e = level.getEntity(uuid);
             if (e instanceof LivingEntity le && le.isAlive()) {
@@ -4723,6 +4918,69 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             }
         }
         return null;
+    }
+
+    /**
+     * Re-materialize a SUBORDINATE-mode identity's wild body from its saved
+     * NBT snapshot, placing it next to {@code owner}. The shared recovery
+     * primitive for the "no live body exists" state that the envoy return
+     * ({@link DiplomacyManager}) leaves behind when its spawn fails, and for
+     * the roster recall that heals a save already stuck in that state.
+     *
+     * <p>⚠ ONLY call this when {@code identity.mobEntityUUID == null} — that
+     * is the one state where no body can exist anywhere (loaded or not). If a
+     * body might merely be in an UNLOADED chunk, rebuilding from the snapshot
+     * would create a duplicate the moment that chunk loads.
+     *
+     * <p>Duplicate-UUID safety: the snapshot preserves the despawned body's
+     * UUID. If an entity with that UUID is somehow alive in a loaded chunk
+     * (the {@code addFreshEntity} refusal case), we ADOPT it — teleport it to
+     * the owner and relink — instead of creating a twin.
+     *
+     * @return the live body on success, or null (reasons logged).
+     */
+    static LivingEntity rematerializeSubordinate(ServerPlayer owner,
+                                                 RaceIdentitySavedData.RaceIdentity identity) {
+        ServerLevel level = owner.serverLevel();
+        RaceIdentitySavedData identities = RaceIdentitySavedData.get(level);
+        if (identity.entitySnapshot == null) {
+            LOGGER.warn("[TM] rematerialize: identity {} has no entity snapshot — cannot rebuild body",
+                    identity.identityId);
+            return null;
+        }
+        BlockPos at = EntityUtils.getSpawnPoint(level, owner.blockPosition());
+        if (at == null) at = owner.blockPosition();
+
+        if (identity.entitySnapshot.hasUUID("UUID")) {
+            LivingEntity existing = findLivingEntityAcrossLevels(
+                    owner.getServer(), identity.entitySnapshot.getUUID("UUID"));
+            if (existing != null) {
+                existing.teleportTo(level, at.getX() + 0.5, at.getY(), at.getZ() + 0.5,
+                        java.util.Set.of(), owner.getYRot(), 0f);
+                identities.updateMobUUID(identity, existing.getUUID());
+                LOGGER.info("[TM] rematerialize: identity {} — live body with the snapshot UUID "
+                        + "already existed; adopted + teleported to owner", identity.identityId);
+                return existing;
+            }
+        }
+
+        Optional<Entity> created = EntityType.create(identity.entitySnapshot, level);
+        if (created.isEmpty() || !(created.get() instanceof net.minecraft.world.entity.Mob body)) {
+            LOGGER.warn("[TM] rematerialize: EntityType.create failed for identity {} (snapshot id '{}')",
+                    identity.identityId, identity.entitySnapshot.getString("id"));
+            return null;
+        }
+        body.moveTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5, owner.getYRot(), 0f);
+        body.setPersistenceRequired();
+        if (!level.addFreshEntity(body)) {
+            LOGGER.warn("[TM] rematerialize: addFreshEntity refused body for identity {} at {}",
+                    identity.identityId, at);
+            return null;
+        }
+        identities.updateMobUUID(identity, body.getUUID());
+        LOGGER.info("[TM] rematerialize: identity {} rebuilt from snapshot at {}",
+                identity.identityId, at);
+        return body;
     }
 
     /**
@@ -4749,12 +5007,44 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         try {
             CompoundTag snap = new CompoundTag();
             if (mob.save(snap)) {
+                stampSnapshotDimension(snap, mob.level());
                 saved.updateEntitySnapshot(identity, snap);
             }
         } catch (Throwable t) {
             LOGGER.warn("[TM] snapshot capture threw for identity {} — leaving prior snapshot",
                     identity.identityId, t);
         }
+    }
+
+    /** NBT key carrying the dimension a snapshot was taken in. Vanilla entity NBT
+     *  stores {@code Pos} but NOT the level, and we need both to reach a
+     *  subordinate whose chunk is unloaded. Prefixed so it can never collide with
+     *  a vanilla or Tensura key; unknown keys are ignored on load. */
+    private static final String SNAPSHOT_DIM_KEY = "tm_dimension";
+
+    /** Record which level a snapshot was captured in. Absent on pre-0.2.2
+     *  snapshots — {@link #snapshotDimension} falls back for those. */
+    private static void stampSnapshotDimension(CompoundTag snapshot, net.minecraft.world.level.Level level) {
+        snapshot.putString(SNAPSHOT_DIM_KEY, level.dimension().location().toString());
+    }
+
+    /** The level a snapshot was captured in, or null if it predates the stamp
+     *  (or names a dimension that no longer exists). */
+    private static ServerLevel snapshotDimension(MinecraftServer server, CompoundTag snapshot) {
+        if (snapshot == null || !snapshot.contains(SNAPSHOT_DIM_KEY)) return null;
+        ResourceLocation id = ResourceLocation.tryParse(snapshot.getString(SNAPSHOT_DIM_KEY));
+        if (id == null) return null;
+        return server.getLevel(net.minecraft.resources.ResourceKey.create(
+                net.minecraft.core.registries.Registries.DIMENSION, id));
+    }
+
+    /** The position a snapshot was captured at, read from vanilla's {@code Pos}
+     *  list. Null when absent or malformed. */
+    private static BlockPos snapshotPosition(CompoundTag snapshot) {
+        if (snapshot == null || !snapshot.contains("Pos", net.minecraft.nbt.Tag.TAG_LIST)) return null;
+        net.minecraft.nbt.ListTag pos = snapshot.getList("Pos", net.minecraft.nbt.Tag.TAG_DOUBLE);
+        if (pos.size() != 3) return null;
+        return BlockPos.containing(pos.getDouble(0), pos.getDouble(1), pos.getDouble(2));
     }
 
     /**
@@ -4788,43 +5078,86 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     // ------------------------------------------------------------------
 
     /**
-     * Ally-targeting veto — a colony's own GUARDS must not attack the PACT/
-     * COVENANT ally fighters we send to help defend it.
+     * Friendly-fire targeting veto — a colony's own GUARDS must not attack the
+     * Tensura mobs fighting for, or belonging to, that colony's side. Three
+     * kinds of friendly mob are covered:
+     * <ol>
+     *   <li>PACT/COVENANT <b>ally fighters</b> ({@code ALLY_TAG}) sent to help
+     *       defend a raid;</li>
+     *   <li><b>colony defenders</b> ({@code COLONY_DEFENDER}) — high-EP race
+     *       citizens place-swapped to their Tensura body mid-raid by
+     *       {@link ColonyThreatResponse}. Without this, a colony's own guards
+     *       could turn on its own defenders the moment they materialize;</li>
+     *   <li>the colony <b>owner's own subordinates</b> — a named subordinate
+     *       following its owner around their colony.</li>
+     * </ol>
      *
-     * <p><b>Why this is needed:</b> the ally fighters are ordinary Tensura mobs
-     * ({@code tensura:goblin} / {@code tensura:lizardman} are
-     * {@code MobCategory.MONSTER} — verified in the Tensura jar), and MineColonies
-     * auto-lists every {@code MobCategory.MONSTER} type as a guard-attackable mob
-     * ({@code CompatibilityManager.discoverMobs()}). So without this, a guard tower
-     * would target and cut down the allies the instant they arrive. See
-     * docs/potential-bugs.md.
+     * <p><b>Why this is needed:</b> all three are ordinary Tensura mobs
+     * ({@code tensura:goblin} / {@code tensura:orc} / {@code tensura:lizardman}
+     * are {@code MobCategory.MONSTER} — verified in the Tensura jar), and
+     * MineColonies auto-lists every {@code MobCategory.MONSTER} type as a
+     * guard-attackable mob ({@code CompatibilityManager.discoverMobs()}).
+     * Taming/ownership doesn't change the category, so without this a guard
+     * tower would target and cut them down. See docs/potential-bugs.md.
      *
      * <p><b>Why this hook:</b> MC guards pick a target from a ThreatTable and
      * COMMIT it via {@code TargetAI.onTargetChange → Mob.setTarget} (verified in
      * the MC jar) — which fires this NeoForge {@link LivingChangeTargetEvent}. We
-     * cancel the change when a colony citizen is about to target an ally fighter
+     * cancel the change when a colony citizen is about to target a friendly mob
      * of the SAME colony (or one whose colony we can't resolve — conservative,
-     * favouring the ally). This is an acquisition-time veto: the guard never
-     * commits a vanilla target on the ally, so its melee/ranged goals (which read
+     * favouring the friendly mob). This is an acquisition-time veto: the guard
+     * never commits a vanilla target, so its melee/ranged goals (which read
      * {@code getTarget()}) never engage it. A different player's colony guards
-     * (colony id mismatch) are left free to treat the mob as they would any wild
-     * one. Tightly gated (citizen attacker first, then the {@code ALLY_TAG} check)
-     * so the whole-game target-change traffic early-returns cheaply.
+     * (colony id / owner mismatch) are left free to treat the mob as they would
+     * any wild one. Tightly gated (citizen attacker first, then cheap tag/
+     * interface checks) so the whole-game target-change traffic early-returns
+     * cheaply. Note the subordinate check keys on the guard's colony OWNER, not
+     * a colony id — a subordinate belongs to a player, not a colony.
      */
     @SubscribeEvent
     public void onLivingChangeTarget(LivingChangeTargetEvent event) {
         if (!(event.getEntity() instanceof AbstractEntityCitizen citizen)) return;
         LivingEntity target = event.getNewAboutToBeSetTarget();
-        if (target == null || !target.hasData(Attachments.ALLY_TAG.get())) return;
-        AllyTag tag = target.getData(Attachments.ALLY_TAG.get());
-        if (tag == null) return;
+        if (target == null) return;
+
+        boolean isAlly = target.hasData(Attachments.ALLY_TAG.get());
+        boolean isDefender = target.hasData(Attachments.COLONY_DEFENDER.get());
+        boolean isSubordinate = target instanceof ISubordinate;
+        if (!isAlly && !isDefender && !isSubordinate) return;
+
         IColony colony = citizen.getCitizenColonyHandler() != null
                 ? citizen.getCitizenColonyHandler().getColony() : null;
-        // Veto for the ally's own colony guards; also veto when the guard's colony
-        // can't be resolved (favour the ally). A confirmed OTHER colony's guards
-        // (id mismatch) may still target it.
-        if (colony == null || colony.getID() == tag.colonyId()) {
-            event.setCanceled(true);
+
+        // (1) Ally fighter — veto for the ally's own colony guards; also veto
+        // when the guard's colony can't be resolved (favour the ally). A
+        // confirmed OTHER colony's guards (id mismatch) may still target it.
+        if (isAlly) {
+            AllyTag tag = target.getData(Attachments.ALLY_TAG.get());
+            if (tag != null && (colony == null || colony.getID() == tag.colonyId())) {
+                event.setCanceled(true);
+                return;
+            }
+        }
+
+        // (2) Colony defender — the defended colony's guards must never attack
+        // the body defending them. Same same-colony / unresolvable rule.
+        if (isDefender) {
+            ColonyDefenderTag dtag = target.getData(Attachments.COLONY_DEFENDER.get());
+            if (dtag != null && (colony == null || colony.getID() == dtag.colonyId())) {
+                event.setCanceled(true);
+                return;
+            }
+        }
+
+        // (3) Owned subordinate — veto when its owner OWNS the guard's colony
+        // (or the colony can't be resolved). An ownerless/wild ISubordinate
+        // mob falls through and stays guard-attackable.
+        if (isSubordinate) {
+            UUID owner = SubordinateHelper.getSubordinateOwnerUUID(target);
+            if (owner != null
+                    && (colony == null || owner.equals(colony.getPermissions().getOwner()))) {
+                event.setCanceled(true);
+            }
         }
     }
 
@@ -7050,9 +7383,35 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
         // Resolve the live body whose IExistence we'll read for the cost gate.
         LivingEntity target = resolveTargetBody(player, identity);
+        // Stranded-subordinate recall: SUBORDINATE mode with a NULL mob UUID
+        // means no body exists ANYWHERE (not just unloaded) — the state a
+        // failed envoy return leaves behind. Rebuild the body from the
+        // snapshot right here instead of the useless "go closer" advisory.
+        // The mobEntityUUID == null gate is load-bearing: a non-null UUID may
+        // just be an unloaded chunk, where rebuilding would create a
+        // duplicate. The envoy-away gate above already excluded subordinates
+        // legitimately away on a mission.
+        if (target == null
+                && identity.mode == RaceIdentitySavedData.Mode.SUBORDINATE
+                && identity.mobEntityUUID == null) {
+            LivingEntity recovered = rematerializeSubordinate(player, identity);
+            if (recovered != null) {
+                String name = recovered.hasCustomName()
+                        ? recovered.getCustomName().getString() : "Your subordinate";
+                sendAdvisoryNotice(player, name + " answers your call and returns to your side.");
+            } else {
+                sendAdvisoryNotice(player,
+                        "That subordinate has no body left to recall — see the server log.");
+            }
+            return;
+        }
         if (target == null) {
+            // The body exists, it just isn't loaded. Load its chunk and act on
+            // the REAL body once it arrives, rather than making the player walk
+            // there (or rebuilding from the snapshot, which would duplicate it).
+            if (beginReach(player, identity)) return;
             String msg = identity.mode == RaceIdentitySavedData.Mode.SUBORDINATE
-                    ? "Your subordinate isn't in any loaded chunk right now — go closer and try again."
+                    ? "Your subordinate can't be reached right now — go closer and try again."
                     : "That citizen's body isn't loaded right now — visit the colony first.";
             sendAdvisoryNotice(player, msg);
             return;
@@ -7722,10 +8081,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (now > 0 && now % AMBIENT_PERIOD_TICKS == 0) {
             runEnvoyScheduler(server);
             tickReputationDrift(server);
-            // Free any hut squatted by a GHOST — a citizen with no body in
-            // either form. Repairs saves that softlocked before the job guards
-            // existed. Ordinary away subordinates keep their jobs.
-            SubordinateJobGuard.tickReconcile(server);
             // Push the away-subordinate id set so the hiring window can gray
             // those citizens out. Silent when nothing changed.
             SubordinateJobGuard.tickSyncToClients(server);
@@ -7748,6 +8103,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (now > 0 && now % CITIZEN_PROFESSION_PERIOD_TICKS == 0) {
             tickCitizenProfessions(server);
         }
+
+        // Roster actions waiting on a target's chunk to stream its entities in.
+        tickPendingReaches(server);
 
         // Discard expired circles
         pendingCircles.removeIf(p -> {
@@ -8158,6 +8516,149 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         ICitizenData cd = colony.getCitizenManager().getCivilian(identity.citizenId);
         if (cd == null) return null;
         return cd.getEntity().orElse(null);
+    }
+
+    /** How long a reach keeps the target's chunk loaded while waiting for its
+     *  entities to finish streaming in. Entity files load asynchronously, so a
+     *  handful of ticks is normal; 5 s is generous and bounds the wait if the
+     *  body genuinely isn't there. */
+    private static final long REACH_TIMEOUT_TICKS = 100L;
+    /** How long the chunk is held AFTER the action resumes. The swap itself only
+     *  runs SWAP_DELAY_TICKS (2 s) later, and if the chunk unloaded in between
+     *  executePendingSwap would fail to resolve the body and refund. Comfortably
+     *  covers that window. */
+    private static final long REACH_HOLD_TICKS = 5L * SWAP_DELAY_TICKS;
+
+    /**
+     * Start reaching a body whose chunk isn't loaded: load that chunk and queue
+     * the action to re-run once the body resolves.
+     *
+     * <p>Where to look comes from the identity's own records — for a subordinate,
+     * the position and dimension stamped into its {@code entitySnapshot} (which
+     * the periodic refresh keeps within seconds of the mob's real position, and a
+     * mob in an unloaded chunk cannot move); for a colony citizen, the town hall.
+     * A pre-0.2.2 snapshot has no dimension stamp, in which case we can't know
+     * which level to load and fall back to the old advisory.</p>
+     *
+     * @return true if a reach was started (the caller must stop and let the tick
+     *         pass finish the action), false if the target can't be located.
+     */
+    private static boolean beginReach(ServerPlayer player,
+                                      RaceIdentitySavedData.RaceIdentity identity) {
+        ServerLevel level;
+        BlockPos pos;
+
+        if (identity.mode == RaceIdentitySavedData.Mode.SUBORDINATE) {
+            if (identity.mobEntityUUID == null) return false;   // no body anywhere
+            level = snapshotDimension(player.getServer(), identity.entitySnapshot);
+            pos = snapshotPosition(identity.entitySnapshot);
+            if (level == null || pos == null) return false;     // legacy snapshot
+        } else {
+            IColony colony = IColonyManager.getInstance()
+                    .getColonyByWorld(identity.colonyId, player.serverLevel());
+            if (colony == null || !colony.getServerBuildingManager().hasTownHall()) return false;
+            if (!(colony.getWorld() instanceof ServerLevel colonyLevel)) return false;
+            level = colonyLevel;
+            pos = colony.getServerBuildingManager().getTownHall().getPosition();
+        }
+
+        // Already reaching for this identity — don't stack a second attempt.
+        for (PendingReach r : pendingReaches) {
+            if (r.identityId().equals(identity.identityId)) return true;
+        }
+
+        int cx = net.minecraft.core.SectionPos.blockToSectionCoord(pos.getX());
+        int cz = net.minecraft.core.SectionPos.blockToSectionCoord(pos.getZ());
+        try {
+            level.getChunk(cx, cz);
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] reach: could not load chunk {},{} in {} for identity {}",
+                    cx, cz, level.dimension().location(), identity.identityId, t);
+            return false;
+        }
+
+        pendingReaches.add(new PendingReach(player.getUUID(), identity.identityId,
+                level.dimension(), cx, cz,
+                player.getServer().getTickCount() + REACH_TIMEOUT_TICKS,
+                false));
+        LOGGER.info("[TM] reach: loading chunk {},{} in {} to reach identity {}",
+                cx, cz, level.dimension().location(), identity.identityId);
+        return true;
+    }
+
+    /**
+     * Drive queued reaches: hold the chunk loaded and re-run the action as soon
+     * as the body resolves.
+     *
+     * <p>{@code getChunk} is re-called each attempt because the ticket it takes
+     * is a short-lived timeout ticket — re-touching it keeps the chunk from
+     * unloading underneath us mid-wait, and costs nothing once it is loaded.</p>
+     *
+     * <p><b>Iterates a COPY of the queue, and never an iterator over the live
+     * list.</b> Two things here add to {@code pendingReaches} while a pass is
+     * running: the hold-phase re-queue below, and the resumed
+     * {@link #handleMenuAction} when it cannot resolve and calls
+     * {@link #beginReach} again. With an {@code Iterator} over the real list
+     * either one makes the next {@code next()} throw
+     * {@code ConcurrentModificationException} — which crashed the server tick the
+     * first time this shipped (2026-09-02 playtest). Copying is what makes both
+     * re-entrant paths safe; removals go to the real list by value.</p>
+     */
+    private static void tickPendingReaches(MinecraftServer server) {
+        if (pendingReaches.isEmpty()) return;
+        long now = server.getTickCount();
+
+        for (PendingReach r : new java.util.ArrayList<>(pendingReaches)) {
+            ServerPlayer player = server.getPlayerList().getPlayer(r.playerUUID());
+            ServerLevel level = server.getLevel(r.dim());
+            if (player == null || level == null) { pendingReaches.remove(r); continue; }
+
+            RaceIdentitySavedData saved = RaceIdentitySavedData.get(player.serverLevel());
+            RaceIdentitySavedData.RaceIdentity identity = saved.getById(r.identityId());
+            if (identity == null) { pendingReaches.remove(r); continue; }
+
+            try {
+                level.getChunk(r.chunkX(), r.chunkZ());
+            } catch (Throwable ignored) {
+                // Fall through — the resolve below just won't find anything.
+            }
+
+            // Already resumed — this entry now exists purely to keep touching the
+            // chunk so it cannot unload during the swap's 2 s magic-circle delay,
+            // which would make executePendingSwap abort and refund. Expires quietly.
+            if (r.resumed()) {
+                if (now >= r.giveUpTick()) pendingReaches.remove(r);
+                continue;
+            }
+
+            if (resolveTargetBody(player, identity) != null) {
+                // The real body is loaded. Flip this entry to the hold phase
+                // BEFORE re-entering, so the action can't queue a second reach
+                // and the chunk stays put until the swap has run.
+                pendingReaches.remove(r);
+                pendingReaches.add(new PendingReach(r.playerUUID(), r.identityId(),
+                        r.dim(), r.chunkX(), r.chunkZ(),
+                        now + REACH_HOLD_TICKS, true));
+                LOGGER.info("[TM] reach: identity {} resolved — resuming the action",
+                        r.identityId());
+                try {
+                    handleMenuAction(player, r.identityId());
+                } catch (Throwable t) {
+                    LOGGER.error("[TM] reach: resumed action threw for identity {}",
+                            r.identityId(), t);
+                }
+                continue;
+            }
+
+            if (now >= r.giveUpTick()) {
+                pendingReaches.remove(r);
+                LOGGER.warn("[TM] reach: identity {} never resolved in {} ticks (chunk {},{} in {})",
+                        r.identityId(), REACH_TIMEOUT_TICKS, r.chunkX(), r.chunkZ(),
+                        r.dim().location());
+                sendAdvisoryNotice(player,
+                        "Couldn't reach that one — it may no longer exist. Try /recoverorphans.");
+            }
+        }
     }
 
     /** Lookup citizen name for advisory/prompt display. Falls back to "your citizen". */

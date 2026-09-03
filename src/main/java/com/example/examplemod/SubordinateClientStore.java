@@ -27,27 +27,36 @@ import java.util.Set;
 public final class SubordinateClientStore {
 
     /** colonyId → citizen ids currently away as subordinates. */
-    private static final Map<Integer, Set<Integer>> BY_COLONY = new HashMap<>();
+    private static final Map<Integer, Set<Integer>> AWAY_BY_COLONY = new HashMap<>();
+    /** colonyId → EVERY race citizen, away or not. Lets the hiring row tell a
+     *  race citizen serving in the colony ("Colonist Mode") from an ordinary
+     *  MineColonies colonist, whose row we leave completely alone. */
+    private static final Map<Integer, Set<Integer>> RACE_BY_COLONY = new HashMap<>();
 
     private SubordinateClientStore() {}
 
-    /** Replace one colony's set wholesale — the payload is always a full list. */
-    public static void accept(int colonyId, Set<Integer> citizenIds) {
-        if (citizenIds.isEmpty()) {
-            BY_COLONY.remove(colonyId);
-        } else {
-            BY_COLONY.put(colonyId, citizenIds);
-        }
+    /** Replace one colony's sets wholesale — the payload is always full lists. */
+    public static void accept(int colonyId, Set<Integer> awayIds, Set<Integer> raceIds) {
+        if (awayIds.isEmpty()) AWAY_BY_COLONY.remove(colonyId);
+        else AWAY_BY_COLONY.put(colonyId, awayIds);
+        if (raceIds.isEmpty()) RACE_BY_COLONY.remove(colonyId);
+        else RACE_BY_COLONY.put(colonyId, raceIds);
     }
 
     /** True if this citizen is away from the colony as a subordinate. */
     public static boolean isAway(int colonyId, int citizenId) {
-        return BY_COLONY.getOrDefault(colonyId, Collections.emptySet()).contains(citizenId);
+        return AWAY_BY_COLONY.getOrDefault(colonyId, Collections.emptySet()).contains(citizenId);
+    }
+
+    /** True if this citizen is one of ours at all (any race, either mode). */
+    public static boolean isRaceCitizen(int colonyId, int citizenId) {
+        return RACE_BY_COLONY.getOrDefault(colonyId, Collections.emptySet()).contains(citizenId);
     }
 
     /** Drop everything — on disconnect, so a later world doesn't inherit stale ids. */
     public static void clear() {
-        BY_COLONY.clear();
+        AWAY_BY_COLONY.clear();
+        RACE_BY_COLONY.clear();
     }
 
     /** Defensive copy helper for the payload handler. */

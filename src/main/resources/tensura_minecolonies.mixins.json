@@ -19,7 +19,6 @@
     "defaultRequire": 1
   },
   "client": [
-    "HireWorkerRowTagMixin",
-    "WindowHireWorkerGrayOutMixin"
+    "HireWorkerRowTagMixin"
   ]
 }

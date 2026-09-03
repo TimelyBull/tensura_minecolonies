@@ -38,7 +38,9 @@ open:
 !!! note "Your Envoy Is Away While Travelling"
     A subordinate sent as an envoy is unavailable until the mission
     resolves — you can't summon or use it in the meantime. It comes back
-    automatically (even across a logout) when the faction replies.
+    automatically (even across a logout) when the faction replies. If it
+    ever fails to reappear, open the roster (**`G`**) and select it to
+    call it back to your side.
 
 !!! warning "Race Matters"
     Luminous and Falmuth send envoys only to human players. A majin must send

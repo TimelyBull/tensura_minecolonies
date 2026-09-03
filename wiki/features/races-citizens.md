@@ -84,7 +84,9 @@ be near the colony.
 it while it is out at your side; the job simply goes undone until you send it
 home. You never have to unassign anything before summoning someone. A hut can't
 *newly* hire a resident who is currently away — those residents show grayed out
-in the hut's hiring list, marked "subordinate".
+in the hut's hiring list, marked **Subordinate Mode**, while ones serving in the
+colony read **Colonist Mode**. You can still fire a resident who is out with
+you, straight from the hut.
 
 ## The Roster
 

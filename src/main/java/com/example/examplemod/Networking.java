@@ -710,7 +710,9 @@ public final class Networking {
      * <p>Consumed only by the hiring window's gray-out. The server enforces the
      * actual refusal, so this being stale is cosmetic.</p>
      */
-    public record SyncSubordinateCitizensPayload(int colonyId, List<Integer> citizenIds)
+    public record SyncSubordinateCitizensPayload(int colonyId,
+                                                List<Integer> citizenIds,
+                                                List<Integer> raceCitizenIds)
             implements CustomPacketPayload {
 
         public static final Type<SyncSubordinateCitizensPayload> TYPE = new Type<>(
@@ -720,6 +722,7 @@ public final class Networking {
                 StreamCodec.composite(
                         ByteBufCodecs.VAR_INT,                            SyncSubordinateCitizensPayload::colonyId,
                         ByteBufCodecs.VAR_INT.apply(ByteBufCodecs.list()), SyncSubordinateCitizensPayload::citizenIds,
+                        ByteBufCodecs.VAR_INT.apply(ByteBufCodecs.list()), SyncSubordinateCitizensPayload::raceCitizenIds,
                         SyncSubordinateCitizensPayload::new
                 );
 
@@ -977,7 +980,9 @@ public final class Networking {
         // Registered as playToClient → only fires on the logical client, so
         // touching the client-only store here is safe.
         context.enqueueWork(() -> SubordinateClientStore.accept(
-                payload.colonyId(), SubordinateClientStore.copyOf(payload.citizenIds())));
+                payload.colonyId(),
+                SubordinateClientStore.copyOf(payload.citizenIds()),
+                SubordinateClientStore.copyOf(payload.raceCitizenIds())));
     }
 
     private static void onFestivalBonus(FestivalBonusPayload payload, IPayloadContext context) {

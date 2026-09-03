@@ -447,8 +447,9 @@ public final class RivalColonies {
     // placement (spacing/separation/salt in the JSON).
 
     // --- #2 site selection + foundation leveling (tunable) ---
-    /** Candidate centers sampled when siting a settlement; the flattest
-     *  wins (rejecting cliff/steep spots). */
+    /** Candidate centers sampled when siting a settlement; the DRIEST wins
+     *  (fewest underwater columns), flattest breaking ties (rejecting
+     *  cliff/steep spots). */
     private static final int SITE_SAMPLES = 8;
     /** How far (blocks) candidate centers scatter from the requested spot. */
     private static final int SITE_SCATTER = 24;
@@ -528,9 +529,10 @@ public final class RivalColonies {
                     pack, factionId);
             return null;
         }
-        // #2 — site selection: pick a reasonably flat nearby spot (rejects
-        // cliff faces) — but exact flatness matters less now that buildings
-        // follow the terrain individually (below).
+        // #2 — site selection: pick a DRY, reasonably flat nearby spot
+        // (rejects underwater columns and cliff faces) — exact flatness
+        // matters less now that buildings follow the terrain individually
+        // (below), but dryness is checked again per building.
         BlockPos center = findBuildableCenter(level, rawCenter);
 
         Settlement s = new Settlement();
@@ -556,7 +558,21 @@ public final class RivalColonies {
         }
         for (int i = 0; i < LAYOUT.size(); i++) {
             Building b = LAYOUT.get(i);
-            BlockPos at = new BlockPos(center.getX() + b.dx(), buildingY[i], center.getZ() + b.dz());
+            int bx = center.getX() + b.dx(), bz = center.getZ() + b.dz();
+            // Water guard (the "building at the bottom of the sea" bug):
+            // groundSurfaceY scans DOWN past fluids, so a column under an
+            // ocean/lake/river resolves to the SEABED and the building would
+            // generate fully submerged. Site selection already prefers dry
+            // centers; this per-building check catches the outlying building
+            // whose own columns hang over water even though the center is dry.
+            // Skipping beats relocating: a nudged building would overlap its
+            // grid neighbour, and a missing house reads better than a sunken one.
+            if (isWetPad(level, bx, bz)) {
+                LOGGER.warn("[TM] rival: skipping building '{}' at ({}, {}) — its pad is "
+                        + "underwater (ocean/lake/river column)", b.path(), bx, bz);
+                continue;
+            }
+            BlockPos at = new BlockPos(bx, buildingY[i], bz);
             levelBuildingPad(level, at);
             placeBuilding(level, placer, pack, b.path(), at);
             s.buildingPositions.add(at);
@@ -756,41 +772,74 @@ public final class RivalColonies {
     // #2 — site selection + foundation leveling
     // ------------------------------------------------------------------
 
-    /** Pick a reasonably flat nearby surface for a settlement center: sample a
-     *  handful of candidates and keep the one with the smallest GROUND-height
-     *  range over the footprint (stops early on a flat-enough spot). Rejects
-     *  cliff faces; gentle slopes are fine now that buildings follow the terrain
-     *  individually. Never fails — falls back to the requested spot. */
+    /** Pick a dry, reasonably flat nearby surface for a settlement center:
+     *  sample a handful of candidates and keep the one with the FEWEST
+     *  underwater columns over the footprint, smallest GROUND-height range
+     *  breaking ties (stops early on a dry, flat-enough spot). Dry beats flat
+     *  on purpose — the seabed is often the flattest thing near a coast, and
+     *  a flatness-only pick used to drift the town INTO the water. Rejects
+     *  cliff faces; gentle slopes are fine now that buildings follow the
+     *  terrain individually. Never fails — falls back to the requested spot. */
     private static BlockPos findBuildableCenter(ServerLevel level, BlockPos raw) {
         BlockPos best = null;
         int bestRange = Integer.MAX_VALUE;
+        int bestWet = Integer.MAX_VALUE;
         for (int i = 0; i < SITE_SAMPLES; i++) {
             BlockPos cand = (i == 0) ? raw : raw.offset(
                     level.getRandom().nextInt(SITE_SCATTER * 2 + 1) - SITE_SCATTER, 0,
                     level.getRandom().nextInt(SITE_SCATTER * 2 + 1) - SITE_SCATTER);
             BlockPos surf = new BlockPos(cand.getX(),
                     groundSurfaceY(level, cand.getX(), cand.getZ()) + 1, cand.getZ());
-            int range = surfaceRange(level, surf);
-            if (range < bestRange) { bestRange = range; best = surf; }
-            if (range <= SITE_FLAT_ENOUGH) break;
+            SiteSurvey survey = surveySite(level, surf);
+            if (survey.wetColumns() < bestWet
+                    || (survey.wetColumns() == bestWet && survey.heightRange() < bestRange)) {
+                bestWet = survey.wetColumns();
+                bestRange = survey.heightRange();
+                best = surf;
+            }
+            if (survey.wetColumns() == 0 && survey.heightRange() <= SITE_FLAT_ENOUGH) break;
         }
         return best != null ? best : new BlockPos(raw.getX(),
                 groundSurfaceY(level, raw.getX(), raw.getZ()) + 1, raw.getZ());
     }
 
-    /** Max−min GROUND height (true terrain, ignoring trees) over a coarse grid
-     *  spanning the layout footprint — the "how steep is this site" metric. */
-    private static int surfaceRange(ServerLevel level, BlockPos center) {
-        int min = Integer.MAX_VALUE, max = Integer.MIN_VALUE;
+    /** One candidate site's survey over a coarse grid spanning the layout
+     *  footprint: max−min GROUND height (true terrain, ignoring trees — the
+     *  "how steep is this site" metric) plus how many sampled columns are
+     *  underwater (the "how wet is this site" metric). */
+    private record SiteSurvey(int heightRange, int wetColumns) {}
+
+    private static SiteSurvey surveySite(ServerLevel level, BlockPos center) {
+        int min = Integer.MAX_VALUE, max = Integer.MIN_VALUE, wet = 0;
         int ext = GRID + BUILDING_PAD_HALF;
         for (int dx = -ext; dx <= ext; dx += 8) {
             for (int dz = -ext; dz <= ext + GRID; dz += 8) {
-                int y = groundSurfaceY(level, center.getX() + dx, center.getZ() + dz);
+                int x = center.getX() + dx, z = center.getZ() + dz;
+                int y = groundSurfaceY(level, x, z);
                 if (y < min) min = y;
                 if (y > max) max = y;
+                if (!level.getBlockState(new BlockPos(x, y + 1, z)).getFluidState().isEmpty()) wet++;
             }
         }
-        return max - min;
+        return new SiteSurvey(max - min, wet);
+    }
+
+    /** True when a column's ground is underwater. {@link #groundSurfaceY}
+     *  scans DOWN past fluids, so under an ocean/lake/river it returns the
+     *  SEABED — in that case the block directly above the ground is water. */
+    private static boolean isWetColumn(ServerLevel level, int x, int z) {
+        int ground = groundSurfaceY(level, x, z);
+        return !level.getBlockState(new BlockPos(x, ground + 1, z)).getFluidState().isEmpty();
+    }
+
+    /** True when any of a building pad's key columns (center + the four pad
+     *  corners) is underwater. Coarse on purpose — a pad that more than clips
+     *  the shoreline should be skipped, not half-drowned. */
+    private static boolean isWetPad(ServerLevel level, int x, int z) {
+        int h = BUILDING_PAD_HALF;
+        return isWetColumn(level, x, z)
+                || isWetColumn(level, x - h, z - h) || isWetColumn(level, x + h, z - h)
+                || isWetColumn(level, x - h, z + h) || isWetColumn(level, x + h, z + h);
     }
 
     /** True ground surface Y at a column — the highest SOLID terrain block,
