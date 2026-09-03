@@ -147,6 +147,11 @@ public final class DiplomacyManager {
     static final int MAX_OFFERS = 3;
     /** Un-accepted offers expire (and nudge standing −1) after this. */
     static final long OFFER_EXPIRY_TICKS = 3 * DAY;
+    /** The floor for the offer-draw tier. While relations stand, a
+     *  faction always offers at least its base-tier (NEUTRAL) deals —
+     *  see the note in {@link #refreshOffers}. Below this the deal pool
+     *  would be empty and the relationship could never be repaired. */
+    static final FactionTier MIN_OFFER_TIER = FactionTier.NEUTRAL;
     /** Offer-draw tier weighting: a deal one tier below the player's
      *  current tier is this fraction as likely to be drawn; two below
      *  is this-squared, etc. Lower-tier deals stay ELIGIBLE (never
@@ -483,25 +488,27 @@ public final class DiplomacyManager {
             data.markEnvoyReturnPending(identityId);
             return;
         }
-        ServerLevel level = owner.serverLevel();
-        if (identity.entitySnapshot != null) {
-            java.util.Optional<Entity> created =
-                    EntityType.create(identity.entitySnapshot, level);
-            if (created.isPresent() && created.get() instanceof Mob body) {
-                BlockPos at = EntityUtils.getSpawnPoint(level, owner.blockPosition());
-                if (at == null) at = owner.blockPosition();
-                body.moveTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5,
-                        owner.getYRot(), 0f);
-                body.setPersistenceRequired();
-                if (level.addFreshEntity(body)) {
-                    identities.updateMobUUID(identity, body.getUUID());
-                }
-            }
-        }
+        // Re-materialize the body next to the owner (shared primitive — also
+        // handles the duplicate-UUID adopt case). Whatever happens, the
+        // mission is OVER: clear the away flags so the identity is never
+        // locked out of the roster. On spawn failure the identity is left in
+        // the SUBORDINATE + no-mob state that the roster recall
+        // (ExampleMod.handleMenuAction → rematerializeSubordinate) heals, and
+        // the player is told so honestly instead of "returned".
+        LivingEntity body = ExampleMod.rematerializeSubordinate(owner, identity);
         data.clearEnvoyAway(identityId);
         data.clearEnvoyReturnPending(identityId);
-        owner.sendSystemMessage(Component.literal("Your envoy has returned to your side.")
-                .withStyle(net.minecraft.ChatFormatting.GRAY));
+        if (body != null) {
+            owner.sendSystemMessage(Component.literal("Your envoy has returned to your side.")
+                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+        } else {
+            LOGGER.warn("[TM] diplomacy: envoy return failed to re-materialize identity {} — "
+                    + "player advised to recall via the roster", identityId);
+            owner.sendSystemMessage(Component.literal(
+                    "Your envoy is struggling to find the way back. Open the subordinate"
+                    + " roster (G) and select them to call them to your side.")
+                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+        }
     }
 
     /** Login hook — spawn back any envoy subordinates whose mission
@@ -598,6 +605,13 @@ public final class DiplomacyManager {
     private static boolean spawnFactionEnvoy(ServerLevel level, ServerPlayer player,
                                              IColony colony, BossFaction faction) {
         BlockPos th = colony.getServerBuildingManager().getTownHall().getPosition();
+        // The town-hall area must be entity-ticking: the presence scan below
+        // is blind to unloaded chunks (it would report "no envoy" while one
+        // stands in an unloaded colony), and spawning while nobody is near
+        // both stacks envoys and drops the villager into an unloaded chunk.
+        if (!level.isPositionEntityTicking(th)) {
+            return false;
+        }
         // Only ONE envoy of ANY type at a colony at a time — skip if a race
         // (colony-join) envoy OR any faction envoy is already waiting near the
         // town hall (also covers reload-orphaned envoys).
@@ -1395,7 +1409,21 @@ public final class DiplomacyManager {
                             STANDING_OFFER_EXPIRED, WorldRepReason.DIPLOMACY);
                 }
 
+                // The DRAW tier. Every deal in every faction table gates
+                // at NEUTRAL or above, so a live relationship whose
+                // standing has slipped into WARY (20-39) would draw an
+                // EMPTY pool — the tab reads "No offers on the table
+                // today." forever, and because deals are the main way to
+                // earn standing back, nothing can ever refill it. That
+                // dead zone is what the 0.2.2 "offers stop appearing
+                // after a few days" report was. Having relations at all
+                // means the faction still trades at its BASE level, so
+                // the draw tier is floored at MIN_OFFER_TIER while
+                // relations stand; the standing itself is untouched (the
+                // faction row still reads Wary, and collapse below 20
+                // still shatters the relationship).
                 FactionTier tier = WorldReputationManager.getTier(level, player, faction);
+                if (tier.compareTo(MIN_OFFER_TIER) < 0) tier = MIN_OFFER_TIER;
                 ActiveDeal active = data.getDeal(player, e.getKey());
                 // Stage 2 — offers come from THIS faction's flavored
                 // table. Eligible specs are collected first and drawn
@@ -2187,9 +2215,16 @@ public final class DiplomacyManager {
                 d.putBoolean("lend", lendDeal);
                 d.putInt("returnHours", (int) Math.max(0, (deal.payoffAtTick - now) / 1000));
                 d.putBoolean("rite", spec.requirement() instanceof DealSpec.MendingRite);
+                // Every requirement shape that deliver() actually handles must
+                // be listed here, or the deal has NO way to be completed: the
+                // Deliver button is the only entry point, and isRequirementMet
+                // deliberately returns false for these (they deliver by hand).
+                // Bundles + the trial were missing — see user-bug-reports.md.
                 d.putBoolean("canDeliver", deal.state == ActiveDeal.STATE_ACTIVE
                         && (spec.requirement() instanceof DealSpec.SupplyItems
-                                || spec.requirement() instanceof DealSpec.MendingRite));
+                                || spec.requirement() instanceof DealSpec.MendingRite
+                                || spec.requirement() instanceof DealSpec.SupplyBundle
+                                || spec.requirement() instanceof DealSpec.TwoFacedTrial));
                 d.putBoolean("canCollect", deal.state == ActiveDeal.STATE_READY);
                 f.put("active", d);
             }

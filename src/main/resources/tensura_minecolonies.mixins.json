@@ -4,15 +4,21 @@
   "package": "com.example.examplemod.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "AssignedCitizenModuleJobMixin",
+    "CitizenManagerJoblessMixin",
     "CreateColonyMessageMixin",
     "EntityCitizenBabyMixin",
     "EventManagerMixin",
     "IGiantMobMixin",
     "ISubordinateCommandMixin",
     "ReproductionManagerMixin",
-    "TensuraBehaviourHelperMixin"
+    "TensuraBehaviourHelperMixin",
+    "WorkerModuleAssignJobMixin"
   ],
   "injectors": {
     "defaultRequire": 1
-  }
+  },
+  "client": [
+    "HireWorkerRowTagMixin"
+  ]
 }

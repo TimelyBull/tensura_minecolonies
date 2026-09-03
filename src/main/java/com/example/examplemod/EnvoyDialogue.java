@@ -75,8 +75,9 @@ public final class EnvoyDialogue {
                 + "Will you have us?");
 
         DIALOGUE_BODY.put(ColonyMember.COLONIST,
-                "Good day. I speak for settlers seeking a new home — your colony came "
-                + "well-recommended. We bring skilled hands. Would you welcome us?");
+                "Hello there! I represent new settlers seeking to build their own home. "
+                + "Your colony looks good enough and we would bring you skilled labor. "
+                + "What do you say?");
 
         // Lizardman voice: proud, formal, a touch grandiose about their people's
         // strength and lineage — but earnest and sincere in their allegiance.

@@ -141,11 +141,11 @@ dependencies {
     // -------------------------------------------------------------------------
 
     // MineColonies and its required libraries
-    compileOnly files('libs/minecolonies-1.1.1319-1.21.1.jar')
-    localRuntime files('libs/minecolonies-1.1.1319-1.21.1.jar')
+    compileOnly files('libs/minecolonies-1.1.1368-1.21.1.jar')
+    localRuntime files('libs/minecolonies-1.1.1368-1.21.1.jar')
 
-    compileOnly files('libs/structurize-1.0.830-1.21.1.jar')
-    localRuntime files('libs/structurize-1.0.830-1.21.1.jar')
+    compileOnly files('libs/structurize-1.0.832-1.21.1.jar')
+    localRuntime files('libs/structurize-1.0.832-1.21.1.jar')
 
     // Tensura and its required libraries
     compileOnly files('libs/tensura-neoforge-2.0.1.0.jar')

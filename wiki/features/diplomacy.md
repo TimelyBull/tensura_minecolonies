@@ -38,7 +38,9 @@ open:
 !!! note "Your Envoy Is Away While Travelling"
     A subordinate sent as an envoy is unavailable until the mission
     resolves — you can't summon or use it in the meantime. It comes back
-    automatically (even across a logout) when the faction replies.
+    automatically (even across a logout) when the faction replies. If it
+    ever fails to reappear, open the roster (**`G`**) and select it to
+    call it back to your side.
 
 !!! warning "Race Matters"
     Luminous and Falmuth send envoys only to human players. A majin must send
@@ -54,17 +56,45 @@ A deal asks for one of:
 
 | The faction wants… | You fulfil it by… |
 |---|---|
-| **Supplies** (e.g. 64 iron, a food bundle) | Pressing **Deliver** on the tab — the items are taken from your inventory |
+| **Supplies** — one item type (e.g. 64 iron) | Pressing **Deliver** on the tab — the items are taken from your inventory |
+| **A bundle** — several item types at once (e.g. Caravan Tolls: 32 emeralds and 8 gold ingots) | The same **Deliver** button; you need everything in the bundle at once |
 | **Kills** (a boss, or a number of a mob) | Killing the named target |
 | **Lent citizens** (see below) | Sending some colonists to work for them a while |
 
-(Two more asks appear only as Covenant capstones — reaching a citizen count, or
-conquering the faction's settlement — see the
-[Quest Catalog](../reference/quest-catalog.md).)
+(Three more asks appear only as Covenant capstones — reaching a citizen count,
+conquering the faction's settlement, or Luminous's Trial of Light & Dark
+(below) — see the [Quest Catalog](../reference/quest-catalog.md).)
 
 Every deal has a **deadline**. Complete it in time for the reward and a standing
 gain. Let it expire and standing drops. The active deal shows a progress bar,
 and the faction's row shows its current deal.
+
+Which deals a faction puts on the table depends on your standing with it —
+higher standing brings out its better deals. Its basic deals stay available at
+any standing, so a relationship that has slipped can always be worked back up.
+
+### The Trial Of Light & Dark (Luminous)
+
+Luminous's Covenant deal is a task, not a delivery. Accepting it gives you two
+empty chalices, and you fill each one separately:
+
+- **A Show of Faith** — cure zombie villagers and raise the cured villagers to
+  the top of their trade. This fills the holy chalice.
+- **The Blood Sacrifice** — kill your own named subordinates. This fills the
+  blood chalice.
+
+Each chalice fills in three steps, and its appearance changes as it fills. With
+both full, press **Deliver** on the deal to hand them over. Luminous forges them
+into the **Twin Grail**: by day it heals you and clears harmful effects; by
+night it grants strength and speed, and 25% of your melee damage comes back to
+you as health.
+
+If you are on the majin (monster) path, Luminous asks for more on both counts:
+your cured villagers must breed and raise a new generation, and the blood must
+come from your three strongest subordinates. Which version you get is fixed when
+you accept the deal and does not change if you switch sides afterwards.
+
+The chalices cannot be lost — they stay with you on death.
 
 ### Lending Citizens
 
@@ -116,7 +146,8 @@ Relations progress through three tiers, each unlocking more.
     - **Milim** — the **Absolute Annihilator**, a custom growing hammer, for
       slaying the Warden (also grants her Strength skill), plus a **Drago Nova**
       blast you can claim about once an hour.
-    - **Luminous** — starter elemental spirits (only if you have none).
+    - **Luminous** — the **Twin Grail**, from her Trial of Light & Dark
+      (below), plus starter elemental spirits (only if you have none).
     - **Falmuth** — stronger faction reinforcements during raids.
     - **Moderate Harlequin Alliance** — advance notice of incoming raids, and
       a tame Orc Disaster to kill without penalty.
