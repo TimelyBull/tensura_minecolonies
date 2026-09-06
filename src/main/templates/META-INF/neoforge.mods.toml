@@ -175,6 +175,17 @@ config="${mod_id}.mixins.json"
     ordering="AFTER"
     side="BOTH"
 
+# TR: Nightmare — OPTIONAL integration (author granted permission 2026-09-05).
+# When present, its OwnerChangeEvent drives the citizen-steal/protection layer
+# (TrNightmareCompat) and its domination skills feed the mind-control system.
+# When absent, the game loads and plays identically to before.
+[[dependencies.${mod_id}]]
+    modId="trnightmare"
+    type="optional"
+    versionRange="[1.0.3,)"
+    ordering="AFTER"
+    side="BOTH"
+
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.

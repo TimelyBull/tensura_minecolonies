@@ -47,9 +47,26 @@ public final class GoblinCitizenRenderHandler {
 
     private static GoblinCitizenRenderer renderer;
 
+    /** Failure bounding. Without these, a renderer that throws every frame
+     *  re-logs a full stack trace AND rebuilds the whole renderer (8 overlay
+     *  layers + armor + item-in-hand, with model baking) on the NEXT frame,
+     *  for every goblin citizen on screen. That death spiral floods the log
+     *  and churns the heap until the game freezes — the shape of the
+     *  2026-09-05 "progressive FPS drain" report. Mirrors the permanent
+     *  {@code disabled} latch the orc/lizardman handlers already use.
+     *
+     *  Both latches are cleared ONLY by {@link #invalidate()} (logout), never
+     *  by the failure path itself — resetting them on failure is exactly what
+     *  defeated the dwarf handler's threshold. */
+    private static boolean disabled = false;
+    private static boolean buildFailed = false;
+    private static int consecutiveFailures = 0;
+    private static final int FAILURE_THRESHOLD = 5;
+
     private GoblinCitizenRenderHandler() {}
 
     public static void onRenderLivingPre(RenderLivingEvent.Pre<?, ?> event) {
+        if (disabled) return;
         if (!(event.getEntity() instanceof AbstractEntityCitizen citizen)) return;
         RaceTag tag = RaceTagClientStore.get(citizen.getUUID());
         if (tag == null) return;
@@ -86,20 +103,44 @@ public final class GoblinCitizenRenderHandler {
                     event.getPoseStack(),
                     event.getMultiBufferSource(),
                     event.getPackedLight());
+            consecutiveFailures = 0;
         } catch (Throwable t) {
-            LOGGER.error("[TM] goblin render failed for entity {} — invalidating renderer",
-                    citizen.getUUID(), t);
-            invalidate();
+            consecutiveFailures++;
+            // Stack trace ONCE — after that the counter alone, so a persistent
+            // failure can't write gigabytes to latest.log.
+            if (consecutiveFailures == 1) {
+                LOGGER.error("[TM] goblin render failed for entity {} — will retry {} more times before disabling",
+                        citizen.getUUID(), FAILURE_THRESHOLD - 1, t);
+            } else {
+                LOGGER.error("[TM] goblin render failed for entity {} (failure {}/{})",
+                        citizen.getUUID(), consecutiveFailures, FAILURE_THRESHOLD);
+            }
+            if (consecutiveFailures >= FAILURE_THRESHOLD) {
+                LOGGER.error("[TM] goblin renderer failed {} times — disabling for this session; "
+                        + "goblin citizens will render as plain colonists", FAILURE_THRESHOLD);
+                // NOT invalidate(): this must NOT clear the latch, or the next
+                // frame rebuilds and re-enters the spiral.
+                disabled = true;
+                renderer = null;
+            }
         }
     }
 
-    /** Drops the cached renderer. Called from {@code ClientEvents.onClientLoggingOut}. */
+    /** Full reset for a session boundary. Called from
+     *  {@code ClientEvents.onClientLoggingOut} — drops the cached renderer
+     *  (its Context references the outgoing world's resource manager) AND
+     *  clears the failure latches, so a new session starts clean. The render
+     *  failure path deliberately does NOT call this. */
     public static void invalidate() {
         renderer = null;
+        disabled = false;
+        buildFailed = false;
+        consecutiveFailures = 0;
     }
 
     private static GoblinCitizenRenderer renderer() {
         if (renderer != null) return renderer;
+        if (buildFailed) return null; // already tried and failed; don't loop-build
         try {
             Minecraft mc = Minecraft.getInstance();
             // In 1.21.1, ItemInHandRenderer is owned by EntityRenderDispatcher
@@ -117,7 +158,11 @@ public final class GoblinCitizenRenderHandler {
             renderer = new GoblinCitizenRenderer(ctx);
             LOGGER.info("[TM] goblin renderer built");
         } catch (Throwable t) {
-            // Don't loop-build: leave null, log once.
+            // Latch it. Previously this only left `renderer` null, so the very
+            // next frame re-attempted the build and re-logged the stack trace —
+            // every frame, for every goblin citizen. The comment claimed "log
+            // once"; nothing enforced it.
+            buildFailed = true;
             LOGGER.error("[TM] failed to build goblin renderer — tagged citizens will not render this session", t);
         }
         return renderer;

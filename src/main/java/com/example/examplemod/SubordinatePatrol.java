@@ -4,6 +4,8 @@ import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import io.github.manasmods.tensura.entity.template.subclass.ISubordinate;
+import io.github.manasmods.tensura.storage.TensuraStorages;
+import io.github.manasmods.tensura.storage.ep.IExistence;
 import io.github.manasmods.tensura.util.SubordinateHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -263,6 +265,42 @@ public final class SubordinatePatrol {
         if (!(mob.level() instanceof ServerLevel level)) return;
         if (!mob.hasData(Attachments.PATROL_ORDER.get())) return;
 
+        // Harvest Festival (the owner awakening as a true demon lord) — PAUSE,
+        // don't cancel. Tensura's enterHarvestFestival flips every owned
+        // subordinate within its range to FOLLOW + PROTECT (setWandering(false)
+        // + behaviour 3) so they guard the immobilised owner, and later freezes
+        // them in sleep mode for the gift. The auto-cancel below used to read
+        // that flip as "the player changed the command": it silently dropped
+        // the order AND overrode Tensura's protect stance with neutral, so the
+        // subordinate neither guarded the awakening nor ever patrolled again.
+        // Now: while the festival is running and Tensura has touched this mob,
+        // step aside and let the protect stance drive; when it ends, restore
+        // the patrol stance and carry on. A patroller OUTSIDE the festival's
+        // range (still wandering, not asleep) is untouched by Tensura and keeps
+        // patrolling. The pause is persisted on the order (reload-safe).
+        PatrolOrder current = mob.getData(Attachments.PATROL_ORDER.get());
+        boolean festival = isFestivalActive(mob, sub);
+        if (festival) {
+            if (current.festivalPaused()) return;                  // still paused
+            if (!sub.isWandering() || isInFestivalSleep(mob)) {    // Tensura flipped it
+                mob.setData(Attachments.PATROL_ORDER.get(), current.withFestivalPaused(true));
+                ExampleMod.LOGGER.info("[TM] patrol: '{}' paused for the owner's Harvest Festival (guarding the awakening)",
+                        mob.getName().getString());
+                return;
+            }
+            // else: out of range, untouched — patrol normally
+        } else if (current.festivalPaused()) {
+            // Festival over — restore the stance beginPatrol set (Tensura left
+            // the mob on FOLLOW + PROTECT) and resume the loop from here.
+            SubordinateHelper.setWander(mob);
+            sub.setWanderPos(mob.blockPosition());
+            SubordinateHelper.setAggressive(mob);
+            mob.setData(Attachments.PATROL_ORDER.get(), current.withFestivalPaused(false));
+            mob.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+            ExampleMod.LOGGER.info("[TM] patrol: '{}' resuming patrol after the Harvest Festival",
+                    mob.getName().getString());
+        }
+
         // Auto-cancel if the player changed the command outside our cycle
         // (e.g. Tensura's native plain-click cycle on a beast moved it to
         // STAY/FOLLOW). beginPatrol leaves the mob wandering-and-not-sitting;
@@ -363,6 +401,37 @@ public final class SubordinatePatrol {
         if (target == null) return; // no dry in-colony point found this pass — retry next tick
         mob.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
                 new WalkTarget(target, PATROL_SPEED, CLOSE_ENOUGH));
+    }
+
+    /**
+     * Is the owner's Harvest Festival running for this subordinate? True while
+     * the OWNER's festival timer is counting down (Tensura's
+     * {@code harvestTick}, set by {@code enterHarvestFestival}) or while the
+     * mob itself is in festival sleep mode (its own {@code harvestGiftTick},
+     * set as the gift is handed out). An offline owner reads as no festival
+     * (Tensura's timer only ticks while the owner is loaded anyway).
+     */
+    private static boolean isFestivalActive(Mob mob, ISubordinate sub) {
+        if (isInFestivalSleep(mob)) return true;
+        LivingEntity owner = sub.getOwner();
+        if (owner == null) return false;
+        try {
+            IExistence ex = TensuraStorages.getExistenceFrom(owner);
+            return ex != null && ex.getHarvestTick() > 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /** True while the mob is frozen in festival sleep mode awaiting its gift
+     *  (Tensura's per-entity {@code harvestGiftTick}). */
+    private static boolean isInFestivalSleep(Mob mob) {
+        try {
+            IExistence ex = TensuraStorages.getExistenceFrom(mob);
+            return ex != null && (ex.getHarvestGiftTick() > 0 || ex.getHarvestTick() > 0);
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     /** True when the mob has stopped pathing but isn't actually at its walk

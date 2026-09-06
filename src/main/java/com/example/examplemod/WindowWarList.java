@@ -37,7 +37,7 @@ public class WindowWarList extends AbstractWindowSkeleton {
     private static final int[] BORDER_DIVIDER = {0x8A, 0x75, 0x4A};
 
     private record Row(int id, String faction, String where, String state,
-                       boolean canDeclare, boolean canRetreat) {}
+                       boolean canDeclare, boolean canRetreat, boolean canScout) {}
 
     private final List<Row> rows = new ArrayList<>();
     private ScrollingList list;
@@ -48,10 +48,12 @@ public class WindowWarList extends AbstractWindowSkeleton {
         for (int i = 0; i < listTag.size(); i++) {
             CompoundTag e = listTag.getCompound(i);
             rows.add(new Row(e.getInt("id"), e.getString("faction"), e.getString("where"),
-                    e.getString("state"), e.getBoolean("canDeclare"), e.getBoolean("canRetreat")));
+                    e.getString("state"), e.getBoolean("canDeclare"), e.getBoolean("canRetreat"),
+                    e.getBoolean("canScout")));
         }
         registerButton("close", (Button b) -> close());
         registerButton("wact", this::onRowAction);
+        registerButton("wscout", this::onRowScout);
     }
 
     @Override
@@ -89,6 +91,11 @@ public class WindowWarList extends AbstractWindowSkeleton {
         if (where != null) { where.setText(Component.literal(r.where())); where.setColors(TXT_GRAY); }
         Text state = rowPane.findPaneOfTypeByID("sstate", Text.class);
         if (state != null) { state.setText(Component.literal(r.state())); state.setColors(TXT_GRAY); }
+        Button scoutBtn = rowPane.findPaneOfTypeByID("wscout", Button.class);
+        if (scoutBtn != null) {
+            scoutBtn.setText(Component.literal("Scout"));
+            scoutBtn.setEnabled(r.canScout());
+        }
         Button act = rowPane.findPaneOfTypeByID("wact", Button.class);
         if (act != null) {
             if (r.canRetreat()) {
@@ -102,6 +109,17 @@ public class WindowWarList extends AbstractWindowSkeleton {
                 act.setEnabled(false);
             }
         }
+    }
+
+    private void onRowScout(Button button) {
+        if (list == null) return;
+        int idx = list.getListElementIndexByPane(button);
+        if (idx < 0 || idx >= rows.size()) return;
+        Row r = rows.get(idx);
+        if (!r.canScout()) return;
+        PacketDistributor.sendToServer(new Networking.WarActionPayload(
+                Networking.WarActionPayload.SCOUT, r.id(), new ArrayList<>()));
+        close();
     }
 
     private void onRowAction(Button button) {

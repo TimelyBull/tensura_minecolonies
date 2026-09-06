@@ -182,6 +182,18 @@ dependencies {
     compileOnly files('libs/nightmareutils-0.1.2.jar')
     localRuntime files('libs/nightmareutils-0.1.2.jar')
 
+    // TR: Nightmare — OPTIONAL dependency (author granted permission 2026-09-05;
+    // API/event use only, no mixins into their code, never redistributed).
+    // compileOnly + localRuntime: the single class importing it
+    // (TrNightmareCompat) is reached exclusively behind
+    // ModList.isLoaded("trnightmare"), so the built jar runs fine without the
+    // mod. TextAnimator is trnightmare's own REQUIRED client dep ([3.0,)) —
+    // remove BOTH localRuntime lines together to dev-test the without-TR:N
+    // path.
+    compileOnly files('libs/trnightmare-1.0.3.2.8-neoforge-1.21.1.jar')
+    localRuntime files('libs/trnightmare-1.0.3.2.8-neoforge-1.21.1.jar')
+    localRuntime files('libs/TextAnimator-1.21.1-NeoForge-3.2.3.jar')
+
     // SmartBrainLib (required by Tensura for AI)
     compileOnly files('libs/SmartBrainLib-neoforge-1.21.1-1.16.11.jar')
     localRuntime files('libs/SmartBrainLib-neoforge-1.21.1-1.16.11.jar')

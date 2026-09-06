@@ -74,6 +74,78 @@ class SettlementSavedData extends SavedData {
         setDirty();
     }
 
+    // ------------------------------------------------------------------
+    // Espionage: scout missions (2026-09-05). One record per subordinate
+    // away scouting a settlement; drives the away-gate + the return tick.
+    // ------------------------------------------------------------------
+
+    static class ScoutMission {
+        java.util.UUID identityId;   // the scout's RaceIdentity
+        int settlementId;            // the target
+        java.util.UUID requester;    // who sent them (owner OR controller)
+        long returnTick;             // gameTime the mission resolves
+        // Captured at DEPART — the scout's relevant abilities + power.
+        double scoutEp;
+        boolean hasAppraisal;        // can it read EP? gates the EP line
+        boolean hasStealth;          // formhide/concealment — halves detection
+        String scoutName;
+
+        CompoundTag save() {
+            CompoundTag t = new CompoundTag();
+            t.putUUID("identity", identityId);
+            t.putInt("settlement", settlementId);
+            t.putUUID("requester", requester);
+            t.putLong("returnTick", returnTick);
+            t.putDouble("scoutEp", scoutEp);
+            t.putBoolean("appraisal", hasAppraisal);
+            t.putBoolean("stealth", hasStealth);
+            t.putString("name", scoutName);
+            return t;
+        }
+
+        static ScoutMission load(CompoundTag t) {
+            ScoutMission m = new ScoutMission();
+            m.identityId = t.getUUID("identity");
+            m.settlementId = t.getInt("settlement");
+            m.requester = t.getUUID("requester");
+            m.returnTick = t.getLong("returnTick");
+            m.scoutEp = t.getDouble("scoutEp");
+            m.hasAppraisal = t.getBoolean("appraisal");
+            m.hasStealth = t.getBoolean("stealth");
+            m.scoutName = t.getString("name");
+            return m;
+        }
+    }
+
+    private final java.util.List<ScoutMission> scoutMissions = new ArrayList<>();
+
+    void addScoutMission(ScoutMission mission) {
+        scoutMissions.add(mission);
+        setDirty();
+    }
+
+    void removeScoutMission(ScoutMission mission) {
+        if (scoutMissions.remove(mission)) setDirty();
+    }
+
+    java.util.List<ScoutMission> scoutMissions() {
+        return scoutMissions;
+    }
+
+    boolean isScoutAway(java.util.UUID identityId) {
+        for (ScoutMission m : scoutMissions) {
+            if (m.identityId.equals(identityId)) return true;
+        }
+        return false;
+    }
+
+    boolean hasScoutMission(int settlementId, java.util.UUID requester) {
+        for (ScoutMission m : scoutMissions) {
+            if (m.settlementId == settlementId && m.requester.equals(requester)) return true;
+        }
+        return false;
+    }
+
     boolean isVillageEvaluated(net.minecraft.core.BlockPos center) {
         return evaluatedVillages.contains(center.asLong());
     }
@@ -108,6 +180,9 @@ class SettlementSavedData extends SavedData {
         int j = 0;
         for (Long v : populatedStarts) populated[j++] = v;
         tag.putLongArray("spikePopulated", populated);
+        ListTag missions = new ListTag();
+        for (ScoutMission m : scoutMissions) missions.add(m.save());
+        tag.put("scoutMissions", missions);
         return tag;
     }
 
@@ -127,6 +202,10 @@ class SettlementSavedData extends SavedData {
         // saves — the removed Stage-0 scaffolding — is simply ignored.)
         for (long v : tag.getLongArray("spikePopulated")) {
             data.populatedStarts.add(v);
+        }
+        ListTag missions = tag.getList("scoutMissions", Tag.TAG_COMPOUND);
+        for (int i = 0; i < missions.size(); i++) {
+            data.scoutMissions.add(ScoutMission.load(missions.getCompound(i)));
         }
         return data;
     }

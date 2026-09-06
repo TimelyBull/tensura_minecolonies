@@ -84,7 +84,7 @@ public record FactionProfile(
         // schemes, he doesn't court) — outbound only.
         put(map, new FactionProfile("clayman", 45, 45,
                 Set.of(),
-                Set.of("luminous", "falmuth", "tempest", "milim", "eurazania"),
+                Set.of("luminous", "falmuth", "tempest", "milim", "eurazania", "fulbrosia"),
                 1.0, 3, false, false));
         // The diplomats — patient; only sustained violence provokes.
         // Diplomacy-open: they send to anyone.
@@ -101,6 +101,13 @@ public record FactionProfile(
         // swingable like Milim (every mover lands 1.5×).
         put(map, new FactionProfile("eurazania", 50, 50,
                 Set.of(), Set.of("clayman"), 1.5, 8, true, true));
+        // Fulbrosia — the Sky Queen's harpy realm. Proud (you climb to
+        // her: outbound-only diplomacy), measured movers (1.0×). NOTE: her
+        // Milim/Eurazania alignment is deliberately NOT an allies() edge —
+        // it lives in WorldReputationManager's MILIM_BLOC ripple, and a
+        // profile edge would double the marked-kill ally fan-out on top.
+        put(map, new FactionProfile("fulbrosia", 50, 50,
+                Set.of(), Set.of("clayman"), 1.0, 8, false, false));
         // The aloof — movers dampened to 0.5×; never send (outbound only).
         put(map, new FactionProfile("leon", 50, 50,
                 Set.of(), Set.of(), 0.5, 15, false, false));

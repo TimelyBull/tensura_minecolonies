@@ -27,10 +27,19 @@ public final class DwarfCitizenRenderHandler {
      *  giving up and invalidating. */
     private static int consecutiveFailures = 0;
     private static final int FAILURE_THRESHOLD = 5;
+    /** Permanent latches. The threshold above USED to call {@link #invalidate()},
+     *  which reset {@code consecutiveFailures} to 0 — so the next frame rebuilt
+     *  the renderer and re-entered the same loop, five failures at a time,
+     *  forever. The threshold looked like a bound but never actually stopped
+     *  anything. These latches are what stop it; only {@link #invalidate()}
+     *  (logout) clears them. */
+    private static boolean disabled = false;
+    private static boolean buildFailed = false;
 
     private DwarfCitizenRenderHandler() {}
 
     public static void onRenderLivingPre(RenderLivingEvent.Pre<?, ?> event) {
+        if (disabled) return;
         if (!(event.getEntity() instanceof AbstractEntityCitizen citizen)) return;
         RaceTag tag = RaceTagClientStore.get(citizen.getUUID());
         if (tag == null) return;
@@ -56,23 +65,41 @@ public final class DwarfCitizenRenderHandler {
             consecutiveFailures = 0;
         } catch (Throwable t) {
             consecutiveFailures++;
-            LOGGER.error("[TM] dwarf render failed for entity {} (failure {}/{})",
-                    citizen.getUUID(), consecutiveFailures, FAILURE_THRESHOLD, t);
+            // Stack trace ONCE — a persistent failure must not write gigabytes
+            // to latest.log at frame rate.
+            if (consecutiveFailures == 1) {
+                LOGGER.error("[TM] dwarf render failed for entity {} — will retry {} more times before disabling",
+                        citizen.getUUID(), FAILURE_THRESHOLD - 1, t);
+            } else {
+                LOGGER.error("[TM] dwarf render failed for entity {} (failure {}/{})",
+                        citizen.getUUID(), consecutiveFailures, FAILURE_THRESHOLD);
+            }
             if (consecutiveFailures >= FAILURE_THRESHOLD) {
-                LOGGER.error("[TM] dwarf renderer failure threshold reached — invalidating");
-                invalidate();
+                LOGGER.error("[TM] dwarf renderer failed {} times — disabling for this session; "
+                        + "dwarf citizens will render as plain colonists", FAILURE_THRESHOLD);
+                // NOT invalidate(): that clears the counter and the latch, which
+                // is what made this threshold ineffective.
+                disabled = true;
+                renderer = null;
+                DwarfTextures.invalidate();
             }
         }
     }
 
+    /** Full reset for a session boundary (logout). Clears the cached renderer
+     *  AND the failure latches. The render failure path deliberately does not
+     *  call this. */
     public static void invalidate() {
         renderer = null;
         consecutiveFailures = 0;
+        disabled = false;
+        buildFailed = false;
         DwarfTextures.invalidate();
     }
 
     private static DwarfCitizenRenderer renderer() {
         if (renderer != null) return renderer;
+        if (buildFailed) return null; // already tried and failed; don't loop-build
         try {
             Minecraft mc = Minecraft.getInstance();
             EntityRendererProvider.Context ctx = new EntityRendererProvider.Context(
@@ -87,6 +114,9 @@ public final class DwarfCitizenRenderHandler {
             renderer = new DwarfCitizenRenderer(ctx);
             LOGGER.info("[TM] dwarf renderer built");
         } catch (Throwable t) {
+            // Latch it, or the next frame re-attempts the build and re-logs
+            // the stack trace — every frame, for every dwarf citizen.
+            buildFailed = true;
             LOGGER.error("[TM] failed to build dwarf renderer — tagged citizens will not render this session", t);
         }
         return renderer;

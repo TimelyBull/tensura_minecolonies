@@ -88,6 +88,89 @@ public class RaceIdentitySavedData extends SavedData {
                                             // Tensura form self-heals. Null for
                                             // identities never sent (no tag built
                                             // yet) and legacy records.
+        public UUID controlledByUUID = null; // Mind-control (TR:Nightmare /
+                                            // Tensura charm skills) — the player
+                                            // currently holding this mob's
+                                            // Tensura temporaryOwner, when that
+                                            // differs from ownerPlayerUUID.
+                                            // Maintained by MindControlTracker's
+                                            // per-second reconcile from the LIVE
+                                            // mob (source of truth is Tensura's
+                                            // existence storage; this is the
+                                            // persisted mirror so a reload
+                                            // mid-control reconciles). null =
+                                            // not controlled.
+        public boolean controlParked = false; // true while the CITIZEN half was
+                                            // moved into the CONTROLLER's colony
+                                            // by a send-while-controlled. The
+                                            // revert gate: when control ends and
+                                            // this is set, the tracker moves the
+                                            // citizen back to the owner's colony
+                                            // (silently) and clears it. Persisted.
+        public long controlBudgetTicks = -1; // COLONIST-mode control budget —
+                                            // how long a controlled citizen may
+                                            // keep serving the controller's
+                                            // colony. Set at CONTROL START from
+                                            // the mind-control effect's duration
+                                            // (strength proxy), capped at 1 h;
+                                            // FROZEN while the wild body is out
+                                            // (its own effect timer runs then);
+                                            // decremented per second only while
+                                            // parked IN_COLONY; at 0 control is
+                                            // force-ended and the citizen goes
+                                            // home. -1 = unset. Persisted.
+        public boolean planted = false;     // deceit — the CONTROLLER chose
+                                            // "Send to Original Colony": the
+                                            // citizen serves in the OWNER's
+                                            // colony while secretly controlled.
+                                            // Burns the colonist budget like a
+                                            // park; cleared whenever control
+                                            // ends. Persisted.
+        public UUID previousOwnerUUID = null; // set when a PERMANENT steal
+                                            // transfers this identity away —
+                                            // the player it was taken FROM.
+                                            // Grants the ex-owner: the
+                                            // "(stolen)" roster row, the
+                                            // ask-permission summon/send flow,
+                                            // and the Release attempt. Swapped
+                                            // on each transfer (a released
+                                            // subordinate records the thief).
+                                            // Persisted.
+        public byte controlRank = 0;        // rank of the CONTROL skill that
+                                            // took this mob (read from the
+                                            // MIND_CONTROL effect's source
+                                            // ability at control start): 0
+                                            // none, 1 unique-tier, 2
+                                            // ultimate-tier, 3 god-tier, 4
+                                            // SUPREME (effect-less/indefinite
+                                            // controls — Lemegeton seal,
+                                            // King's Authority, permanent
+                                            // Charisma). Drives unmasking +
+                                            // interrogation. Persisted.
+        public boolean stealing = false;    // deceit — [Steal] toggled on a
+                                            // planted sleeper: it skims from
+                                            // the victim colony's warehouses
+                                            // into stolenLoot. Cleared when
+                                            // control ends. Persisted.
+        public net.minecraft.nbt.ListTag stolenLoot = null; // skimmed item
+                                            // stacks (ItemStack NBT), handed
+                                            // to the controller when they next
+                                            // summon the sleeper out. Dropped
+                                            // (lost) if control ends first.
+                                            // Persisted.
+        public boolean strikeArmed = false; // deceit — the controller ordered
+                                            // the planted sleeper to strike;
+                                            // it waits for the owner's next
+                                            // vulnerability window (Assassins
+                                            // detector). Cleared at launch or
+                                            // when control ends. Persisted.
+        public boolean scrubControl = false; // set when the colonist budget
+                                            // expires while the control NBT
+                                            // (temp owner + effect) is still
+                                            // baked into the entity snapshot —
+                                            // the next live body gets the stale
+                                            // control stripped, then this
+                                            // clears. Persisted.
         public net.minecraft.core.BlockPos jobSitePos; // Feature C — the
                                             // villager job-site block this
                                             // citizen merchant claimed its
@@ -142,6 +225,36 @@ public class RaceIdentitySavedData extends SavedData {
             if (defendingColony) {
                 tag.putBoolean("defendingColony", true);
             }
+            if (controlledByUUID != null) {
+                tag.putUUID("controlledBy", controlledByUUID);
+            }
+            if (controlParked) {
+                tag.putBoolean("controlParked", true);
+            }
+            if (controlBudgetTicks >= 0) {
+                tag.putLong("controlBudget", controlBudgetTicks);
+            }
+            if (scrubControl) {
+                tag.putBoolean("scrubControl", true);
+            }
+            if (planted) {
+                tag.putBoolean("planted", true);
+            }
+            if (strikeArmed) {
+                tag.putBoolean("strikeArmed", true);
+            }
+            if (controlRank != 0) {
+                tag.putByte("controlRank", controlRank);
+            }
+            if (previousOwnerUUID != null) {
+                tag.putUUID("previousOwner", previousOwnerUUID);
+            }
+            if (stealing) {
+                tag.putBoolean("stealing", true);
+            }
+            if (stolenLoot != null && !stolenLoot.isEmpty()) {
+                tag.put("stolenLoot", stolenLoot.copy());
+            }
             return tag;
         }
 
@@ -169,6 +282,23 @@ public class RaceIdentitySavedData extends SavedData {
                 id.raceTagSnapshot = tag.getCompound("raceTagSnapshot");
             }
             id.defendingColony = tag.getBoolean("defendingColony"); // false if absent
+            if (tag.hasUUID("controlledBy")) {
+                id.controlledByUUID = tag.getUUID("controlledBy");
+            }
+            id.controlParked = tag.getBoolean("controlParked"); // false if absent
+            id.controlBudgetTicks = tag.contains("controlBudget")
+                    ? tag.getLong("controlBudget") : -1L;
+            id.scrubControl = tag.getBoolean("scrubControl"); // false if absent
+            id.planted = tag.getBoolean("planted");           // false if absent
+            id.strikeArmed = tag.getBoolean("strikeArmed");   // false if absent
+            id.controlRank = tag.getByte("controlRank");      // 0 if absent
+            if (tag.hasUUID("previousOwner")) {
+                id.previousOwnerUUID = tag.getUUID("previousOwner");
+            }
+            id.stealing = tag.getBoolean("stealing");         // false if absent
+            if (tag.contains("stolenLoot", Tag.TAG_LIST)) {
+                id.stolenLoot = tag.getList("stolenLoot", Tag.TAG_COMPOUND);
+            }
             return id;
         }
     }
@@ -296,6 +426,81 @@ public class RaceIdentitySavedData extends SavedData {
         setDirty();
     }
 
+    /** Mind-control mirror — set/clear the controlling player. Persisted. */
+    public void setControlledBy(RaceIdentity identity, UUID controller) {
+        identity.controlledByUUID = controller;
+        setDirty();
+    }
+
+    /** Flag/clear the "citizen parked in the controller's colony" state. */
+    public void setControlParked(RaceIdentity identity, boolean parked) {
+        identity.controlParked = parked;
+        setDirty();
+    }
+
+    /** Set the colonist-mode control budget (ticks; -1 = unset). */
+    public void setControlBudget(RaceIdentity identity, long ticks) {
+        identity.controlBudgetTicks = ticks;
+        setDirty();
+    }
+
+    /** Flag/clear the "strip stale control off the next live body" marker. */
+    public void setScrubControl(RaceIdentity identity, boolean scrub) {
+        identity.scrubControl = scrub;
+        setDirty();
+    }
+
+    /** Deceit — flag/clear the "planted in the owner's colony" state. */
+    public void setPlanted(RaceIdentity identity, boolean planted) {
+        identity.planted = planted;
+        setDirty();
+    }
+
+    /** Deceit — arm/clear the sleeper strike order. */
+    public void setStrikeArmed(RaceIdentity identity, boolean armed) {
+        identity.strikeArmed = armed;
+        setDirty();
+    }
+
+    /** Record the rank of the skill controlling this mob (0 = none). */
+    public void setControlRank(RaceIdentity identity, byte rank) {
+        identity.controlRank = rank;
+        setDirty();
+    }
+
+    /** Record who this identity was permanently taken from (null clears). */
+    public void setPreviousOwner(RaceIdentity identity, UUID previousOwner) {
+        identity.previousOwnerUUID = previousOwner;
+        setDirty();
+    }
+
+    /** Deceit — toggle the sleeper's warehouse skimming. */
+    public void setStealing(RaceIdentity identity, boolean stealing) {
+        identity.stealing = stealing;
+        setDirty();
+    }
+
+    /** Deceit — replace the skimmed-loot list (null clears). */
+    public void setStolenLoot(RaceIdentity identity, net.minecraft.nbt.ListTag loot) {
+        identity.stolenLoot = loot;
+        setDirty();
+    }
+
+    /**
+     * Swap an identity record for a rebuilt one under the SAME identityId —
+     * the only way to change the final citizenId / colonyId / ownerPlayerUUID
+     * fields (ownership transfer, citizen moved between colonies). Keeps the
+     * mob-UUID reverse index consistent. The caller must have copied every
+     * mutable field it wants to keep onto {@code replacement} first.
+     */
+    public void replaceIdentity(RaceIdentity old, RaceIdentity replacement) {
+        if (!old.identityId.equals(replacement.identityId)) {
+            throw new IllegalArgumentException("replaceIdentity: identityId mismatch");
+        }
+        removeIdentity(old);
+        addIdentity(replacement);
+    }
+
     /** Remove an identity entirely — called by the death hooks. Permanent. */
     public void removeIdentity(RaceIdentity identity) {
         byIdentityId.remove(identity.identityId);
@@ -387,6 +592,39 @@ public class RaceIdentitySavedData extends SavedData {
 
     public Collection<RaceIdentity> all() {
         return byIdentityId.values();
+    }
+
+    /** Every identity, grouped by {@code colonyId}, built in ONE walk.
+     *
+     *  <p>Why this exists: several per-second passes used to do
+     *  {@code for (colony) { for (identity : all()) if (id.colonyId == colony.getID()) ... }}
+     *  — a full walk of every identity in the world, once per colony, every
+     *  pass, allocating a fresh list each time. That is O(colonies × identities),
+     *  and BOTH of those numbers only ever grow as a save ages (births and
+     *  immigration keep adding citizens), so the per-tick cost climbs forever.
+     *  That is the shape behind the 2026-09-05 "gets worse the longer you play"
+     *  report.
+     *
+     *  <p>Callers now build this map once and look their colony up by key,
+     *  which is O(identities + colonies) for the whole pass.
+     *
+     *  <p>Semantics are deliberately IDENTICAL to the loops it replaces: the
+     *  key is {@code colonyId} alone, with no dimension component, exactly as
+     *  those {@code id.colonyId == colony.getID()} comparisons did. Do not add
+     *  a dimension to the key without checking every caller — that would be a
+     *  behaviour change, not a speed-up.
+     *
+     *  <p>The returned map and its lists are fresh and caller-owned, but the
+     *  {@code RaceIdentity} values are the LIVE records — mutating one still
+     *  mutates the stored identity (callers rely on this). Rebuild it each
+     *  pass; never cache it across ticks, or you will miss new identities. */
+    public java.util.Map<Integer, java.util.List<RaceIdentity>> allByColony() {
+        java.util.Map<Integer, java.util.List<RaceIdentity>> byColony = new java.util.HashMap<>();
+        for (RaceIdentity identity : byIdentityId.values()) {
+            byColony.computeIfAbsent(identity.colonyId, k -> new java.util.ArrayList<>())
+                    .add(identity);
+        }
+        return byColony;
     }
 
     // -----------------------------------------------------------------

@@ -58,6 +58,16 @@ public class Settlement {
     /** Conquered flag (set by Stage D). */
     public boolean conquered = false;
 
+    // ---- Espionage: settlement scouting (2026-09-05) ----
+    /** gameTime until which this settlement refuses scouts (a scout was
+     *  spotted — the garrison is alert). 0 = calm. */
+    public long scoutAlertedUntil = 0;
+    /** The latest successful scout report line (shown in the Wars window),
+     *  or "" when never scouted. Global — any successful scout refreshes it. */
+    public String scoutIntel = "";
+    /** gameTime of {@link #scoutIntel} (staleness display). -1 = none. */
+    public long scoutIntelTick = -1;
+
     // --- Stage B — the garrison + the assault win-tracking machinery ---
     /** Live garrison defender entity UUIDs (the boss is tracked
      *  separately via {@link #bossUuid}). */
@@ -105,6 +115,12 @@ public class Settlement {
      *  or "" — selects the defender-skill set. */
     public String betrayalTier = "";
 
+    // --- Milim retribution (Dragon Faithful only, TR:N only) ------------
+    /** UUID of the retribution Milim spawned mid-assault when her
+     *  subordinates fell, or null. One per assault; discarded at every
+     *  assault resolution (see RivalColonies.despawnMilimRetribution). */
+    public UUID retributionUuid = null;
+
     public Settlement() {}
 
     CompoundTag save() {
@@ -131,6 +147,11 @@ public class Settlement {
         }
         tag.put("discoveredBy", discovered);
         tag.putBoolean("conquered", conquered);
+        if (scoutAlertedUntil > 0) tag.putLong("scoutAlertedUntil", scoutAlertedUntil);
+        if (!scoutIntel.isEmpty()) {
+            tag.putString("scoutIntel", scoutIntel);
+            tag.putLong("scoutIntelTick", scoutIntelTick);
+        }
         // Reserved seams.
         ListTag garrison = new ListTag();
         for (UUID u : garrisonUuids) {
@@ -157,6 +178,7 @@ public class Settlement {
         tag.putBoolean("pendingReturn", pendingReturn);
         tag.putDouble("betrayalFactor", betrayalFactor);
         tag.putString("betrayalTier", betrayalTier);
+        if (retributionUuid != null) tag.putUUID("retribution", retributionUuid);
         return tag;
     }
 
@@ -190,6 +212,9 @@ public class Settlement {
             s.discoveredBy.add(discovered.getCompound(i).getUUID("u"));
         }
         s.conquered = tag.getBoolean("conquered");
+        s.scoutAlertedUntil = tag.getLong("scoutAlertedUntil"); // 0 if absent
+        s.scoutIntel = tag.getString("scoutIntel");             // "" if absent
+        s.scoutIntelTick = tag.contains("scoutIntelTick") ? tag.getLong("scoutIntelTick") : -1L;
         ListTag garrison = tag.getList("garrison", Tag.TAG_COMPOUND);
         for (int i = 0; i < garrison.size(); i++) {
             s.garrisonUuids.add(garrison.getCompound(i).getUUID("u"));
@@ -208,6 +233,7 @@ public class Settlement {
         for (int i = 0; i < party.size(); i++) {
             s.warParty.add(party.getCompound(i).getUUID("u"));
         }
+        if (tag.hasUUID("retribution")) s.retributionUuid = tag.getUUID("retribution");
         s.conquestReached = tag.getBoolean("conquestReached");
         s.pendingReturn = tag.getBoolean("pendingReturn");
         s.betrayalFactor = tag.contains("betrayalFactor") ? tag.getDouble("betrayalFactor") : 1.0;

@@ -30,5 +30,11 @@ public enum WorldRepReason {
     /** Player DECLARED WAR on a settlement's faction (rival-colony Stage
      *  C/E) — sets the faction hostile; if relations existed, the
      *  below-WARY collapse shatters them (the betrayal consequence). */
-    WAR_DECLARED
+    WAR_DECLARED,
+    /** Secondary leg of a MILIM-BLOC change (Milim / Eurazania /
+     *  Fulbrosia): any standing change to one member echoes to the other
+     *  two at a fraction — harm one, all fall; please one, all warm
+     *  slightly. Also the recursion guard: a write carrying this reason
+     *  never ripples again. */
+    ALLIED_BLOC
 }

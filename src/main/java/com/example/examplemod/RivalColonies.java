@@ -123,12 +123,45 @@ public final class RivalColonies {
         // A plain "Medieval Oak" town — a normal-looking settlement rather
         // than the old jungle-treehouse style.
         PACKS.put("tempest", "Medieval Oak");
+        // Milim — the "Dragon Faithful" (her canon subject people), a
+        // mountain settlement with NO standing anchor boss (redesigned
+        // 2026-09-05, user): the town has only its garrison; clearing the
+        // WHOLE field mid-assault SUMMONS Milim herself, and SHE must be
+        // defeated for the conquest rewards. The ANCHORS entry below is
+        // the SUMMON'S no-TR:N fallback body (a salamander promoted by
+        // buffDragonFaithfulElder) — spawnAnchorBoss itself early-returns
+        // null for milim, so no boss ever spawns at generation/reset.
+        // Milim's own TR:N entity keeps its base behavior untouched (it
+        // targets every player AND mob on sight and stacks Rampage — which
+        // is exactly why she works as the summoned final boss and nothing
+        // else). See maybeSummonMilim.
+        ANCHORS.put("milim", MonsterEntityTypes.SALAMANDER);
+        PACKS.put("milim", "Fortress"); // stone citadel; mountains-only worldgen
+        // Fulbrosia — the Sky Queen Frey's harpy realm (her own faction as
+        // of 2026-09-05, user). A SKY settlement: pagoda-style buildings on
+        // generated floating islands high above mountain terrain (see the
+        // sky branch in generateColony). Base anchor is a promoted
+        // SYLPHIDE regent; with TR:N the anchor is FREY (TRN_ANCHOR_IDS).
+        ANCHORS.put("fulbrosia", MonsterEntityTypes.SYLPHIDE);
+        PACKS.put("fulbrosia", "Pagoda"); // airy style, freed by Shizu's retirement
         // Dwargon — DWARVEN_VILLAGE type: anchor exists (Gazel) but NO
         // town pack; SOME existing dwarf villages become its settlements.
         ANCHORS.put(DWARGON, HumanEntityTypes.GAZEL_DWARGO);
-        // ABSTRACT (no anchor mob, never settle): eurazania, milim,
+        // ABSTRACT (no anchor mob, never settle): eurazania,
         // clayman (his orcs roam as calamities, not a settled town).
     }
+
+    /** faction id → the TR:N entity that REPLACES the base anchor boss when
+     *  trnightmare is installed (resolved by id in {@link #spawnAnchorBoss}
+     *  via {@code getOptional} — the class-isolation rule). NOTE: TR:N
+     *  sentient bosses SELF-NAME on their first tick (e.g. "Frey", "Yuuki"),
+     *  overriding markBoss's faction-colored nameplate cosmetically; the
+     *  FactionMarkTag attachment (the thing that actually drives marked-kill
+     *  reputation + conquest) is untouched. Both listed bosses are
+     *  source-verified "neutral" (retaliate-only, no proactive targeting). */
+    private static final Map<String, String> TRN_ANCHOR_IDS = Map.of(
+            "fulbrosia", "trnightmare:sentient_boss_frey",
+            "eastern_empire", "trnightmare:sentient_boss_yuuki_desire");
 
     /** Cached structure key for Tensura's dwarf village. */
     static final net.minecraft.resources.ResourceKey<
@@ -153,6 +186,8 @@ public final class RivalColonies {
         putWorldgenStructure("faction_anchor_tempest", "tempest");
         putWorldgenStructure("faction_anchor_eastern_empire", "eastern_empire");
         putWorldgenStructure("faction_anchor_luminous", "luminous");
+        putWorldgenStructure("faction_anchor_milim", "milim"); // mountains-only biome tag
+        putWorldgenStructure("faction_anchor_fulbrosia", "fulbrosia"); // sky city over mountains
     }
 
     private static void putWorldgenStructure(String structureName, String factionId) {
@@ -216,8 +251,13 @@ public final class RivalColonies {
             // FLAME/HEAT resistance to defenders in assignFactionDefenderSkills
             // — now thematically odd on human knights but harmless (fire-only,
             // doesn't affect melee); revisit when the real roster lands.
-            case "leon" -> new EntityType[] {
-                    HumanEntityTypes.FALMUTH_KNIGHT.get() };
+            // TR:N: the FALLEN line — properly hostile flying casters under a
+            // majin Demon Lord (in TR:N's own cosmology an angel named by a
+            // majin becomes a Fallen). Arch Fallen is capped to ONE elite.
+            case "leon" -> withTrn(new EntityType[] {
+                    HumanEntityTypes.FALMUTH_KNIGHT.get() },
+                    "trnightmare:lesser_fallen", "trnightmare:greater_fallen",
+                    "trnightmare:arch_fallen");
             // Eastern Empire — magitech military power: FALMUTH_KNIGHT
             // rank-and-file soldiers (listed twice so they're the bulk of the
             // round-robin garrison) led by the imperial lieutenants Shin
@@ -229,20 +269,47 @@ public final class RivalColonies {
             // (BONE_GOLEM soldiers removed — golems are player-POSSESSED and
             // won't fight their owner.) ⚠ FUTURE CANON: these three later
             // defect to the Jura-Tempest Federation (see faction-model.md).
-            case "eastern_empire" -> new EntityType[] {
+            // TR:N: the otherworlder-tier lieutenants Lucius / Raymond /
+            // Glenda / Arios + Kokuyou as an elite (all unique-capped named
+            // characters; all sentient bosses — they cast on their own).
+            case "eastern_empire" -> withTrn(new EntityType[] {
                     HumanEntityTypes.FALMUTH_KNIGHT.get(), HumanEntityTypes.FALMUTH_KNIGHT.get(),
                     HumanEntityTypes.SHIN_RYUSEI.get(),
-                    HumanEntityTypes.MARK_LAUREN.get(), HumanEntityTypes.SHINJI_TANIMURA.get() };
+                    HumanEntityTypes.MARK_LAUREN.get(), HumanEntityTypes.SHINJI_TANIMURA.get() },
+                    "trnightmare:sentient_boss_lucius", "trnightmare:sentient_boss_raymond",
+                    "trnightmare:sentient_boss_glenda", "trnightmare:sentient_boss_arios",
+                    "trnightmare:sentient_boss_kokuyou");
             // Jura-Tempest Federation — the forest nation's kin (the boss is
             // the buffed anchor SLIME; rank-and-file are goblins + lizardmen).
-            case "tempest" -> new EntityType[] {
-                    MonsterEntityTypes.GOBLIN.get(), MonsterEntityTypes.LIZARDMAN.get() };
+            // TR:N (canon: Benimaru's ogre tribe JOINED Tempest): the ogre
+            // line fights alongside them — ogre grunts, kijin + enlightened
+            // ogre officers. Appended only when TR:N is installed.
+            case "tempest" -> withTrn(new EntityType[] {
+                    MonsterEntityTypes.GOBLIN.get(), MonsterEntityTypes.LIZARDMAN.get() },
+                    "trnightmare:ogre", "trnightmare:kijin", "trnightmare:enlightened_ogre");
             // Dwargon — the dwarven kingdom: buffed dwarf-SOLDIER rank-and-file
             // (see strengthenDwarfDefender — big stat bump + Body Armor + Earth
             // Manipulation) under Gazel, plus ONE War Gnome earth-magic
             // lieutenant (capped at one via isUniqueGarrisonMob).
             case "dwargon" -> new EntityType[] {
                     HumanEntityTypes.DWARF.get(), MonsterEntityTypes.WAR_GNOME.get() };
+            // Milim / Dragon Faithful — the user's mix: dragonewt stand-ins
+            // (LIZARDMEN — no dragonewt entity exists; canon has dragonewts
+            // as the lizardfolk's closest kin), Eurazania beasts (blade
+            // tigers + direwolves — no beastfolk entity exists either), and
+            // Fulbrosia harpies under TR:N (the allied bloc lends troops).
+            // NO standing boss — Milim is SUMMONED when the field is cleared.
+            case "milim" -> withTrn(new EntityType[] {
+                    MonsterEntityTypes.LIZARDMAN.get(), MonsterEntityTypes.BLADE_TIGER.get(),
+                    MonsterEntityTypes.DIREWOLF.get() },
+                    "trnightmare:harpy", "trnightmare:harpy_queen");
+            // Fulbrosia — the Sky Queen's own roost: wind spirits + sky
+            // beasts, and the full harpy flight under TR:N (divine bird is
+            // her unique-capped elite here — this is its home realm).
+            case "fulbrosia" -> withTrn(new EntityType[] {
+                    MonsterEntityTypes.SYLPHIDE.get(), MonsterEntityTypes.GIANT_BAT.get() },
+                    "trnightmare:harpy", "trnightmare:harpy_queen",
+                    "trnightmare:spirit_bird", "trnightmare:divine_bird");
             default -> null;
         };
     }
@@ -253,13 +320,45 @@ public final class RivalColonies {
      *  rather than a swarm. Generic troops (knights, goblins, dwarves, …) repeat
      *  freely. */
     private static boolean isUniqueGarrisonMob(EntityType<?> type) {
-        return type == HumanEntityTypes.KIRARA_MIZUTANI.get()
+        if (type == HumanEntityTypes.KIRARA_MIZUTANI.get()
                 || type == HumanEntityTypes.KYOYA_TACHIBANA.get()
                 || type == HumanEntityTypes.SHOGO_TAGUCHI.get()
                 || type == HumanEntityTypes.MARK_LAUREN.get()
                 || type == HumanEntityTypes.SHINJI_TANIMURA.get()
                 || type == HumanEntityTypes.SHIN_RYUSEI.get()
-                || type == MonsterEntityTypes.WAR_GNOME.get();
+                || type == MonsterEntityTypes.WAR_GNOME.get()) {
+            return true;
+        }
+        // TR:N additions (checked by id — no trnightmare class references):
+        // every named sentient-boss lieutenant, plus the Arch Fallen elite.
+        var id = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(type);
+        if (id != null && "trnightmare".equals(id.getNamespace())) {
+            return id.getPath().startsWith("sentient_boss_")
+                    || "arch_fallen".equals(id.getPath())
+                    || "harpy_queen".equals(id.getPath())   // bloc lieutenants
+                    || "spirit_bird".equals(id.getPath())
+                    || "divine_bird".equals(id.getPath());  // Fulbrosia's elite
+        }
+        return false;
+    }
+
+    /** Append TR:N entity types (by id) to a base roster — only when the mod
+     *  is installed, resolved via {@code getOptional} (the ENTITY_TYPE
+     *  registry is DEFAULTED to pig; a raw get() would silently swap in
+     *  pigs — the EventManagerMixin rule). Without TR:N: the base roster,
+     *  byte-identical to before. */
+    @SuppressWarnings("unchecked")
+    private static EntityType<? extends Mob>[] withTrn(EntityType<? extends Mob>[] base,
+                                                       String... trnIds) {
+        if (!net.neoforged.fml.ModList.get().isLoaded("trnightmare")) return base;
+        java.util.List<EntityType<? extends Mob>> out =
+                new java.util.ArrayList<>(java.util.Arrays.asList(base));
+        for (String id : trnIds) {
+            net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
+                    .getOptional(net.minecraft.resources.ResourceLocation.parse(id))
+                    .ifPresent(t -> out.add((EntityType<? extends Mob>) t));
+        }
+        return out.toArray(new EntityType[0]);
     }
 
     /** First repeatable (non-unique) type in a roster — used to substitute a
@@ -373,6 +472,29 @@ public final class RivalColonies {
             ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "ifrit_mag");
     private static final ResourceLocation IFRIT_AURA_ID =
             ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "ifrit_aura");
+
+    /** Stable modifier ids for the Dragon Faithful ELDER (Milim's base
+     *  anchor salamander) boss buff. Distinct from GARRISON_* / RIMURU_* /
+     *  IFRIT_* so none collide. Only used WITHOUT TR:N (Frey replaces it). */
+    private static final ResourceLocation ELDER_HP_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "df_elder_hp");
+    private static final ResourceLocation ELDER_DMG_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "df_elder_dmg");
+    private static final ResourceLocation ELDER_MAG_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "df_elder_mag");
+    private static final ResourceLocation ELDER_AURA_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "df_elder_aura");
+
+    /** Stable modifier ids for the Fulbrosia REGENT (base anchor sylphide)
+     *  boss buff. Only used WITHOUT TR:N (Frey replaces it). */
+    private static final ResourceLocation REGENT_HP_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "fu_regent_hp");
+    private static final ResourceLocation REGENT_DMG_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "fu_regent_dmg");
+    private static final ResourceLocation REGENT_MAG_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "fu_regent_mag");
+    private static final ResourceLocation REGENT_AURA_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "fu_regent_aura");
 
     // ------------------------------------------------------------------
     // STAGE E — BETRAYAL SCALING. Declaring war on a faction you have
@@ -533,7 +655,12 @@ public final class RivalColonies {
         // (rejects underwater columns and cliff faces) — exact flatness
         // matters less now that buildings follow the terrain individually
         // (below), but dryness is checked again per building.
-        BlockPos center = findBuildableCenter(level, rawCenter);
+        // FULBROSIA (sky settlement): no terrain siting at all — the city
+        // hangs on generated floating islands SKY_ALTITUDE above the
+        // ground, so wetness/flatness below is irrelevant.
+        boolean sky = "fulbrosia".equals(factionId);
+        BlockPos center = sky ? skyCenter(level, rawCenter)
+                : findBuildableCenter(level, rawCenter);
 
         Settlement s = new Settlement();
         SettlementSavedData data = SettlementSavedData.get(level);
@@ -553,8 +680,17 @@ public final class RivalColonies {
         int[] buildingY = new int[LAYOUT.size()];
         for (int i = 0; i < LAYOUT.size(); i++) {
             Building b = LAYOUT.get(i);
-            buildingY[i] = groundSurfaceY(level, center.getX() + b.dx(),
-                    center.getZ() + b.dz()) + 1;
+            // Sky settlement: every building floats at the shared island
+            // altitude (its own island is generated below it).
+            buildingY[i] = sky ? center.getY()
+                    : groundSurfaceY(level, center.getX() + b.dx(),
+                            center.getZ() + b.dz()) + 1;
+        }
+        if (sky) {
+            // The central plaza island — the teleport-in/boss/garrison
+            // ground; the LAYOUT ring is offset around it, so without this
+            // the town center itself would be open air.
+            buildSkyIslandPad(level, center);
         }
         for (int i = 0; i < LAYOUT.size(); i++) {
             Building b = LAYOUT.get(i);
@@ -567,13 +703,17 @@ public final class RivalColonies {
             // whose own columns hang over water even though the center is dry.
             // Skipping beats relocating: a nudged building would overlap its
             // grid neighbour, and a missing house reads better than a sunken one.
-            if (isWetPad(level, bx, bz)) {
+            if (!sky && isWetPad(level, bx, bz)) {
                 LOGGER.warn("[TM] rival: skipping building '{}' at ({}, {}) — its pad is "
                         + "underwater (ocean/lake/river column)", b.path(), bx, bz);
                 continue;
             }
             BlockPos at = new BlockPos(bx, buildingY[i], bz);
-            levelBuildingPad(level, at);
+            if (sky) {
+                buildSkyIslandPad(level, at); // a floating island per building
+            } else {
+                levelBuildingPad(level, at);
+            }
             placeBuilding(level, placer, pack, b.path(), at);
             s.buildingPositions.add(at);
         }
@@ -597,11 +737,36 @@ public final class RivalColonies {
      *  FactionMarkTag path) or leave it unmarked for WILD (free kill). */
     private static Mob spawnAnchorBoss(ServerLevel level, String factionId, BlockPos pos,
                                        boolean colony) {
+        // Milim / Dragon Faithful — NO standing anchor boss by design: the
+        // ANCHORS entry is only the fallback body for the mid-assault Milim
+        // SUMMON (maybeSummonMilim). generateColony/resetGarrison handle
+        // the null.
+        if ("milim".equals(factionId)) return null;
         Supplier<? extends EntityType<?>> supplier = ANCHORS.get(factionId);
         if (supplier == null) return null;
         EntityType<?> type = supplier.get();
+        // TR:N anchor upgrade — swap in the canon boss when the mod is
+        // installed (Frey for the Dragon Faithful, Yuuki for the Eastern
+        // Empire). Resolved by id via getOptional (pig-defaulted registry —
+        // the EventManagerMixin rule); missing mod/entity → base anchor.
+        boolean trnAnchor = false;
+        String trnId = TRN_ANCHOR_IDS.get(factionId);
+        if (trnId != null && net.neoforged.fml.ModList.get().isLoaded("trnightmare")) {
+            var trnType = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
+                    .getOptional(net.minecraft.resources.ResourceLocation.parse(trnId))
+                    .orElse(null);
+            if (trnType != null) {
+                type = trnType;
+                trnAnchor = true;
+            }
+        }
         if (!(type.create(level) instanceof Mob boss)) return null;
-        BlockPos at = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, pos);
+        // Fulbrosia is a SKY settlement — the given pos IS the island
+        // altitude; a heightmap read would drop the boss to the ground
+        // 60+ blocks below the city.
+        BlockPos at = "fulbrosia".equals(factionId)
+                ? pos
+                : level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, pos);
         boss.moveTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5,
                 level.getRandom().nextFloat() * 360f, 0f);
         boss.finalizeSpawn(level, level.getCurrentDifficultyAt(at), MobSpawnType.SPAWN_EGG, null);
@@ -627,6 +792,12 @@ public final class RivalColonies {
         // boss HERE (BEFORE spawnGarrison reads its EP), mirroring buffRimuruBoss.
         if ("leon".equals(factionId)) {
             buffIfritBoss(boss);
+        }
+        // Fulbrosia's BASE anchor (no TR:N) is a plain sylphide — promote
+        // it to the Sky Queen's regent. Skipped when the TR:N Frey anchor
+        // spawned (she's already boss-statted, ~2M EP, self-names tick 1).
+        if ("fulbrosia".equals(factionId) && !trnAnchor) {
+            buffSkyRegent(boss);
         }
         return boss;
     }
@@ -705,6 +876,56 @@ public final class RivalColonies {
             try {
                 exist.setSpiritualHealth(boss.getAttributeValue(TensuraAttributes.MAX_SPIRITUAL_HEALTH));
             } catch (Throwable ignored) { }
+            exist.markDirty();
+        }
+    }
+
+    /**
+     * Promote Fulbrosia's base anchor SYLPHIDE into the Sky Queen's regent
+     * (⚠ BALANCE GUESSES; only spawns WITHOUT TR:N — with it the anchor is
+     * Frey). Absolute-target modifiers, same rationale as the elder below.
+     */
+    private static void buffSkyRegent(Mob boss) {
+        boss.setCustomName(net.minecraft.network.chat.Component
+                .literal("Regent of Fulbrosia")
+                .withStyle(net.minecraft.ChatFormatting.AQUA));
+        boss.setCustomNameVisible(true);
+        setAttributeAbsolute(boss, Attributes.MAX_HEALTH, REGENT_HP_ID, 2_400.0);
+        setAttributeAbsolute(boss, Attributes.ATTACK_DAMAGE, REGENT_DMG_ID, 50.0);
+        boss.setHealth(boss.getMaxHealth());
+        setAttributeAbsolute(boss, TensuraAttributes.MAX_MAGICULE, REGENT_MAG_ID, 280_000.0);
+        setAttributeAbsolute(boss, TensuraAttributes.MAX_AURA, REGENT_AURA_ID, 25_000.0);
+        ExistenceStorage exist = ExampleMod.readExistence(boss);
+        if (exist != null) {
+            exist.setMagicule(280_000.0);
+            exist.setAura(25_000.0);
+            exist.markDirty();
+        }
+    }
+
+    /**
+     * Promote a SALAMANDER into the Dragon Faithful elder (⚠ BALANCE
+     * GUESSES). Since the 2026-09-05 redesign this is the no-TR:N fallback
+     * BODY for the mid-assault Milim SUMMON (maybeSummonMilim) — no boss
+     * stands in the town otherwise. Absolute-target modifiers
+     * (setAttributeAbsolute) because the salamander's native bases weren't
+     * measured: HP 2,600 / attack 55 / magicule 300,000 / aura 25,000 →
+     * EP ≈ 325,000, just under Leon's Ifrit.
+     */
+    private static void buffDragonFaithfulElder(Mob boss) {
+        boss.setCustomName(net.minecraft.network.chat.Component
+                .literal("Elder of the Dragon Faithful")
+                .withStyle(net.minecraft.ChatFormatting.LIGHT_PURPLE));
+        boss.setCustomNameVisible(true);
+        setAttributeAbsolute(boss, Attributes.MAX_HEALTH, ELDER_HP_ID, 2_600.0);
+        setAttributeAbsolute(boss, Attributes.ATTACK_DAMAGE, ELDER_DMG_ID, 55.0);
+        boss.setHealth(boss.getMaxHealth());
+        setAttributeAbsolute(boss, TensuraAttributes.MAX_MAGICULE, ELDER_MAG_ID, 300_000.0);
+        setAttributeAbsolute(boss, TensuraAttributes.MAX_AURA, ELDER_AURA_ID, 25_000.0);
+        ExistenceStorage exist = ExampleMod.readExistence(boss);
+        if (exist != null) {
+            exist.setMagicule(300_000.0);
+            exist.setAura(25_000.0);
             exist.markDirty();
         }
     }
@@ -882,6 +1103,49 @@ public final class RivalColonies {
      *     building's base toward the natural GROUND (ignoring trees), softening
      *     the edge. ⚠ Aesthetic + tunable — wants in-game visual iteration.
      */
+    // --- FULBROSIA sky-settlement generation (2026-09-05) --------------
+
+    /** How far above the local terrain the Fulbrosia sky city hangs. */
+    private static final int SKY_ALTITUDE = 60;
+
+    /** The sky city's center: the anchor column's TERRAIN height plus
+     *  {@link #SKY_ALTITUDE}, clamped well under the build ceiling so
+     *  multi-story pagodas fit. */
+    private static BlockPos skyCenter(ServerLevel level, BlockPos raw) {
+        int ground = groundSurfaceY(level, raw.getX(), raw.getZ());
+        int y = Math.min(ground + SKY_ALTITUDE, level.getMaxBuildHeight() - 48);
+        return new BlockPos(raw.getX(), y, raw.getZ());
+    }
+
+    /**
+     * Generate one FLOATING ISLAND under a sky building: a rounded grass-
+     * topped disc at {@code at.getY() − 1} (so the building placed at
+     * {@code at} sits flush on it) with a tapering stone underside — the
+     * classic floating-island teardrop. Sized to {@link #BUILDING_PAD_HALF}
+     * plus a small skirt. Only writes into non-solid blocks (air/clouds),
+     * so overlapping islands merge instead of carving each other.
+     * ⚠ Aesthetic + tunable — wants in-game visual iteration.
+     */
+    private static void buildSkyIslandPad(ServerLevel level, BlockPos at) {
+        int topRadius = BUILDING_PAD_HALF + 2;
+        int depth = 6;
+        net.minecraft.world.level.block.state.BlockState grass = Blocks.GRASS_BLOCK.defaultBlockState();
+        net.minecraft.world.level.block.state.BlockState stone = Blocks.STONE.defaultBlockState();
+        for (int d = 0; d < depth; d++) {
+            int r = Math.max(1, topRadius - d * 2);
+            int y = at.getY() - 1 - d;
+            long r2 = (long) r * r;
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    if ((long) dx * dx + (long) dz * dz > r2) continue;
+                    BlockPos p = new BlockPos(at.getX() + dx, y, at.getZ() + dz);
+                    if (level.getBlockState(p).isSolid()) continue;
+                    level.setBlock(p, d == 0 ? grass : stone, 2);
+                }
+            }
+        }
+    }
+
     private static void levelBuildingPad(ServerLevel level, BlockPos at) {
         int half = BUILDING_PAD_HALF;
         int coreTop = at.getY() - 1; // ground-surface Y under this building
@@ -991,6 +1255,10 @@ public final class RivalColonies {
         // #5 — run any due post-placement hut strips (cheap when none queued).
         tickHutStrips(server);
         boolean ambient = server.getTickCount() % AMBIENT_PERIOD_TICKS == 0;
+
+        // Espionage — resolve scout missions that are due (per-second; the
+        // list is tiny and returnTick gates the work).
+        tickScoutMissions(server);
 
         for (ServerLevel level : server.getAllLevels()) {
             // Stage C — drive any active assault EVERY second (combat
@@ -1207,7 +1475,7 @@ public final class RivalColonies {
     private static DifficultyTier difficultyTierFor(String factionId) {
         return switch (factionId) {
             case "luminous", "leon", "dwargon", "milim" -> DifficultyTier.IV;
-            case "eastern_empire", "eurazania" -> DifficultyTier.III;
+            case "eastern_empire", "eurazania", "fulbrosia" -> DifficultyTier.III;
             case "clayman" -> DifficultyTier.I;
             default -> DifficultyTier.II; // falmuth, tempest
         };
@@ -1311,7 +1579,10 @@ public final class RivalColonies {
             // Tier III anchor: HP raised well above the Tier II bosses, ATTACK
             // kept BELOW Gazel (a flat multiplier made her out-hit him). Plus
             // magitech-armour / sustain skills.
-            if ("eastern_empire".equals(s.factionId)) {
+            // GATED on !isTrnSentientBoss: with TR:N the EE anchor is YUUKI
+            // (4,000 HP / atk 45 / 3.5–4.5M EP native) — the placeholder-Mai
+            // multipliers must never stack on him.
+            if ("eastern_empire".equals(s.factionId) && !isTrnSentientBoss(boss.getType())) {
                 multiplyAttribute(boss, Attributes.MAX_HEALTH, EMPIRE_HP_ID, EMPIRE_HP_MULT);    // ~1500
                 multiplyAttribute(boss, Attributes.ATTACK_DAMAGE, EMPIRE_DMG_ID, EMPIRE_DMG_MULT); // ~54
                 boss.setHealth(boss.getMaxHealth());
@@ -1376,10 +1647,21 @@ public final class RivalColonies {
                                      Settlement s, double statFactor, double bossEP) {
         Mob mob = type.create(level);
         if (mob == null) return null;
-        int dx = level.getRandom().nextInt(GARRISON_SPAWN_RADIUS * 2 + 1) - GARRISON_SPAWN_RADIUS;
-        int dz = level.getRandom().nextInt(GARRISON_SPAWN_RADIUS * 2 + 1) - GARRISON_SPAWN_RADIUS;
-        BlockPos pos = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE,
-                s.center.offset(dx, 0, dz));
+        BlockPos pos;
+        if ("fulbrosia".equals(s.factionId)) {
+            // Sky settlement — spawn on the central plaza island (a
+            // heightmap read lands on the GROUND 60 blocks below the city;
+            // the tighter radius keeps spawns on the pad, not open air).
+            int r = Math.min(GARRISON_SPAWN_RADIUS, 8);
+            int dx = level.getRandom().nextInt(r * 2 + 1) - r;
+            int dz = level.getRandom().nextInt(r * 2 + 1) - r;
+            pos = s.center.offset(dx, 1, dz);
+        } else {
+            int dx = level.getRandom().nextInt(GARRISON_SPAWN_RADIUS * 2 + 1) - GARRISON_SPAWN_RADIUS;
+            int dz = level.getRandom().nextInt(GARRISON_SPAWN_RADIUS * 2 + 1) - GARRISON_SPAWN_RADIUS;
+            pos = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE,
+                    s.center.offset(dx, 0, dz));
+        }
         mob.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5,
                 level.getRandom().nextFloat() * 360f, 0f);
         mob.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.SPAWN_EGG, null);
@@ -1405,7 +1687,12 @@ public final class RivalColonies {
             // (hang back + magic + staff). Skill-untouched troops (none today in
             // the rank rosters) fall through unarmed-by-us.
             DifficultyTier tier = difficultyTierFor(s.factionId);
-            if (mob.getRandom().nextFloat() < CASTER_FRACTION) {
+            // A faction with NO attack magic (milim — the Dragon Faithful are
+            // brute-force warriors, per canon/user) fields ALL warriors: a
+            // caster with nothing to cast would just stand around holding a
+            // staff.
+            boolean hasMagic = factionAttackMagic(s.factionId) != null;
+            if (hasMagic && mob.getRandom().nextFloat() < CASTER_FRACTION) {
                 applyCasterRole(mob, s.factionId, tier, bossEP);
             } else {
                 applyWarriorRole(mob, s.factionId, tier);
@@ -1516,7 +1803,7 @@ public final class RivalColonies {
     private static double boneGolemMasteryFraction(String factionId) {
         return switch (factionId) {
             case "milim" -> 1.0;                                          // apex power
-            case "leon", "eurazania", "luminous", "clayman",
+            case "leon", "eurazania", "luminous", "clayman", "fulbrosia",
                  "eastern_empire" -> 0.8;                                 // demon lords / great powers
             case "dwargon" -> 0.6;                                        // strong realms
             default -> 0.4;                                               // falmuth, tempest…
@@ -1554,6 +1841,12 @@ public final class RivalColonies {
         boolean changed = false;
         for (Settlement s : data.all()) {
             if (!s.dimension.equals(level.dimension())) continue;
+            // Stale-retribution sweep: a Milim who outlived her assault
+            // (reload / unloaded-chunk resolution) is released the next time
+            // her settlement ticks. Runs even for a conquered husk.
+            if (s.retributionUuid != null && !s.assaulted) {
+                despawnMilimRetribution(level, s);
+            }
             if (s.conquered) continue; // husk — inert, no garrison
             if (s.garrisonUuids.isEmpty()) continue;
             long tetherSq = (long) GARRISON_TETHER_RADIUS * GARRISON_TETHER_RADIUS;
@@ -1587,6 +1880,11 @@ public final class RivalColonies {
     /** The conquest condition Stage C checks: boss down AND ≥60% of the
      *  starting garrison killed. */
     static boolean isConquestEligible(Settlement s) {
+        // Dragon Faithful: the win is DEFEATING THE SUMMONED MILIM — she
+        // only appears once the whole field is cleared, so bossDead alone
+        // carries the full condition (the tally can sit under 60% if some
+        // defenders died to non-player causes; that must not block the win).
+        if ("milim".equals(s.factionId)) return s.bossDead;
         return s.bossDead && s.defenderKills >= requiredDefenderKills(s);
     }
 
@@ -1722,7 +2020,8 @@ public final class RivalColonies {
      * from the live set. (The tally counts continuously so Stage B is
      * testable; Stage C's {@link #beginAssault} re-zeroes it.)
      */
-    static void onGarrisonMobDeath(ServerLevel level, LivingEntity victim) {
+    static void onGarrisonMobDeath(ServerLevel level, LivingEntity victim,
+                                   net.minecraft.world.damagesource.DamageSource source) {
         if (!victim.hasData(Attachments.GARRISON_TAG.get())) return;
         GarrisonTag tag = victim.getData(Attachments.GARRISON_TAG.get());
         if (tag == null) return;
@@ -1730,15 +2029,144 @@ public final class RivalColonies {
         Settlement s = data.get(tag.settlementId());
         if (s == null) return;
         if (tag.isBoss()) {
-            s.bossDead = true;
+            s.bossDead = true; // factual, whoever/whatever did it
             LOGGER.info("[TM] rival: settlement #{} BOSS down", s.id);
         } else {
-            s.garrisonUuids.remove(victim.getUUID());
-            s.defenderKills++;
-            LOGGER.info("[TM] rival: settlement #{} defender killed — tally {}/{} (need {})",
-                    s.id, s.defenderKills, s.defenderCountAtStart, requiredDefenderKills(s));
+            s.garrisonUuids.remove(victim.getUUID()); // alive-set bookkeeping, unconditional
+            // GUARD (TR:N + general): the 60%-conquest tally only counts
+            // PLAYER-CREDITED kills — the player, or something a player owns
+            // (war party, subordinates, tamed pets). Without this, TR:N's own
+            // village raids (Daemon waves in a Dwargon dwarf village), wild
+            // mobs, lava, etc. grind a settlement toward conquest for free.
+            // deps/tr-nightmare.md §11.
+            if (isPlayerCredited(source)) {
+                s.defenderKills++;
+                LOGGER.info("[TM] rival: settlement #{} defender killed — tally {}/{} (need {})",
+                        s.id, s.defenderKills, s.defenderCountAtStart, requiredDefenderKills(s));
+            } else {
+                LOGGER.info("[TM] rival: settlement #{} defender died to a non-player cause — "
+                        + "not counted toward conquest", s.id);
+            }
         }
+        maybeSummonMilim(level, s);
         data.markChanged();
+    }
+
+    // ------------------------------------------------------------------
+    // THE MILIM SUMMON (Dragon Faithful win condition — redesigned
+    // 2026-09-05, user). Her settlement fields NO standing boss: clear the
+    // ENTIRE garrison mid-assault and Milim herself is summoned to the
+    // town center — and SHE must be defeated for the conquest rewards.
+    // She spawns MARKED (killing her is an act of war against her faction;
+    // the MILIM_BLOC ripple carries the hit to Eurazania + Fulbrosia) and
+    // GARRISON-TAGGED as the BOSS, so her death flows through the normal
+    // bossDead → isConquestEligible → resolveWin chain. Her base behavior
+    // is untouched — she attacks EVERYONE in sight and stacks Rampage,
+    // which is exactly right for a summoned final boss on an empty field.
+    // With TR:N she is sentient_boss_milim_wrath (her death also pays
+    // TR:N's own Wrath/dragon-essence rewards — theirs, unsuppressable,
+    // and not duplicated by anything of ours); without TR:N the summon
+    // body is the promoted Dragon Faithful ELDER salamander so the
+    // mechanic works identically. Once per assault; a retreat discards
+    // her ("Milim gets bored and leaves") via despawnMilimRetribution +
+    // the tickGarrison stale-sweep.
+    // ------------------------------------------------------------------
+
+    private static final String MILIM_SUMMON_ID = "trnightmare:sentient_boss_milim_wrath";
+
+    private static void maybeSummonMilim(ServerLevel level, Settlement s) {
+        if (!"milim".equals(s.factionId) || !s.assaulted || s.conquered) return;
+        if (s.retributionUuid != null || s.bossDead) return; // once per assault
+        if (s.defenderCountAtStart <= 0) return;             // never an empty-town freebie
+        if (!s.garrisonUuids.isEmpty()) return;              // the field must be CLEARED
+        Mob milim = null;
+        if (net.neoforged.fml.ModList.get().isLoaded("trnightmare")) {
+            EntityType<?> type = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
+                    .getOptional(net.minecraft.resources.ResourceLocation.parse(MILIM_SUMMON_ID))
+                    .orElse(null);
+            if (type != null && type.create(level) instanceof Mob m) milim = m;
+        }
+        boolean isElderFallback = false;
+        if (milim == null) {
+            // No TR:N — the promoted Elder salamander stands in for her.
+            Supplier<? extends EntityType<?>> fallback = ANCHORS.get("milim");
+            if (fallback == null || !(fallback.get().create(level) instanceof Mob m)) return;
+            milim = m;
+            isElderFallback = true;
+        }
+        BlockPos at = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, s.center.above());
+        milim.moveTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5,
+                level.getRandom().nextFloat() * 360f, 0f);
+        milim.finalizeSpawn(level, level.getCurrentDifficultyAt(at),
+                MobSpawnType.SPAWN_EGG, null);
+        milim.setPersistenceRequired();
+        if (!level.addFreshEntity(milim)) return;
+        // MARKED — her death is a marked kill against the milim faction
+        // (Layer-1 fan-out + the bloc ripple to Eurazania/Fulbrosia)...
+        WorldReputationManager.markBoss(milim, "milim", "rival_colony", true);
+        // ...and BOSS-TAGGED — her death sets bossDead, which for a milim
+        // settlement IS conquest eligibility (isConquestEligible).
+        milim.setData(Attachments.GARRISON_TAG.get(), new GarrisonTag(s.id, true));
+        if (isElderFallback) buffDragonFaithfulElder(milim); // after markBoss — name wins
+        s.retributionUuid = milim.getUUID();
+        SettlementSavedData.get(level).markChanged();
+        if (s.assaultingPlayer != null) {
+            ServerPlayer assailant = level.getServer().getPlayerList()
+                    .getPlayer(s.assaultingPlayer);
+            if (assailant != null) {
+                // She TARGETS THE PLAYER FIRST (user): seed both the target
+                // and the hurt-by memory so her retaliation/threat logic
+                // opens on the assaulting player instead of whatever her
+                // reevaluator sees first. Her own AI takes over from there.
+                if (assailant.isAlive() && assailant.serverLevel() == level) {
+                    milim.setTarget(assailant);
+                    milim.setLastHurtByMob(assailant);
+                }
+                assailant.sendSystemMessage(Component.literal(
+                        "The sky splits — Milim Nava descends upon her fallen faithful. "
+                        + "Defeat her, or flee.")
+                        .withStyle(net.minecraft.ChatFormatting.DARK_PURPLE));
+            }
+        }
+        LOGGER.info("[TM] rival: settlement #{} — MILIM SUMMONED (field cleared, "
+                + "{} defenders were fielded, fallback={})",
+                s.id, s.defenderCountAtStart, isElderFallback);
+    }
+
+    /** Remove the retribution Milim at assault resolution. If her chunk is
+     *  unloaded the uuid is cleared anyway; the entity is persistent, so a
+     *  later {@link #tickGarrison} pass near a re-loaded, non-assaulted
+     *  settlement cannot re-adopt her (uuid gone) — she simply remains a
+     *  wild Milim, which is TR:N's own spawn behavior anyway. */
+    private static void despawnMilimRetribution(ServerLevel level, Settlement s) {
+        if (s.retributionUuid == null) return;
+        Entity e = level.getEntity(s.retributionUuid);
+        if (e != null && !e.isRemoved()) {
+            e.discard();
+            LOGGER.info("[TM] rival: settlement #{} — retribution Milim departs", s.id);
+        }
+        s.retributionUuid = null;
+        SettlementSavedData.get(level).markChanged();
+    }
+
+    /** Was this damage dealt by a player, or by something a player owns?
+     *  (ServerPlayer directly; a mob with a Tensura permanent/temporary
+     *  owner — war-party subordinates; or a tamed animal with an owner.) */
+    private static boolean isPlayerCredited(net.minecraft.world.damagesource.DamageSource source) {
+        if (source == null) return false;
+        net.minecraft.world.entity.Entity credited = source.getEntity();
+        if (credited == null) return false;
+        if (credited instanceof ServerPlayer) return true;
+        if (credited instanceof net.minecraft.world.entity.TamableAnimal tamable
+                && tamable.getOwnerUUID() != null) return true;
+        if (credited instanceof LivingEntity living) {
+            try {
+                ExistenceStorage ex = ExampleMod.readExistence(living);
+                if (ex != null && (ex.getPermanentOwner() != null
+                        || ex.getTemporaryOwner() != null)) return true;
+            } catch (Throwable ignored) { }
+        }
+        return false;
     }
 
     // ==================================================================
@@ -1778,7 +2206,7 @@ public final class RivalColonies {
                     changed = true;
                     BossFaction f = BossFaction.byId(s.factionId);
                     player.sendSystemMessage(Component.literal("You have discovered a "
-                            + (f != null ? f.displayName() : s.factionId)
+                            + factionLabel(s)
                             + " settlement — you may Declare War on it from the roster.")
                             .withStyle(f != null ? f.color() : net.minecraft.ChatFormatting.GOLD));
                     LOGGER.info("[TM] rival: settlement #{} discovered by {}",
@@ -1787,6 +2215,266 @@ public final class RivalColonies {
             }
         }
         if (changed) data.markChanged();
+    }
+
+    // ------------------------------------------------------------------
+    // Espionage — settlement scouting (2026-09-05; design:
+    // docs/tr-nightmare-integration.md §6 follow-on, user rulings applied)
+    // ------------------------------------------------------------------
+
+    /** Mission length: half an in-game day. */
+    private static final long SCOUT_DURATION_TICKS = 12_000L;
+    /** A spotted scout puts the settlement on alert: no scouts for 3 days. */
+    private static final long SCOUT_ALERT_TICKS = 72_000L;
+    /** The scout must be a wild-form subordinate within this range of the
+     *  player when the mission starts. */
+    private static final double SCOUT_PICK_RANGE = 16.0;
+
+    /** Skill-id tokens that let a scout READ EP (the appraisal family —
+     *  without one, the report has no EP line). Substring match on the
+     *  learned skill ids. */
+    private static final String[] APPRAISAL_TOKENS = {"apprais", "great_sage", "analys", "analyz"};
+    /** Tokens that make a scout HARD TO SPOT (halves detection — nullified
+     *  when the boss holds a detection ability). */
+    private static final String[] STEALTH_TOKENS = {"formhide", "conceal", "stealth", "hide", "invisib"};
+    /** Boss-side detection tokens (presence sense family). */
+    private static final String[] DETECTION_TOKENS = {"sense", "presence", "detect", "farsight", "eye"};
+
+    private static boolean hasSkillMatching(net.minecraft.world.entity.LivingEntity entity,
+                                            String[] tokens) {
+        try {
+            for (var instance : io.github.manasmods.manascore.skill.api.SkillAPI
+                    .getSkillsFrom(entity).getLearnedSkills()) {
+                var rn = instance.getSkill().getRegistryName();
+                if (rn == null) continue;
+                String id = rn.toString();
+                for (String token : tokens) {
+                    if (id.contains(token)) return true;
+                }
+            }
+        } catch (Throwable ignored) { }
+        return false;
+    }
+
+    /** The Wars-window [Scout] button. Picks the nearest eligible wild-form
+     *  subordinate (owned or controlled) within {@link #SCOUT_PICK_RANGE}
+     *  and sends it off; the report comes back in half a day. */
+    static void scoutSettlement(ServerPlayer player, int settlementId) {
+        ServerLevel level = player.serverLevel();
+        SettlementSavedData data = SettlementSavedData.get(level);
+        Settlement s = data.get(settlementId);
+        if (s == null) return;
+        if (!isDiscoveredBy(s, player.getUUID())) return;
+        if (s.conquered || s.assaulted) {
+            ExampleMod.sendAdvisoryNotice(player, "There is nothing left to scout there.");
+            return;
+        }
+        long now = level.getGameTime();
+        if (now < s.scoutAlertedUntil) {
+            ExampleMod.sendAdvisoryNotice(player,
+                    "Their sentries are on alert — give it a few days.");
+            return;
+        }
+        if (data.hasScoutMission(settlementId, player.getUUID())) {
+            ExampleMod.sendAdvisoryNotice(player, "Your scout is already on the way.");
+            return;
+        }
+
+        // Nearest eligible scout: identity-registered wild body the player
+        // may act on (owner — or controller, risking someone ELSE's asset),
+        // not already away on an envoy or scout mission.
+        RaceIdentitySavedData identities = RaceIdentitySavedData.get(level);
+        net.minecraft.world.entity.LivingEntity scout = null;
+        RaceIdentitySavedData.RaceIdentity scoutIdentity = null;
+        double best = Double.MAX_VALUE;
+        for (net.minecraft.world.entity.LivingEntity candidate
+                : level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class,
+                        player.getBoundingBox().inflate(SCOUT_PICK_RANGE))) {
+            RaceIdentitySavedData.RaceIdentity identity = identities.getByMobUUID(candidate.getUUID());
+            if (identity == null || identity.mode != RaceIdentitySavedData.Mode.SUBORDINATE) continue;
+            if (!MindControlTracker.canActOn(player, identity)) continue;
+            if (DiplomacyManager.isSubordinateAway(level, identity.identityId)) continue;
+            if (data.isScoutAway(identity.identityId)) continue;
+            double d = candidate.distanceToSqr(player);
+            if (d < best) {
+                best = d;
+                scout = candidate;
+                scoutIdentity = identity;
+            }
+        }
+        if (scout == null) {
+            ExampleMod.sendAdvisoryNotice(player,
+                    "No subordinate at your side to send — bring one within "
+                            + (int) SCOUT_PICK_RANGE + " blocks.");
+            return;
+        }
+
+        SettlementSavedData.ScoutMission mission = new SettlementSavedData.ScoutMission();
+        mission.identityId = scoutIdentity.identityId;
+        mission.settlementId = settlementId;
+        mission.requester = player.getUUID();
+        mission.returnTick = now + SCOUT_DURATION_TICKS;
+        ExistenceStorage ex = ExampleMod.readExistence(scout);
+        mission.scoutEp = ex != null ? ex.getEP() : 0.0;
+        mission.hasAppraisal = hasSkillMatching(scout, APPRAISAL_TOKENS);
+        mission.hasStealth = hasSkillMatching(scout, STEALTH_TOKENS);
+        mission.scoutName = scout.hasCustomName()
+                ? scout.getCustomName().getString()
+                : scout.getType().getDescription().getString();
+
+        // Send them away — the envoy "model A": refresh snapshot, despawn.
+        net.minecraft.nbt.CompoundTag snapshot = new net.minecraft.nbt.CompoundTag();
+        if (scout.save(snapshot)) {
+            identities.updateEntitySnapshot(scoutIdentity, snapshot);
+        }
+        identities.updateMobUUID(scoutIdentity, null);
+        scout.discard();
+        data.addScoutMission(mission);
+
+        BossFaction f = BossFaction.byId(s.factionId);
+        ExampleMod.sendAdvisoryNotice(player, mission.scoutName + " slips away toward "
+                + factionLabel(s)
+                + "'s settlement — expect word in half a day.");
+        LOGGER.info("[TM] scout: identity {} departs for settlement {} (ep={}, appraisal={}, stealth={})",
+                mission.identityId, settlementId, (long) mission.scoutEp,
+                mission.hasAppraisal, mission.hasStealth);
+    }
+
+    /** Roster/summon guard — true while this identity is away scouting. */
+    static boolean isScoutAway(ServerLevel level, java.util.UUID identityId) {
+        return SettlementSavedData.get(level).isScoutAway(identityId);
+    }
+
+    /** Resolve due missions: detection roll, report or alert, scout home. */
+    private static void tickScoutMissions(MinecraftServer server) {
+        ServerLevel overworld = server.overworld();
+        SettlementSavedData data = SettlementSavedData.get(overworld);
+        if (data.scoutMissions().isEmpty()) return;
+        long now = overworld.getGameTime();
+        for (SettlementSavedData.ScoutMission mission
+                : new java.util.ArrayList<>(data.scoutMissions())) {
+            if (now < mission.returnTick) continue;
+            RaceIdentitySavedData identities = RaceIdentitySavedData.get(overworld);
+            RaceIdentitySavedData.RaceIdentity identity = identities.getById(mission.identityId);
+            if (identity == null) { // scout's identity died/removed meanwhile
+                data.removeScoutMission(mission);
+                continue;
+            }
+            ServerPlayer requester = server.getPlayerList().getPlayer(mission.requester);
+            if (requester == null) {
+                // Requester offline — hold the mission and retry shortly.
+                mission.returnTick = now + 200L;
+                data.markChanged();
+                continue;
+            }
+            data.removeScoutMission(mission);
+            resolveScoutMission(server, data, identities, identity, mission, requester);
+        }
+    }
+
+    private static void resolveScoutMission(MinecraftServer server, SettlementSavedData data,
+                                            RaceIdentitySavedData identities,
+                                            RaceIdentitySavedData.RaceIdentity identity,
+                                            SettlementSavedData.ScoutMission mission,
+                                            ServerPlayer requester) {
+        ServerLevel level = requester.serverLevel();
+        Settlement s = data.get(mission.settlementId);
+        BossFaction f = s != null ? BossFaction.byId(s.factionId) : null;
+        String factionName = f != null ? f.displayName()
+                : (s != null ? s.factionId : "the ruins");
+
+        // Bring the scout home FIRST (mirrors the envoy return; a failed
+        // rematerialize leaves the roster-recall self-heal path).
+        net.minecraft.world.entity.LivingEntity body =
+                ExampleMod.rematerializeSubordinate(requester, identity);
+
+        if (s == null || s.conquered) {
+            ExampleMod.sendAdvisoryNotice(requester, mission.scoutName
+                    + " returns — the settlement is no more.");
+            return;
+        }
+
+        // Detection roll. ⚠ EP ratio is the v1 risk metric — MARKED FOR
+        // POTENTIAL CHANGE (user). Stealth (formhide/concealment family)
+        // halves the chance UNLESS the boss holds a detection ability.
+        ServerLevel setLevel = server.getLevel(s.dimension) != null
+                ? server.getLevel(s.dimension) : level;
+        Mob boss = resolveBoss(setLevel, s);
+        double bossEp = 0.0;
+        if (boss != null) {
+            ExistenceStorage bex = ExampleMod.readExistence(boss);
+            if (bex != null) bossEp = bex.getEP();
+        }
+        double chance;
+        if (bossEp <= 0.0 || mission.scoutEp <= 0.0) {
+            chance = 0.15; // unknown strengths — mild base risk
+        } else {
+            double ratio = bossEp / mission.scoutEp;
+            chance = ratio >= 10.0 ? 0.6 : ratio >= 3.0 ? 0.4 : ratio >= 1.0 ? 0.25 : 0.1;
+        }
+        boolean bossDetects = boss != null && hasSkillMatching(boss, DETECTION_TOKENS);
+        if (mission.hasStealth && !bossDetects) {
+            chance *= 0.5;
+        }
+        long now = level.getGameTime();
+
+        if (level.getRandom().nextDouble() < chance) {
+            // SPOTTED — no intel, an injured scout, an alerted settlement.
+            s.scoutAlertedUntil = now + SCOUT_ALERT_TICKS;
+            data.markChanged();
+            if (body != null) {
+                body.setHealth(Math.max(1.0f, body.getMaxHealth() * 0.3f));
+            }
+            ExampleMod.sendAdvisoryNotice(requester, mission.scoutName
+                    + " was spotted! They fled " + factionName
+                    + "'s sentries — the settlement is on alert.");
+            LOGGER.info("[TM] scout: identity {} DETECTED at settlement {} (chance {})",
+                    mission.identityId, mission.settlementId,
+                    String.format(java.util.Locale.ROOT, "%.2f", chance));
+            return;
+        }
+
+        // SUCCESS — the report. What it contains depends on the SCOUT's own
+        // abilities (user ruling): EP only with an appraisal-family skill.
+        int garrison = liveDefenderCount(setLevel, s);
+        StringBuilder report = new StringBuilder(mission.scoutName)
+                .append(" returns from ").append(factionName).append(": ");
+        report.append("garrison ").append(garrison).append(" defender(s)");
+        report.append(s.bossDead ? ", the boss is DEAD" :
+                boss != null ? " + the boss" : " (boss unseen)");
+        String intelLine = "garrison " + garrison;
+        if (mission.hasAppraisal && boss != null && bossEp > 0.0) {
+            String epText = bossEp >= 1_000_000.0
+                    ? String.format(java.util.Locale.ROOT, "%.1fM", bossEp / 1_000_000.0)
+                    : String.format(java.util.Locale.ROOT, "%.0fk", bossEp / 1_000.0);
+            report.append(", boss EP ~").append(epText);
+            intelLine += ", boss EP ~" + epText;
+        } else if (!mission.hasAppraisal) {
+            report.append(" (no appraisal skill — EP unreadable)");
+        }
+        if (f != null) {
+            report.append(". Relations: ")
+                    .append(DiplomacyManager.getState(level, mission.requester, f).name());
+        }
+        requester.sendSystemMessage(net.minecraft.network.chat.Component
+                .literal(report.toString())
+                .withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
+        // Info-skill synergy: Raphael-tier sight names the boss — delivered
+        // in canon format (Wisdom-line announcement vs silent-tool output).
+        MindControlTracker.InfoSkill info = MindControlTracker.infoSkillOf(requester);
+        if (boss != null && info.rank() >= MindControlTracker.RANK_ULTIMATE) {
+            String bossName = boss.getName().getString();
+            requester.sendSystemMessage(net.minecraft.network.chat.Component
+                    .literal(MindControlTracker.speak(info, "Report",
+                            "The commanding entity is " + bossName + ".",
+                            "Commanding entity identified: " + bossName + "."))
+                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+        }
+        s.scoutIntel = "scouted: " + intelLine;
+        s.scoutIntelTick = now;
+        data.markChanged();
+        LOGGER.info("[TM] scout: identity {} reported on settlement {} ({})",
+                mission.identityId, mission.settlementId, intelLine);
     }
 
     static boolean isDiscoveredBy(Settlement s, java.util.UUID player) {
@@ -1884,6 +2572,12 @@ public final class RivalColonies {
             // the player never lands in the void.
             arrival = new BlockPos(arrivalXZ.getX(), s.center.getY() + 1, arrivalXZ.getZ());
         }
+        // Fulbrosia is a SKY settlement — the arrival offset above points at
+        // open air (or the ground 60 blocks below the city). Land on the
+        // central plaza island instead.
+        if ("fulbrosia".equals(s.factionId)) {
+            arrival = s.center.offset(6, 1, 6);
+        }
         player.teleportTo(settlementLevel, arrival.getX() + 0.5, arrival.getY(), arrival.getZ() + 0.5,
                 player.getYRot(), player.getXRot());
 
@@ -1914,7 +2608,7 @@ public final class RivalColonies {
         LOGGER.info("[TM] rival: {} DECLARED WAR on settlement #{} — party {}, {} defenders + boss (betrayal ×{} tier {})",
                 player.getName().getString(), s.id, s.warParty.size(), s.defenderCountAtStart,
                 String.format("%.2f", s.betrayalFactor), s.betrayalTier);
-        return "War declared on the " + (f != null ? f.displayName() : s.factionId)
+        return "War declared on the " + factionLabel(s)
                 + " settlement #" + s.id + " — " + s.warParty.size() + " in your war party. "
                 + "Kill the boss and " + (int) (GARRISON_WIN_FRACTION * 100) + "% of "
                 + s.defenderCountAtStart + " defenders to conquer it."
@@ -2012,6 +2706,11 @@ public final class RivalColonies {
      *  uncertain, so they're left as-is (membership-only); handled in a later
      *  reviewed batch. All are native casters. */
     private static boolean isSkillUntouched(EntityType<?> type) {
+        // TR:N sentient bosses (Frey, Yuuki, lieutenants) are fully
+        // self-contained: they bootstrap their own curated skill lists AND
+        // grant themselves nightmareutils Sentient on spawn — our kit/driver
+        // grants would meddle. Id check, no trnightmare class references.
+        if (isTrnSentientBoss(type)) return true;
         return type == HumanEntityTypes.HINATA_SAKAGUCHI.get()
                 || type == HumanEntityTypes.KIRARA_MIZUTANI.get()
                 || type == HumanEntityTypes.KYOYA_TACHIBANA.get()
@@ -2019,6 +2718,13 @@ public final class RivalColonies {
                 || type == HumanEntityTypes.MARK_LAUREN.get()
                 || type == HumanEntityTypes.SHINJI_TANIMURA.get()
                 || type == HumanEntityTypes.SHIN_RYUSEI.get();
+    }
+
+    /** Any TR:N sentient-boss entity, by registry id. */
+    private static boolean isTrnSentientBoss(EntityType<?> type) {
+        var id = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(type);
+        return id != null && "trnightmare".equals(id.getNamespace())
+                && id.getPath().startsWith("sentient_boss_");
     }
 
     // ==================================================================
@@ -2084,6 +2790,9 @@ public final class RivalColonies {
             case "luminous" -> // holy — resist darkness
                 grantDefenderSkill(mob,
                         io.github.manasmods.tensura.registry.skill.ResistanceSkills.DARKNESS_ATTACK_RESISTANCE);
+            case "fulbrosia" -> // sky realm — wind-hardened
+                grantDefenderSkill(mob,
+                        io.github.manasmods.tensura.registry.skill.ResistanceSkills.WIND_ATTACK_RESISTANCE);
             default -> { /* falmuth, eastern_empire — no elemental resist */ }
         }
     }
@@ -2102,7 +2811,7 @@ public final class RivalColonies {
             factionAttackMagic(String factionId) {
         return switch (factionId) {
             case "leon", "luminous" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.FIRE_BALL;
-            case "falmuth" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.WIND_CUTTER;
+            case "falmuth", "fulbrosia" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.WIND_CUTTER;
             case "eastern_empire", "dwargon" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.STONE_SHOT;
             case "tempest" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.WATER_CUTTER;
             default -> null;
@@ -2114,7 +2823,7 @@ public final class RivalColonies {
             factionManipulation(String factionId) {
         return switch (factionId) {
             case "leon", "luminous" -> io.github.manasmods.tensura.registry.skill.ExtraSkills.FLAME_MANIPULATION;
-            case "falmuth" -> io.github.manasmods.tensura.registry.skill.ExtraSkills.WIND_MANIPULATION;
+            case "falmuth", "fulbrosia" -> io.github.manasmods.tensura.registry.skill.ExtraSkills.WIND_MANIPULATION;
             case "eastern_empire", "dwargon" -> io.github.manasmods.tensura.registry.skill.ExtraSkills.EARTH_MANIPULATION;
             case "tempest" -> io.github.manasmods.tensura.registry.skill.ExtraSkills.WATER_MANIPULATION;
             default -> null;
@@ -2161,7 +2870,7 @@ public final class RivalColonies {
             quickSpellMagic(String factionId) {
         return switch (factionId) {
             case "leon", "luminous" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.FIRE_LANCE;
-            case "falmuth" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.WIND_GUST;
+            case "falmuth", "fulbrosia" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.WIND_GUST;
             case "eastern_empire", "dwargon" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.MUD_HAND;
             case "tempest" -> io.github.manasmods.tensura.registry.magic.AspectualMagics.ICICLE_LANCE;
             default -> null;
@@ -2173,7 +2882,7 @@ public final class RivalColonies {
     private static double primarySpellCost(String factionId) {
         return switch (factionId) {
             case "leon", "luminous" -> 30_000;  // Fire Ball
-            case "falmuth" -> 500;              // Wind Cutter
+            case "falmuth", "fulbrosia" -> 500;  // Wind Cutter
             case "eastern_empire", "dwargon" -> 45_000; // Stone Shot
             case "tempest" -> 1_000;           // Water Cutter
             default -> 1_000;
@@ -2222,6 +2931,42 @@ public final class RivalColonies {
         grantDefenderSkill(mob,
                 io.github.manasmods.tensura.registry.skill.ExtraSkills.SHADOW_MOTION);
         equipMainhand(mob, warriorSwordFor(tier));
+        // BATTLEWILL kit (user, 2026-09-05): some factions' warriors fight
+        // with aura arts — range AND power without an element. Battlewills
+        // burn AURA, so the pool is floored (cap + fill) the way caster
+        // magicule is, or the autocaster could never afford a single art.
+        var wills = factionBattlewills(factionId);
+        if (!wills.isEmpty()) {
+            for (var will : wills) grantMasteredSkill(mob, will);
+            setAttributeAbsolute(mob, TensuraAttributes.MAX_AURA,
+                    WARRIOR_AURA_ID, WARRIOR_BATTLEWILL_AURA);
+            ExistenceStorage exist = ExampleMod.readExistence(mob);
+            if (exist != null) {
+                exist.setAura(WARRIOR_BATTLEWILL_AURA);
+                exist.markDirty();
+            }
+        }
+    }
+
+    /** Aura floor for battlewill-armed warriors. ⚠ BALANCE GUESS. */
+    private static final double WARRIOR_BATTLEWILL_AURA = 30_000.0;
+    private static final ResourceLocation WARRIOR_AURA_ID =
+            ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "warrior_battlewill_aura");
+
+    /** The faction's warrior BATTLEWILLS (aura arts) — the Dragon
+     *  Faithful's brute-force ranged kit (user: "range and power", no
+     *  element): Heavy Slash (power melee), Aura Slash (ranged aura arc),
+     *  Magic Bullet (ranged aura projectile). Empty for everyone else. */
+    private static java.util.List<java.util.function.Supplier<
+            ? extends io.github.manasmods.manascore.skill.api.ManasSkill>>
+            factionBattlewills(String factionId) {
+        return switch (factionId) {
+            case "milim" -> java.util.List.of(
+                    io.github.manasmods.tensura.registry.battlewill.MeleeArts.HEAVY_SLASH,
+                    io.github.manasmods.tensura.registry.battlewill.MeleeArts.AURA_SLASH,
+                    io.github.manasmods.tensura.registry.battlewill.ProjectileArts.MAGIC_BULLET);
+            default -> java.util.List.of();
+        };
     }
 
     /** Warrior melee weapon by faction tier — diamond (I) → high magisteel (IV). */
@@ -2341,8 +3086,12 @@ public final class RivalColonies {
         BlockPos xz = around.offset(dx, 0, dz);
         level.getChunk(xz.getX() >> 4, xz.getZ() >> 4); // load for a valid heightmap read
         BlockPos pos = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, xz);
-        if (pos.getY() <= level.getMinBuildHeight() + 1) {
-            // void read — drop next to the player's (already-validated) arrival Y
+        if (pos.getY() <= level.getMinBuildHeight() + 1
+                || pos.getY() < around.getY() - 10) {
+            // Void read, or the column's terrain is far BELOW the anchor
+            // (a sky-settlement plaza edge — Fulbrosia): stay at the
+            // player's already-validated arrival Y instead of dropping the
+            // party member to the ground 60 blocks under the city.
             pos = new BlockPos(xz.getX(), around.getY(), xz.getZ());
         }
         return pos;
@@ -2361,6 +3110,10 @@ public final class RivalColonies {
             if (s.assaultingPlayer == null) { s.assaulted = false; continue; }
             ServerPlayer player = level.getServer().getPlayerList().getPlayer(s.assaultingPlayer);
             if (player == null) continue; // offline — the logout handler resolves it
+            // Dragon Faithful safety net: if the last defender vanished
+            // without a death event (unloaded-chunk cleanup), the summon
+            // still fires on the next tick here.
+            maybeSummonMilim(level, s);
             if (isConquestEligible(s)) {
                 resolveWin(level, s, player);
                 continue;
@@ -2444,7 +3197,7 @@ public final class RivalColonies {
         teleportPlayerHome(s, player);
         s.conquestReached = true;
         BossFaction f = BossFaction.byId(s.factionId);
-        player.sendSystemMessage(Component.literal("The " + (f != null ? f.displayName() : s.factionId)
+        player.sendSystemMessage(Component.literal("The " + factionLabel(s)
                 + " settlement has fallen!")
                 .withStyle(net.minecraft.ChatFormatting.GREEN));
         LOGGER.info("[TM] rival: settlement #{} CONQUERED by {} — applying conquest payoff",
@@ -2456,6 +3209,7 @@ public final class RivalColonies {
         // Diplomacy — a won war fulfils any active WinWar deal (e.g. Clayman's
         // "The Marionette" capstone).
         DiplomacyManager.onWarWon(level, player.getUUID());
+        despawnMilimRetribution(level, s); // Milim gets bored and leaves
         clearGarrisonGlow(level, s);
         clearAssaultState(s, true); // keep conquestReached
         SettlementSavedData.get(level).markChanged();
@@ -2475,11 +3229,12 @@ public final class RivalColonies {
         clearGarrisonGlow(level, s); // #7 — un-highlight before the garrison resets
         bringPartyHome(level, s, player);
         teleportPlayerHome(s, player);
+        despawnMilimRetribution(level, s); // Milim gets bored and leaves
         resetGarrison(level, s); // respawns garrison + revives/heals boss (updates bossUuid)
         BossFaction f = BossFaction.byId(s.factionId);
         if (player != null) {
             player.sendSystemMessage(Component.literal("You retreat from the "
-                    + (f != null ? f.displayName() : s.factionId)
+                    + factionLabel(s)
                     + " settlement — its garrison regroups.")
                     .withStyle(net.minecraft.ChatFormatting.GRAY));
         }
@@ -2505,6 +3260,7 @@ public final class RivalColonies {
             if (sLevel == null) continue;
             clearGarrisonGlow(sLevel, s); // #7 — un-highlight before reset
             bringPartyHome(sLevel, s, null); // no player to anchor; sent to origin
+            despawnMilimRetribution(sLevel, s); // Milim gets bored and leaves
             resetGarrison(sLevel, s);
             s.assaulted = false;
             s.pendingReturn = true; // teleport the player home on return
@@ -2572,6 +3328,15 @@ public final class RivalColonies {
         if (!keepConquest) s.conquestReached = false;
     }
 
+    /** Player-facing label for a settlement's faction. Milim's settlement is
+     *  named for her subject people — the "Dragon Faithful" (canon) — every
+     *  other faction uses its display name. */
+    static String factionLabel(Settlement s) {
+        if ("milim".equals(s.factionId)) return "Dragon Faithful";
+        BossFaction f = BossFaction.byId(s.factionId);
+        return f != null ? f.displayName() : s.factionId;
+    }
+
     /** Find the settlement this player is actively assaulting, or null. */
     static Settlement findAssaultFor(ServerLevel level, java.util.UUID player) {
         for (Settlement s : SettlementSavedData.get(level).all()) {
@@ -2595,7 +3360,7 @@ public final class RivalColonies {
             BossFaction f = BossFaction.byId(s.factionId);
             net.minecraft.nbt.CompoundTag e = new net.minecraft.nbt.CompoundTag();
             e.putInt("id", s.id);
-            e.putString("faction", f != null ? f.displayName() : s.factionId);
+            e.putString("faction", factionLabel(s));
             e.putString("where", "[" + s.center.getX() + ", " + s.center.getZ() + "] "
                     + s.dimension.location().getPath());
             boolean mine = player.getUUID().equals(s.assaultingPlayer);
@@ -2605,9 +3370,19 @@ public final class RivalColonies {
                     : s.assaulted ? "under assault"
                     : "garrison " + liveDefenderCount(player.serverLevel(), s) + "/"
                             + s.defenderCountAtStart + " + boss";
+            // Scout intel — appended to the state line (with age in days).
+            if (!s.scoutIntel.isEmpty() && s.scoutIntelTick >= 0) {
+                long ageDays = Math.max(0,
+                        (player.serverLevel().getGameTime() - s.scoutIntelTick) / 24_000L);
+                state = state + " · " + s.scoutIntel + " (" + ageDays + "d old)";
+            }
             e.putString("state", state);
             e.putBoolean("canDeclare", !s.conquered && !s.conquestReached && !s.assaulted);
             e.putBoolean("canRetreat", mine && s.assaulted);
+            e.putBoolean("canScout", !s.conquered && !s.assaulted
+                    && player.serverLevel().getGameTime() >= s.scoutAlertedUntil
+                    && !SettlementSavedData.get(player.serverLevel())
+                            .hasScoutMission(s.id, player.getUUID()));
             list.add(e);
         }
         root.put("settlements", list);
@@ -2624,7 +3399,7 @@ public final class RivalColonies {
         net.minecraft.nbt.CompoundTag root = new net.minecraft.nbt.CompoundTag();
         root.putString("mode", "picker");
         root.putInt("settlementId", settlementId);
-        root.putString("faction", f != null ? f.displayName() : s.factionId);
+        root.putString("faction", factionLabel(s));
         root.putInt("cap", WAR_PARTY_CAP);
         net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
         for (Mob mob : loadedSubordinates(player)) {
@@ -2690,7 +3465,10 @@ public final class RivalColonies {
         // Place ~40 blocks ahead of the player so they don't stand in it.
         BlockPos center = player.blockPosition().relative(player.getDirection(), 40);
         if (wild) {
-            spawnAnchorBoss(level, factionId, center, false);
+            if (spawnAnchorBoss(level, factionId, center, false) == null) {
+                return faction.displayName() + " has no standing anchor boss to spawn "
+                        + "(the Dragon Faithful's boss is the summoned Milim).";
+            }
             return faction.displayName() + " WILD boss spawned (unmarked, free kill).";
         }
         Settlement s = generateColony(level, player, factionId, center);
@@ -2708,7 +3486,7 @@ public final class RivalColonies {
         if (s == null) return List.of("No settlement #" + id + ".");
         BossFaction f = BossFaction.byId(s.factionId);
         List<String> out = new ArrayList<>();
-        out.add("Settlement #" + s.id + " — " + (f != null ? f.displayName() : s.factionId)
+        out.add("Settlement #" + s.id + " — " + factionLabel(s)
                 + " [" + (s.structureType == Settlement.StructureType.DWARVEN_VILLAGE
                 ? "dwarven village" : "town") + "] @ " + s.center);
         out.add("  state: " + (s.assaulted ? "ASSAULTED" : "IDLE")
@@ -2821,7 +3599,7 @@ public final class RivalColonies {
             String form = s.structureType == Settlement.StructureType.DWARVEN_VILLAGE
                     ? "dwarven village"
                     : s.buildingPositions.size() + " buildings";
-            out.add("  #" + s.id + " " + (f != null ? f.displayName() : s.factionId)
+            out.add("  #" + s.id + " " + factionLabel(s)
                     + " @ " + s.center + " [" + s.dimension.location() + "] — " + form
                     + ", garrison " + s.garrisonUuids.size() + "/" + s.defenderCountAtStart
                     + (s.assaulted ? " ASSAULTED" : "")

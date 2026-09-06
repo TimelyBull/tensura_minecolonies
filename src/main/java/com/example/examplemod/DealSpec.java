@@ -311,32 +311,54 @@ public record DealSpec(
                 10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
         map.put("tempest", new DealSpec("cov_tempest", "A Thriving Metropolis",
                 new Population(25),
-                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),   // PLACEHOLDER (tier II)
+                // INTERIM (2026-09-05): the covenant ALSO grants a regen skill
+                // (COVENANT_BONUS_SKILLS): INFINITE Regeneration in a TR:N
+                // world, ULTRASPEED Regeneration on base Tensura. Apples stay
+                // as the item payout. ⚠ REDO PLANNED — the developer wants
+                // every covenant to pay a UNIQUE ITEM with a special purpose
+                // (roadmap §7B).
+                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         // (Jura's old cov_jura "The Grand Academy" dropped — the merged
         // Jura-Tempest Federation keeps Tempest's cov_tempest as its one
         // Covenant deal.)
+        // The Sky Queen's Sight ★ — Fulbrosia's Covenant capstone (faction
+        // added 2026-09-05). An offering of the sky forges the bond; the
+        // reward skill is UNIVERSAL PERCEPTION (Frey's own kit) via
+        // SKILL_REWARDS — deliberately NOT Reflector, which TR:N already
+        // drops from Frey's death (no duplicated reward). Crystals are the
+        // item payout. ⚠ Same roadmap-§7B unique-item REDO applies.
+        map.put("fulbrosia", new DealSpec("cov_fulbrosia", "The Sky Queen's Sight",
+                new SupplyBundle(List.of(
+                        new ItemStack(Items.FEATHER, 64),
+                        new ItemStack(Items.PHANTOM_MEMBRANE, 16),
+                        new ItemStack(ten("high_quality_magic_crystal"), 4))),
+                List.of(new ItemStack(ten("high_quality_magic_crystal"), 8)),
+                10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         // The Ultimate Brawl ★ — Milim's Covenant capstone. Swapped in from her
         // old PACT deal (2026-07-28): slay the Warden for the custom ABSOLUTE
         // ANNIHILATOR (granted PLAIN — earns its own holy_coat engraving + EP
         // growth via gear_existence). Also grants the STRENGTH skill: SKILL_REWARDS
-        // now keys on cov_milim, which is safe because Milim is an ABSTRACT faction
-        // (no conquest path, so covenantSkillFor is never consulted) and fulfillDeal
-        // grants the skill on covenant completion just like a catalog deal. Deal id
-        // stays cov_milim; only the content moved (see mi_ultimate_brawl below).
+        // keys on cov_milim; since Milim became a PHYSICAL faction (the Dragon
+        // Faithful settlement, 2026-09-05) covenantSkillFor("milim") IS consulted
+        // on conquest and grants Strength — intended (same skill both paths).
+        // fulfillDeal grants it on covenant completion just like a catalog deal.
+        // Deal id stays cov_milim; only the content moved (see mi_ultimate_brawl below).
         map.put("milim", new DealSpec("cov_milim", "The Ultimate Brawl",
                 new SlayEntities(java.util.Set.of("minecraft:warden"), 1, "the Warden"),
                 List.of(new ItemStack(ExampleMod.ABSOLUTE_ANNIHILATOR.get())),
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         map.put("falmuth", new DealSpec("cov_falmuth", "Prove Your Might",
                 new SlayEntities(java.util.Set.of("minecraft:wither"), 1, "the Wither"),
-                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),   // PLACEHOLDER (tier II)
+                // INTERIM: + TR:N Maximum Will bonus (COVENANT_TRN_BONUS_SKILLS).
+                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         map.put("eurazania", new DealSpec("cov_carrion", "The Great Hunt",
                 new SlayEntities(java.util.Set.of("minecraft:wither", "minecraft:warden",
                         "minecraft:elder_guardian", "tensura:charybdis", "tensura:ifrit"),
                         3, "great beasts (Wither / Warden / Elder Guardian / Charybdis / Ifrit)"),
-                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),   // PLACEHOLDER (tier II)
+                // INTERIM: + TR:N Aura Armor bonus (COVENANT_TRN_BONUS_SKILLS).
+                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         // Luminous's Covenant — "The Trial of Light & Dark" (real reward, 2026-07-28).
         // A two-faced ritual: prove faith by redeeming villagers (light) AND spill
@@ -350,8 +372,10 @@ public record DealSpec(
         map.put("clayman", new DealSpec("cov_clayman", "Souls for the Core",
                 new SlayEntities(java.util.Set.of("minecraft:villager"), 10,
                         "villagers (their souls feed the Charybdis core)"),
-                // Phase 3: was empty; Clayman is TIER I (minor) → 32 emeralds.
-                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 1)),   // PLACEHOLDER (tier I)
+                // INTERIM: + TR:N Investigator bonus (COVENANT_TRN_BONUS_SKILLS)
+                // — the puppeteers teach their craft; rank-1 on the espionage
+                // sight ladder.
+                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 1)),
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         // Phase 1 (faction-rewards roadmap) — Leon + Eastern Empire were
         // raidable towns with NO Covenant milestone; add one each so their
@@ -361,14 +385,19 @@ public record DealSpec(
                         new ItemStack(Items.GOLD_BLOCK, 16),
                         new ItemStack(Items.BLAZE_ROD, 16),
                         new ItemStack(Items.NETHERITE_INGOT, 1))),
-                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 3)),   // PLACEHOLDER (tier III)
+                // INTERIM: with TR:N — a Scorch Nucleation Core (bottled fire,
+                // slots into weapons like an element core; unobtainable in
+                // survival otherwise). Without: the apple placeholder stands.
+                List.of(optionalItem("trnightmare:scorch_nucleation_core", 1,
+                        new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 3))),
                 10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
         map.put("eastern_empire", new DealSpec("cov_eastern_empire", "The Imperial Compact",
                 new SupplyBundle(List.of(
                         new ItemStack(Items.DIAMOND_BLOCK, 4),
                         new ItemStack(Items.AMETHYST_SHARD, 32),
                         new ItemStack(Items.REDSTONE_BLOCK, 16))),
-                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),   // PLACEHOLDER (tier II)
+                // INTERIM: + TR:N Processor bonus (COVENANT_TRN_BONUS_SKILLS).
+                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),
                 10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
         return Map.copyOf(map);
     }
@@ -467,6 +496,48 @@ public record DealSpec(
             ? extends io.github.manasmods.manascore.skill.api.ManasSkill>> SKILL_REWARDS =
             buildSkillRewards();
 
+    /**
+     * INTERIM covenant BONUS skills (2026-09-05, faction-rewards roadmap
+     * §7B): granted ON TOP of the deal's item payout when the covenant
+     * forges, resolved by REGISTRY ID at grant time — a `trnightmare:` id
+     * simply doesn't resolve without TR:N (the item payout is the floor),
+     * while `tensura:` ids always work. ⚠ REDO PLANNED: the developer wants
+     * every covenant to pay a UNIQUE ITEM with a special purpose; these
+     * skill bonuses are a stopgap so six covenants stop paying plain apples.
+     */
+    public static final java.util.Map<String, net.minecraft.resources.ResourceLocation>
+            COVENANT_BONUS_SKILLS = buildCovenantBonusSkills();
+
+    private static java.util.Map<String, net.minecraft.resources.ResourceLocation>
+            buildCovenantBonusSkills() {
+        // Tempest's regen tier is gated on TR:N being INSTALLED (user ruling
+        // 2026-09-05): the full Infinite Regeneration in a TR:N world,
+        // Ultraspeed Regeneration on base Tensura. Both are tensura: skills,
+        // so the gate is the mod list, not id resolution.
+        boolean trn = net.neoforged.fml.ModList.get().isLoaded("trnightmare");
+        return java.util.Map.of(
+                "cov_tempest", net.minecraft.resources.ResourceLocation.parse(
+                        trn ? "tensura:infinite_regeneration" : "tensura:ultraspeed_regeneration"),
+                "cov_falmuth", net.minecraft.resources.ResourceLocation.parse("trnightmare:maximum_will"),
+                "cov_eastern_empire", net.minecraft.resources.ResourceLocation.parse("trnightmare:processor"),
+                "cov_clayman", net.minecraft.resources.ResourceLocation.parse("trnightmare:investigator"),
+                "cov_carrion", net.minecraft.resources.ResourceLocation.parse("trnightmare:aura_armor"));
+    }
+
+    /** An ItemStack resolved by id at class-init (registries are frozen by
+     *  the time deals are read) — {@code fallback} when the id is absent
+     *  (e.g. a `trnightmare:` item without TR:N installed). */
+    private static ItemStack optionalItem(String id, int count, ItemStack fallback) {
+        try {
+            var item = net.minecraft.core.registries.BuiltInRegistries.ITEM
+                    .get(net.minecraft.resources.ResourceLocation.parse(id));
+            if (item != null && item != Items.AIR) {
+                return new ItemStack(item, count);
+            }
+        } catch (Throwable ignored) { }
+        return fallback;
+    }
+
     /** The faction's capstone (Covenant) skill — the supplier behind that
      *  faction's top ALLIED catalog quest. Used by the rival-colony
      *  conquest payoff (Stage D) to grant the boss's faction skill by
@@ -474,6 +545,12 @@ public record DealSpec(
      *  Returns null for factions with no capstone skill. */
     public static java.util.function.Supplier<
             ? extends io.github.manasmods.manascore.skill.api.ManasSkill> covenantSkillFor(String factionId) {
+        // Some factions' capstone skill rides the COVENANT deal itself
+        // rather than a catalog deal (milim → Strength via cov_milim,
+        // fulbrosia → Universal Perception via cov_fulbrosia) — check it
+        // first, or conquest would grant them no skill at all.
+        DealSpec cov = COVENANT_DEALS.get(factionId);
+        if (cov != null && SKILL_REWARDS.containsKey(cov.id())) return SKILL_REWARDS.get(cov.id());
         for (DealSpec d : FACTION_DEALS.getOrDefault(factionId, List.of())) {
             if (SKILL_REWARDS.containsKey(d.id())) return SKILL_REWARDS.get(d.id());
         }
@@ -520,6 +597,10 @@ public record DealSpec(
         // Phase 0 decision: Shizu is soft-retired — its sh_pupils skill mapping
         // is purged along with its catalog table + conquest profile.
         m.put("ow_specialists", io.github.manasmods.tensura.registry.skill.IntrinsicSkills.EYE_OF_TRUTH);
+        // Fulbrosia's Covenant grants Universal Perception (Frey's own
+        // sight) — chosen over Reflector, which TR:N already drops on her
+        // death (no duplicated skill reward).
+        m.put("cov_fulbrosia", io.github.manasmods.tensura.registry.skill.ExtraSkills.UNIVERSAL_PERCEPTION);
         return Map.copyOf(m);
     }
 
@@ -1246,6 +1327,24 @@ public record DealSpec(
         // boss). So: fire ELEMENT, but a martial/saber spine (Battlewill, the
         // Platinum Blade fire-katana) — not a generic flame faction. Tier III.
         // Covenant milestone is cov_leon (see buildCovenantDeals).
+        // 🪶 FULBROSIA — the Sky Queen's harpy realm (small aloof-style set;
+        // she is proud and outbound-only). Sky-themed supplies + a windrider
+        // levy. Covenant milestone is cov_fulbrosia (see buildCovenantDeals).
+        map.put("fulbrosia", List.of(
+                new DealSpec("fu_feathers", "Feathers for the Roost",
+                        new SupplyItems(Items.FEATHER, 48),
+                        List.of(new ItemStack(Items.PHANTOM_MEMBRANE, 6), new ItemStack(ten("bronze_coin"), 12)),
+                        4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("fu_skyleather", "Skyleather for the Aeries",
+                        new SupplyItems(Items.PHANTOM_MEMBRANE, 8),
+                        List.of(new ItemStack(Items.EMERALD, 6), new ItemStack(ten("silver_coin"), 10)),
+                        5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
+                new DealSpec("fu_windriders", "Windriders Abroad",
+                        new LendCitizens(Skill.Agility, 1, 4, 3 * DAY, 2),
+                        List.of(new ItemStack(Items.DIAMOND, 4), new ItemStack(Items.FEATHER, 16),
+                                new ItemStack(ten("silver_coin"), 12)),
+                        6.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false)));
+
         map.put("leon", List.of(
                 new DealSpec("le_magma", "Stones of Fire",
                         new SupplyItems(Items.MAGMA_BLOCK, 32),

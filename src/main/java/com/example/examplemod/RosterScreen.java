@@ -252,6 +252,18 @@ public class RosterScreen extends Screen {
         if (btn == 0 && this.list != null) {
             RosterRow hit = this.list.entryAtScreenY(mx, my);
             if (hit != null) {
+                // Deceit action label first — [Plant] / [Strike] occupy a
+                // zone inside the row (bounds captured at render time).
+                byte deceit = hit.deceitActionAt(mx, my);
+                if (deceit >= 0) {
+                    PacketDistributor.sendToServer(new Networking.DeceitActionPayload(
+                            hit.data.identityId(), deceit));
+                    if (this.minecraft != null && this.minecraft.level != null) {
+                        this.recentClickTick.put(hit.data.identityId(),
+                                this.minecraft.level.getGameTime());
+                    }
+                    return true;
+                }
                 this.pressStartId = hit.data.identityId();
                 this.draggedAcrossRows = false;
                 return true;
@@ -438,8 +450,25 @@ public class RosterScreen extends Screen {
 
         final Networking.RosterEntry data;
 
+        /** One clickable deceit label's hit box + action, captured each
+         *  frame in render(). */
+        private record ActionZone(int x0, int x1, int y0, int y1, byte action) {}
+        private final List<ActionZone> actionZones = new ArrayList<>(3);
+
         RosterRow(Networking.RosterEntry data) {
             this.data = data;
+        }
+
+        /** The deceit action under (mx,my), or -1. Uses the bounds captured
+         *  during the last render — rows re-render every frame, so they are
+         *  always fresh when a click arrives. */
+        byte deceitActionAt(double mx, double my) {
+            for (ActionZone z : this.actionZones) {
+                if (mx >= z.x0() && mx <= z.x1() && my >= z.y0() && my <= z.y1()) {
+                    return z.action();
+                }
+            }
+            return -1;
         }
 
         @Override
@@ -481,6 +510,59 @@ public class RosterScreen extends Screen {
             int statusWidth = mc.font.width(status);
             g.drawString(mc.font, status,
                     left + width - statusWidth - 6, textY, color);
+
+            // Deceit labels, right-to-left before the status text. Controlled
+            // wild row: [Plant]. Planted row: [Debrief] [Steal] [Strike] (or
+            // "armed"/"stealing" state text). Bounds are captured per label
+            // for the click hit-test in RosterScreen.mouseClicked.
+            this.actionZones.clear();
+            byte cb = data.controlByte();
+            if ((cb & Networking.RosterEntry.CONTROL_BIT_CONTROLLED) != 0) {
+                int cursorRight = left + width - statusWidth - 12;
+                boolean planted = (cb & Networking.RosterEntry.CONTROL_BIT_PLANTED) != 0;
+                boolean armed = (cb & Networking.RosterEntry.CONTROL_BIT_ARMED) != 0;
+                boolean stealing = (cb & Networking.RosterEntry.CONTROL_BIT_STEALING) != 0;
+                if (!planted && data.modeByte() == 0) {
+                    cursorRight = drawDeceitLabel(g, mc, "[Plant]", 0xFFD7A53C,
+                            Networking.DeceitActionPayload.ACTION_PLANT,
+                            cursorRight, textY, top, height, mouseX, mouseY);
+                } else if (planted && data.modeByte() == 1) {
+                    if (armed) {
+                        cursorRight = drawDeceitLabel(g, mc, "armed", 0xFF8B2E2E,
+                                (byte) -1, cursorRight, textY, top, height, mouseX, mouseY);
+                    } else {
+                        cursorRight = drawDeceitLabel(g, mc, "[Strike]", 0xFFFF5555,
+                                Networking.DeceitActionPayload.ACTION_STRIKE,
+                                cursorRight, textY, top, height, mouseX, mouseY);
+                    }
+                    cursorRight = drawDeceitLabel(g, mc,
+                            stealing ? "[stealing]" : "[Steal]",
+                            stealing ? 0xFF9BE07B : 0xFF5BD86A,
+                            Networking.DeceitActionPayload.ACTION_STEAL,
+                            cursorRight, textY, top, height, mouseX, mouseY);
+                    drawDeceitLabel(g, mc, "[Debrief]", 0xFF7BBFFF,
+                            Networking.DeceitActionPayload.ACTION_DEBRIEF,
+                            cursorRight, textY, top, height, mouseX, mouseY);
+                }
+            }
+        }
+
+        /** Draw one right-aligned deceit label ending at {@code rightEdge};
+         *  registers a click zone when {@code action >= 0}. Returns the new
+         *  right edge for the next label (4 px gap). */
+        private int drawDeceitLabel(GuiGraphics g, Minecraft mc, String label, int color,
+                                    byte action, int rightEdge, int textY,
+                                    int top, int height, int mouseX, int mouseY) {
+            int labelWidth = mc.font.width(label);
+            int lx = rightEdge - labelWidth;
+            boolean hoveredLabel = action >= 0
+                    && mouseX >= lx && mouseX <= lx + labelWidth
+                    && mouseY >= top && mouseY <= top + height;
+            g.drawString(mc.font, label, lx, textY, hoveredLabel ? 0xFFFFFFFF : color);
+            if (action >= 0) {
+                this.actionZones.add(new ActionZone(lx, lx + labelWidth, top, top + height, action));
+            }
+            return lx - 4;
         }
 
         @Override

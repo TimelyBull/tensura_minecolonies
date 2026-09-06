@@ -61,6 +61,26 @@ public final class Networking {
                 Networking::onActOnIdentity
         );
         registrar.playToServer(
+                DeceitActionPayload.TYPE,
+                DeceitActionPayload.CODEC,
+                Networking::onDeceitAction
+        );
+        registrar.playToServer(
+                InterrogatePayload.TYPE,
+                InterrogatePayload.CODEC,
+                Networking::onInterrogate
+        );
+        registrar.playToServer(
+                ReleasePayload.TYPE,
+                ReleasePayload.CODEC,
+                Networking::onRelease
+        );
+        registrar.playToClient(
+                SyncSuspicionFlagPayload.TYPE,
+                SyncSuspicionFlagPayload.CODEC,
+                Networking::onSyncSuspicionFlag
+        );
+        registrar.playToServer(
                 ConfirmCollapsePayload.TYPE,
                 ConfirmCollapsePayload.CODEC,
                 Networking::onConfirmCollapse
@@ -381,6 +401,111 @@ public final class Networking {
     }
 
     /**
+     * C2S: a deceit action on a mind-controlled roster row — the [Plant] /
+     * [Strike] buttons. Server validates controller-ship and state; see
+     * {@link MindControlTracker#handleDeceitAction}.
+     */
+    public record DeceitActionPayload(UUID identityId, byte action) implements CustomPacketPayload {
+        public static final byte ACTION_PLANT = 0;   // send to the OWNER's colony as a sleeper
+        public static final byte ACTION_STRIKE = 1;  // order the planted sleeper to strike
+        public static final byte ACTION_STEAL = 2;   // toggle the warehouse skim
+        public static final byte ACTION_DEBRIEF = 3; // report on the victim colony
+
+        public static final Type<DeceitActionPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "deceit_action"));
+
+        public static final StreamCodec<ByteBuf, DeceitActionPayload> CODEC = StreamCodec.composite(
+                UUIDUtil.STREAM_CODEC, DeceitActionPayload::identityId,
+                ByteBufCodecs.BYTE,    DeceitActionPayload::action,
+                DeceitActionPayload::new
+        );
+
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /**
+     * S2C: mark/unmark a citizen entity as SUSPICIOUS on the owner's client
+     * (mind-controlled / planted citizen of THEIR colony). The client renders
+     * a subtle tell above the entity, gated on the local player holding an
+     * information skill — mirror of the assassin LURKING flag.
+     */
+    public record SyncSuspicionFlagPayload(UUID entityUuid, boolean flagged) implements CustomPacketPayload {
+        public static final Type<SyncSuspicionFlagPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "sync_suspicion_flag"));
+
+        public static final StreamCodec<ByteBuf, SyncSuspicionFlagPayload> CODEC = StreamCodec.composite(
+                UUIDUtil.STREAM_CODEC,   SyncSuspicionFlagPayload::entityUuid,
+                ByteBufCodecs.BOOL,      SyncSuspicionFlagPayload::flagged,
+                SyncSuspicionFlagPayload::new
+        );
+
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** Client-side delegate for the suspicion flag (server-safe default). */
+    public static Consumer<SyncSuspicionFlagPayload> suspicionFlagClientHandler = payload ->
+            LOGGER.info("[TM] suspicion flag (no client handler): {} {}",
+                    payload.entityUuid(), payload.flagged());
+
+    private static void onSyncSuspicionFlag(SyncSuspicionFlagPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> suspicionFlagClientHandler.accept(payload));
+    }
+
+    private static void onDeceitAction(DeceitActionPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer sp)) return;
+        context.enqueueWork(() ->
+                MindControlTracker.handleDeceitAction(sp, payload.identityId(), payload.action()));
+    }
+
+    /**
+     * C2S: the citizen-window [?] Interrogate button — question a citizen
+     * flagged as behaving strangely. Server decides dismissal vs truth
+     * (unmasking ranks + magicule cost); see
+     * {@link MindControlTracker#handleInterrogate}.
+     */
+    public record InterrogatePayload(int citizenEntityId) implements CustomPacketPayload {
+        public static final Type<InterrogatePayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "interrogate"));
+
+        public static final StreamCodec<ByteBuf, InterrogatePayload> CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, InterrogatePayload::citizenEntityId,
+                InterrogatePayload::new
+        );
+
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    private static void onInterrogate(InterrogatePayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer sp)) return;
+        context.enqueueWork(() ->
+                MindControlTracker.handleInterrogate(sp, payload.citizenEntityId()));
+    }
+
+    /**
+     * C2S: the EX-owner's [Release] attempt on a stolen subordinate — from
+     * the wild body's inventory screen or the citizen window. Entity id of
+     * either body form; the server resolves the identity + applies the
+     * unmasking-rank gate and the magicule cost.
+     */
+    public record ReleasePayload(int entityId) implements CustomPacketPayload {
+        public static final Type<ReleasePayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "release_subordinate"));
+
+        public static final StreamCodec<ByteBuf, ReleasePayload> CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, ReleasePayload::entityId,
+                ReleasePayload::new
+        );
+
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    private static void onRelease(ReleasePayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer sp)) return;
+        context.enqueueWork(() ->
+                MindControlTracker.handleRelease(sp, payload.entityId()));
+    }
+
+    /**
      * S2C: insufficient magicule — open the collapse-confirmation Screen.
      * Carries enough state for the dialog to render its body and reply.
      */
@@ -517,7 +642,7 @@ public final class Networking {
         public static final byte ACTION_ADD = 0, ACTION_TAKE = 1, ACTION_MIN = 2,
                 ACTION_MAX = 3, ACTION_LAYER_PLUS = 4, ACTION_LAYER_MINUS = 5,
                 ACTION_TOGGLE_VISIBLE = 6, ACTION_SIZE_MINUS = 7, ACTION_SIZE_PLUS = 8,
-                ACTION_SIZE_SMALLEST = 9, ACTION_SIZE_BIGGEST = 10;
+                ACTION_SIZE_SMALLEST = 9, ACTION_SIZE_BIGGEST = 10, ACTION_CLEANSE = 11;
         public static final Type<BarrierMenuActionPayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "barrier_menu_action"));
         public static final StreamCodec<ByteBuf, BarrierMenuActionPayload> CODEC = StreamCodec.composite(
@@ -601,6 +726,8 @@ public final class Networking {
             switch (payload.action()) {
                 case BarrierMenuActionPayload.ACTION_ADD ->
                         be.channelFromPlayer(sp);
+                case BarrierMenuActionPayload.ACTION_CLEANSE ->
+                        be.handleCleanseClick(sp);
                 case BarrierMenuActionPayload.ACTION_TAKE ->
                         be.withdrawToPlayer(sp, BarrierBlockEntity.PLAYER_CHANNEL_PER_CLICK);
                 case BarrierMenuActionPayload.ACTION_MIN ->
@@ -846,12 +973,25 @@ public final class Networking {
      * resolved (chunk unloaded, dim mismatch), 0.0 is sent so sorting stays
      * deterministic and the row still renders.
      */
-    public record RosterEntry(UUID identityId, String name, byte modeByte, double ep) {
+    public record RosterEntry(UUID identityId, String name, byte modeByte, double ep,
+                              byte controlByte) {
+        /** {@link #controlByte} — a BITMASK of deceit state as seen by THIS
+         *  viewer (always 0 on rows the viewer merely owns). */
+        public static final byte CONTROL_NONE = 0;
+        public static final byte CONTROL_BIT_CONTROLLED = 1; // viewer controls this row
+        public static final byte CONTROL_BIT_PLANTED = 2;    // planted in the owner's colony
+        public static final byte CONTROL_BIT_ARMED = 4;      // strike ordered, waiting
+        public static final byte CONTROL_BIT_STEALING = 8;   // warehouse skim active
+        public static final byte CONTROL_BIT_STOLEN = 16;    // viewer is the EX-owner
+                                                             // (row acts via the
+                                                             // ask-permission flow)
+
         public static final StreamCodec<ByteBuf, RosterEntry> STREAM_CODEC = StreamCodec.composite(
                 UUIDUtil.STREAM_CODEC,         RosterEntry::identityId,
                 ByteBufCodecs.STRING_UTF8,     RosterEntry::name,
                 ByteBufCodecs.BYTE,            RosterEntry::modeByte,
                 ByteBufCodecs.DOUBLE,          RosterEntry::ep,
+                ByteBufCodecs.BYTE,            RosterEntry::controlByte,
                 RosterEntry::new
         );
 
@@ -887,13 +1027,37 @@ public final class Networking {
             // equivalent filters, but reading from our field avoids navigating
             // the entity snapshot's ManasCoreStorage subtag.
             if (identity.ownerPlayerUUID == null) continue;  // legacy / orphan
-            if (!playerUUID.equals(identity.ownerPlayerUUID)) continue;
+            boolean owned = playerUUID.equals(identity.ownerPlayerUUID);
+            // Mind control: the CONTROLLER's roster gains the entry for the
+            // duration (marked, so they can tell it from their own). The
+            // OWNER's roster keeps showing it unmarked — the deceit is the
+            // point; their actions on it soft-fail server-side instead.
+            boolean controlling = !owned && playerUUID.equals(identity.controlledByUUID);
+            // A permanently STOLEN subordinate stays visible to its EX-owner,
+            // marked — clicking it asks the current owner for leave.
+            boolean stolenFromViewer = !owned && !controlling
+                    && playerUUID.equals(identity.previousOwnerUUID);
+            if (!owned && !controlling && !stolenFromViewer) continue;
 
             IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
             ICitizenData cd = colony != null ? colony.getCitizenManager().getCivilian(identity.citizenId) : null;
             String name = cd != null ? cd.getName() : "?";
+            byte controlByte = RosterEntry.CONTROL_NONE;
+            if (controlling) {
+                name = name + MindControlTracker.controlSuffix(sp.getServer(), identity);
+                controlByte = RosterEntry.CONTROL_BIT_CONTROLLED;
+                if (identity.planted)     controlByte |= RosterEntry.CONTROL_BIT_PLANTED;
+                if (identity.strikeArmed) controlByte |= RosterEntry.CONTROL_BIT_ARMED;
+                if (identity.stealing)    controlByte |= RosterEntry.CONTROL_BIT_STEALING;
+            } else if (stolenFromViewer) {
+                // Deliberately UNMARKED (user decision 2026-09-05) — the theft
+                // isn't advertised; the ex-owner discovers it through info
+                // skills or by clicking (which routes to the ask-permission
+                // flow). The bit still travels for any future client needs.
+                controlByte = RosterEntry.CONTROL_BIT_STOLEN;
+            }
             double ep = ExampleMod.readEPForRoster(sp, identity);
-            entries.add(new RosterEntry(identity.identityId, name, RosterEntry.encodeMode(identity.mode), ep));
+            entries.add(new RosterEntry(identity.identityId, name, RosterEntry.encodeMode(identity.mode), ep, controlByte));
         }
 
         double magicule = ExampleMod.currentMagicule(sp);
@@ -1266,7 +1430,7 @@ public final class Networking {
      *  3 = retreat (settlementId). The party list is empty except for 2. */
     public record WarActionPayload(byte action, int settlementId, List<Integer> party)
             implements CustomPacketPayload {
-        public static final byte LIST = 0, PICKER = 1, DECLARE = 2, RETREAT = 3;
+        public static final byte LIST = 0, PICKER = 1, DECLARE = 2, RETREAT = 3, SCOUT = 4;
         public static final Type<WarActionPayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "war_action"));
         public static final StreamCodec<ByteBuf, WarActionPayload> CODEC = StreamCodec.composite(
@@ -1305,6 +1469,7 @@ public final class Networking {
             switch (payload.action()) {
                 case WarActionPayload.LIST -> sendWarListTo(sp);
                 case WarActionPayload.PICKER -> sendWarPickerTo(sp, payload.settlementId());
+                case WarActionPayload.SCOUT -> RivalColonies.scoutSettlement(sp, payload.settlementId());
                 case WarActionPayload.DECLARE -> {
                     String msg = RivalColonies.declareWar(sp, payload.settlementId(), payload.party());
                     sp.sendSystemMessage(net.minecraft.network.chat.Component.literal(msg));

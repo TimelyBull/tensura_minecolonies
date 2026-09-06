@@ -237,7 +237,8 @@ public final class DiplomacyManager {
                     // Phase 1 (faction-rewards roadmap) — parity perks.
                     "leon", net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE,           // fire knights
                     "eastern_empire", net.minecraft.world.effect.MobEffects.ABSORPTION,      // imperial shields
-                    "clayman", net.minecraft.world.effect.MobEffects.NIGHT_VISION);          // spy's insight
+                    "clayman", net.minecraft.world.effect.MobEffects.NIGHT_VISION,           // spy's insight
+                    "fulbrosia", net.minecraft.world.effect.MobEffects.SLOW_FALLING);        // the sky's embrace
 
     /** Daily caravan goods per PACT faction (trade access — faction
      *  wares without a shop UI; the authoring seam for more). */
@@ -251,7 +252,9 @@ public final class DiplomacyManager {
             // Phase 1 (faction-rewards roadmap) — parity caravans.
             "leon", List.of(new ItemStack(Items.GOLD_INGOT, 8), new ItemStack(Items.BLAZE_ROD, 4)),
             "eastern_empire", List.of(new ItemStack(Items.IRON_INGOT, 12), new ItemStack(Items.AMETHYST_SHARD, 6)),
-            "clayman", List.of(new ItemStack(Items.EMERALD, 6), new ItemStack(Items.ENDER_PEARL, 4)));
+            "clayman", List.of(new ItemStack(Items.EMERALD, 6), new ItemStack(Items.ENDER_PEARL, 4)),
+            "fulbrosia", List.of(new ItemStack(Items.FEATHER, 24), new ItemStack(Items.PHANTOM_MEMBRANE, 4),
+                    new ItemStack(Items.EMERALD, 4)));
 
     // --- the alliance prompt (replaces the pact milestone deal) ---
     /** Re-send an unanswered alliance prompt after this long (covers a
@@ -1112,8 +1115,10 @@ public final class DiplomacyManager {
         data.setLastActivity(player, faction.id(), level.getGameTime());
         // Catalog capstone — a top-tier quest that carries a SKILL
         // reward queues it (granted now if online via the drain pass,
-        // or on next login if completed offline).
-        if (DealSpec.SKILL_REWARDS.containsKey(spec.id())) {
+        // or on next login if completed offline). Covenant BONUS skills
+        // (the interim §7B fills) ride the same queue.
+        if (DealSpec.SKILL_REWARDS.containsKey(spec.id())
+                || DealSpec.COVENANT_BONUS_SKILLS.containsKey(spec.id())) {
             data.addPendingSkillDeal(player, spec.id());
         }
         if (spec.milestone()) {
@@ -1926,11 +1931,26 @@ public final class DiplomacyManager {
             for (String dealId : data.getPendingSkillDeals(player.getUUID())) {
                 var supplier = DealSpec.SKILL_REWARDS.get(dealId);
                 data.clearPendingSkillDeal(player.getUUID(), dealId);
-                if (supplier == null) continue;
-                try {
-                    grantSkillReward(player, supplier.get());
-                } catch (Throwable t) {
-                    LOGGER.warn("[TM] diplomacy: skill grant failed for deal {}", dealId, t);
+                if (supplier != null) {
+                    try {
+                        grantSkillReward(player, supplier.get());
+                    } catch (Throwable t) {
+                        LOGGER.warn("[TM] diplomacy: skill grant failed for deal {}", dealId, t);
+                    }
+                }
+                // Interim covenant BONUS skill (§7B) — resolved by id, so a
+                // trnightmare: entry silently no-ops without TR:N installed.
+                var bonusId = DealSpec.COVENANT_BONUS_SKILLS.get(dealId);
+                if (bonusId != null) {
+                    try {
+                        var bonus = io.github.manasmods.manascore.skill.api.SkillAPI
+                                .getSkillRegistry().get(bonusId);
+                        if (bonus != null) {
+                            grantSkillReward(player, bonus);
+                        }
+                    } catch (Throwable t) {
+                        LOGGER.warn("[TM] diplomacy: covenant bonus grant failed for deal {}", dealId, t);
+                    }
                 }
             }
         }

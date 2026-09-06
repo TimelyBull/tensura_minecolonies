@@ -87,6 +87,10 @@ public final class ConquestPayoff {
         // Jura-Tempest Federation — the forest nation's sages (merged
         // tempest + jura_alliance; keeps the old Jura levy profile).
         PROFILES.put("tempest", new CitizenProfile(18, Skill.Knowledge, 22, Skill.Intelligence, 14, "sages"));
+        // Milim — the Dragon Faithful: hardy dragon-worshipping warriors.
+        PROFILES.put("milim", new CitizenProfile(14, Skill.Strength, 24, Skill.Agility, 14, "dragon faithful"));
+        // Fulbrosia — the Sky Queen's harpy attendants: swift and keen-eyed.
+        PROFILES.put("fulbrosia", new CitizenProfile(12, Skill.Agility, 24, Skill.Focus, 14, "harpy attendants"));
     }
 
     private static final CitizenProfile DEFAULT_PROFILE =

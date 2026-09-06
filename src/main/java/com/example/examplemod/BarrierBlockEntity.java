@@ -201,6 +201,33 @@ public class BarrierBlockEntity extends BlockEntity {
     /** One core's report into its colony network. */
     private record CoreReport(long lastSeen, int tier) {}
 
+    /**
+     * One-line description of a colony's barrier network for the deceit
+     * [Debrief] report — reads the live network registry only (no chunk
+     * loads). "no barrier" when the colony has no reporting cores.
+     */
+    static String describeColonyBarrier(net.minecraft.server.level.ServerLevel level, int colonyId) {
+        java.util.Map<BlockPos, CoreReport> network =
+                COLONY_CORE_NETWORKS.get(level.dimension().location() + "#" + colonyId);
+        if (network == null || network.isEmpty()) return "No barrier stands.";
+        int cores = network.size();
+        int bestTier = 0;
+        BlockPos primary = null;
+        for (java.util.Map.Entry<BlockPos, CoreReport> e : network.entrySet()) {
+            if (e.getValue().tier() > bestTier) {
+                bestTier = e.getValue().tier();
+                primary = e.getKey();
+            }
+        }
+        String detail = "";
+        if (primary != null && level.isLoaded(primary)
+                && level.getBlockEntity(primary) instanceof BarrierBlockEntity be) {
+            detail = ", " + be.getActiveLayers() + " layer(s), pool "
+                    + String.format(java.util.Locale.ROOT, "%.0f", be.poolStoredCache);
+        }
+        return "Barrier: " + cores + " core(s), tier " + bestTier + detail + ".";
+    }
+
     /** (dimension + colonyId) → member core positions. Server-global, same
      *  lifecycle pattern as {@link TensuraRaids}'s ACTIVE_BARRIERS. */
     private static final java.util.Map<String, java.util.Map<BlockPos, CoreReport>> COLONY_CORE_NETWORKS =
@@ -1402,6 +1429,34 @@ public class BarrierBlockEntity extends BlockEntity {
         if (demonLordBuff) {
             applyDemonLordRegenBuff(serverLevel, center, outerR);
         }
+
+    }
+
+    /**
+     * The core menu's [Cleanse] button (user redesign 2026-09-05 — replaces
+     * the earlier passive layer-3 cleanse): purge all debuffs from
+     * friendlies inside the field, priced per affliction and charged to the
+     * clicking player; mind control is only purged where the clicker's
+     * information skill can SEE it (the unmasking ranks — supreme controls
+     * pass through untouched). No layer requirement; the field must be up.
+     */
+    void handleCleanseClick(net.minecraft.server.level.ServerPlayer sp) {
+        if (!(level instanceof ServerLevel serverLevel)) return;
+        if (getPoolStored() <= 0.0) {
+            ExampleMod.sendAdvisoryNotice(sp, "The field is down — nothing carries the cleanse.");
+            return;
+        }
+        int colonyId = -1;
+        if (lastNetworkKey != null) {
+            int hash = lastNetworkKey.lastIndexOf('#');
+            if (hash >= 0) {
+                try {
+                    colonyId = Integer.parseInt(lastNetworkKey.substring(hash + 1));
+                } catch (NumberFormatException ignored) { }
+            }
+        }
+        MindControlTracker.handleBarrierCleanse(sp, serverLevel,
+                Vec3.atCenterOf(getFieldCenter()), getEffectiveRadius(), colonyId);
     }
 
     /**

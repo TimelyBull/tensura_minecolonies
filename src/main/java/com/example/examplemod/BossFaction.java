@@ -54,7 +54,12 @@ public enum BossFaction {
     // the old "carrion" id; stays BODILESS (diplomacy/rep only). Old-save
     // `carrion` standing/relations migrate to `eurazania` on load.
     EURAZANIA("eurazania", "Eurazania", ChatFormatting.DARK_GREEN),
-    MILIM("milim", "Milim", ChatFormatting.LIGHT_PURPLE);
+    MILIM("milim", "Milim", ChatFormatting.LIGHT_PURPLE),
+    // Fulbrosia — the Sky Queen Frey's harpy realm (split out of the old
+    // Dragon-Faithful boss slot, 2026-09-05). Physical: a sky settlement on
+    // floating islands. Standing-coupled to Milim + Eurazania via the
+    // MILIM_BLOC ripple (WorldReputationManager), NOT profile ally edges.
+    FULBROSIA("fulbrosia", "Fulbrosia", ChatFormatting.AQUA);
 
     private final String id;
     private final String displayName;

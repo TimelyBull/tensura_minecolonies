@@ -25,6 +25,17 @@ first festival it's present for and never again — so a monster that joins late
 still earns its gift at the next festival. (A prestige reset clears this,
 letting it be earned again.)
 
+## Your Subordinates During The Festival
+
+When the festival starts, every subordinate within 30 blocks stops what it is
+doing and guards you until you awaken. A subordinate on **Patrol Colony
+Outskirts** pauses its patrol for the festival and goes back to patrolling
+when it ends. Subordinates further away are not affected.
+
+Your subordinates cannot hurt your own colony's citizens or visitors — not
+with melee, skills, haki, or arrows — so a fight beside the tavern is safe for
+the people in it. This applies at all times, not just during the festival.
+
 ## How To Run It
 
 Hold Tensura's Harvest Festival / awakening event and the colony boost applies.

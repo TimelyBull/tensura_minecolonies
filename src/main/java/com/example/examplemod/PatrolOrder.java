@@ -36,6 +36,13 @@ import net.neoforged.neoforge.attachment.IAttachmentSerializer;
  *       stored on the order (not derived from the mob's live position) so the
  *       patrol keeps advancing around the ring even when the mob is
  *       momentarily stuck on an unreachable sector.</li>
+ *   <li>{@link #festivalPaused} — true while the order is PAUSED for the
+ *       owner's Harvest Festival (demon-lord awakening). Tensura flips every
+ *       owned subordinate in range to FOLLOW + PROTECT for the festival; the
+ *       driver steps aside instead of reading that as "command changed", and
+ *       uses this flag to know it must restore the patrol stance (wander +
+ *       aggressive) when the festival ends. Persisted so a reload mid-festival
+ *       still resumes. Legacy orders decode as {@code false}.</li>
  * </ul>
  *
  * Persists across save/load, entity unload/reload, and relog via the NBT
@@ -47,7 +54,11 @@ import net.neoforged.neoforge.attachment.IAttachmentSerializer;
  * {@code entity.hasData(Attachments.PATROL_ORDER.get())} is the authoritative
  * presence check (default value supplier returns null).
  */
-public record PatrolOrder(int colonyId, ResourceLocation dimension, float bearing) {
+public record PatrolOrder(int colonyId, ResourceLocation dimension, float bearing, boolean festivalPaused) {
+    /** A fresh, un-paused order. */
+    public PatrolOrder(int colonyId, ResourceLocation dimension, float bearing) {
+        this(colonyId, dimension, bearing, false);
+    }
 
     /** @return the colony's dimension as a level {@link ResourceKey}. */
     public ResourceKey<Level> dimensionKey() {
@@ -58,7 +69,12 @@ public record PatrolOrder(int colonyId, ResourceLocation dimension, float bearin
      *  dimension unchanged). Used when the patrol advances to the next point
      *  around the ring. */
     public PatrolOrder withBearing(float newBearing) {
-        return new PatrolOrder(colonyId, dimension, newBearing);
+        return new PatrolOrder(colonyId, dimension, newBearing, festivalPaused);
+    }
+    /** @return a copy of this order with the festival-pause flag set (everything
+     *  else unchanged). */
+    public PatrolOrder withFestivalPaused(boolean paused) {
+        return new PatrolOrder(colonyId, dimension, bearing, paused);
     }
 
     public static final IAttachmentSerializer<CompoundTag, PatrolOrder> SERIALIZER =
@@ -73,7 +89,9 @@ public record PatrolOrder(int colonyId, ResourceLocation dimension, float bearin
                     // "bearing" tag; getFloat returns 0, which is a fine starting
                     // angle — the patrol just begins its loop from due east.
                     float bearing = tag.getFloat("bearing");
-                    return new PatrolOrder(colonyId, dim, bearing);
+                    // Absent on orders saved before the festival pause → false.
+                    boolean paused = tag.getBoolean("festivalPaused");
+                    return new PatrolOrder(colonyId, dim, bearing, paused);
                 }
 
                 @Override
@@ -82,6 +100,7 @@ public record PatrolOrder(int colonyId, ResourceLocation dimension, float bearin
                     tag.putInt("colonyId", value.colonyId);
                     tag.putString("dimension", value.dimension.toString());
                     tag.putFloat("bearing", value.bearing);
+                    tag.putBoolean("festivalPaused", value.festivalPaused);
                     return tag;
                 }
             };

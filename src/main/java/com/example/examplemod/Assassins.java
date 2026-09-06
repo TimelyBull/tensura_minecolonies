@@ -88,6 +88,10 @@ public final class Assassins {
     static final double EP_STEAL_FRACTION = 0.5;
     /** Skill copy limits by Tensura SkillType (highest mastery first). */
     static final int COPY_UNIQUE = 1, COPY_EXTRA = 5, COPY_COMMON = 10, COPY_RESISTANCE = 10;
+    /** ULTIMATE copies are gated: the assassin body must ALREADY hold an
+     *  ultimate-typed skill of its own (user rule 2026-09-05 — "only copy
+     *  ultimates if they themselves have an ultimate"). At most one. */
+    static final int COPY_ULTIMATE = 1;
 
     /** Player-side theft modifiers (stable ids — removed on reclaim). */
     private static final ResourceLocation THEFT_MAGICULE_ID =
@@ -636,11 +640,28 @@ public final class Assassins {
         }
         List<String> names = new ArrayList<>();
         record Quota(io.github.manasmods.tensura.ability.skill.Skill.SkillType type, int limit) {}
-        List<Quota> quotas = List.of(
+        List<Quota> quotas = new ArrayList<>(List.of(
                 new Quota(io.github.manasmods.tensura.ability.skill.Skill.SkillType.UNIQUE, COPY_UNIQUE),
                 new Quota(io.github.manasmods.tensura.ability.skill.Skill.SkillType.EXTRA, COPY_EXTRA),
                 new Quota(io.github.manasmods.tensura.ability.skill.Skill.SkillType.COMMON, COPY_COMMON),
-                new Quota(io.github.manasmods.tensura.ability.skill.Skill.SkillType.RESISTANCE, COPY_RESISTANCE));
+                new Quota(io.github.manasmods.tensura.ability.skill.Skill.SkillType.RESISTANCE, COPY_RESISTANCE)));
+        // ULTIMATE copies only for an assassin body that ALREADY wields an
+        // ultimate of its own (user rule 2026-09-05) — a lesser body can't
+        // grasp an ultimate it takes; a peer can. TR:N ultimates included.
+        boolean assassinHasUltimate = false;
+        try {
+            for (var instance : assassinStorage.getLearnedSkills()) {
+                if (instance.getSkill() instanceof io.github.manasmods.tensura.ability.skill.Skill sk
+                        && sk.getType() == io.github.manasmods.tensura.ability.skill.Skill.SkillType.ULTIMATE) {
+                    assassinHasUltimate = true;
+                    break;
+                }
+            }
+        } catch (Throwable ignored) { }
+        if (assassinHasUltimate) {
+            quotas.add(0, new Quota(
+                    io.github.manasmods.tensura.ability.skill.Skill.SkillType.ULTIMATE, COPY_ULTIMATE));
+        }
         for (Quota quota : quotas) {
             List<io.github.manasmods.manascore.skill.api.ManasSkillInstance> pool =
                     byType.getOrDefault(quota.type(), List.of());

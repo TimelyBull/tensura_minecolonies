@@ -6,6 +6,167 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project aims to follow [Semantic Versioning](https://semver.org/).
 Copy the relevant version's section into the CurseForge release notes on each update.
 
+## [Unreleased]
+
+### Added
+- **Mind-controlled subordinates now truly change sides while the control
+  lasts.** A subordinate dominated by another player's charm or
+  mind-control skill answers to the controller: it appears in their
+  summoning menu, can be summoned to their side, and can even be sent to
+  serve in their colony. When the control wears off, everything quietly
+  returns to its rightful owner. A subordinate placed in the controller's
+  colony serves there for a limited time — up to an hour for the strongest
+  timed control skills, much less for weak ones — then slips free and
+  quietly returns home; the rare controls with no time limit hold
+  indefinitely. The controller's summoning menu shows the remaining
+  control time on the entry. While your subordinate is controlled, it
+  simply won't respond to your own calls. If you hold Great Sage (or a
+  Nightmare analysis skill), it also quietly tells you when a citizen
+  returns from an unexplained absence.
+- **Espionage payoffs: [Steal] and [Debrief].** A planted sleeper can be
+  ordered to quietly skim goods from its host colony's warehouses — the
+  moment you summon them back out, the goods land straight in your
+  inventory, wherever you are (lost if the control breaks first). A [Debrief] whispers back the colony's numbers:
+  citizens, mood, standing, and the state of their barrier.
+- **Unmasking follows a hierarchy of sight.** Warnings still come to any
+  information skill, but learning WHO holds the strings takes Raphael-tier
+  insight or better — and only when your skill matches or outranks the
+  control skill used. The rare indefinite dominations can never be
+  named or broken — though god-tier insight (Nodens, Akashic Records) at
+  least recognizes that a supreme will is at work.
+- **Interrogation.** Once warned about a strangely-acting citizen, open
+  their window: a new side tab lets you question them. They'll brush you
+  off — unless your insight outranks the control and you spend the
+  magicule to press, which frees them on the spot and names the culprit.
+  Even the brush-off tells you something about your enemy's power.
+- **Loyalty fights control.** Happy citizens burn a controller's hold
+  twice as fast; miserable ones half as fast. Take care of your people
+  and they shake off the puppeteer.
+- **The Barrier Core learned to Cleanse.** A new button beside the core
+  menu purges every affliction from friends inside the field — poisons,
+  curses, and hostile mind control alike. Each affliction has a steep
+  magicule price by severity, charged to whoever clicks; mind control is
+  only purged if your information skill can see through it, so the
+  mightiest dominations pass through untouched.
+- **Stolen subordinates are not lost.** They quietly remain in your
+  summoning menu, unmarked — you may not even realize they've changed
+  hands until you call and they hesitate. Using one asks its new master's
+  leave: an Allow/Deny prompt in their chat. And if you find them in the world or
+  in the thief's colony, a Release option appears (on the wild form's
+  inventory, or as a side tab on their citizen window): with enough
+  insight to see through the theft and a heavy magicule price to break
+  the bond, they come home — colony record and all.
+- **Settlement scouting.** Every discovered rival settlement's row in the
+  Wars window gains a **Scout** button: your nearest wild-form subordinate
+  slips away and returns in half a day with a report — garrison strength,
+  whether the boss lives, your relations, and (only if the scout has an
+  appraisal-type skill) the boss's power. The findings stay pinned to the
+  settlement's row. Scouts with concealment abilities are harder to spot —
+  unless the boss has senses of its own — and a scout caught snooping
+  flees home hurt, with the settlement on alert for days. Sharp-eyed
+  players (Raphael and above) even learn the boss's name.
+- **Espionage: plant a sleeper — or order the knife.** While controlling
+  another player's subordinate, a new **[Plant]** button in your summoning
+  menu sends it back into its master's own colony, where it works as if
+  nothing happened — secretly still yours for as long as the control lasts.
+  A planted sleeper can then be ordered to **[Strike]**: it bides its time
+  and turns on its master at a weak moment — asleep, wounded, unarmored, or
+  mid-celebration — fighting as itself, with its own strength. Win or lose,
+  the control is spent. Counterplay ships with it: information skills show
+  a faint mark over your own compromised citizens and whisper that
+  something seems off, and controlled citizens grow quietly unhappy —
+  watchful owners can notice the mood.
+- **Faction garrisons grew teeth (with Tensura Reincarnated Nightmares).**
+  Jura-Tempest settlements now field the ogre tribe — ogre grunts with
+  kijin and enlightened-ogre officers, just as the canon has it. Leon's
+  garrison gains the Fallen: hostile flying spellcasters, with a single
+  Arch Fallen elite. The Eastern Empire fields its otherworlder
+  lieutenants — Lucius, Raymond, Glenda, Arios — under the elite Kokuyou,
+  each appearing at most once. Without Nightmares installed, every
+  garrison is exactly as before.
+- **TR: Nightmare integration (optional).** If Tensura Reincarnated
+  Nightmares is installed, its subordinate-stealing powers now carry real
+  weight: a Greed-driven theft takes the citizen too — they pack up and
+  join the thief's colony, and vanish from your summoning menu. You are
+  only warned if an information skill watches over you (Great Sage, or one
+  of Nightmare's analysis skills — the warning arrives in that skill's
+  voice). Attempts to silently strip a colony citizen's bond are
+  blocked. And a monster named through a Deal Maker contract now becomes a
+  real citizen, exactly as if you had named it yourself — previously,
+  contract-named monsters were permanently locked out of colony life.
+  Without TR: Nightmare installed, nothing changes.
+- **Milim's faction now has a settlement: the Dragon Faithful.** Her
+  people build a stone citadel that generates only in mountains, defended
+  by a mixed host — dragonewt warriors, Eurazania's beasts, and allied
+  harpies when Nightmares is installed. The warriors fight with
+  battlewills: aura arts with real range and power. The town has no
+  standing boss — clear the entire garrison mid-assault and Milim herself
+  descends, attacking everything in sight, and SHE must be defeated to
+  claim the conquest rewards.
+- **Fulbrosia, the Sky Queen's realm, is a new faction.** Frey rules a
+  pagoda city built on floating islands high above the mountains,
+  garrisoned by her harpy flight. It can be discovered, courted through
+  diplomacy (she won't come to you — send your envoy), or assaulted like
+  any settlement; her Covenant teaches Universal Perception.
+- **Milim, Eurazania, and Fulbrosia now stand together.** Harm any one of
+  the three — attacks, boss kills, declarations of war — and your standing
+  with the other two falls as well; earn one's favor and the others warm
+  slightly.
+- **The Eastern Empire's boss is now Yuuki** when Nightmares is installed
+  (replacing the placeholder commander). He keeps his calm demeanor —
+  he won't attack unless you strike first.
+
+### Changed
+- **Six Covenant alliances stopped paying in apples.** Forging the deepest
+  bond with a faction now teaches you something of theirs: Jura-Tempest
+  grants Ultraspeed Regeneration (upgraded to Infinite Regeneration in a
+  Nightmares world), and with Tensura Reincarnated Nightmares installed,
+  Falmuth teaches Maximum Will, the Eastern Empire Processor,
+  the Moderate Harlequin Alliance Investigator, Eurazania Aura Armor — and
+  Leon hands over a Scorch Nucleation Core found nowhere else. (These are
+  interim rewards; unique relics are planned.)
+- **Assassins learned to steal greatness — carefully.** The betrayer's
+  boss form can now copy one ULTIMATE skill from its victim (Nightmare
+  skills included) — but only if the body already commands an ultimate of
+  its own. A lesser body cannot grasp what it takes.
+- **Conquering a rival settlement now takes YOUR effort.** Garrison kills
+  only count toward the 60% conquest threshold when a player — or
+  something a player owns (war party, subordinates, tamed pets) — lands
+  them. Wild monsters, hazards, and other mods' raids thinning a garrison
+  no longer hand you the settlement for free.
+- **Information skills now report the way the canon says they should.**
+  Great Sage and Raphael speak to you in their announcer voice — «Notice.
+  …», «Report. …», «Answer. …» — while the silent analysis skills (Nodens,
+  Akashic Records, Faust, Investigator) render their findings as skill
+  output: "[Faust] …". Same information, the right voices.
+- **Low-magicule warnings now require Great Sage.** The overspend warning
+  before a costly summon/send used to appear for plain Sage holders too; it
+  now uses the same rule as the new theft warnings — Great Sage, or one of
+  TR: Nightmare's analysis skills.
+
+### Fixed
+- **A display problem with goblin or dwarf citizens can no longer drag your
+  framerate down until the game freezes.** If something went wrong drawing
+  them, the mod retried forever — many times a second, for every such citizen
+  on screen — which slowly ate performance and filled the log file. It now
+  stops after a few tries and draws them as ordinary colonists for the rest of
+  the session. Rejoining the world resets it, and nothing changes when there
+  was no problem to begin with.
+- **Large, long-running colonies put less strain on the server each tick.**
+  Several background checks got slower as your colony grew, because they
+  re-scanned every named citizen in the world repeatedly. They now do that work
+  once. Most noticeable in old saves with many named citizens.
+- **Your subordinates can no longer hurt your own colony's citizens or
+  visitors.** Skill blasts, haki, breath attacks and stray arrows from a
+  subordinate used to hit any citizen standing nearby — most visibly during a
+  True Demon Lord awakening, when every subordinate gathers around you in the
+  colony centre. Those hits are now blocked. Other players' colonies are
+  unaffected.
+- **Patrolling subordinates now guard you through a Demon Lord awakening and
+  go back on patrol afterwards.** The awakening used to silently end their
+  patrol and stop them from protecting you. They now stand guard for the
+  festival and resume the patrol when it ends.
+
 ## [0.2.3] - 2026-09-02
 
 ### Changed

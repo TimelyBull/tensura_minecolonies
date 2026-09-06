@@ -25,6 +25,14 @@ huts mid-fight.
   breaking your blocks. Defending against the mobs themselves is what
   [guards, the defense form-swap, and barriers](raids-barriers.md) are for.
 
+## Your Own Subordinates
+
+Separately from block protection, your own subordinates can never hurt the
+citizens or visitors of a colony you own — not with melee, skills, haki, or
+arrows. A subordinate fighting a raider next to a citizen only hits the raider.
+This is always on and covers only your colonies; other players' citizens are
+not shielded from your subordinates.
+
 ## Turning It Off
 
 Two [config](../reference/config.md) options control the two paths

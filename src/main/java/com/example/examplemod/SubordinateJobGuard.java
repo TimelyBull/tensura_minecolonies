@@ -135,12 +135,22 @@ public final class SubordinateJobGuard {
             } catch (Throwable t) {
                 continue;   // nothing to sync for this level
             }
+            // One walk for the whole level, instead of a full saved.all() scan
+            // per colony. See RaceIdentitySavedData.allByColony.
+            java.util.Map<Integer, java.util.List<RaceIdentitySavedData.RaceIdentity>> idsByColony =
+                    saved.allByColony();
+
             for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
                 try {
                     java.util.Set<Integer> away = new java.util.HashSet<>();
                     java.util.Set<Integer> race = new java.util.HashSet<>();
-                    for (RaceIdentitySavedData.RaceIdentity id : saved.all()) {
-                        if (id.colonyId != colony.getID()) continue;
+                    // NOTE: deliberately NOT an early `continue` when a colony
+                    // has no identities. A colony that just lost its last race
+                    // citizen must still reach the change detection below so the
+                    // now-empty sets are broadcast — otherwise clients keep the
+                    // stale ids forever and the hiring window mislabels rows.
+                    for (RaceIdentitySavedData.RaceIdentity id
+                            : idsByColony.getOrDefault(colony.getID(), java.util.List.of())) {
                         race.add(id.citizenId);
                         if (id.mode == RaceIdentitySavedData.Mode.SUBORDINATE) {
                             away.add(id.citizenId);

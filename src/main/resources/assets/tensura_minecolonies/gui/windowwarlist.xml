@@ -16,6 +16,8 @@
             <text id="sfaction" size="200 11" pos="8 4" color="black"/>
             <text id="swhere" size="200 9" pos="8 15" textscale="0.8" color="black"/>
             <text id="sstate" size="200 9" pos="8 23" textscale="0.8" color="black"/>
+            <button id="wscout" size="52 16" pos="134 8" color="black"
+                    source="tensura_minecolonies:textures/gui/roster/btn_tan.png" label="Scout"/>
             <button id="wact" size="60 16" pos="190 8" color="black"
                     source="tensura_minecolonies:textures/gui/roster/btn_tan.png" label=""/>
         </view>

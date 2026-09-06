@@ -727,8 +727,30 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             }
         }
 
+        intakeNamedRaceMob(serverLevel, entity, name.get(), player.getUUID(), race);
+        return EventResult.pass();
+    }
+
+    /**
+     * The naming-to-citizen intake — Stage A + identity minting. Shared by
+     * {@link #onRaceNamed} (Tensura's normal naming pipeline) and
+     * {@link TrNightmareCompat}'s deal-naming ADOPTION (TR:N Deal Maker
+     * contracts name mobs without firing NAMING_EVENT — see
+     * docs/tr-nightmare-integration.md §5). Callers must have already run
+     * the guards: race non-null and unblocked, no existing identity for this
+     * mob (one-mob-one-identity), not an envoy.
+     *
+     * Resolves the owner's colony (falling back to the level's first colony,
+     * then the pending pool when none exists), creates the CitizenData with
+     * the race skill profile, suppresses the body via travelling, and mints
+     * the identity + snapshot.
+     */
+    static void intakeNamedRaceMob(ServerLevel serverLevel, LivingEntity entity,
+                                   String name, UUID ownerUUID, Race race) {
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(serverLevel);
+
         IColonyManager colonyManager = IColonyManager.getInstance();
-        IColony colony = colonyManager.getIColonyByOwner(serverLevel, player);
+        IColony colony = colonyManager.getIColonyByOwner(serverLevel, ownerUUID);
         if (colony == null) {
             List<IColony> all = colonyManager.getColonies(serverLevel);
             colony = all.isEmpty() ? null : all.get(0);
@@ -741,21 +763,21 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // increase) on the first ColonyCreatedModEvent.
             RaceIdentitySavedData.PendingRaceMob p = new RaceIdentitySavedData.PendingRaceMob(
                     UUID.randomUUID(),
-                    name.get(),
+                    name,
                     entity.getUUID(),
-                    player.getUUID(),         // matches IExistence.permanentOwner set by Tensura
+                    ownerUUID,                // matches IExistence.permanentOwner set by Tensura
                     race                      // carry race through so the drain tags correctly
             );
             saved.addPending(p);
             LOGGER.info("[TM] no colony yet — '{}' queued as pending (id={}, mob={}, race={})",
-                    name.get(), p.identityId, p.mobEntityUUID, race);
-            return EventResult.pass();
+                    name, p.identityId, p.mobEntityUUID, race);
+            return;
         }
 
         // --- Stage A: create CitizenData (count +1), name it, NO body yet ---
 
         ICitizenData citizenData = colony.getCitizenManager().createAndRegisterCivilianData();
-        citizenData.setName(name.get());
+        citizenData.setName(name);
 
         // Apply the race's starting-bias skill profile ON TOP of MC's
         // random init. Once at naming time — persists on CitizenData
@@ -792,7 +814,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 entity.getUUID(),           // current mob entity UUID
                 RaceIdentitySavedData.Mode.SUBORDINATE,
                 null,                       // entitySnapshot — populated immediately below
-                player.getUUID(),           // owner — matches IExistence.permanentOwner
+                ownerUUID,                  // owner — matches IExistence.permanentOwner
                 race
         );
         saved.addIdentity(identity);
@@ -800,8 +822,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         LOGGER.info("[TM] identity {} stored: citizen={} mob={} race={} mode=SUBORDINATE",
                 identity.identityId, identity.citizenId, identity.mobEntityUUID, race);
-
-        return EventResult.pass();
     }
 
     /**
@@ -2365,6 +2385,71 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
     }
 
+    /**
+     * No FRIENDLY FIRE from a player's subordinates onto that player's OWN
+     * colony citizens — visitors included. Cancels any hit on an
+     * {@link AbstractEntityCitizen} whose attacker (the damage source's entity,
+     * or the owner behind a projectile / skill field) is a Tensura mob owned by
+     * the citizen's colony owner.
+     *
+     * <p>Why a damage-side veto on top of the targeting veto
+     * ({@link #onSubordinateChangeTarget}): targeting only governs what a
+     * subordinate deliberately goes after. Everything that never goes through
+     * targeting — a skill's area effect, haki, a breath, an arrow loosed at a
+     * legitimate enemy that hits a bystander — still landed on citizens, and
+     * neither Tensura's damage handler (which only spares the attacker's own
+     * subordinates) nor the citizens' team-less {@code isAlliedTo} spared them.
+     * Reported as patrolling subordinates "attacking visitors" during a
+     * demon-lord awakening, when Tensura crowds every subordinate around the
+     * owner in the colony centre in protect stance.
+     *
+     * <p>Scope: only the colony OWNER's subordinates (and their summons, via
+     * the owner chain) are silenced, and only against that owner's colonies —
+     * another player's colony citizens stay fair game. The assassin's Betrayer
+     * body is exempt (it is meant to be a threat). The owner's own hits are
+     * untouched (player attacker → not a subordinate).
+     */
+    @SubscribeEvent
+    public void onSubordinateFriendlyFire(
+            net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent event) {
+        if (!(event.getEntity() instanceof AbstractEntityCitizen citizen)) return;
+        if (!(citizen.level() instanceof ServerLevel)) return;
+        if (isOwnSubordinateHit(citizen, event.getSource())) {
+            event.setCanceled(true);
+        }
+    }
+
+    /**
+     * Is this hit on {@code citizen} from a Tensura mob owned by the citizen's
+     * colony owner? Unwraps a projectile / skill-field damage source to the
+     * living entity behind it. Cheap and null-safe; false on anything it can't
+     * resolve (an unresolvable colony never cancels a hit).
+     */
+    static boolean isOwnSubordinateHit(AbstractEntityCitizen citizen,
+            net.minecraft.world.damagesource.DamageSource source) {
+        net.minecraft.world.entity.Entity e = source.getEntity();
+        if (e == null) e = source.getDirectEntity();
+        if (e instanceof net.minecraft.world.entity.projectile.Projectile p && p.getOwner() != null) {
+            e = p.getOwner();
+        }
+        if (!(e instanceof LivingEntity attacker)) return false;
+        if (attacker instanceof net.minecraft.world.entity.player.Player) return false;
+        if (attacker.hasData(Attachments.ASSASSIN_TAG.get())) return false;
+
+        UUID ownerUuid;
+        try {
+            ownerUuid = SubordinateHelper.getSubordinateOwnerUUID(attacker);
+        } catch (Throwable t) {
+            return false;
+        }
+        if (ownerUuid == null) return false;
+
+        IColony colony = citizen.getCitizenColonyHandler() != null
+                ? citizen.getCitizenColonyHandler().getColony() : null;
+        if (colony == null) return false;
+        return ownerUuid.equals(colony.getPermissions().getOwner());
+    }
+
     @SubscribeEvent
     public void onBarrierBlockIncomingDamage(
             net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent event) {
@@ -2928,6 +3013,14 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      */
     private static void tickDawnRestock(MinecraftServer server) {
         for (ServerLevel level : server.getAllLevels()) {
+            // GUARD (TR:N): skip TR:Nightmare's per-player dynamic dimensions
+            // (inner_world/imaginary_space/prison_realm/domicile_*). They are
+            // created at runtime on DerivedLevelData, so they share the
+            // overworld's day time and would roll over in the SAME tick —
+            // and because the snapshot pass below is keyed by IDENTITY, each
+            // such level would restock every merchant again (N-fold restock).
+            // No colonies or subordinates live there. deps/tr-nightmare.md §3.6.
+            if ("trnightmare".equals(level.dimension().location().getNamespace())) continue;
             long currentDay = level.getDayTime() / 24000L;
             Long lastDay = lastRestockDayPerDim.get(level.dimension());
             if (lastDay == null) {
@@ -3206,6 +3299,14 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     private static void tickReconcileRaceTags(MinecraftServer server) {
         for (ServerLevel level : server.getAllLevels()) {
             RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
+            // Memoise the colony lookup for this pass. getColonyByWorld was
+            // being called once per identity, every second, forever — and a
+            // colony typically owns many identities, so it was the same handful
+            // of lookups repeated N times. Cleared each pass (never cached
+            // across ticks) so a deleted or newly loaded colony is picked up.
+            // null is cached too, via containsKey, so a missing colony isn't
+            // re-looked-up for every one of its orphaned identities.
+            java.util.Map<Integer, IColony> colonyCache = new java.util.HashMap<>();
             for (RaceIdentitySavedData.RaceIdentity identity : saved.all()) {
                 try {
                     // Only IN_COLONY identities have a colonist body to stamp.
@@ -3213,8 +3314,14 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     // and mid-swap states are owned by the send/summon helpers.
                     if (identity.mode != RaceIdentitySavedData.Mode.IN_COLONY) continue;
 
-                    IColony colony = IColonyManager.getInstance()
-                            .getColonyByWorld(identity.colonyId, level);
+                    IColony colony;
+                    if (colonyCache.containsKey(identity.colonyId)) {
+                        colony = colonyCache.get(identity.colonyId);
+                    } else {
+                        colony = IColonyManager.getInstance()
+                                .getColonyByWorld(identity.colonyId, level);
+                        colonyCache.put(identity.colonyId, colony);
+                    }
                     if (colony == null) continue;
                     ICitizenData data = colony.getCitizenManager().getCivilian(identity.citizenId);
                     if (data == null) continue;
@@ -4910,7 +5017,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      * Iterates all server levels so we don't miss a goblin in a different
      * dimension from the new colony.
      */
-    private static LivingEntity findLivingEntityAcrossLevels(MinecraftServer server, UUID uuid) {
+    static LivingEntity findLivingEntityAcrossLevels(MinecraftServer server, UUID uuid) {
         for (ServerLevel level : server.getAllLevels()) {
             Entity e = level.getEntity(uuid);
             if (e instanceof LivingEntity le && le.isAlive()) {
@@ -5256,8 +5363,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         TensuraRaids.onRaidMobDeath(serverLevel, event.getEntity());
 
         // Rival-colony Stage B — garrison death-tally (defender kills +
-        // boss-down flag for the 60%-conquest check).
-        RivalColonies.onGarrisonMobDeath(serverLevel, event.getEntity());
+        // boss-down flag for the 60%-conquest check). The source rides along
+        // so only PLAYER-CREDITED kills count toward conquest.
+        RivalColonies.onGarrisonMobDeath(serverLevel, event.getEntity(), event.getSource());
 
         // Rival-colony Stage C — an assaulting player DYING mid-assault is
         // treated as a retreat (garrison reset + party home now; the
@@ -5716,6 +5824,33 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // until you add "confirm".
         //   /recoverorphans          — report what would be restored
         //   /recoverorphans confirm  — restore recoverable orphans as colonists
+        // Stolen-subordinate summon/send approval — the clickable
+        // [Allow]/[Deny] in the current owner's chat run these.
+        event.getDispatcher().register(
+                Commands.literal("tmrequest")
+                        .then(Commands.literal("allow")
+                                .then(Commands.argument("id",
+                                        com.mojang.brigadier.arguments.IntegerArgumentType.integer(1))
+                                        .executes(ctx -> {
+                                            if (ctx.getSource().getEntity() instanceof ServerPlayer sp) {
+                                                MindControlTracker.answerRequest(sp,
+                                                        com.mojang.brigadier.arguments.IntegerArgumentType
+                                                                .getInteger(ctx, "id"), true);
+                                            }
+                                            return 1;
+                                        })))
+                        .then(Commands.literal("deny")
+                                .then(Commands.argument("id",
+                                        com.mojang.brigadier.arguments.IntegerArgumentType.integer(1))
+                                        .executes(ctx -> {
+                                            if (ctx.getSource().getEntity() instanceof ServerPlayer sp) {
+                                                MindControlTracker.answerRequest(sp,
+                                                        com.mojang.brigadier.arguments.IntegerArgumentType
+                                                                .getInteger(ctx, "id"), false);
+                                            }
+                                            return 1;
+                                        }))));
+
         event.getDispatcher().register(
                 Commands.literal("recoverorphans")
                         .requires(src -> src.hasPermission(2))
@@ -7082,7 +7217,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     //
     // @return true on success (identity is now SUBORDINATE with a live mob);
     //         false on any failure (identity left IN_COLONY, body restored).
-    private static boolean summonGoblin(@org.jetbrains.annotations.Nullable ServerPlayer player,
+    static boolean summonGoblin(@org.jetbrains.annotations.Nullable ServerPlayer player,
                                      ServerLevel level,
                                      RaceIdentitySavedData saved,
                                      RaceIdentitySavedData.RaceIdentity identity,
@@ -7363,16 +7498,40 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     // ------------------------------------------------------------------
 
     static void handleMenuAction(ServerPlayer player, java.util.UUID identityId) {
+        handleMenuAction(player, identityId, false);
+    }
+
+    /** @param approvedByOwner true only when the identity's CURRENT owner
+     *  just approved this actor's request on a stolen subordinate — the
+     *  ownership gate is bypassed for this one action. */
+    static void handleMenuAction(ServerPlayer player, java.util.UUID identityId,
+                                 boolean approvedByOwner) {
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(player.serverLevel());
         RaceIdentitySavedData.RaceIdentity identity = saved.getById(identityId);
         if (identity == null) {
             sendAdvisoryNotice(player, "That citizen no longer exists.");
             return;
         }
-        // Ownership check — only the namer can act on the identity.
-        if (identity.ownerPlayerUUID == null
-                || !player.getUUID().equals(identity.ownerPlayerUUID)) {
-            sendAdvisoryNotice(player, "That citizen isn't yours.");
+        // Ownership check — the namer, OR (while mind-controlled) the
+        // controller instead. The owner's actions on a controlled subordinate
+        // fail with a soft tell rather than the hard "isn't yours" (they still
+        // own it — it just won't listen). An EX-owner clicking a "(stolen)"
+        // row doesn't act directly: the CURRENT owner is asked for leave
+        // (MindControlTracker.requestActOnStolen). See MindControlTracker.
+        if (!approvedByOwner && !MindControlTracker.canActOn(player, identity)) {
+            if (identity.previousOwnerUUID != null
+                    && player.getUUID().equals(identity.previousOwnerUUID)
+                    && !MindControlTracker.isControlled(identity)) {
+                MindControlTracker.requestActOnStolen(player, identity);
+                return;
+            }
+            if (identity.ownerPlayerUUID != null
+                    && player.getUUID().equals(identity.ownerPlayerUUID)
+                    && MindControlTracker.isControlled(identity)) {
+                sendAdvisoryNotice(player, "They don't respond to your call.");
+            } else {
+                sendAdvisoryNotice(player, "That citizen isn't yours.");
+            }
             return;
         }
         // Envoy gate — a subordinate away on (or returning from) an envoy
@@ -7380,6 +7539,21 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (DiplomacyManager.isSubordinateAway(player.serverLevel(), identityId)) {
             sendAdvisoryNotice(player, "That subordinate is away on an envoy mission.");
             return;
+        }
+        // Scout gate — same shape for espionage missions.
+        if (RivalColonies.isScoutAway(player.serverLevel(), identityId)) {
+            sendAdvisoryNotice(player, "That subordinate is away scouting.");
+            return;
+        }
+        // Controlled-send preparation — when the CONTROLLER sends, the citizen
+        // half is first parked in the controller's colony so the normal send
+        // path below delivers there. Rebuilds the identity record; continue
+        // with the returned object (same identityId).
+        {
+            RaceIdentitySavedData.RaceIdentity prepared =
+                    MindControlTracker.prepareForAction(player, saved, identity);
+            if (prepared == null) return; // advisory already sent
+            identity = prepared;
         }
         // Resolve the live body whose IExistence we'll read for the cost gate.
         LivingEntity target = resolveTargetBody(player, identity);
@@ -7453,8 +7627,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             sendAdvisoryNotice(player, "That citizen no longer exists.");
             return;
         }
-        if (identity.ownerPlayerUUID == null
-                || !player.getUUID().equals(identity.ownerPlayerUUID)) {
+        // Same gate as handleMenuAction — controller acts while control lasts.
+        if (!MindControlTracker.canActOn(player, identity)) {
             sendAdvisoryNotice(player, "That citizen isn't yours.");
             return;
         }
@@ -7586,8 +7760,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         for (UUID id : requestedIds) {
             RaceIdentitySavedData.RaceIdentity identity = saved.getById(id);
             if (identity == null) { skippedNotYours++; continue; }
-            if (identity.ownerPlayerUUID == null
-                    || !player.getUUID().equals(identity.ownerPlayerUUID)) {
+            // Controller-aware gate (mind control) — matches handleMenuAction.
+            if (!MindControlTracker.canActOn(player, identity)) {
                 skippedNotYours++; continue;
             }
             if (identity.mode != RaceIdentitySavedData.Mode.IN_COLONY) {
@@ -7668,12 +7842,20 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         for (UUID id : requestedIds) {
             RaceIdentitySavedData.RaceIdentity identity = saved.getById(id);
             if (identity == null) { skippedNotYours++; continue; }
-            if (identity.ownerPlayerUUID == null
-                    || !player.getUUID().equals(identity.ownerPlayerUUID)) {
+            // Controller-aware gate (mind control) — matches handleMenuAction.
+            if (!MindControlTracker.canActOn(player, identity)) {
                 skippedNotYours++; continue;
             }
             if (identity.mode != RaceIdentitySavedData.Mode.SUBORDINATE) {
                 skippedInColony++; continue;
+            }
+            // Controlled-send: park the citizen in the controller's colony
+            // first so the send delivers there (no-op for the plain owner).
+            {
+                RaceIdentitySavedData.RaceIdentity prepared =
+                        MindControlTracker.prepareForAction(player, saved, identity);
+                if (prepared == null) { skippedNotYours++; continue; }
+                identity = prepared;
             }
             LivingEntity target = resolveTargetBody(player, identity);
             if (target == null) { skippedUnloaded++; continue; }
@@ -8065,6 +8247,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // Luminous's Covenant trial — poll the "Show of Faith" flock for
             // villagers reaching Master (+ bred children), fill the holy chalice.
             TrialManager.tick(server);
+            // Mind-control mirror — reconcile identity.controlledByUUID from
+            // each live subordinate's Tensura temporaryOwner (charm / TR:N
+            // domination skills), and silently return control-parked citizens
+            // home when control ends. Works against base Tensura; TR:N only
+            // adds more skills that set the same field.
+            MindControlTracker.tick(server);
             // FIX 2 (Option B) — re-stamp the race appearance onto any IN_COLONY
             // citizen body that came back without its RACE_TAG (MineColonies
             // rebuilt it from CitizenData, or a chunk-NBT relog dropped it). The
@@ -8084,6 +8272,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // Push the away-subordinate id set so the hiring window can gray
             // those citizens out. Silent when nothing changed.
             SubordinateJobGuard.tickSyncToClients(server);
+            // Suspicion nameplate flags — controlled/planted citizens flagged
+            // to their OWNER's client (info-skill-gated render). Diff-based.
+            MindControlTracker.tickSuspicionSync(server);
             // Refresh the stored snapshot of every loaded subordinate so a
             // vanished body can be recovered from a recent form (and never
             // lands in the unrecoverable "identity-only" bucket).
@@ -8279,19 +8470,14 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
     /**
      * Whether the player should receive low-magicule warnings (the collapse
-     * confirm dialog and the bulk "not enough magicules" advisory). Only
-     * players with Tensura's Sage or Great Sage skill do; everyone else
-     * silently falls through to the fail / overspend-into-Sleep-Mode outcome.
-     * Fails closed (no warning) if the skill state can't be read.
+     * confirm dialog and the bulk "not enough magicules" advisory). Uses the
+     * SAME information-skill list as the subordinate-theft warning
+     * ({@link MindControlTracker#infoSkillName}): Great Sage or a TR:N
+     * analysis lord. Plain Sage no longer qualifies (aligned by user decision
+     * 2026-09-05). Fails closed (no warning) if the skill state can't be read.
      */
     static boolean hasMagiculeWarningSkill(ServerPlayer player) {
-        try {
-            return SkillUtils.hasSkill(player, ExtraSkills.SAGE.get())
-                    || SkillUtils.hasSkill(player, UniqueSkills.GREAT_SAGE.get());
-        } catch (Throwable t) {
-            LOGGER.warn("[TM] could not query Sage/Great Sage; suppressing magicule warning", t);
-            return false;
-        }
+        return MindControlTracker.infoSkillName(player) != null;
     }
 
     /** Player's current magicule, or 0 if it can't be read. Used by the roster
@@ -9456,6 +9642,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         LOGGER.info("[TM] common setup");
         // Faction-web sanity check (one-way ally/enemy edges → warnings).
         FactionProfile.validateWeb();
+        // TR: Nightmare OPTIONAL integration. The isLoaded gate is the ONLY
+        // door to TrNightmareCompat — that class imports trnightmare types,
+        // so reaching it any other way would NoClassDefFoundError on servers
+        // without the mod. See deps/tr-nightmare.md.
+        if (net.neoforged.fml.ModList.get().isLoaded("trnightmare")) {
+            TrNightmareCompat.init();
+        }
         // Subscribe to MineColonies' own event bus (separate from NeoForge's).
         event.enqueueWork(() -> {
             // Citizen-aggression is now a config option (Config.CITIZEN_AGGRESSION,

@@ -80,18 +80,24 @@ public final class ColonyThreatResponse {
         // NEW in — treated exactly like "not raided".
         boolean swapEnabled = Config.enableDefenseSwap();
 
+        // Group every identity by colony in ONE walk, before touching colonies.
+        // This used to be a full saved.all() scan PER COLONY (plus a fresh list
+        // allocation each time) — O(colonies × identities) every second, on a
+        // population that only grows. See RaceIdentitySavedData.allByColony.
+        java.util.Map<Integer, List<RaceIdentitySavedData.RaceIdentity>> idsByColony =
+                saved.allByColony();
+        if (idsByColony.isEmpty()) return; // no race citizens anywhere — nothing to do
+
         for (ServerLevel level : server.getAllLevels()) {
             for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
+                // Cheapest gate first: no identities for this colony → skip
+                // before the town-hall lookup.
+                List<RaceIdentitySavedData.RaceIdentity> ids = idsByColony.get(colony.getID());
+                if (ids == null || ids.isEmpty()) continue;
+
                 // A town hall is required for both swap directions (the body
                 // materialises near it on swap-back). No town hall → skip.
                 if (!colony.getServerBuildingManager().hasTownHall()) continue;
-
-                // Identities belonging to THIS colony.
-                List<RaceIdentitySavedData.RaceIdentity> ids = new ArrayList<>();
-                for (RaceIdentitySavedData.RaceIdentity id : saved.all()) {
-                    if (id.colonyId == colony.getID()) ids.add(id);
-                }
-                if (ids.isEmpty()) continue;
 
                 boolean raided;
                 try {

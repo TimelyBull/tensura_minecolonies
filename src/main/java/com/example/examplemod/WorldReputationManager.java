@@ -368,7 +368,44 @@ public final class WorldReputationManager {
                 String.format("%.1f", after),
                 String.format("%.1f", base), String.format("%+.1f", newDelta),
                 reason, FactionTier.forValue(after));
+        rippleMilimBloc(level, player, factionId, amount, reason);
         return after;
+    }
+
+    // ------------------------------------------------------------------
+    // THE MILIM BLOC (user-specified alignment web) — Milim, Eurazania and
+    // Fulbrosia stand together: any standing change to ONE echoes to the
+    // OTHER TWO at a fraction. Harm one (attack, marked kill, war
+    // declaration) and the others fall; please one (deals, diplomacy) and
+    // the others warm slightly. Implemented HERE, in the single standing
+    // mutator, rather than as FactionProfile ally edges — the marked-kill
+    // ally fan-out would DOUBLE with this ripple if the trio were also
+    // profile-allies, so their allies() sets stay empty on purpose.
+    // Recursion guard: ripple writes carry ALLIED_BLOC and never re-ripple.
+    // ------------------------------------------------------------------
+
+    /** The three bloc members. */
+    private static final java.util.Set<String> MILIM_BLOC =
+            java.util.Set.of("milim", "eurazania", "fulbrosia");
+    /** Fraction of a NEGATIVE change echoed to the other members
+     *  ("reputation with all the others will fall"). ⚠ BALANCE GUESS. */
+    private static final double BLOC_NEGATIVE_FRACTION = 0.4;
+    /** Fraction of a POSITIVE change echoed ("a slight rep increase").
+     *  ⚠ BALANCE GUESS. */
+    private static final double BLOC_POSITIVE_FRACTION = 0.2;
+
+    private static void rippleMilimBloc(ServerLevel level, UUID player, String factionId,
+                                        double amount, WorldRepReason reason) {
+        if (reason == WorldRepReason.ALLIED_BLOC || reason == WorldRepReason.ADMIN) return;
+        if (amount == 0 || !MILIM_BLOC.contains(factionId)) return;
+        double fraction = amount < 0 ? BLOC_NEGATIVE_FRACTION : BLOC_POSITIVE_FRACTION;
+        for (String other : MILIM_BLOC) {
+            if (other.equals(factionId)) continue;
+            BossFaction f = BossFaction.byId(other);
+            if (f == null) continue;
+            modifyStandingById(level, player, other, f.displayName(),
+                    amount * fraction, WorldRepReason.ALLIED_BLOC);
+        }
     }
 
     /** Admin/debug absolute set (the /worldrep set command) — sets the

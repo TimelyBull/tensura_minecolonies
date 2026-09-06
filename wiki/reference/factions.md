@@ -16,7 +16,8 @@ standing, events, and [diplomacy](../features/diplomacy.md)).
 | **Eastern Empire** | Physical (town) | A major secular military power | Yes — you send the first envoy |
 | **Jura-Tempest Federation** | Physical (town) | The forest monster nation — community-minded | Yes |
 | **Eurazania** | Abstract | The Beast Kingdom (Calion's beastfolk), swingable (standing moves quickly either way) | Yes |
-| **Milim** | Abstract | A destroyer demon lord, swingable | Yes |
+| **Milim** | Physical (town — the "Dragon Faithful") | A destroyer demon lord, swingable. Her mountain settlement has no standing boss: clear its whole garrison mid-assault and Milim herself descends — she attacks everyone in sight, and she must be defeated to claim the conquest rewards | Yes |
+| **Fulbrosia** | Physical (sky city) | The Sky Queen Frey's harpy realm — a pagoda city on floating islands above the mountains. Proud: she never sends envoys, you send yours | Yes — you send the first envoy |
 | **Moderate Harlequin Alliance** | Abstract | Clayman's faction — opposes the Holy bloc, the Jura-Tempest Federation, Milim, and Eurazania | Yes (via outbound envoy) |
 
 ## Dispositions
@@ -48,3 +49,8 @@ Killing a faction's marked bosses angers its allies and pleases its enemies:
 
 Milim and Eurazania are "swingable" — their standing moves more than average,
 so they're quicker to turn into firm allies or enemies.
+
+- **The Milim bloc:** Milim, Eurazania, and Fulbrosia stand together.
+  Anything that lowers your standing with one of them — attacks, boss
+  kills, a declaration of war — lowers it with the other two as well;
+  anything that raises one raises the others slightly.

@@ -51,6 +51,13 @@ public final class ClientEvents {
         NeoForge.EVENT_BUS.addListener(RenderLivingEvent.Post.class,
                 AssassinClientHandler::onRenderLivingPost);
         NeoForge.EVENT_BUS.addListener(AssassinClientHandler::onClientLoggingOut);
+        // Mind-control SUSPICION tell — faint "…?" over the local player's
+        // own controlled/planted citizens, info-skill-gated. Mirror of the
+        // assassin tell.
+        Networking.suspicionFlagClientHandler = SuspicionClientHandler::onPayload;
+        NeoForge.EVENT_BUS.addListener(RenderLivingEvent.Post.class,
+                SuspicionClientHandler::onRenderLivingPost);
+        NeoForge.EVENT_BUS.addListener(SuspicionClientHandler::onClientLoggingOut);
         // Barrier wall visual — square translucent walls around the
         // barrier block, alpha scaled by the synced magicule fill.
         modBus.addListener((net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers e) ->
@@ -167,6 +174,14 @@ public final class ClientEvents {
         // hooks are needed. Replaces the subordinate-side trade tab;
         // SubordinateTradeButtonHandler is no longer registered.
         NeoForge.EVENT_BUS.addListener(CitizenTradeButtonHandler::onScreenInitPost);
+        // Interrogate tab — appears on citizens the server flagged suspicious
+        // (must register AFTER the trade tab so slot probing sees it).
+        NeoForge.EVENT_BUS.addListener(CitizenInterrogateButtonHandler::onScreenInitPost);
+        // Release tab/button — an EX-owner reclaiming a STOLEN subordinate,
+        // from either body form (citizen window tab + wild-form inventory
+        // button). Server enforces the unmasking-rank gate + cost.
+        NeoForge.EVENT_BUS.addListener(CitizenReleaseButtonHandler::onScreenInitPost);
+        NeoForge.EVENT_BUS.addListener(SubordinateReleaseButtonHandler::onScreenInitPost);
         NeoForge.EVENT_BUS.addListener(CitizenSkillBonusHandler::onScreenInitPost);
     }
 
