@@ -17,7 +17,7 @@ standing, events, and [diplomacy](../features/diplomacy.md)).
 | **Jura-Tempest Federation** | Physical (town) | The forest monster nation — community-minded | Yes |
 | **Eurazania** | Abstract | The Beast Kingdom (Calion's beastfolk), swingable (standing moves quickly either way) | Yes |
 | **Milim** | Physical (town — the "Dragon Faithful") | A destroyer demon lord, swingable. Her mountain settlement has no standing boss: clear its whole garrison mid-assault and Milim herself descends — she attacks everyone in sight, and she must be defeated to claim the conquest rewards | Yes |
-| **Fulbrosia** | Physical (sky city) | The Sky Queen Frey's harpy realm — a pagoda city on floating islands above the mountains. Proud: she never sends envoys, you send yours | Yes — you send the first envoy |
+| **Fulbrosia** | Physical (sky city) | The Sky Queen Frey's harpy realm — a pagoda city on floating islands above the mountains, ruled by Frey. Proud: she never sends envoys, you send yours | Yes — you send the first envoy |
 | **Moderate Harlequin Alliance** | Abstract | Clayman's faction — opposes the Holy bloc, the Jura-Tempest Federation, Milim, and Eurazania | Yes (via outbound envoy) |
 
 ## Dispositions

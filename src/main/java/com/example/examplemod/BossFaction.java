@@ -31,7 +31,7 @@ import net.minecraft.ChatFormatting;
  */
 public enum BossFaction {
 
-    TEMPEST("tempest", "Jura-Tempest Federation", ChatFormatting.AQUA),
+    TEMPEST("tempest", "Jura-Tempest", ChatFormatting.AQUA), // display shortened 2026-09-06 (war-list row overflow)
     DWARGON("dwargon", "Dwargon", ChatFormatting.GOLD),
     LUMINOUS("luminous", "Luminous", ChatFormatting.WHITE),
     FALMUTH("falmuth", "Falmuth", ChatFormatting.RED),
@@ -59,7 +59,7 @@ public enum BossFaction {
     // Dragon-Faithful boss slot, 2026-09-05). Physical: a sky settlement on
     // floating islands. Standing-coupled to Milim + Eurazania via the
     // MILIM_BLOC ripple (WorldReputationManager), NOT profile ally edges.
-    FULBROSIA("fulbrosia", "Fulbrosia", ChatFormatting.AQUA);
+    FULBROSIA("fulbrosia", "Fulbrosia", ChatFormatting.GREEN);
 
     private final String id;
     private final String displayName;

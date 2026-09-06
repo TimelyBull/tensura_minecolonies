@@ -251,13 +251,12 @@ public final class RivalColonies {
             // FLAME/HEAT resistance to defenders in assignFactionDefenderSkills
             // — now thematically odd on human knights but harmless (fire-only,
             // doesn't affect melee); revisit when the real roster lands.
-            // TR:N: the FALLEN line — properly hostile flying casters under a
-            // majin Demon Lord (in TR:N's own cosmology an angel named by a
-            // majin becomes a Fallen). Arch Fallen is capped to ONE elite.
-            case "leon" -> withTrn(new EntityType[] {
-                    HumanEntityTypes.FALMUTH_KNIGHT.get() },
-                    "trnightmare:lesser_fallen", "trnightmare:greater_fallen",
-                    "trnightmare:arch_fallen");
+            // (TR:N FALLEN line REMOVED 2026-09-06 playtest — all three
+            // fallen tiers share one placeholder sprite upstream and the
+            // knights fought them fruitlessly. Re-add when TR:N ships real
+            // fallen models.)
+            case "leon" -> new EntityType[] {
+                    HumanEntityTypes.FALMUTH_KNIGHT.get() };
             // Eastern Empire — magitech military power: FALMUTH_KNIGHT
             // rank-and-file soldiers (listed twice so they're the bulk of the
             // round-robin garrison) led by the imperial lieutenants Shin
@@ -270,46 +269,46 @@ public final class RivalColonies {
             // won't fight their owner.) ⚠ FUTURE CANON: these three later
             // defect to the Jura-Tempest Federation (see faction-model.md).
             // TR:N: the otherworlder-tier lieutenants Lucius / Raymond /
-            // Glenda / Arios + Kokuyou as an elite (all unique-capped named
-            // characters; all sentient bosses — they cast on their own).
+            // Glenda / Arios (unique-capped named characters; all sentient
+            // bosses — they cast on their own). Glenda canonically serves
+            // Yuuki, which fits the Yuuki-led Empire. KOKUYOU REMOVED
+            // 2026-09-06 (playtest): he was attacking his own garrison, and
+            // canonically he is one of MILIM's Dragon Faithful attendants —
+            // he never belonged in the Empire (my roster error).
             case "eastern_empire" -> withTrn(new EntityType[] {
                     HumanEntityTypes.FALMUTH_KNIGHT.get(), HumanEntityTypes.FALMUTH_KNIGHT.get(),
                     HumanEntityTypes.SHIN_RYUSEI.get(),
                     HumanEntityTypes.MARK_LAUREN.get(), HumanEntityTypes.SHINJI_TANIMURA.get() },
                     "trnightmare:sentient_boss_lucius", "trnightmare:sentient_boss_raymond",
-                    "trnightmare:sentient_boss_glenda", "trnightmare:sentient_boss_arios",
-                    "trnightmare:sentient_boss_kokuyou");
-            // Jura-Tempest Federation — the forest nation's kin (the boss is
-            // the buffed anchor SLIME; rank-and-file are goblins + lizardmen).
-            // TR:N (canon: Benimaru's ogre tribe JOINED Tempest): the ogre
-            // line fights alongside them — ogre grunts, kijin + enlightened
-            // ogre officers. Appended only when TR:N is installed.
-            case "tempest" -> withTrn(new EntityType[] {
-                    MonsterEntityTypes.GOBLIN.get(), MonsterEntityTypes.LIZARDMAN.get() },
-                    "trnightmare:ogre", "trnightmare:kijin", "trnightmare:enlightened_ogre");
+                    "trnightmare:sentient_boss_glenda", "trnightmare:sentient_boss_arios");
+            // Jura-Tempest — the forest nation's kin (the boss is the buffed
+            // anchor SLIME; rank-and-file are goblins + lizardmen).
+            // (TR:N ogre/kijin line REMOVED 2026-09-06 playtest — TR:N
+            // renders ogres/kijin with its placeholder ANGEL model
+            // (SentientAngelRenderer registered for them upstream) and they
+            // were unhittable/passive. Re-add when TR:N ships real models.)
+            case "tempest" -> new EntityType[] {
+                    MonsterEntityTypes.GOBLIN.get(), MonsterEntityTypes.LIZARDMAN.get() };
             // Dwargon — the dwarven kingdom: buffed dwarf-SOLDIER rank-and-file
             // (see strengthenDwarfDefender — big stat bump + Body Armor + Earth
             // Manipulation) under Gazel, plus ONE War Gnome earth-magic
             // lieutenant (capped at one via isUniqueGarrisonMob).
             case "dwargon" -> new EntityType[] {
                     HumanEntityTypes.DWARF.get(), MonsterEntityTypes.WAR_GNOME.get() };
-            // Milim / Dragon Faithful — the user's mix: dragonewt stand-ins
-            // (LIZARDMEN — no dragonewt entity exists; canon has dragonewts
-            // as the lizardfolk's closest kin), Eurazania beasts (blade
-            // tigers + direwolves — no beastfolk entity exists either), and
-            // Fulbrosia harpies under TR:N (the allied bloc lends troops).
-            // NO standing boss — Milim is SUMMONED when the field is cleared.
-            case "milim" -> withTrn(new EntityType[] {
-                    MonsterEntityTypes.LIZARDMAN.get(), MonsterEntityTypes.BLADE_TIGER.get(),
-                    MonsterEntityTypes.DIREWOLF.get() },
-                    "trnightmare:harpy", "trnightmare:harpy_queen");
-            // Fulbrosia — the Sky Queen's own roost: wind spirits + sky
-            // beasts, and the full harpy flight under TR:N (divine bird is
-            // her unique-capped elite here — this is its home realm).
-            case "fulbrosia" -> withTrn(new EntityType[] {
-                    MonsterEntityTypes.SYLPHIDE.get(), MonsterEntityTypes.GIANT_BAT.get() },
-                    "trnightmare:harpy", "trnightmare:harpy_queen",
-                    "trnightmare:spirit_bird", "trnightmare:divine_bird");
+            // Milim / Dragon Faithful — dragonewt warriors only (LIZARDMEN
+            // stand-ins — no dragonewt entity exists; canon has dragonewts
+            // as the lizardfolk's closest kin). Beasts + harpy loans REMOVED
+            // 2026-09-06 per the user ("they don't really fit"). NO standing
+            // boss — Milim is SUMMONED when the field is cleared. Their
+            // battlewill kit carries the ranged threat.
+            case "milim" -> new EntityType[] { MonsterEntityTypes.LIZARDMAN.get() };
+            // Fulbrosia — the Sky Queen's roost: wind spirits + sky beasts.
+            // (TR:N harpy flight REMOVED 2026-09-06 playtest — harpies render
+            // with TR:N's placeholder ANGEL model upstream. Re-add when real
+            // models ship; the anti-infight reconciler in tickGarrison keeps
+            // Frey from hunting her own sylphides meanwhile.)
+            case "fulbrosia" -> new EntityType[] {
+                    MonsterEntityTypes.SYLPHIDE.get(), MonsterEntityTypes.GIANT_BAT.get() };
             default -> null;
         };
     }
@@ -333,11 +332,11 @@ public final class RivalColonies {
         // every named sentient-boss lieutenant, plus the Arch Fallen elite.
         var id = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(type);
         if (id != null && "trnightmare".equals(id.getNamespace())) {
-            return id.getPath().startsWith("sentient_boss_")
-                    || "arch_fallen".equals(id.getPath())
-                    || "harpy_queen".equals(id.getPath())   // bloc lieutenants
-                    || "spirit_bird".equals(id.getPath())
-                    || "divine_bird".equals(id.getPath());  // Fulbrosia's elite
+            // Named sentient-boss lieutenants (EE's Lucius/Raymond/Glenda/
+            // Arios). The 2026-09-06 playtest removed the fallen/harpy/ogre
+            // rank mobs (placeholder models upstream), so those ids no
+            // longer appear in rosters.
+            return id.getPath().startsWith("sentient_boss_");
         }
         return false;
     }
@@ -720,6 +719,9 @@ public final class RivalColonies {
         // #5 — strip vestigial MineColonies hut blocks once placement
         // settles (placement is queued async over a few ticks).
         queueHutStrip(level, s);
+        // Sky settlements: schematics carve their own ground layers into the
+        // islands — re-pad the undersides once placement settles.
+        if (sky) queueIslandRepad(level, s, center);
 
         // The anchor boss at the town center, MARKED (rep-affecting).
         Mob boss = spawnAnchorBoss(level, factionId, center.above(), true);
@@ -1201,6 +1203,37 @@ public final class RivalColonies {
                 level.getGameTime() + HUT_STRIP_DELAY_TICKS));
     }
 
+    /** Pending SKY-ISLAND re-pads (Fulbrosia). Blueprint placement is queued
+     *  async and each schematic carries its own ground/air layers, which can
+     *  CARVE the pre-built island top away ("cuts off the floating dirt",
+     *  playtest 2026-09-06). After placement settles we re-run
+     *  buildSkyIslandPad under every building + the plaza — it only writes
+     *  into NON-solid blocks strictly below each floor, so it refills the
+     *  carved underside without touching the buildings. */
+    private static final java.util.List<HutStrip> pendingIslandRepads =
+            new java.util.ArrayList<>();
+    private static final long ISLAND_REPAD_DELAY_TICKS = 140L; // after the hut strip
+
+    private static void queueIslandRepad(ServerLevel level, Settlement s, BlockPos center) {
+        java.util.List<BlockPos> pads = new java.util.ArrayList<>(s.buildingPositions);
+        pads.add(center); // the plaza island
+        pendingIslandRepads.add(new HutStrip(level.dimension(), pads,
+                level.getGameTime() + ISLAND_REPAD_DELAY_TICKS));
+    }
+
+    private static void tickIslandRepads(MinecraftServer server) {
+        if (pendingIslandRepads.isEmpty()) return;
+        java.util.Iterator<HutStrip> it = pendingIslandRepads.iterator();
+        while (it.hasNext()) {
+            HutStrip hs = it.next();
+            ServerLevel level = server.getLevel(hs.dim());
+            if (level == null) { it.remove(); continue; }
+            if (level.getGameTime() < hs.execTick()) continue;
+            for (BlockPos at : hs.positions()) buildSkyIslandPad(level, at);
+            it.remove();
+        }
+    }
+
     /** Process due hut-strips: replace every MineColonies hut block in each
      *  building's footprint with stone bricks. Settlements are decorative
      *  (conquest is rewards-only — no colony is founded), so the functional
@@ -1254,6 +1287,7 @@ public final class RivalColonies {
         if (!WorldReputationManager.isFactionSystemEnabled()) return;
         // #5 — run any due post-placement hut strips (cheap when none queued).
         tickHutStrips(server);
+        tickIslandRepads(server);
         boolean ambient = server.getTickCount() % AMBIENT_PERIOD_TICKS == 0;
 
         // Espionage — resolve scout missions that are due (per-second; the
@@ -1848,6 +1882,16 @@ public final class RivalColonies {
                 despawnMilimRetribution(level, s);
             }
             if (s.conquered) continue; // husk — inert, no garrison
+            // ANTI-INFIGHT reconciler (2026-09-06 playtest: Frey hunted her
+            // own sylphides; Kokuyou attacked garrison mates): any garrison
+            // member — the boss included — whose current target belongs to
+            // the SAME settlement gets that target cleared. Runs before the
+            // tether pass so a cleared mob can be walked home this tick.
+            Mob settlementBoss = resolveBoss(level, s);
+            if (settlementBoss != null && isOwnGarrisonTarget(s, settlementBoss.getTarget())) {
+                settlementBoss.setTarget(null);
+                settlementBoss.setLastHurtByMob(null);
+            }
             if (s.garrisonUuids.isEmpty()) continue;
             long tetherSq = (long) GARRISON_TETHER_RADIUS * GARRISON_TETHER_RADIUS;
             Iterator<UUID> it = s.garrisonUuids.iterator();
@@ -1860,6 +1904,10 @@ public final class RivalColonies {
                     changed = true;
                     continue;
                 }
+                if (isOwnGarrisonTarget(s, mob.getTarget())) {
+                    mob.setTarget(null);
+                    mob.setLastHurtByMob(null);
+                }
                 if (mob.getTarget() != null && mob.getTarget().isAlive()) continue; // fighting
                 if (mob.blockPosition().distSqr(s.center) > tetherSq) {
                     mob.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
@@ -1869,6 +1917,19 @@ public final class RivalColonies {
         }
         if (changed) data.markChanged();
     }
+
+    /** Is this target a member of the settlement's own side — a garrison
+     *  defender or the settlement boss? (The anti-infight check.) */
+    private static boolean isOwnGarrisonTarget(Settlement s, LivingEntity target) {
+        if (target == null) return false;
+        if (s.garrisonUuids.contains(target.getUUID())) return true;
+        return target.getUUID().equals(s.bossUuid);
+    }
+
+    // (A Creator-skill scrub for the anchor Yuuki was built here on
+    // 2026-09-06 and REVERTED the same day, per the user: his autocast
+    // Skill-Creation chat announcements are BASE TR:N behavior — he does
+    // the same wherever TR:N itself spawns him — so we leave it alone.)
 
     // --- assault state machine + the 60%-win primitives ----------------
 

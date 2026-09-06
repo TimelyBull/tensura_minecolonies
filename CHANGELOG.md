@@ -76,14 +76,12 @@ Copy the relevant version's section into the CurseForge release notes on each up
   a faint mark over your own compromised citizens and whisper that
   something seems off, and controlled citizens grow quietly unhappy —
   watchful owners can notice the mood.
-- **Faction garrisons grew teeth (with Tensura Reincarnated Nightmares).**
-  Jura-Tempest settlements now field the ogre tribe — ogre grunts with
-  kijin and enlightened-ogre officers, just as the canon has it. Leon's
-  garrison gains the Fallen: hostile flying spellcasters, with a single
-  Arch Fallen elite. The Eastern Empire fields its otherworlder
-  lieutenants — Lucius, Raymond, Glenda, Arios — under the elite Kokuyou,
-  each appearing at most once. Without Nightmares installed, every
-  garrison is exactly as before.
+- **The Eastern Empire fields its otherworlder lieutenants (with Tensura
+  Reincarnated Nightmares).** Lucius, Raymond, Glenda, and Arios join the
+  Empire's garrison, each appearing at most once. Without Nightmares
+  installed, every garrison is exactly as before. (Ogre, Fallen, and
+  harpy troops were tried and pulled back out — Nightmares doesn't ship
+  finished models for them yet; they'll return when it does.)
 - **TR: Nightmare integration (optional).** If Tensura Reincarnated
   Nightmares is installed, its subordinate-stealing powers now carry real
   weight: a Greed-driven theft takes the citizen too — they pack up and
@@ -97,15 +95,14 @@ Copy the relevant version's section into the CurseForge release notes on each up
   Without TR: Nightmare installed, nothing changes.
 - **Milim's faction now has a settlement: the Dragon Faithful.** Her
   people build a stone citadel that generates only in mountains, defended
-  by a mixed host — dragonewt warriors, Eurazania's beasts, and allied
-  harpies when Nightmares is installed. The warriors fight with
-  battlewills: aura arts with real range and power. The town has no
+  by dragonewt warriors who fight with battlewills: aura arts with real
+  range and power. The town has no
   standing boss — clear the entire garrison mid-assault and Milim herself
   descends, attacking everything in sight, and SHE must be defeated to
   claim the conquest rewards.
 - **Fulbrosia, the Sky Queen's realm, is a new faction.** Frey rules a
   pagoda city built on floating islands high above the mountains,
-  garrisoned by her harpy flight. It can be discovered, courted through
+  garrisoned by wind spirits and sky beasts. It can be discovered, courted through
   diplomacy (she won't come to you — send your envoy), or assaulted like
   any settlement; her Covenant teaches Universal Perception.
 - **Milim, Eurazania, and Fulbrosia now stand together.** Harm any one of

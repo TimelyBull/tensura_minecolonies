@@ -18,13 +18,13 @@ which play the same way:
   its faction.
   Two of them are unusual. The **Dragon Faithful** settlement generates
   only in mountain biomes and has no standing boss: its garrison of
-  dragonewt warriors and allied beasts fights with long-range aura arts,
+  dragonewt warriors fights with long-range aura arts,
   and once you have cleared the entire field, Milim herself descends on
   the town center. She attacks everything in sight and can't be reasoned
   with — and defeating her is the only way to win the assault and claim
   the conquest rewards. Retreating makes her leave.
   **Fulbrosia** is a sky city — pagodas on floating islands high above
-  the mountains, ruled by Frey and garrisoned by her harpies. Declaring
+  the mountains, ruled by Frey and garrisoned by wind spirits and sky beasts. Declaring
   war teleports you onto its central island.
 - **Dwargon villages** — Dwargon uses existing Tensura dwarven villages
   rather than a generated town. Every dwarven village you walk into becomes
