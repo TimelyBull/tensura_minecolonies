@@ -1,0 +1,13 @@
+{
+  "replace": false,
+  "values": [
+    "tensura_minecolonies:magicule_barrier",
+    "tensura_minecolonies:magicule_barrier_tier2",
+    "tensura_minecolonies:magicule_barrier_tier3",
+    "tensura_minecolonies:magicule_barrier_tier4",
+    "tensura_minecolonies:magicule_storage_tier1",
+    "tensura_minecolonies:magicule_storage_tier2",
+    "tensura_minecolonies:magicule_storage_tier3",
+    "tensura_minecolonies:magicule_storage_tier4"
+  ]
+}
