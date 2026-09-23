@@ -76,5 +76,6 @@
   "tensura_minecolonies.trial.dark.not_strongest": "Luminous is unmoved — a majin must offer their STRONGEST. This one's blood does not fill the chalice.",
   "tensura_minecolonies.trial.dark.filled": "Blood spills into the chalice.",
   "tensura_minecolonies.trial.holy.full": "The chalice of holy water is full.",
-  "tensura_minecolonies.trial.blood.full": "The chalice of blood is full."
+  "tensura_minecolonies.trial.blood.full": "The chalice of blood is full.",
+  "tensura_minecolonies.stored_magicule": "Stored magicule: %s / %s"
 }

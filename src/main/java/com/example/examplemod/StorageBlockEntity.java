@@ -89,4 +89,27 @@ public class StorageBlockEntity extends BlockEntity {
         super.loadAdditional(tag, registries);
         stored = tag.getDouble("storedMagicule");
     }
+
+    // --- Keep the contents when the block is broken and re-placed ---
+    // The loot table copies STORED_MAGICULE from here onto the dropped item;
+    // placing that item applies it back (BlockItem → applyImplicitComponents).
+
+    @Override
+    protected void collectImplicitComponents(net.minecraft.core.component.DataComponentMap.Builder components) {
+        super.collectImplicitComponents(components);
+        if (stored > 0) components.set(ExampleMod.STORED_MAGICULE.get(), stored);
+    }
+
+    @Override
+    protected void applyImplicitComponents(BlockEntity.DataComponentInput input) {
+        super.applyImplicitComponents(input);
+        Double carried = input.get(ExampleMod.STORED_MAGICULE.get());
+        if (carried != null) stored = Math.max(0, Math.min(carried, getCapacity()));
+    }
+
+    @Override
+    public void removeComponentsFromTag(CompoundTag tag) {
+        super.removeComponentsFromTag(tag);
+        tag.remove("storedMagicule");
+    }
 }

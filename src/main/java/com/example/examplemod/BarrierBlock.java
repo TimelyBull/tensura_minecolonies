@@ -76,6 +76,20 @@ public class BarrierBlock extends BaseEntityBlock {
         return TIER_BASE_CAPACITY[tier - 1];
     }
 
+    /** Shows how much magicule a broken-and-picked-up block is carrying. */
+    @Override
+    public void appendHoverText(ItemStack stack, net.minecraft.world.item.Item.TooltipContext context,
+                                java.util.List<Component> tooltip, net.minecraft.world.item.TooltipFlag flag) {
+        super.appendHoverText(stack, context, tooltip, flag);
+        Double carried = stack.get(ExampleMod.STORED_MAGICULE.get());
+        if (carried != null && carried > 0) {
+            tooltip.add(Component.translatable("tensura_minecolonies.stored_magicule",
+                    String.format(Locale.ROOT, "%,d", Math.round(carried)),
+                    String.format(Locale.ROOT, "%,d", Math.round(baseCapacity())))
+                    .withStyle(net.minecraft.ChatFormatting.AQUA));
+        }
+    }
+
     @Override
     protected void createBlockStateDefinition(
             net.minecraft.world.level.block.state.StateDefinition.Builder<net.minecraft.world.level.block.Block, BlockState> builder) {

@@ -1557,6 +1557,33 @@ public class BarrierBlockEntity extends BlockEntity {
     // Persistence
     // ------------------------------------------------------------------
 
+    // --- Keep the core's OWN tank when it is broken and re-placed ---
+    // Only the core's own tank travels; storage blocks carry their own contents.
+    // The loot table copies STORED_MAGICULE onto the dropped item; placing it
+    // applies it back. The per-second network walk then rebuilds the pool.
+
+    @Override
+    protected void collectImplicitComponents(net.minecraft.core.component.DataComponentMap.Builder components) {
+        super.collectImplicitComponents(components);
+        if (storedMagicule > 0) components.set(ExampleMod.STORED_MAGICULE.get(), storedMagicule);
+    }
+
+    @Override
+    protected void applyImplicitComponents(BlockEntity.DataComponentInput input) {
+        super.applyImplicitComponents(input);
+        Double carried = input.get(ExampleMod.STORED_MAGICULE.get());
+        if (carried != null) {
+            storedMagicule = Math.max(0, Math.min(carried, getBaseCapacity()));
+            poolStoredCache = storedMagicule;
+        }
+    }
+
+    @Override
+    public void removeComponentsFromTag(CompoundTag tag) {
+        super.removeComponentsFromTag(tag);
+        tag.remove("storedMagicule");
+    }
+
     @Override
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);

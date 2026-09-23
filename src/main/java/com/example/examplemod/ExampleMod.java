@@ -215,6 +215,20 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public static final DeferredRegister<net.minecraft.world.level.block.entity.BlockEntityType<?>> BLOCK_ENTITIES =
             DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, MODID);
 
+    /** Item data components owned by this mod. */
+    public static final DeferredRegister.DataComponents DATA_COMPONENTS =
+            DeferredRegister.createDataComponents(Registries.DATA_COMPONENT_TYPE, MODID);
+
+    /** Magicule held by a broken Barrier Core / Magicule Storage block. The
+     *  block entity writes it onto the dropped item (loot table copy_components)
+     *  and reads it back when the item is placed, so the tank survives a move. */
+    public static final net.neoforged.neoforge.registries.DeferredHolder<
+            net.minecraft.core.component.DataComponentType<?>,
+            net.minecraft.core.component.DataComponentType<Double>> STORED_MAGICULE =
+            DATA_COMPONENTS.registerComponentType("stored_magicule", b -> b
+                    .persistent(com.mojang.serialization.Codec.DOUBLE)
+                    .networkSynchronized(net.minecraft.network.codec.ByteBufCodecs.DOUBLE));
+
     private static BlockBehaviour.Properties barrierProps() {
         return BlockBehaviour.Properties.of()
                 .mapColor(MapColor.COLOR_PURPLE)
@@ -525,6 +539,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         BLOCKS.register(modEventBus);
         ITEMS.register(modEventBus);
         BLOCK_ENTITIES.register(modEventBus);
+        DATA_COMPONENTS.register(modEventBus);
         COLONY_EVENT_TYPES.register(modEventBus);
         CREATIVE_MODE_TABS.register(modEventBus);
         // STAGE 1 — worldgen structure type + piece type (data-driven structure

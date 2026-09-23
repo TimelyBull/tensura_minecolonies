@@ -58,6 +58,31 @@ public class MagiculeStorageBlock extends Block implements EntityBlock {
         registerDefaultState(getStateDefinition().any().setValue(FILL, 0));
     }
 
+    /** Shows how much magicule a broken-and-picked-up block is carrying. */
+    @Override
+    public void appendHoverText(ItemStack stack, net.minecraft.world.item.Item.TooltipContext context,
+                                java.util.List<Component> tooltip, net.minecraft.world.item.TooltipFlag flag) {
+        super.appendHoverText(stack, context, tooltip, flag);
+        Double carried = stack.get(ExampleMod.STORED_MAGICULE.get());
+        if (carried != null && carried > 0) {
+            tooltip.add(Component.translatable("tensura_minecolonies.stored_magicule",
+                    String.format(Locale.ROOT, "%,d", Math.round(carried)),
+                    String.format(Locale.ROOT, "%,d", Math.round(capacityBonus())))
+                    .withStyle(net.minecraft.ChatFormatting.AQUA));
+        }
+    }
+
+    /** A re-placed block that carried magicule must show its fill level right
+     *  away — storage has no ticker, so nothing else would update the sprite. */
+    @Override
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state,
+                            @Nullable net.minecraft.world.entity.LivingEntity placer, ItemStack stack) {
+        super.setPlacedBy(level, pos, state, placer, stack);
+        if (!level.isClientSide() && level.getBlockEntity(pos) instanceof StorageBlockEntity be) {
+            be.syncFillSprite();
+        }
+    }
+
     @Override
     protected void createBlockStateDefinition(
             net.minecraft.world.level.block.state.StateDefinition.Builder<Block, BlockState> builder) {
