@@ -368,6 +368,7 @@ public final class TensuraRaids {
     // ------------------------------------------------------------------
 
     public static void tick(MinecraftServer server) {
+        removeQueuedStragglers();
         for (ServerLevel level : server.getAllLevels()) {
             List<IColony> colonies = IColonyManager.getInstance().getColonies(level);
             if (colonies.isEmpty()) continue;
@@ -443,6 +444,13 @@ public final class TensuraRaids {
         } catch (Throwable ignored) {
             return;
         }
+        // Never raid a colony nobody is at. MineColonies gates its own raids the
+        // same way ("Trying to spawn raid on colony with no loaded buildings,
+        // aborting"). Game time keeps advancing with no players online, so
+        // without this gate a WARY colony was raided every few real hours while
+        // empty: the wave spawned into unloaded chunks, the timeout could not
+        // find it to remove it, and the raid level climbed with nobody there.
+        if (!isColonyPresent(level, colony)) return;
 
         ReputationTier tier = ReputationManager.getTier(colony);
         double chance = switch (tier) {
@@ -490,7 +498,8 @@ public final class TensuraRaids {
             // Unloaded: our race-citizens carry a full entity snapshot —
             // reconstruct transiently (never added to the world) and read
             // the EP off the ManasCore storage, like the trade restock does.
-            RaceIdentitySavedData.RaceIdentity identity = identities.getByCitizenId(data.getId());
+            RaceIdentitySavedData.RaceIdentity identity =
+                    identities.getByColonyAndCitizen(colony.getID(), data.getId());
             double ep = UNLOADED_CITIZEN_EP;
             if (identity != null && identity.entitySnapshot != null) {
                 net.minecraft.world.entity.Entity ghost =
@@ -667,6 +676,72 @@ public final class TensuraRaids {
     private static double readSpawnEP(Mob mob) {
         ExistenceStorage exist = ExampleMod.readExistence(mob);
         return exist != null && exist.getEP() > 0 ? exist.getEP() : FALLBACK_SPAWN_EP;
+    }
+
+    /** True when the colony is ACTIVE and its town-hall chunk is entity-ticking —
+     *  i.e. a player is actually there. */
+    static boolean isColonyPresent(ServerLevel level, IColony colony) {
+        try {
+            if (colony.getState() != com.minecolonies.api.colony.ColonyState.ACTIVE) return false;
+            if (!colony.getServerBuildingManager().hasTownHall()) return false;
+            BlockPos th = colony.getServerBuildingManager().getTownHall().getPosition();
+            return com.minecolonies.api.util.WorldUtil.isEntityBlockLoaded(level, th);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * Leftover-raider sweep, called from {@code ExampleMod.onEntityJoinLevel}.
+     * A raider carries {@link RaidTag} (colonyId, eventId). When one loads into
+     * the world and the raid it belongs to is no longer running — the event is
+     * finished or gone — it is a straggler the timeout could not reach because
+     * its chunk was not ticking at the time. It is removed with the same poof
+     * the timeout uses. Raiders of a still-running raid are left alone.
+     */
+    static void sweepOrphanRaiderOnJoin(ServerLevel level, Entity entity) {
+        if (SPAWNING_RAIDER) return; // our own spawn in progress — not a straggler
+        if (!entity.hasData(Attachments.RAID_TAG.get())) return;
+        RaidTag tag = entity.getData(Attachments.RAID_TAG.get());
+        IColony colony = IColonyManager.getInstance().getColonyByWorld(tag.colonyId(), level);
+        if (colony != null) {
+            for (IColonyEvent event : colony.getEventManager().getEvents().values()) {
+                if (event.getID() == tag.eventId()
+                        && event.getStatus() != EventStatus.DONE
+                        && event.getStatus() != EventStatus.CANCELED) {
+                    return; // its raid is still on — a legitimate raider
+                }
+            }
+        }
+        // Do NOT discard here. We are inside the entity's own join callback,
+        // while the level is still registering it; removing it at that moment
+        // leaves a half-registered entity that is visible but never ticks
+        // (seen in the 2026-09-26 playtest: frozen raiders standing around).
+        // Queue it and remove it on the next raid tick instead.
+        PENDING_STRAGGLERS.add(entity);
+        LOGGER.info("[TM] raid: leftover raider {} of finished raid {} (colony {}) queued for removal",
+                entity.getType().builtInRegistryHolder().key().location(), tag.eventId(), tag.colonyId());
+    }
+
+    /** Stragglers found by {@link #sweepOrphanRaiderOnJoin}, removed by
+     *  {@link #removeQueuedStragglers} once their join has completed. */
+    private static final java.util.List<Entity> PENDING_STRAGGLERS = new java.util.ArrayList<>();
+
+    /** Called from the raid tick: poof + discard every queued straggler that is
+     *  still alive. Safe now — the join that found them is long finished. */
+    private static void removeQueuedStragglers() {
+        if (PENDING_STRAGGLERS.isEmpty()) return;
+        for (Entity e : new java.util.ArrayList<>(PENDING_STRAGGLERS)) {
+            if (e.isAlive() && !e.isRemoved() && e.level() instanceof ServerLevel lvl) {
+                lvl.sendParticles(ParticleTypes.POOF,
+                        e.getX(), e.getY() + e.getBbHeight() / 2.0, e.getZ(),
+                        24, 0.4, 0.4, 0.4, 0.02);
+                e.discard();
+                LOGGER.info("[TM] raid: removed leftover raider {}",
+                        e.getType().builtInRegistryHolder().key().location());
+            }
+        }
+        PENDING_STRAGGLERS.clear();
     }
 
     /**
@@ -1060,11 +1135,26 @@ public final class TensuraRaids {
         // defenders can track the wave through walls and darkness.
         mob.setGlowingTag(true);
         mob.setData(Attachments.RAID_TAG.get(), new RaidTag(colonyId, eventId));
-        if (!level.addFreshEntity(mob)) {
-            return null;
+        // The leftover-raider sweep runs on EntityJoinLevelEvent, i.e. inside
+        // addFreshEntity. For the opening wave the raid event is not yet
+        // registered with the colony (that happens after the whole wave is
+        // spawned), so the sweep would see "no running raid" and delete every
+        // raider the moment it appeared — which it did in the 2026-09-26
+        // playtest. Flag the join we are performing so the sweep skips it.
+        SPAWNING_RAIDER = true;
+        try {
+            if (!level.addFreshEntity(mob)) {
+                return null;
+            }
+        } finally {
+            SPAWNING_RAIDER = false;
         }
         return mob;
     }
+
+    /** True only for the duration of a raider's own addFreshEntity call (see
+     *  {@link #spawnRaider}); the sweep ignores that join. Server thread only. */
+    private static boolean SPAWNING_RAIDER = false;
 
     /**
      * MC-style reinforcement — spawn up to {@code count} fresh raiders to refill

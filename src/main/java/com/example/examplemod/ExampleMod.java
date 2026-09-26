@@ -764,12 +764,24 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                                    String name, UUID ownerUUID, Race race) {
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(serverLevel);
 
-        IColonyManager colonyManager = IColonyManager.getInstance();
-        IColony colony = colonyManager.getIColonyByOwner(serverLevel, ownerUUID);
-        if (colony == null) {
-            List<IColony> all = colonyManager.getColonies(serverLevel);
-            colony = all.isEmpty() ? null : all.get(0);
+        // Belt and braces for the one-mob-one-identity rule: the store refuses a
+        // second registration for a mob, so check BEFORE a CitizenData is created
+        // (a refused registration after creating one would leave that citizen
+        // with no identity — a ghost).
+        RaceIdentitySavedData.RaceIdentity already = saved.getByMobUUID(entity.getUUID());
+        if (already != null) {
+            LOGGER.warn("[TM] intake: mob {} already has identity {} — not registering '{}' again",
+                    entity.getUUID(), already.identityId, name);
+            return;
         }
+
+        // The colony is the NAMER's own colony, and only that. The old fallback
+        // ("no colony of your own → the first colony on the level") injected a
+        // travelling citizen into another player's town hall on multi-player
+        // servers — one that owner could neither summon, recall nor remove,
+        // because every tool filters on the owner. Someone who owns no colony
+        // gets the pending pool, which promotes when THEY found a colony.
+        IColony colony = IColonyManager.getInstance().getIColonyByOwner(serverLevel, ownerUUID);
 
         if (colony == null) {
             // Stage 1b: no colony exists yet. Queue this goblin in the pending
@@ -1031,11 +1043,24 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         LOGGER.info("[TM] colony '{}' created — draining {} pending goblin(s)",
                 colony.getName(), drain.size());
 
+        UUID newOwner = colony.getPermissions().getOwner();
         for (RaceIdentitySavedData.PendingRaceMob p : drain) {
+            // Only the founder's own pending mobs join the founder's colony.
+            // Draining everyone's pool into whichever colony was created next
+            // handed one player's named subordinates to another player's town
+            // hall on shared servers.
+            if (newOwner == null || !newOwner.equals(p.ownerPlayerUUID)) continue;
+
             // Stale check: drop pending entry if the goblin entity is gone.
             LivingEntity goblin = findLivingEntityAcrossLevels(server, p.mobEntityUUID);
             if (goblin == null) {
                 LOGGER.info("[TM] pending '{}': goblin {} no longer alive — discarding stale entry",
+                        p.name, p.mobEntityUUID);
+                saved.removePending(p);
+                continue;
+            }
+            if (saved.getByMobUUID(goblin.getUUID()) != null) {
+                LOGGER.info("[TM] pending '{}': goblin {} already has an identity — dropping the pending entry",
                         p.name, p.mobEntityUUID);
                 saved.removePending(p);
                 continue;
@@ -1539,6 +1564,16 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      * Returns the new citizen, or null if it couldn't be created.
      */
     private static ICitizenData spawnColonyMember(ServerLevel level, IColony colony, ColonyMember member) {
+        // Respect the town hall's "Allow new citizens to move in" setting. The
+        // 3-argument spawn call below does NOT force, so with move-in off it
+        // silently spawns nothing — which used to leave a registered citizen
+        // with no body (a ghost that could still be hired and housed). If the
+        // player has said no new citizens, nobody moves in.
+        if (!colonyAllowsMoveIn(colony)) {
+            LOGGER.info("[TM] colony member: colony {} ('{}') has move-in disabled — no {} arrives",
+                    colony.getID(), colony.getName(), member);
+            return null;
+        }
         try {
             ICitizenData data = colony.getCitizenManager().createAndRegisterCivilianData();
             java.util.Optional<Race> raceOpt = member.toRace();
@@ -1556,6 +1591,20 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             LOGGER.error("[TM] spawnColonyMember: failed to spawn {} into colony {}",
                     member, colony.getID(), t);
             return null;
+        }
+    }
+
+    /** The town hall's "Allow new citizens to move in" toggle. Fails OPEN
+     *  (true) if the setting can't be read, so a malformed colony behaves as
+     *  before rather than silently stopping all growth. */
+    static boolean colonyAllowsMoveIn(IColony colony) {
+        try {
+            return ((com.minecolonies.core.colony.buildings.modules.settings.BoolSetting)
+                    colony.getSettings().getSetting(
+                            com.minecolonies.core.colony.buildings.workerbuildings.BuildingTownHall.MOVE_IN))
+                    .getValue();
+        } catch (Throwable t) {
+            return true;
         }
     }
 
@@ -1605,6 +1654,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         java.util.EnumSet<ColonyMember> members = config.getMembers(colonyId);
         if (members.isEmpty()) return;                       // legacy / plain colony
         if (!colony.getServerBuildingManager().hasTownHall()) return;
+        if (!colonyAllowsMoveIn(colony)) return;             // player said: no new citizens
         if (colony.getCitizenManager().getCurrentCitizenCount()
                 >= colony.getCitizenManager().getMaxCitizens()) return;
 
@@ -3124,7 +3174,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             }
 
             if (restockedLive > 0 || restockedSnapshot > 0) {
-                LOGGER.info("[TM] dawn restock in {} — day {}: {} live subordinate(s), {} citizen snapshot(s)",
+                LOGGER.debug("[TM] dawn restock in {} — day {}: {} live subordinate(s), {} citizen snapshot(s)",
                         level.dimension().location(), currentDay,
                         restockedLive, restockedSnapshot);
             }
@@ -3487,9 +3537,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      * the EP/existence storage loads off-world). Vanilla citizens (no identity)
      * are 0.
      */
-    static double citizenEP(ServerLevel level, int citizenId) {
+    static double citizenEP(ServerLevel level, int colonyId, int citizenId) {
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
-        RaceIdentitySavedData.RaceIdentity id = saved.getByCitizenId(citizenId);
+        RaceIdentitySavedData.RaceIdentity id = saved.getByColonyAndCitizen(colonyId, citizenId);
         if (id == null || id.entitySnapshot == null) return 0.0;
         try {
             java.util.Optional<net.minecraft.world.entity.Entity> created =
@@ -5430,6 +5480,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 // citizens map (so getCurrentCitizenCount drops), unassigns from
                 // home/work buildings, clears work orders, and sends the client
                 // view-remove. Full cleanup in one call.
+                //
+                // BUT it does NOT clear the travelling entry. MineColonies keeps
+                // that list in the colony file keyed by citizen NUMBER, and it
+                // reuses a dead citizen's number for the very next citizen it
+                // creates. A subordinate is travelling "forever" by design, so
+                // without this line the replacement citizen inherited the entry
+                // and could never get a body, be recalled, or be killed — the
+                // "new citizen took their job and can't be recalled" ghost.
+                colony.getTravellingManager().finishTravellingFor(citizenData);
                 colony.getCitizenManager().removeCivilian(citizenData);
                 LOGGER.info("[TM] death(A): citizen {} removed from '{}' — colony now {} citizens",
                         identity.citizenId, colony.getName(),
@@ -5459,7 +5518,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (!(colony.getWorld() instanceof ServerLevel serverLevel)) return;
 
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(serverLevel);
-        RaceIdentitySavedData.RaceIdentity identity = saved.getByCitizenId(citizenId);
+        // Colony-aware lookup. Citizen numbers repeat across colonies (every
+        // colony counts from 1), and the old single-key lookup here deleted
+        // whichever colony's identity it found first — on a two-colony server a
+        // death in one colony turned a citizen of the OTHER colony human for
+        // good, and left this colony's dead record dangling to be inherited by
+        // the next citizen MineColonies gave the same number.
+        RaceIdentitySavedData.RaceIdentity identity = saved.getByColonyAndCitizen(colony.getID(), citizenId);
         if (identity == null) return; // not one of ours — vanilla MineColonies citizen
 
         LOGGER.info("[TM] death(B): citizen {} ('{}') died in colony '{}' — cleaning identity record (count already decremented by MineColonies)",
@@ -5874,6 +5939,26 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                                 .executes(ctx -> handleRecoverOrphans(ctx, OrphanAction.CONFIRM)))
                         .then(Commands.literal("purge")
                                 .executes(ctx -> handleRecoverOrphans(ctx, OrphanAction.PURGE)))
+        );
+        // Identity audit — the periodic repair pass, on demand, with a report.
+        //   /identityaudit          — run it and print what was repaired
+        //   /identityaudit verbose  — same, plus every record it looked at
+        event.getDispatcher().register(
+                Commands.literal("identityaudit")
+                        .requires(src -> src.hasPermission(2))
+                        .executes(ctx -> {
+                            IdentityAudit.Report r = IdentityAudit.run(ctx.getSource().getServer(), false);
+                            ctx.getSource().sendSuccess(() -> Component.literal(r.summary())
+                                    .withStyle(ChatFormatting.AQUA), false);
+                            return 1;
+                        })
+                        .then(Commands.literal("verbose").executes(ctx -> {
+                            IdentityAudit.Report r = IdentityAudit.run(ctx.getSource().getServer(), true);
+                            ctx.getSource().sendSuccess(() -> Component.literal(r.summary()
+                                    + " Details are in the server log.")
+                                    .withStyle(ChatFormatting.AQUA), false);
+                            return 1;
+                        }))
         );
         // Harvest Festival debug/testing + the prestige-reset entry point.
         //   /festival run    — run the once-per-colony festival on your colonies
@@ -6790,7 +6875,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     c.getServerBuildingManager().hasTownHall()
                             ? c.getServerBuildingManager().getTownHall().getPosition()
                             : c.getCenter();
-            c.getCitizenManager().spawnOrCreateCitizen(child, level, pos);
+            // force=true — a debug command must produce a body regardless of
+            // the move-in setting.
+            c.getCitizenManager().spawnOrCreateCivilian(child, level, List.of(pos), true);
             src.sendSuccess(() -> Component.literal(
                     "bred a " + race + " baby (citizen " + child.getId()
                     + ") at the town hall — it should render as a baby " + race
@@ -7080,6 +7167,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                     if (colony != null) {
                         ICitizenData cd = colony.getCitizenManager().getCivilian(id.citizenId);
                         if (cd != null) {
+                            // Clear the travelling entry too, or the next
+                            // citizen given this number inherits it (see
+                            // death(A)).
+                            colony.getTravellingManager().finishTravellingFor(cd);
                             colony.getCitizenManager().removeCivilian(cd);
                             LOGGER.info("[TM] purgeorphan: removed citizen {} from colony {} (housing freed)",
                                     id.citizenId, id.colonyId);
@@ -8275,6 +8366,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // joins before MC links its CitizenData; this pass resolves the body
             // the registration-gated way and self-heals it within ~1 s.
             tickReconcileRaceTags(server);
+        }
+
+        // Identity audit — once a minute, repair identity records that no
+        // longer match MineColonies' citizen list (see IdentityAudit).
+        if (now > 0 && now % IdentityAudit.PERIOD_TICKS == 0) {
+            IdentityAudit.run(server, false);
         }
 
         // 5 s cadence — AMBIENT passes. Envoy scheduling + dwarven-village
@@ -9778,8 +9875,18 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     @SubscribeEvent
     public void onEntityJoinLevel(EntityJoinLevelEvent event) {
         if (event.getLevel().isClientSide()) return;
-        if (!(event.getEntity() instanceof AbstractEntityCitizen citizen)) return;
         if (!(event.getLevel() instanceof ServerLevel serverLevel)) return;
+
+        // Raid v1 — a raider loading in after its raid already ended is a
+        // straggler the timeout could not reach (its chunk was not ticking
+        // then). Remove it now. Cheap: one attachment check per join.
+        try {
+            TensuraRaids.sweepOrphanRaiderOnJoin(serverLevel, event.getEntity());
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] raid: leftover-raider sweep threw", t);
+        }
+
+        if (!(event.getEntity() instanceof AbstractEntityCitizen citizen)) return;
 
         // The body must already be linked to its CitizenData to know which
         // identity it is. On a colony-driven respawn (spawnOrCreateCivilian)

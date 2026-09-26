@@ -529,8 +529,12 @@ public final class Assassins {
         RaceIdentitySavedData identities = RaceIdentitySavedData.get(level);
         RaceIdentitySavedData.RaceIdentity identity = identities.getByMobUUID(target.getUUID());
         if (identity == null && target instanceof com.minecolonies.api.entity.citizen.AbstractEntityCitizen citizen
-                && citizen.getCitizenData() != null) {
-            identity = identities.getByCitizenId(citizen.getCitizenData().getId());
+                && citizen.getCitizenData() != null
+                && citizen.getCitizenData().getColony() != null) {
+            // Colony-aware: citizen numbers repeat across colonies.
+            identity = identities.getByColonyAndCitizen(
+                    citizen.getCitizenData().getColony().getID(),
+                    citizen.getCitizenData().getId());
         }
         if (identity == null) return;
         byte state = AssassinSavedData.get(level).getState(identity.identityId);

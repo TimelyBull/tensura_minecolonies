@@ -166,7 +166,11 @@ public final class ConquestPayoff {
                 data.getCitizenSkillHandler().incrementLevel(profile.primary(), profile.primaryBoost());
                 data.getCitizenSkillHandler().incrementLevel(profile.secondary(), profile.secondaryBoost());
                 if (data.getEntity().isEmpty()) {
-                    colony.getCitizenManager().spawnOrCreateCitizen(data, level, spawnAt);
+                    // force=true: a levy is earned, not a random move-in, so it
+                    // must get a body even when the town hall's "move in" is off
+                    // (the unforced overload silently spawns nothing then).
+                    colony.getCitizenManager().spawnOrCreateCivilian(
+                            data, level, java.util.List.of(spawnAt), true);
                 }
                 added++;
             } catch (Throwable t) {

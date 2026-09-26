@@ -8,6 +8,40 @@ Copy the relevant version's section into the CurseForge release notes on each up
 
 ## [Unreleased]
 
+### Fixed
+- **Race citizens no longer randomly turn human on servers with more than one
+  colony.** A citizen death in one colony could wipe the record of a citizen in
+  another. Citizens already turned human by this cannot be restored, but it
+  stops happening.
+- **No more ghost citizens from new arrivals when "Allow new citizens to move
+  in" is off.** Immigrants and envoy newcomers used to arrive as a name in the
+  town hall with no body — hireable, housed, and impossible to recall. Now the
+  setting is respected and nobody moves in while it is off.
+- **A new citizen no longer inherits a dead citizen's race.** A once-a-minute
+  check now removes leftover records; `/identityaudit` runs it on demand and
+  reports what it repaired. Existing worlds are repaired automatically.
+- **A citizen who replaces a fallen named subordinate no longer arrives as a
+  ghost.** When a subordinate died away from the colony, the next citizen to
+  take its place could never get a body, be recalled or be removed. This is
+  fixed for new deaths, and the same once-a-minute check releases any citizen
+  already stuck this way, including ones stuck after the mod was removed and
+  put back.
+- **Naming a monster when you own no colony no longer puts it in someone
+  else's town hall.** It waits at your side and joins your colony when you found
+  one. Likewise, founding a colony only brings in your own waiting monsters, not
+  other players'.
+- **Raids no longer start at an empty colony.** Raids fired while nobody was
+  online, and the timeout could leave the raiders standing in unloaded chunks
+  for you to walk into later. Raids now need someone present, and any leftover
+  raider from a finished raid is removed when its chunk loads.
+- **Mind-controlled citizens returned to their home colony no longer arrive as
+  un-recallable ghosts.** Needs TR:Nightmare to be reachable at all.
+- **Barrier Cores and Magicule Storage blocks can be picked back up.** Breaking
+  one now drops the block with its stored magicule kept inside, so you can move
+  it without losing fuel. The item's tooltip shows how much it holds.
+- **Less log noise.** The per-dimension dawn restock line no longer floods the
+  server log.
+
 ### Added
 - **Mind-controlled subordinates now truly change sides while the control
   lasts.** A subordinate dominated by another player's charm or

@@ -1,6 +1,8 @@
 package com.example.examplemod;
 
 import net.minecraft.core.HolderLookup;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -31,6 +33,8 @@ import java.util.UUID;
  * records (no {@code race} NBT key) decode as {@link Race#GOBLIN}.
  */
 public class RaceIdentitySavedData extends SavedData {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(RaceIdentitySavedData.class);
 
     public static final String DATA_KEY = "tensura_minecolonies_identities";
 
@@ -391,12 +395,54 @@ public class RaceIdentitySavedData extends SavedData {
     // Mutators
     // -----------------------------------------------------------------
 
-    public void addIdentity(RaceIdentity identity) {
+    /**
+     * Register an identity, enforcing the two invariants the store lives by:
+     *
+     * <ol>
+     *   <li><b>One identity per mob.</b> If a DIFFERENT identity already owns
+     *       {@code identity.mobEntityUUID}, the new record is REFUSED (nothing is
+     *       added, {@code false} is returned) and an error with a stack trace is
+     *       logged. Silently displacing the older record is exactly what produced
+     *       the 0.2.0 phantom citizen, so it is no longer possible. Every caller
+     *       must check {@link #getByMobUUID} BEFORE creating a CitizenData.</li>
+     *   <li><b>One identity per (colonyId, citizenId).</b> MineColonies reuses a
+     *       dead citizen's number for the very next citizen it creates, so an old
+     *       record still claiming that pair is by definition STALE (its citizen is
+     *       gone). It is removed here, with a warning, before the new one goes in.
+     *       Without this, two records fight over one citizen and the lookup
+     *       returns whichever the map iterates first.</li>
+     * </ol>
+     *
+     * @return true if the identity was added.
+     */
+    public boolean addIdentity(RaceIdentity identity) {
+        if (identity.mobEntityUUID != null) {
+            RaceIdentity mobOwner = getByMobUUID(identity.mobEntityUUID);
+            if (mobOwner != null && !mobOwner.identityId.equals(identity.identityId)) {
+                LOGGER.error("[TM] identity: REFUSED to register identity {} (citizen {} colony {} race {}) — "
+                        + "mob {} already belongs to identity {} (citizen {} colony {}). "
+                        + "A caller skipped the getByMobUUID check.",
+                        identity.identityId, identity.citizenId, identity.colonyId, identity.race,
+                        identity.mobEntityUUID, mobOwner.identityId, mobOwner.citizenId, mobOwner.colonyId,
+                        new IllegalStateException("duplicate mob registration"));
+                return false;
+            }
+        }
+        RaceIdentity stale = getByColonyAndCitizen(identity.colonyId, identity.citizenId);
+        if (stale != null && !stale.identityId.equals(identity.identityId)) {
+            LOGGER.warn("[TM] identity: citizen {} in colony {} already had identity {} ({}, {}) — "
+                    + "that record is stale (MineColonies reused the citizen number) and is removed "
+                    + "in favour of new identity {} ({})",
+                    identity.citizenId, identity.colonyId, stale.identityId, stale.race, stale.mode,
+                    identity.identityId, identity.race);
+            removeIdentity(stale);
+        }
         byIdentityId.put(identity.identityId, identity);
         if (identity.mobEntityUUID != null) {
             mobUUIDToIdentityId.put(identity.mobEntityUUID, identity.identityId);
         }
         setDirty();
+        return true;
     }
 
     /**
@@ -570,17 +616,10 @@ public class RaceIdentitySavedData extends SavedData {
         return identityId != null ? byIdentityId.get(identityId) : null;
     }
 
-    /** Look up by MineColonies citizen integer ID — used in the summon/death handlers. */
-    public RaceIdentity getByCitizenId(int citizenId) {
-        for (RaceIdentity identity : byIdentityId.values()) {
-            if (identity.citizenId == citizenId) return identity;
-        }
-        return null;
-    }
-
-    /** Precise lookup by (colony, citizen) — citizen IDs are only unique WITHIN
-     *  a colony, so the {@link #getByCitizenId} single-key variant can mismatch
-     *  across colonies. Used by the FIX 2 entity-join re-stamp handler. */
+    /** Lookup by (colony, citizen). Citizen IDs are only unique WITHIN a
+     *  colony (every colony numbers its own citizens from 1), so this is the
+     *  ONLY citizen-keyed lookup the store offers — the old single-key
+     *  variant deleted a wrong colony's identity on multi-colony servers. */
     public RaceIdentity getByColonyAndCitizen(int colonyId, int citizenId) {
         for (RaceIdentity identity : byIdentityId.values()) {
             if (identity.colonyId == colonyId && identity.citizenId == citizenId) {

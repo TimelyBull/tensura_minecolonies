@@ -149,7 +149,7 @@ public final class HarvestFestival {
         List<ICitizenData> citizens = new ArrayList<>(colony.getCitizenManager().getCitizens());
         Map<Integer, Double> epByCitizen = new java.util.HashMap<>();
         for (ICitizenData cd : citizens) {
-            epByCitizen.put(cd.getId(), ExampleMod.citizenEP(level, cd.getId()));
+            epByCitizen.put(cd.getId(), ExampleMod.citizenEP(level, colonyId, cd.getId()));
         }
         citizens.sort(Comparator
                 .comparingDouble((ICitizenData cd) -> epByCitizen.getOrDefault(cd.getId(), 0.0))

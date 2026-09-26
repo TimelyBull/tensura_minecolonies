@@ -518,12 +518,46 @@ final class MindControlTracker {
                                       RaceIdentitySavedData.RaceIdentity identity, UUID newOwner) {
         String name = citizenNameOf(server, identity);
         ColonyRef src = findColony(server, identity.colonyId);
-        if (src != null) {
-            ICitizenData cd = src.colony.getCitizenManager().getCivilian(identity.citizenId);
-            if (cd != null) {
-                cd.getEntity().ifPresent(net.minecraft.world.entity.Entity::discard);
-                src.colony.getCitizenManager().removeCivilian(cd);
+        ICitizenData cd = src == null ? null
+                : src.colony.getCitizenManager().getCivilian(identity.citizenId);
+
+        // The pending pool only holds a MONSTER (it is re-promoted by mob UUID
+        // when the new owner founds a colony). An IN_COLONY identity has no
+        // monster — its body is the citizen — so first give it one: the plain
+        // summon path rebuilds the monster from the snapshot on the citizen's
+        // spot. If that cannot be done the record is left untouched rather than
+        // deleted; previously the citizen was simply lost.
+        if (identity.mode == RaceIdentitySavedData.Mode.IN_COLONY) {
+            if (src == null || cd == null || identity.entitySnapshot == null) {
+                LOGGER.warn("[TM] steal: identity {} is IN_COLONY with no way to rebuild a body "
+                        + "(colony {} citizen {} snapshot {}) — left in place",
+                        identity.identityId, identity.colonyId, identity.citizenId,
+                        identity.entitySnapshot != null);
+                return;
             }
+            net.minecraft.world.phys.Vec3 at = cd.getEntity()
+                    .map(net.minecraft.world.entity.Entity::position)
+                    .orElseGet(() -> {
+                        BlockPos th = src.colony.getServerBuildingManager().hasTownHall()
+                                ? src.colony.getServerBuildingManager().getTownHall().getPosition()
+                                : src.colony.getCenter();
+                        return new net.minecraft.world.phys.Vec3(th.getX() + 0.5, th.getY(), th.getZ() + 0.5);
+                    });
+            ExampleMod.summonGoblin(null, src.level, saved, identity, src.colony, cd, at, false);
+            if (identity.mode != RaceIdentitySavedData.Mode.SUBORDINATE || identity.mobEntityUUID == null) {
+                LOGGER.warn("[TM] steal: could not materialize a body for identity {} — left in place",
+                        identity.identityId);
+                return;
+            }
+        }
+
+        if (cd != null) {
+            cd.getEntity().ifPresent(net.minecraft.world.entity.Entity::discard);
+            // Travelling entries are keyed by citizen number and outlive the
+            // citizen unless cleared; the next citizen with this number would
+            // inherit "travelling forever". See ExampleMod death(A).
+            src.colony.getTravellingManager().finishTravellingFor(cd);
+            src.colony.getCitizenManager().removeCivilian(cd);
         }
         saved.removeIdentity(identity);
         if (identity.mobEntityUUID != null) {
@@ -580,6 +614,9 @@ final class MindControlTracker {
         // citizen ids are only unique per colony.
         CompoundTag snapshot = cd.serializeNBT(destLevel.registryAccess());
         cd.getEntity().ifPresent(net.minecraft.world.entity.Entity::discard);
+        // Clear the source colony's travelling entry for this number (see
+        // ExampleMod death(A) for why a leftover entry is dangerous).
+        src.colony.getTravellingManager().finishTravellingFor(cd);
         src.colony.getCitizenManager().removeCivilian(cd);
 
         ICitizenData moved;
@@ -598,11 +635,29 @@ final class MindControlTracker {
             return null;
         }
         // The wild body is the active one — keep the citizen bodyless.
-        destColony.getTravellingManager().startTravellingTo(moved, th, Integer.MAX_VALUE);
+        // Keep the SOURCE mode. A SUBORDINATE identity has a live monster out in
+        // the world, so its new citizen record waits (travelling forever) until
+        // it is sent home, exactly like a freshly named one. An IN_COLONY
+        // identity has NO monster — its body is the citizen — so it must get a
+        // body in the destination right now. Marking that one travelling used to
+        // leave a citizen that could never be recalled (nothing would ever send
+        // it home): a permanent ghost in the town hall.
+        boolean wasSubordinate = identity.mode == RaceIdentitySavedData.Mode.SUBORDINATE;
+        if (wasSubordinate) {
+            destColony.getTravellingManager().startTravellingTo(moved, th, Integer.MAX_VALUE);
+        } else {
+            destColony.getTravellingManager().finishTravellingFor(moved);
+            if (moved.getEntity().isEmpty()) {
+                destColony.getCitizenManager().spawnOrCreateCivilian(
+                        moved, destLevel, java.util.List.of(spawnAt), true);
+            }
+        }
 
         RaceIdentitySavedData.RaceIdentity rebuilt = new RaceIdentitySavedData.RaceIdentity(
                 identity.identityId, moved.getId(), destColony.getID(),
-                identity.mobEntityUUID, RaceIdentitySavedData.Mode.SUBORDINATE,
+                wasSubordinate ? identity.mobEntityUUID : null,
+                wasSubordinate ? RaceIdentitySavedData.Mode.SUBORDINATE
+                               : RaceIdentitySavedData.Mode.IN_COLONY,
                 identity.entitySnapshot, newOwnerUUID, identity.race);
         rebuilt.raceTagSnapshot = identity.raceTagSnapshot;
         rebuilt.controlledByUUID = identity.controlledByUUID;

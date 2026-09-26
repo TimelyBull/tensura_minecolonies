@@ -88,6 +88,10 @@ in the hut's hiring list, marked **Subordinate Mode**, while ones serving in the
 colony read **Colonist Mode**. You can still fire a resident who is out with
 you, straight from the hut.
 
+**Before removing the mod**, send every subordinate home from the roster. A
+subordinate out at your side is a citizen with no body, and without the mod
+nothing can bring that body back.
+
 ## The Roster
 
 Press **`G`** to open your roster: a list of your named monsters showing

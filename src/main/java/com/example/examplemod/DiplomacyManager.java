@@ -888,7 +888,10 @@ public final class DiplomacyManager {
                     }
                 }
                 if (returned.getEntity().isEmpty()) {
-                    colony.getCitizenManager().spawnOrCreateCitizen(returned, level, spawnAt);
+                    // force=true: these are the colony's own citizens coming home,
+                    // so the "move in" setting must not leave them bodiless.
+                    colony.getCitizenManager().spawnOrCreateCivilian(
+                            returned, level, java.util.List.of(spawnAt), true);
                 }
             } catch (Throwable t) {
                 LOGGER.error("[TM] diplomacy: lent-citizen return failed (deal '{}')",
