@@ -1146,7 +1146,11 @@ public record DealSpec(
                         6.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("ca_meat", "Meat for the Pack",
                         new SupplyItems(Items.COOKED_BEEF, 64),
-                        List.of(new ItemStack(ten("meaty_stew"), 8),
+                        // (was ten("meaty_stew") — that id does not exist in
+                        // Tensura, so the stack resolved to AIR and the deal
+                        // silently paid only coins; caught in the 2026-09-06
+                        // reward audit.)
+                        List.of(new ItemStack(ten("cooked_armorsaurus_meat"), 8),
                                 new ItemStack(ten("bronze_coin"), 10)),
                         4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("ca_bones", "Bones for the Den",

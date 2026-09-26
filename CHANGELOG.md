@@ -36,6 +36,9 @@ Copy the relevant version's section into the CurseForge release notes on each up
   raider from a finished raid is removed when its chunk loads.
 - **Mind-controlled citizens returned to their home colony no longer arrive as
   un-recallable ghosts.** Needs TR:Nightmare to be reachable at all.
+- **Eurazania's "Meat for the Pack" deal pays its food reward again.** It
+  was paying only coins; it now also gives 8 Cooked Armorsaurus Meat (needs the
+  faction system turned on).
 - **Barrier Cores and Magicule Storage blocks can be picked back up.** Breaking
   one now drops the block with its stored magicule kept inside, so you can move
   it without losing fuel. The item's tooltip shows how much it holds.
