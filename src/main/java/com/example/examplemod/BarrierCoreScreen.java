@@ -159,13 +159,16 @@ public class BarrierCoreScreen extends Screen {
         // [Cleanse] — hangs off the panel's LEFT edge (the paper itself is
         // full; user decision 2026-09-05). Purges debuffs + visible mind
         // control inside the field, priced per affliction.
-        PaperButton cleanse = addRenderableWidget(new PaperButton(px - 58, py + 56,
-                54, 14, Component.literal("Cleanse"),
-                b -> send(Networking.BarrierMenuActionPayload.ACTION_CLEANSE)));
-        cleanse.setTooltip(Tooltip.create(Component.literal(
-                "Purge every affliction from friends inside the field — including "
-                + "hostile mind control your information skill can see through. "
-                + "Costs your magicule, priced by severity.")));
+        // Behind the TR:N dev gate (TrnGate.espionage).
+        if (TrnGate.espionage()) {
+            PaperButton cleanse = addRenderableWidget(new PaperButton(px - 58, py + 56,
+                    54, 14, Component.literal("Cleanse"),
+                    b -> send(Networking.BarrierMenuActionPayload.ACTION_CLEANSE)));
+            cleanse.setTooltip(Tooltip.create(Component.literal(
+                    "Purge every affliction from friends inside the field — including "
+                    + "hostile mind control your information skill can see through. "
+                    + "Costs your magicule, priced by severity.")));
+        }
 
         // ---- FIELD SIZE row: [SMALL][-]  readout  [+][BIG] ----
         int sizeRowY = py + 230;

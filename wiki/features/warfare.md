@@ -12,20 +12,8 @@ by default**. While it's off, no settlements generate.
 Physical factions generate settlements in the world. There are two kinds,
 which play the same way:
 
-- **Faction towns** — generated clusters of buildings for the seven town
-  factions (Luminous, Falmuth, Leon, the Eastern Empire, the Jura-Tempest
-  Federation, Milim's "Dragon Faithful", and Fulbrosia), each themed to
-  its faction.
-  Two of them are unusual. The **Dragon Faithful** settlement generates
-  only in mountain biomes and has no standing boss: its garrison of
-  dragonewt warriors fights with long-range aura arts,
-  and once you have cleared the entire field, Milim herself descends on
-  the town center. She attacks everything in sight and can't be reasoned
-  with — and defeating her is the only way to win the assault and claim
-  the conquest rewards. Retreating makes her leave.
-  **Fulbrosia** is a sky city — pagodas on floating islands high above
-  the mountains, ruled by Frey and garrisoned by wind spirits and sky beasts. Declaring
-  war teleports you onto its central island.
+- **Faction towns** — generated clusters of buildings for the five town
+  factions (Luminous, Falmuth, Leon, the Eastern Empire, the Jura-Tempest Federation), each themed to its faction.
 - **Dwargon villages** — Dwargon uses existing Tensura dwarven villages
   rather than a generated town. Every dwarven village you walk into becomes
   a Dwargon settlement, anchored by Gazel.

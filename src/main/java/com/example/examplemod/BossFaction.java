@@ -88,7 +88,7 @@ public enum BossFaction {
 
     /** True for factions in ACTIVE play. False for soft-retired (deprecated)
      *  factions — active systems must skip these. */
-    public boolean isActive() { return !DEPRECATED_IDS.contains(id); }
+    public boolean isActive() { return isActiveId(id); }
 
     /** True for soft-retired factions kept only for save compatibility. */
     public boolean isDeprecated() { return DEPRECATED_IDS.contains(id); }
@@ -96,7 +96,21 @@ public enum BossFaction {
     /** String-keyed twin of {@link #isActive()} for the systems that work
      *  with raw faction-id strings (settlements, switch cases). Unknown ids
      *  count as active (an addon faction is not ours to retire). */
-    public static boolean isActiveId(String id) { return !DEPRECATED_IDS.contains(id); }
+    public static boolean isActiveId(String id) {
+        return !DEPRECATED_IDS.contains(id) && !isDevGated(id);
+    }
+
+    /** Factions HIDDEN behind the TR:N dev gate ({@link TrnGate#newFactions()}):
+     *  inactive exactly like a retired faction while the gate is off — not
+     *  deprecated, just not released yet. (Milim is NOT here: she stays a
+     *  normal diplomacy faction; only her Dragon Faithful SETTLEMENT is gated,
+     *  in RivalColonies.) */
+    private static final java.util.Set<String> DEV_GATED_IDS = java.util.Set.of("fulbrosia");
+
+    /** True while this faction is hidden behind the TR:N dev gate. */
+    public static boolean isDevGated(String id) {
+        return DEV_GATED_IDS.contains(id) && !TrnGate.newFactions();
+    }
 
     /** Lookup by storage/command id; null for unknown (e.g. a future
      *  addon faction's id found in a save — preserved, not ours). */

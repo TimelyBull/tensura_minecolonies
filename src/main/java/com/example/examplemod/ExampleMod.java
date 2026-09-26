@@ -9758,7 +9758,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // door to TrNightmareCompat — that class imports trnightmare types,
         // so reaching it any other way would NoClassDefFoundError on servers
         // without the mod. See deps/tr-nightmare.md.
-        if (net.neoforged.fml.ModList.get().isLoaded("trnightmare")) {
+        // Hidden dev gate (TrnGate): TR:N hooks stay off even with TR:N installed.
+        if (TrnGate.trnActive()) {
             TrNightmareCompat.init();
         }
         // Subscribe to MineColonies' own event bus (separate from NeoForge's).

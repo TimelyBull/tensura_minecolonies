@@ -95,6 +95,7 @@ public class WindowWarList extends AbstractWindowSkeleton {
         if (scoutBtn != null) {
             scoutBtn.setText(Component.literal("Scout"));
             scoutBtn.setEnabled(r.canScout());
+            scoutBtn.setVisible(TrnGate.espionage()); // hidden dev gate — see TrnGate
         }
         Button act = rowPane.findPaneOfTypeByID("wact", Button.class);
         if (act != null) {

@@ -514,20 +514,28 @@ public record DealSpec(
         // 2026-09-05): the full Infinite Regeneration in a TR:N world,
         // Ultraspeed Regeneration on base Tensura. Both are tensura: skills,
         // so the gate is the mod list, not id resolution.
-        boolean trn = net.neoforged.fml.ModList.get().isLoaded("trnightmare");
-        return java.util.Map.of(
-                "cov_tempest", net.minecraft.resources.ResourceLocation.parse(
-                        trn ? "tensura:infinite_regeneration" : "tensura:ultraspeed_regeneration"),
-                "cov_falmuth", net.minecraft.resources.ResourceLocation.parse("trnightmare:maximum_will"),
-                "cov_eastern_empire", net.minecraft.resources.ResourceLocation.parse("trnightmare:processor"),
-                "cov_clayman", net.minecraft.resources.ResourceLocation.parse("trnightmare:investigator"),
-                "cov_carrion", net.minecraft.resources.ResourceLocation.parse("trnightmare:aura_armor"));
+        // TR:N content is behind the hidden dev gate (TrnGate) — with it off,
+        // only Tempest's base-Tensura skill remains; the rest fall back to the
+        // apples (interim either way — unique covenant items are planned).
+        boolean trn = TrnGate.trnActive();
+        java.util.Map<String, net.minecraft.resources.ResourceLocation> map = new java.util.HashMap<>();
+        map.put("cov_tempest", net.minecraft.resources.ResourceLocation.parse(
+                trn ? "tensura:infinite_regeneration" : "tensura:ultraspeed_regeneration"));
+        if (trn) {
+            map.put("cov_falmuth", net.minecraft.resources.ResourceLocation.parse("trnightmare:maximum_will"));
+            map.put("cov_eastern_empire", net.minecraft.resources.ResourceLocation.parse("trnightmare:processor"));
+            map.put("cov_clayman", net.minecraft.resources.ResourceLocation.parse("trnightmare:investigator"));
+            map.put("cov_carrion", net.minecraft.resources.ResourceLocation.parse("trnightmare:aura_armor"));
+        }
+        return java.util.Map.copyOf(map);
     }
 
     /** An ItemStack resolved by id at class-init (registries are frozen by
      *  the time deals are read) — {@code fallback} when the id is absent
      *  (e.g. a `trnightmare:` item without TR:N installed). */
     private static ItemStack optionalItem(String id, int count, ItemStack fallback) {
+        // TR:N items stay hidden behind the dev gate even with TR:N installed.
+        if (id.startsWith("trnightmare:") && !TrnGate.trnActive()) return fallback;
         try {
             var item = net.minecraft.core.registries.BuiltInRegistries.ITEM
                     .get(net.minecraft.resources.ResourceLocation.parse(id));

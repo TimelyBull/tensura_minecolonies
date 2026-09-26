@@ -135,15 +135,21 @@ public final class RivalColonies {
         // targets every player AND mob on sight and stacks Rampage — which
         // is exactly why she works as the summoned final boss and nothing
         // else). See maybeSummonMilim.
-        ANCHORS.put("milim", MonsterEntityTypes.SALAMANDER);
-        PACKS.put("milim", "Fortress"); // stone citadel; mountains-only worldgen
+        // Dragon Faithful (Milim's settlement) — behind the TR:N dev gate
+        // (TrnGate.newFactions). Gated: Milim is diplomacy-only, as before.
+        if (TrnGate.newFactions()) {
+            ANCHORS.put("milim", MonsterEntityTypes.SALAMANDER);
+            PACKS.put("milim", "Fortress"); // stone citadel; mountains-only worldgen
+        }
         // Fulbrosia — the Sky Queen Frey's harpy realm (her own faction as
         // of 2026-09-05, user). A SKY settlement: pagoda-style buildings on
         // generated floating islands high above mountain terrain (see the
         // sky branch in generateColony). Base anchor is a promoted
         // SYLPHIDE regent; with TR:N the anchor is FREY (TRN_ANCHOR_IDS).
-        ANCHORS.put("fulbrosia", MonsterEntityTypes.SYLPHIDE);
-        PACKS.put("fulbrosia", "Pagoda"); // airy style, freed by Shizu's retirement
+        if (TrnGate.newFactions()) { // Fulbrosia — behind the TR:N dev gate
+            ANCHORS.put("fulbrosia", MonsterEntityTypes.SYLPHIDE);
+            PACKS.put("fulbrosia", "Pagoda"); // airy style, freed by Shizu's retirement
+        }
         // Dwargon — DWARVEN_VILLAGE type: anchor exists (Gazel) but NO
         // town pack; SOME existing dwarf villages become its settlements.
         ANCHORS.put(DWARGON, HumanEntityTypes.GAZEL_DWARGO);
@@ -186,8 +192,13 @@ public final class RivalColonies {
         putWorldgenStructure("faction_anchor_tempest", "tempest");
         putWorldgenStructure("faction_anchor_eastern_empire", "eastern_empire");
         putWorldgenStructure("faction_anchor_luminous", "luminous");
-        putWorldgenStructure("faction_anchor_milim", "milim"); // mountains-only biome tag
-        putWorldgenStructure("faction_anchor_fulbrosia", "fulbrosia"); // sky city over mountains
+        // Behind the TR:N dev gate. Gated, their invisible anchor markers still
+        // generate in the world but are never populated into settlements, so
+        // enabling the gate later picks them up.
+        if (TrnGate.newFactions()) {
+            putWorldgenStructure("faction_anchor_milim", "milim"); // mountains-only biome tag
+            putWorldgenStructure("faction_anchor_fulbrosia", "fulbrosia"); // sky city over mountains
+        }
     }
 
     private static void putWorldgenStructure(String structureName, String factionId) {
@@ -206,6 +217,14 @@ public final class RivalColonies {
     }
 
     /** True for the 6 MINECOLONIES_CLUSTER (generated-town) factions. */
+    /** True for a settlement that must sit INERT: a retired or dev-gated
+     *  faction's, or one whose faction can no longer settle (e.g. a Dragon
+     *  Faithful citadel from a dev world while the TR:N gate is off). Never
+     *  discovered, garrisoned, or listed for war — no save migration needed. */
+    static boolean isDormant(Settlement s) {
+        return !BossFaction.isActiveId(s.factionId) || !isPhysical(s.factionId);
+    }
+
     public static boolean isTownFaction(String factionId) {
         return PACKS.containsKey(factionId);
     }
@@ -349,7 +368,7 @@ public final class RivalColonies {
     @SuppressWarnings("unchecked")
     private static EntityType<? extends Mob>[] withTrn(EntityType<? extends Mob>[] base,
                                                        String... trnIds) {
-        if (!net.neoforged.fml.ModList.get().isLoaded("trnightmare")) return base;
+        if (!TrnGate.trnActive()) return base; // hidden dev gate — see TrnGate
         java.util.List<EntityType<? extends Mob>> out =
                 new java.util.ArrayList<>(java.util.Arrays.asList(base));
         for (String id : trnIds) {
@@ -753,7 +772,7 @@ public final class RivalColonies {
         // the EventManagerMixin rule); missing mod/entity → base anchor.
         boolean trnAnchor = false;
         String trnId = TRN_ANCHOR_IDS.get(factionId);
-        if (trnId != null && net.neoforged.fml.ModList.get().isLoaded("trnightmare")) {
+        if (trnId != null && TrnGate.trnActive()) {
             var trnType = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
                     .getOptional(net.minecraft.resources.ResourceLocation.parse(trnId))
                     .orElse(null);
@@ -1875,6 +1894,7 @@ public final class RivalColonies {
         boolean changed = false;
         for (Settlement s : data.all()) {
             if (!s.dimension.equals(level.dimension())) continue;
+            if (isDormant(s)) continue; // retired / dev-gated faction — leave it inert
             // Stale-retribution sweep: a Milim who outlived her assault
             // (reload / unloaded-chunk resolution) is released the next time
             // her settlement ticks. Runs even for a conquered husk.
@@ -2141,7 +2161,7 @@ public final class RivalColonies {
         if (s.defenderCountAtStart <= 0) return;             // never an empty-town freebie
         if (!s.garrisonUuids.isEmpty()) return;              // the field must be CLEARED
         Mob milim = null;
-        if (net.neoforged.fml.ModList.get().isLoaded("trnightmare")) {
+        if (TrnGate.trnActive()) {
             EntityType<?> type = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
                     .getOptional(net.minecraft.resources.ResourceLocation.parse(MILIM_SUMMON_ID))
                     .orElse(null);
@@ -2259,7 +2279,7 @@ public final class RivalColonies {
             // Defensive: a pre-existing settlement of a soft-retired faction
             // (e.g. an old-save Shizu Pagoda) is never (re)discovered, so it
             // can't be warred on — it just sits inert. No save migration.
-            if (!BossFaction.isActiveId(s.factionId)) continue;
+            if (isDormant(s)) continue;
             for (ServerPlayer player : level.players()) {
                 if (s.discoveredBy.contains(player.getUUID())) continue;
                 if (player.blockPosition().distSqr(s.center) <= rangeSq) {
@@ -2321,6 +2341,7 @@ public final class RivalColonies {
      *  subordinate (owned or controlled) within {@link #SCOUT_PICK_RANGE}
      *  and sends it off; the report comes back in half a day. */
     static void scoutSettlement(ServerPlayer player, int settlementId) {
+        if (!TrnGate.espionage()) return; // hidden dev gate — see TrnGate
         ServerLevel level = player.serverLevel();
         SettlementSavedData data = SettlementSavedData.get(level);
         Settlement s = data.get(settlementId);
@@ -3417,6 +3438,7 @@ public final class RivalColonies {
         net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
         SettlementSavedData data = SettlementSavedData.get(player.serverLevel());
         for (Settlement s : data.all()) {
+            if (isDormant(s)) continue; // never listed for war
             if (!isDiscoveredBy(s, player.getUUID())) continue;
             BossFaction f = BossFaction.byId(s.factionId);
             net.minecraft.nbt.CompoundTag e = new net.minecraft.nbt.CompoundTag();
@@ -3440,7 +3462,7 @@ public final class RivalColonies {
             e.putString("state", state);
             e.putBoolean("canDeclare", !s.conquered && !s.conquestReached && !s.assaulted);
             e.putBoolean("canRetreat", mine && s.assaulted);
-            e.putBoolean("canScout", !s.conquered && !s.assaulted
+            e.putBoolean("canScout", TrnGate.espionage() && !s.conquered && !s.assaulted
                     && player.serverLevel().getGameTime() >= s.scoutAlertedUntil
                     && !SettlementSavedData.get(player.serverLevel())
                             .hasScoutMission(s.id, player.getUUID()));

@@ -195,7 +195,10 @@ final class MindControlTracker {
         if (identity.ownerPlayerUUID == null) return false;
         UUID actor = player.getUUID();
         if (identity.controlledByUUID != null) {
-            return actor.equals(identity.controlledByUUID);
+            // Gated: nobody acts on a charmed subordinate through our menus
+            // (the owner still gets "They don't respond"). Ungated: the
+            // controller does — the espionage suite's entry point.
+            return TrnGate.espionage() && actor.equals(identity.controlledByUUID);
         }
         return actor.equals(identity.ownerPlayerUUID);
     }
@@ -682,6 +685,7 @@ final class MindControlTracker {
 
     /** C2S entry for the roster [Plant] / [Strike] buttons. Server-authoritative. */
     static void handleDeceitAction(ServerPlayer player, UUID identityId, byte action) {
+        if (!TrnGate.espionage()) return; // hidden dev gate — see TrnGate
         ServerLevel level = player.serverLevel();
         MinecraftServer server = player.getServer();
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
@@ -1111,6 +1115,7 @@ final class MindControlTracker {
      * the client additionally gates rendering on its own info skill.
      */
     static void tickSuspicionSync(MinecraftServer server) {
+        if (!TrnGate.espionage()) return; // hidden dev gate — see TrnGate
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(server.overworld());
         java.util.Map<UUID, java.util.Set<UUID>> current = new java.util.HashMap<>();
         for (RaceIdentitySavedData.RaceIdentity identity : saved.all()) {
@@ -1202,7 +1207,8 @@ final class MindControlTracker {
         try {
             var storage = io.github.manasmods.manascore.skill.api.SkillAPI.getSkillsFrom(player);
             InfoSkill best = NO_INFO;
-            for (var entry : INFO_SKILLS) {
+            // INFO_SKILLS are all TR:N skills — hidden behind the dev gate.
+            if (TrnGate.trnActive()) for (var entry : INFO_SKILLS) {
                 if (storage.getSkill(entry.getKey()).isPresent()
                         && entry.getValue().rank() > best.rank()) {
                     best = entry.getValue();
@@ -1264,6 +1270,7 @@ final class MindControlTracker {
     // ------------------------------------------------------------------
 
     static void handleInterrogate(ServerPlayer player, int citizenEntityId) {
+        if (!TrnGate.espionage()) return; // hidden dev gate — see TrnGate
         ServerLevel level = player.serverLevel();
         MinecraftServer server = player.getServer();
         if (!(level.getEntity(citizenEntityId)
@@ -1379,6 +1386,7 @@ final class MindControlTracker {
      * runs AS the requester through the normal chokepoint.
      */
     static void requestActOnStolen(ServerPlayer requester, RaceIdentitySavedData.RaceIdentity identity) {
+        if (!TrnGate.espionage()) return; // hidden dev gate — see TrnGate
         MinecraftServer server = requester.getServer();
         ServerPlayer owner = identity.ownerPlayerUUID != null
                 ? server.getPlayerList().getPlayer(identity.ownerPlayerUUID) : null;
@@ -1425,6 +1433,7 @@ final class MindControlTracker {
      *  answer. On allow, the action executes as the requester with the
      *  ownership gate bypassed. */
     static void answerRequest(ServerPlayer answering, int requestId, boolean allow) {
+        if (!TrnGate.espionage()) return; // hidden dev gate — see TrnGate
         MinecraftServer server = answering.getServer();
         OwnerRequest request = PENDING_REQUESTS.get(requestId);
         long now = answering.serverLevel().getGameTime();
@@ -1460,6 +1469,7 @@ final class MindControlTracker {
      * identity back — including the Tensura-side permanent owner.
      */
     static void handleRelease(ServerPlayer player, int entityId) {
+        if (!TrnGate.espionage()) return; // hidden dev gate — see TrnGate
         ServerLevel level = player.serverLevel();
         MinecraftServer server = player.getServer();
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
@@ -1560,6 +1570,7 @@ final class MindControlTracker {
     static void handleBarrierCleanse(ServerPlayer player, ServerLevel level,
                                      net.minecraft.world.phys.Vec3 center, double radius,
                                      int colonyId) {
+        if (!TrnGate.espionage()) return; // hidden dev gate — see TrnGate
         MinecraftServer server = level.getServer();
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
         InfoSkill info = infoSkillOf(player);

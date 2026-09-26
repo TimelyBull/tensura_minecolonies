@@ -1032,10 +1032,11 @@ public final class Networking {
             // duration (marked, so they can tell it from their own). The
             // OWNER's roster keeps showing it unmarked — the deceit is the
             // point; their actions on it soft-fail server-side instead.
-            boolean controlling = !owned && playerUUID.equals(identity.controlledByUUID);
+            boolean controlling = TrnGate.espionage()
+                    && !owned && playerUUID.equals(identity.controlledByUUID);
             // A permanently STOLEN subordinate stays visible to its EX-owner,
             // marked — clicking it asks the current owner for leave.
-            boolean stolenFromViewer = !owned && !controlling
+            boolean stolenFromViewer = TrnGate.espionage() && !owned && !controlling
                     && playerUUID.equals(identity.previousOwnerUUID);
             if (!owned && !controlling && !stolenFromViewer) continue;
 

@@ -397,6 +397,7 @@ public final class WorldReputationManager {
     private static void rippleMilimBloc(ServerLevel level, UUID player, String factionId,
                                         double amount, WorldRepReason reason) {
         if (reason == WorldRepReason.ALLIED_BLOC || reason == WorldRepReason.ADMIN) return;
+        if (!TrnGate.newFactions()) return; // bloc ships with the gated factions
         if (amount == 0 || !MILIM_BLOC.contains(factionId)) return;
         double fraction = amount < 0 ? BLOC_NEGATIVE_FRACTION : BLOC_POSITIVE_FRACTION;
         for (String other : MILIM_BLOC) {
