@@ -8,13 +8,16 @@ Copy the relevant version's section into the CurseForge release notes on each up
 
 ## [Unreleased]
 
+### Added
+- **The Jura-Tempest Federation's Covenant now grants the Seal of Ascension.**
+  Use it on one of your subordinates to raise its EP by a quarter and speed up
+  its EP growth by half for 30 minutes; it recharges in 45 minutes. The
+  Covenant task is now "A Nation of Many Peoples": a colony of 25 citizens from
+  at least 4 races (needs the faction system turned on).
+
 ### Changed
-- **Jura-Tempest's Covenant now also teaches Ultraspeed Regeneration.** The
-  other Covenant rewards are unchanged for now; unique rewards are planned
-  (needs the faction system turned on).
 - **Assassins learned to steal greatness — carefully.** The betrayer's
-  boss form can now copy one ULTIMATE skill from its victim (Nightmare
-  skills included) — but only if the body already commands an ultimate of
+  boss form can now copy one ULTIMATE skill from its victim — but only if the body already commands an ultimate of
   its own. A lesser body cannot grasp what it takes.
 - **Conquering a rival settlement now takes YOUR effort.** Garrison kills
   only count toward the 60% conquest threshold when a player — or

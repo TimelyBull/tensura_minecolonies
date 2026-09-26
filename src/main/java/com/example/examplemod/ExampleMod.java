@@ -309,6 +309,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     /** Luminous Covenant reward — the day/night "Twin Grail": holy heal + cleanse
      *  by day, vampiric might by night. Granted by Luminous when the two full
      *  chalices are delivered. */
+    /** Jura-Tempest Covenant reward — the Seal of Ascension: right-click one of
+     *  your subordinates for a permanent ×1.25 EP and 30 min of ×1.5 EP growth
+     *  (45 min real-time cooldown). See SealOfAscensionItem. */
+    public static final DeferredItem<net.minecraft.world.item.Item> SEAL_OF_ASCENSION =
+            ITEMS.register("seal_of_ascension",
+                    () -> new SealOfAscensionItem(new net.minecraft.world.item.Item.Properties()));
     public static final DeferredItem<net.minecraft.world.item.Item> TWIN_GRAIL =
             ITEMS.register("twin_grail",
                     () -> new TwinGrailItem(new net.minecraft.world.item.Item.Properties()));
@@ -530,6 +536,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         output.accept(MASTERWORK_SCHEMATIC.get());
                         output.accept(TRIAL_CHALICE.get());
                         output.accept(TWIN_GRAIL.get());
+                        output.accept(SEAL_OF_ASCENSION.get());
                         for (var weapon : MASTERWORK_WEAPONS) output.accept(weapon.get());
                     })
                     .build());
@@ -559,6 +566,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         // Tensura uses Architectury's event system — register via .register(), NOT @SubscribeEvent.
         TensuraEntityEvents.NAMING_EVENT.register(this::onRaceNamed);
+        // Seal of Ascension growth buff — ×1.5 EP gains while a subordinate ascends.
+        TensuraEntityEvents.ATTRIBUTE_BASE_CHANGE_EVENT.register(SealOfAscensionItem::onAttributeBaseChange);
 
         // Harvest Festival (player awakening) → persistent, prestige-resettable
         // colony buff (tiered MC-skill bonus + queued Tensura swap/EP track).

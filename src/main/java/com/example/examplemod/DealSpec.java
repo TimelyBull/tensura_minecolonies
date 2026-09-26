@@ -112,7 +112,8 @@ public record DealSpec(
     /** What the faction asks for. Sealed — the extension seam. */
     public sealed interface Requirement
             permits SupplyItems, BuildingLevel, Population, Happiness, LendCitizens,
-                    MendingRite, SupplyBundle, SlayEntities, WinWar, TwoFacedTrial {
+                    MendingRite, SupplyBundle, SlayEntities, WinWar, TwoFacedTrial,
+                    NationOfPeoples {
         /** Player-facing one-liner ("Supply 64 Iron Ingot"). */
         String summary();
     }
@@ -190,6 +191,16 @@ public record DealSpec(
     }
 
     /** Colony average-happiness milestone (polled). */
+    /** Jura-Tempest's Covenant: a colony of at least {@code citizens} citizens
+     *  drawn from at least {@code races} different races (COLONIST counts as a
+     *  race — the five are colonist, goblin, orc, lizardman, dwarf). Polled. */
+    public record NationOfPeoples(int citizens, int races) implements Requirement {
+        @Override public String summary() {
+            return "Grow a colony of " + citizens + " citizens from at least "
+                    + races + " different races";
+        }
+    }
+
     public record Happiness(double average) implements Requirement {
         @Override public String summary() {
             return "Raise colony happiness to " + String.format("%.0f", average);
@@ -309,16 +320,16 @@ public record DealSpec(
                 List.of(new ItemStack(ExampleMod.MASTERWORK_FORGING_CORE.get(), 1),
                         new ItemStack(ExampleMod.MASTERWORK_SCHEMATIC.get(), 1)),
                 10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
-        map.put("tempest", new DealSpec("cov_tempest", "A Thriving Metropolis",
-                new Population(25),
-                // INTERIM (2026-09-05): the covenant ALSO grants a regen skill
-                // (COVENANT_BONUS_SKILLS): INFINITE Regeneration in a TR:N
-                // world, ULTRASPEED Regeneration on base Tensura. Apples stay
-                // as the item payout. ⚠ REDO PLANNED — the developer wants
-                // every covenant to pay a UNIQUE ITEM with a special purpose
-                // (roadmap §7B).
-                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),
-                10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
+        // Jura-Tempest's Covenant — "A Nation of Many Peoples" (real reward,
+        // 2026-09-26): Rimuru's nation is many races living together, so the
+        // bar is 25 citizens from at least 4 of the 5 races (orc / lizardman /
+        // dwarf only arrive through envoys — a genuine covenant-tier goal).
+        // Reward: the Seal of Ascension. No deadline (0) — nation-building is
+        // slow, and the envoy races arrive on multi-day cooldowns.
+        map.put("tempest", new DealSpec("cov_tempest", "A Nation of Many Peoples",
+                new NationOfPeoples(25, 4),
+                List.of(new ItemStack(ExampleMod.SEAL_OF_ASCENSION.get())),
+                10.0, 0.0, 0, 0, FactionTier.ALLIED, true));
         // (Jura's old cov_jura "The Grand Academy" dropped — the merged
         // Jura-Tempest Federation keeps Tempest's cov_tempest as its one
         // Covenant deal.)
@@ -519,8 +530,8 @@ public record DealSpec(
         // apples (interim either way — unique covenant items are planned).
         boolean trn = TrnGate.trnActive();
         java.util.Map<String, net.minecraft.resources.ResourceLocation> map = new java.util.HashMap<>();
-        map.put("cov_tempest", net.minecraft.resources.ResourceLocation.parse(
-                trn ? "tensura:infinite_regeneration" : "tensura:ultraspeed_regeneration"));
+        // (cov_tempest's interim regen skill was dropped 2026-09-26 — the
+        // Covenant now pays the Seal of Ascension.)
         if (trn) {
             map.put("cov_falmuth", net.minecraft.resources.ResourceLocation.parse("trnightmare:maximum_will"));
             map.put("cov_eastern_empire", net.minecraft.resources.ResourceLocation.parse("trnightmare:processor"));

@@ -61,9 +61,10 @@ A deal asks for one of:
 | **Kills** (a boss, or a number of a mob) | Killing the named target |
 | **Lent citizens** (see below) | Sending some colonists to work for them a while |
 
-(Three more asks appear only as Covenant capstones — reaching a citizen count,
-conquering the faction's settlement, or Luminous's Trial of Light & Dark
-(below) — see the [Quest Catalog](../reference/quest-catalog.md).)
+(Three more asks appear only as Covenant capstones — a colony of many races
+(the Jura-Tempest Federation, below), conquering the faction's settlement, or
+Luminous's Trial of Light & Dark (below) — see the
+[Quest Catalog](../reference/quest-catalog.md).)
 
 Every deal has a **deadline**. Complete it in time for the reward and a standing
 gain. Let it expire and standing drops. The active deal shows a progress bar,
@@ -72,6 +73,15 @@ and the faction's row shows its current deal.
 Which deals a faction puts on the table depends on your standing with it —
 higher standing brings out its better deals. Its basic deals stay available at
 any standing, so a relationship that has slipped can always be worked back up.
+
+### A Nation Of Many Peoples (Jura-Tempest Federation)
+
+The Jura-Tempest Federation's Covenant deal completes when your colony has at
+least 25 citizens from at least 4 different races (colonists, goblins, orcs,
+lizardmen, dwarves). It has no deadline. The reward is the **Seal of
+Ascension**: use it on one of your subordinates to raise its EP by 25%, and for
+the next 30 minutes every EP gain it makes is 50% larger. The seal recharges
+in 45 minutes (real time, including while you're logged out).
 
 ### The Trial Of Light & Dark (Luminous)
 

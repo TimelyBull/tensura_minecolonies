@@ -1280,6 +1280,14 @@ public final class DiplomacyManager {
             case DealSpec.Population req ->
                     colony.getCitizenManager().getCurrentCitizenCount() >= req.citizens();
             case DealSpec.Happiness req -> colony.getOverallHappiness() >= req.average();
+            case DealSpec.NationOfPeoples req -> {
+                if (colony.getCitizenManager().getCurrentCitizenCount() < req.citizens()) yield false;
+                int races = 0;
+                for (ColonyMember m : ColonyMember.values()) {
+                    if (ExampleMod.countColonyMember(level, colony, m) > 0) races++;
+                }
+                yield races >= req.races();
+            }
             case DealSpec.SupplyItems ignored -> false;
             // Lending fulfils through its own payoff machinery.
             case DealSpec.LendCitizens ignored -> false;
