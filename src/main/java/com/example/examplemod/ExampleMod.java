@@ -566,6 +566,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         // Tensura uses Architectury's event system — register via .register(), NOT @SubscribeEvent.
         TensuraEntityEvents.NAMING_EVENT.register(this::onRaceNamed);
+        // Seal of Ascension — use it on a subordinate WITHOUT opening the
+        // subordinate's inventory (fires before the mob's own right-click).
+        NeoForge.EVENT_BUS.addListener(SealOfAscensionItem::onEntityInteract);
         // Seal of Ascension growth buff — ×1.5 EP gains while a subordinate ascends.
         TensuraEntityEvents.ATTRIBUTE_BASE_CHANGE_EVENT.register(SealOfAscensionItem::onAttributeBaseChange);
 

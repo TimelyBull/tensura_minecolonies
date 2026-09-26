@@ -154,6 +154,26 @@ public class SealOfAscensionItem extends Item {
         return InteractionResult.SUCCESS;
     }
 
+    /**
+     * Right-clicking a subordinate normally never reaches the held item:
+     * vanilla asks the MOB first ({@code Player.interactOn} → {@code
+     * entity.interact}), and a Tensura subordinate answers by opening its
+     * inventory, which consumes the click. NeoForge's EntityInteract event
+     * fires BEFORE that, on both sides, so while the seal is held we cancel the
+     * click and run the seal ourselves — the subordinate never sees it. (The
+     * client has already sent the click to the server by then, so cancelling
+     * client-side doesn't swallow it.) Only subordinates are intercepted; any
+     * other mob keeps its normal right-click.
+     */
+    static void onEntityInteract(net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.EntityInteract event) {
+        ItemStack stack = event.getItemStack();
+        if (!(stack.getItem() instanceof SealOfAscensionItem seal)) return;
+        if (!(event.getTarget() instanceof LivingEntity target) || !(target instanceof ISubordinate)) return;
+        InteractionResult result = seal.interactLivingEntity(stack, event.getEntity(), target, event.getHand());
+        event.setCanceled(true);
+        event.setCancellationResult(result);
+    }
+
     /** Keep the hotbar cooldown overlay in step with the persisted timer (it is
      *  lost on relog; the real timer isn't). */
     @Override
