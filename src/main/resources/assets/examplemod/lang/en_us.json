@@ -96,6 +96,14 @@
   "item.tensura_minecolonies.holy_field_stone.tooltip_ready": "Ready",
   "item.tensura_minecolonies.holy_field_stone.tooltip_recharging": "Recharging — %s min",
   "item.tensura_minecolonies.holy_field_stone.recharging": "The stone is still recharging (%s min).",
+  "item.tensura_minecolonies.pack_leaders_mark": "Pack Leader's Mark",
+  "item.tensura_minecolonies.pack_mark.desc": "Mark a mob as prey for 60 seconds. Your nearby subordinates hunt it, deal 50% more damage to it, and heal when it dies.",
+  "item.tensura_minecolonies.pack_mark.tooltip_ready": "Ready",
+  "item.tensura_minecolonies.pack_mark.tooltip_recharging": "Recharging — %s min",
+  "item.tensura_minecolonies.pack_mark.recharging": "The mark is still recharging (%s min).",
+  "item.tensura_minecolonies.pack_mark.no_target": "Look at a mob to mark it.",
+  "item.tensura_minecolonies.pack_mark.not_prey": "You can't mark your own side.",
+  "item.tensura_minecolonies.pack_mark.marked": "%s is marked as prey. %s of your subordinates join the hunt for %s seconds.",
   "item.tensura_minecolonies.holy_field_stone.raised": "A Holy Field rises. Enemies within are sealed for %s seconds.",
   "tensura_minecolonies.otherworlder.joined": "%s now serves you. Find them in your roster (G), where you can send them to your colony."
 }

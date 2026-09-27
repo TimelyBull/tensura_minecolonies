@@ -328,6 +328,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public static final DeferredItem<net.minecraft.world.item.Item> HOLY_FIELD_STONE =
             ITEMS.register("holy_field_stone",
                     () -> new HolyFieldStoneItem(new net.minecraft.world.item.Item.Properties()));
+    /** Eurazania Covenant reward — the Pack Leader's Mark: mark a mob as prey
+     *  for 60 s; your nearby subordinates hunt it, deal ×1.5 damage to it, and
+     *  heal on the kill (15 min real-time cooldown). See PackLeadersMarkItem. */
+    public static final DeferredItem<net.minecraft.world.item.Item> PACK_LEADERS_MARK =
+            ITEMS.register("pack_leaders_mark",
+                    () -> new PackLeadersMarkItem(new net.minecraft.world.item.Item.Properties()));
     public static final DeferredItem<net.minecraft.world.item.Item> TWIN_GRAIL =
             ITEMS.register("twin_grail",
                     () -> new TwinGrailItem(new net.minecraft.world.item.Item.Properties()));
@@ -552,6 +558,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         output.accept(SEAL_OF_ASCENSION.get());
                         output.accept(OTHERWORLD_CODEX.get());
                         output.accept(HOLY_FIELD_STONE.get());
+                        output.accept(PACK_LEADERS_MARK.get());
                         for (var weapon : MASTERWORK_WEAPONS) output.accept(weapon.get());
                     })
                     .build());
@@ -590,6 +597,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // Seal of Ascension — use it on a subordinate WITHOUT opening the
         // subordinate's inventory (fires before the mob's own right-click).
         NeoForge.EVENT_BUS.addListener(SealOfAscensionItem::onEntityInteract);
+        // Pack Leader's Mark (Eurazania) — mark on right-click without opening
+        // the mob's menu; pack damage bonus; heal the pack on the kill.
+        NeoForge.EVENT_BUS.addListener(PackLeadersMarkItem::onEntityInteract);
+        NeoForge.EVENT_BUS.addListener(PackLeadersMarkItem::onIncomingDamage);
+        NeoForge.EVENT_BUS.addListener(PackLeadersMarkItem::onDeath);
         // Seal of Ascension growth buff — ×1.5 EP gains while a subordinate ascends.
         TensuraEntityEvents.ATTRIBUTE_BASE_CHANGE_EVENT.register(SealOfAscensionItem::onAttributeBaseChange);
 
@@ -8469,6 +8481,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // Luminous's Covenant trial — poll the "Show of Faith" flock for
             // villagers reaching Master (+ bred children), fill the holy chalice.
             TrialManager.tick(server);
+            // Eurazania's Pack Leader's Mark — keep each pack hunting its prey.
+            PackLeadersMarkItem.tick(server);
             // Otherworlder tame route — safety scan (the tame event covers most).
             if (now % 100 == 0) scanTamedOtherworlders(server);
             // Mind-control mirror — reconcile identity.controlledByUUID from

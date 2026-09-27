@@ -9,6 +9,10 @@ Copy the relevant version's section into the CurseForge release notes on each up
 ## [Unreleased]
 
 ### Added
+- **Eurazania's Covenant now grants the Pack Leader's Mark.** Mark a mob as prey
+  for 60 seconds and your nearby subordinates hunt it, deal 50% more damage to
+  it, and heal when it dies. It recharges in 15 minutes (needs the faction
+  system turned on).
 - **Falmuth's Covenant now grants the Holy Field Stone.** Using it raises a
   holy field for 30 seconds; enemies inside can't use skills or magic and take
   holy damage, while you, your subordinates, and your citizens are unaffected.

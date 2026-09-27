@@ -369,8 +369,9 @@ public record DealSpec(
                 new SlayEntities(java.util.Set.of("minecraft:wither", "minecraft:warden",
                         "minecraft:elder_guardian", "tensura:charybdis", "tensura:ifrit"),
                         3, "great beasts (Wither / Warden / Elder Guardian / Charybdis / Ifrit)"),
-                // INTERIM: + TR:N Aura Armor bonus (COVENANT_TRN_BONUS_SKILLS).
-                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),
+                // Real reward (2026-09-26): the Pack Leader's Mark. (The TR:N
+                // Aura Armor bonus skill stays behind the dev gate.)
+                List.of(new ItemStack(ExampleMod.PACK_LEADERS_MARK.get())),
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         // Luminous's Covenant — "The Trial of Light & Dark" (real reward, 2026-07-28).
         // A two-faced ritual: prove faith by redeeming villagers (light) AND spill

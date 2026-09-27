@@ -102,6 +102,23 @@ your subordinates and pets, colony citizens, and allied fighters are never
 affected, even if you or they are monsters. The stone recharges in 30 minutes
 (real time).
 
+### The Great Hunt (Eurazania)
+
+Eurazania's Covenant deal completes when you kill 3 great beasts: any mix of
+the Wither, Warden, Elder Guardian, Charybdis, and Ifrit. The reward is the
+**Pack Leader's Mark**. Right-click a mob (on it, or looking at it from up to
+32 blocks away) to mark it as prey for 60 seconds:
+
+- The prey glows, so you can see it through walls.
+- All of your subordinates within 48 blocks of the prey stop what they're doing
+  and attack it.
+- Your subordinates deal 50% more damage to it.
+- When it dies, each subordinate nearby heals a quarter of its max health.
+
+You can have one mark at a time. Players, colony citizens, allied fighters, and
+your own subordinates and pets can't be marked. The mark only uses its charge
+when it lands, then recharges in 15 minutes (real time).
+
 ### The Trial Of Light & Dark (Luminous)
 
 Luminous's Covenant deal is a task, not a delivery. Accepting it gives you two
