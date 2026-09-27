@@ -40,6 +40,9 @@ Copy the relevant version's section into the CurseForge release notes on each up
   at least 4 races (needs the faction system turned on).
 
 ### Changed
+- **Diplomacy deals were re-priced to match each faction's strength.** Leon,
+  Milim, and the Eastern Empire pay more; Luminous's tithes ask for about half
+  as much; and Eurazania's "A Proper Den" now asks for more materials.
 - **Declaring war on a faction now closes diplomacy with it.** The Rite of
   Atonement is offered as the way back, instead of that faction staying locked
   forever. If you already forged that faction's Covenant, your first conquest

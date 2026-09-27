@@ -905,19 +905,23 @@ public record DealSpec(
         map.put("luminous", List.of(
                 new DealSpec("lu_glowstone", "Light for the Cathedral",
                         new SupplyItems(Items.GLOWSTONE, 64),
-                        List.of(new ItemStack(Items.GLOWSTONE, 16), new ItemStack(Items.GOLD_INGOT, 8)),
+                        List.of(new ItemStack(Items.GLOWSTONE, 16), new ItemStack(Items.GOLD_INGOT, 8),
+                                new ItemStack(ten("bronze_coin"), 20)),
                         5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("lu_gold_tithe", "The Golden Tithe",
-                        new SupplyItems(Items.GOLD_BLOCK, 32),
-                        List.of(new ItemStack(Items.GOLD_BLOCK, 3), new ItemStack(Items.DIAMOND, 8)),
+                        new SupplyItems(Items.GOLD_BLOCK, 16),   // Phase 3: was 32 (a net loss at Tier IV)
+                        List.of(new ItemStack(Items.GOLD_BLOCK, 3), new ItemStack(Items.DIAMOND, 8),
+                                new ItemStack(ten("bronze_coin"), 20)),
                         6.0, 5.0, 6 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("lu_tribute", "Tribute to the Luminary",
-                        new SupplyItems(Items.DIAMOND, 32),
-                        List.of(new ItemStack(Items.DIAMOND, 8), new ItemStack(Items.GOLD_INGOT, 16)),
+                        new SupplyItems(Items.DIAMOND, 16),      // Phase 3: was 32 (a net loss at Tier IV)
+                        List.of(new ItemStack(Items.DIAMOND, 8), new ItemStack(Items.GOLD_INGOT, 16),
+                                new ItemStack(ten("bronze_coin"), 20)),
                         8.0, 5.0, 6 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("lu_diamond_offering", "The Diamond Offering",
-                        new SupplyItems(Items.DIAMOND_BLOCK, 16),
-                        List.of(new ItemStack(Items.DIAMOND, 16), new ItemStack(Items.DIAMOND_BLOCK, 2)),
+                        new SupplyItems(Items.DIAMOND_BLOCK, 8),  // Phase 3: was 16 (a net loss at Tier IV)
+                        List.of(new ItemStack(Items.DIAMOND, 16), new ItemStack(Items.DIAMOND_BLOCK, 2),
+                                new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 1), new ItemStack(ten("gold_coin"), 4)),
                         9.0, 5.0, 8 * DAY, 0, FactionTier.ALLIED, false),
                 new DealSpec("lu_grand_library", "A Light of Learning",
                         new SupplyItems(ten("grimoire_c"), 2),
@@ -1081,14 +1085,16 @@ public record DealSpec(
         map.put("milim", List.of(
                 new DealSpec("mi_feast", "A Feast Worthy of Me!",
                         new SupplyItems(Items.COOKED_PORKCHOP, 64),
-                        List.of(new ItemStack(Items.GOLDEN_CARROT, 16), new ItemStack(Items.GOLD_INGOT, 8)),
+                        List.of(new ItemStack(Items.GOLDEN_CARROT, 16), new ItemStack(Items.GOLD_INGOT, 8),
+                                new ItemStack(ten("bronze_coin"), 20)),
                         6.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("mi_more_meat", "More Meat!",
                         new SupplyItems(Items.COOKED_BEEF, 64),
                         List.of(new ItemStack(Items.GOLDEN_CARROT, 16),
                                 potion("Dragon's Vigor", 0xE0218A,
                                         eff(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST, 1),
-                                        eff(net.minecraft.world.effect.MobEffects.REGENERATION, 0))),
+                                        eff(net.minecraft.world.effect.MobEffects.REGENERATION, 0)),
+                                new ItemStack(ten("bronze_coin"), 20)),
                         5.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("mi_fireworks", "Bring Me Fireworks!",
                         new SupplyItems(Items.FIREWORK_ROCKET, 16),
@@ -1097,12 +1103,13 @@ public record DealSpec(
                         5.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("mi_sweets", "Sweets for Milim",
                         new SupplyItems(Items.COOKIE, 64),
-                        List.of(new ItemStack(Items.GOLDEN_APPLE, 2), new ItemStack(Items.GOLD_INGOT, 8)),
+                        List.of(new ItemStack(Items.GOLDEN_APPLE, 2), new ItemStack(Items.GOLD_INGOT, 8),
+                                new ItemStack(ten("bronze_coin"), 20)),
                         4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("mi_cake", "Cake, and Lots of It!",
                         new SupplyItems(Items.CAKE, 8),
                         List.of(new ItemStack(Items.GOLDEN_APPLE, 2), new ItemStack(Items.GOLD_INGOT, 8),
-                                new ItemStack(ten("magic_tome_gravity"), 1)),
+                                new ItemStack(ten("magic_tome_gravity"), 1), new ItemStack(ten("silver_coin"), 12)),
                         5.0, 5.0, 4 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("mi_arena", "For the Love of the Game",
                         new SlayEntities(java.util.Set.of("minecraft:zombie", "minecraft:skeleton",
@@ -1134,12 +1141,12 @@ public record DealSpec(
                 new DealSpec("mi_champions", "Champions for Milim",
                         new LendCitizens(Skill.Strength, 10, 2, 3 * DAY, 4),
                         List.of(new ItemStack(Items.DIAMOND, 6), new ItemStack(Items.GOLDEN_APPLE, 2),
-                                new ItemStack(ten("battlewill_manual"), 1)),
+                                new ItemStack(ten("battlewill_manual"), 1), new ItemStack(ten("silver_coin"), 12)),
                         7.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("mi_warriors", "Warriors to Spar",
                         new LendCitizens(Skill.Athletics, 8, 2, 2 * DAY, 3),
-                        List.of(new ItemStack(Items.DIAMOND, 8),
-                                new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 1)),
+                        List.of(new ItemStack(Items.DIAMOND, 12),
+                                new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 1), new ItemStack(ten("gold_coin"), 3)),
                         7.0, 5.0, 2 * DAY, 0, FactionTier.ALLIED, false),
                 new DealSpec("mi_hoard", "A Dragon's Hoard",
                         new SupplyItems(Items.GOLDEN_CARROT, 64),
@@ -1154,7 +1161,7 @@ public record DealSpec(
                 // covenant's Annihilator is the clean signature reward.)
                 new DealSpec("mi_ultimate_brawl", "Apito's Jelly",
                         new SupplyItems(ExampleMod.APITOS_JELLY.get(), 1),
-                        List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 3)),
+                        List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 3), new ItemStack(ten("gold_coin"), 5)),
                         9.0, 5.0, 15 * DAY, 0, FactionTier.ALLIED, false)));
 
         // 🦁 EURAZANIA (the Beast Kingdom; renamed from carrion) — monster
@@ -1191,8 +1198,8 @@ public record DealSpec(
                 // A Proper Den (was "Dens for the Beasts" / BuildingLevel) — now
                 // an active supply deal.
                 new DealSpec("ca_stable", "A Proper Den",
-                        new SupplyBundle(List.of(new ItemStack(Items.CAMPFIRE, 2),
-                                new ItemStack(Items.OAK_LOG, 16))),
+                        new SupplyBundle(List.of(new ItemStack(Items.CAMPFIRE, 8),   // Phase 3: was 2 + 16 logs
+                                new ItemStack(Items.OAK_LOG, 64))),
                         List.of(new ItemStack(ten("silver_coin"), 20)),
                         6.0, 5.0, 8 * DAY, 0, FactionTier.FRIENDLY, false),
                 // A Great Hunt (was "A Great Pack" / Population) — now a slay hunt.
@@ -1373,19 +1380,20 @@ public record DealSpec(
         map.put("leon", List.of(
                 new DealSpec("le_magma", "Stones of Fire",
                         new SupplyItems(Items.MAGMA_BLOCK, 32),
-                        List.of(new ItemStack(Items.MAGMA_CREAM, 8), new ItemStack(Items.GOLD_INGOT, 8)),
+                        List.of(new ItemStack(Items.MAGMA_CREAM, 8), new ItemStack(Items.GOLD_INGOT, 8),
+                                new ItemStack(ten("bronze_coin"), 20)),
                         4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("le_cinders", "Cinders Needed",
                         new SupplyItems(Items.BLAZE_POWDER, 32),
-                        List.of(new ItemStack(Items.GLOWSTONE, 16), new ItemStack(ten("bronze_coin"), 12)),
+                        List.of(new ItemStack(Items.GLOWSTONE, 16), new ItemStack(ten("bronze_coin"), 20)),
                         5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("le_coal", "Fuel for the Furnaces",
                         new SupplyItems(Items.COAL, 64),
-                        List.of(new ItemStack(Items.BLAZE_POWDER, 16), new ItemStack(ten("bronze_coin"), 12)),
+                        List.of(new ItemStack(Items.BLAZE_POWDER, 16), new ItemStack(ten("bronze_coin"), 20)),
                         4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("le_obsidian", "Obsidian for the Keep",
                         new SupplyItems(Items.OBSIDIAN, 16),
-                        List.of(new ItemStack(Items.DIAMOND, 4), new ItemStack(ten("bronze_coin"), 20)),
+                        List.of(new ItemStack(Items.DIAMOND, 6), new ItemStack(ten("bronze_coin"), 20)),
                         5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
                 // A Hearth of Flame (was smeltery 3) — now an active supply deal.
                 new DealSpec("le_hearth", "A Hearth of Flame",
@@ -1395,13 +1403,13 @@ public record DealSpec(
                                 potion("Flamewarden's Brew", 0xE25822,
                                         eff(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE, 0),
                                         eff(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST, 0)),
-                                new ItemStack(ten("silver_coin"), 10)),
+                                new ItemStack(ten("silver_coin"), 14)),
                         6.0, 5.0, 8 * DAY, 0, FactionTier.FRIENDLY, false),
                 // Aid Needed (was "The Flame Legion" / Population) — a 6-citizen levy.
                 new DealSpec("le_legion", "Aid Needed",
                         new LendCitizens(Skill.Stamina, 1, 6, 3 * DAY, 2),
                         List.of(new ItemStack(Items.DIAMOND, 6), new ItemStack(Items.BLAZE_ROD, 8),
-                                new ItemStack(ten("silver_coin"), 12)),
+                                new ItemStack(ten("silver_coin"), 16)),
                         6.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false),
                 // Molten Cores (was "A Burning Devotion"/Happiness) — now an
                 // active supply deal (name matched to the magma-cream task).
@@ -1411,26 +1419,26 @@ public record DealSpec(
                                         eff(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE, 0),
                                         eff(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST, 0)),
                                 new ItemStack(Items.DIAMOND, 6),
-                                new ItemStack(ten("silver_coin"), 10)),
+                                new ItemStack(ten("silver_coin"), 14)),
                         7.0, 5.0, 8 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("le_flamebearers", "Flamebearers Abroad",
                         new LendCitizens(Skill.Mana, 6, 2, 3 * DAY, 2),
                         List.of(new ItemStack(Items.BLAZE_ROD, 4), new ItemStack(Items.DIAMOND, 4),
                                 new ItemStack(ten("magic_tome_fire"), 1),
-                                new ItemStack(ten("silver_coin"), 8)),
+                                new ItemStack(ten("silver_coin"), 12)),
                         6.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false),
                 // The Greater Forge (was smeltery 5) — now an active supply deal.
                 new DealSpec("le_greater_forge", "The Greater Forge",
                         new SupplyBundle(List.of(new ItemStack(ten("high_magisteel_ingot"), 4),
                                 new ItemStack(ten("high_quality_magic_crystal"), 8))),
                         List.of(new ItemStack(ten("magic_tome_enhancement"), 1), new ItemStack(Items.DIAMOND, 8),
-                                new ItemStack(ten("gold_coin"), 3)),
+                                new ItemStack(Items.DIAMOND_BLOCK, 2), new ItemStack(ten("gold_coin"), 5)),
                         8.0, 5.0, 12 * DAY, 0, FactionTier.ALLIED, false),
                 new DealSpec("le_knights", "Flame Knights Abroad",
                         new LendCitizens(Skill.Strength, 8, 2, 3 * DAY, 3),
-                        List.of(new ItemStack(ten("high_magisteel_ingot"), 3), new ItemStack(Items.DIAMOND, 8),
+                        List.of(new ItemStack(ten("high_magisteel_ingot"), 4), new ItemStack(Items.DIAMOND, 12),
                                 new ItemStack(ten("battlewill_manual"), 1),
-                                new ItemStack(ten("gold_coin"), 2)),
+                                new ItemStack(ten("gold_coin"), 4)),
                         8.0, 5.0, 3 * DAY, 0, FactionTier.ALLIED, false),
                 // Trial by Fire — a fire hunt (Flamewarden's Brew + martial manual).
                 new DealSpec("le_trial", "Trial by Fire",
@@ -1441,13 +1449,13 @@ public record DealSpec(
                                         eff(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST, 0)),
                                 new ItemStack(ten("magic_tome_fire"), 1),
                                 new ItemStack(ten("battlewill_manual"), 1),
-                                new ItemStack(ten("silver_coin"), 10)),
+                                new ItemStack(ten("silver_coin"), 14)),
                         7.0, 5.0, 12 * DAY, 0, FactionTier.FRIENDLY, false),
                 // The Platinum Blade — the Platinum Saber's flame katana
                 // (Fire Aspect II + Sharpness IV), built at grant time.
                 new DealSpec("le_platinum_blade", "The Platinum Blade",
                         new SupplyItems(ten("high_magisteel_ingot"), 4),
-                        List.of(new ItemStack(ten("gold_coin"), 3)),
+                        List.of(new ItemStack(ten("gold_coin"), 5)),
                         9.0, 5.0, 12 * DAY, 0, FactionTier.ALLIED, false,
                         List.of(new EnchantedReward(ten("high_magisteel_katana"), 1, List.of(
                                 new EnchantSpec(Enchantments.FIRE_ASPECT, 2),
@@ -1460,24 +1468,25 @@ public record DealSpec(
 
         // 🌐 EASTERN EMPIRE (re-themed from otherworlders) — exotic magitech
         // goods. Phase 3 (faction-rewards roadmap): expanded from 4 to 10
-        // deals at TIER II (Major) value, matching Falmuth. Covenant milestone
+        // deals at TIER II (Major) value, matching Falmuth; lifted to TIER III
+        // (coins ~+25%, Engineers + Imperial Levy improved) 2026-09-26. Covenant milestone
         // is cov_eastern_empire (see buildCovenantDeals). Deal ids keep ow_.
         map.put("eastern_empire", List.of(
                 new DealSpec("ow_curios", "Gimme Glass",
                         new SupplyItems(Items.GLASS, 32),
-                        List.of(new ItemStack(Items.AMETHYST_SHARD, 8), new ItemStack(ten("bronze_coin"), 12)),
+                        List.of(new ItemStack(Items.AMETHYST_SHARD, 8), new ItemStack(ten("bronze_coin"), 15)),
                         4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("ow_contraptions", "Strange Contraptions",
                         new SupplyItems(Items.REDSTONE_BLOCK, 16),
-                        List.of(new ItemStack(Items.AMETHYST_SHARD, 4), new ItemStack(ten("bronze_coin"), 12)),
+                        List.of(new ItemStack(Items.AMETHYST_SHARD, 4), new ItemStack(ten("bronze_coin"), 15)),
                         5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("ow_amethyst", "Resonant Crystals",
                         new SupplyItems(Items.AMETHYST_SHARD, 32),
-                        List.of(new ItemStack(Items.DIAMOND, 4), new ItemStack(ten("bronze_coin"), 15)),
+                        List.of(new ItemStack(Items.DIAMOND, 4), new ItemStack(ten("bronze_coin"), 20)),
                         5.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("ow_copper", "Gimme Copper",
                         new SupplyItems(Items.COPPER_BLOCK, 16),
-                        List.of(new ItemStack(Items.IRON_INGOT, 16), new ItemStack(ten("bronze_coin"), 12)),
+                        List.of(new ItemStack(Items.IRON_INGOT, 16), new ItemStack(ten("bronze_coin"), 15)),
                         4.0, 5.0, 3 * DAY, 0, FactionTier.NEUTRAL, false),
                 // A Different Civilization (was "Settlers from Afar" / Population)
                 // — now an active supply deal.
@@ -1485,7 +1494,7 @@ public record DealSpec(
                         new SupplyBundle(List.of(new ItemStack(Items.AMETHYST_SHARD, 16),
                                 new ItemStack(Items.COPPER_BLOCK, 8), new ItemStack(Items.EMERALD, 8))),
                         List.of(new ItemStack(mc("scroll_area_tp"), 1), new ItemStack(Items.DIAMOND, 6),
-                                new ItemStack(ten("silver_coin"), 10)),
+                                new ItemStack(ten("silver_coin"), 12)),
                         6.0, 5.0, 8 * DAY, 0, FactionTier.FRIENDLY, false),
                 // The Magitech Foundry (was smeltery 3) — now an active supply deal.
                 new DealSpec("ow_foundry", "The Magitech Foundry",
@@ -1493,7 +1502,7 @@ public record DealSpec(
                                 new ItemStack(Items.AMETHYST_SHARD, 16))),
                         List.of(new ItemStack(ten("magic_tome_summoning"), 1),
                                 new ItemStack(ten("medium_quality_magic_crystal"), 2),
-                                new ItemStack(ten("silver_coin"), 10)),
+                                new ItemStack(ten("silver_coin"), 12)),
                         6.0, 5.0, 8 * DAY, 0, FactionTier.FRIENDLY, false),
                 // Crystal Requisition (was "A Well-Ordered City" / Happiness) —
                 // now an active supply deal (name matched to the amethyst task).
@@ -1503,32 +1512,34 @@ public record DealSpec(
                                         eff(net.minecraft.world.effect.MobEffects.MOVEMENT_SPEED, 1),
                                         eff(net.minecraft.world.effect.MobEffects.DIG_SPEED, 0)),
                                 new ItemStack(Items.DIAMOND, 4),
-                                new ItemStack(ten("silver_coin"), 10)),
+                                new ItemStack(ten("silver_coin"), 12)),
                         7.0, 5.0, 8 * DAY, 0, FactionTier.FRIENDLY, false),
                 new DealSpec("ow_specialists", "Specialists Abroad",
                         new LendCitizens(Skill.Intelligence, 6, 2, 3 * DAY, 2),
                         List.of(new ItemStack(Items.AMETHYST_SHARD, 8), new ItemStack(Items.DIAMOND, 4),
                                 new ItemStack(ten("magic_tome_summoning"), 1),
-                                new ItemStack(ten("silver_coin"), 8)),
+                                new ItemStack(ten("silver_coin"), 12)),
                         6.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false),
                 // An Imperial Garrison (was barracks 4) — now an active supply
                 // deal rewarding an enchanted imperial blade.
                 new DealSpec("ow_garrison", "An Imperial Garrison",
                         new SupplyBundle(List.of(new ItemStack(ten("high_magisteel_ingot"), 4),
                                 new ItemStack(Items.AMETHYST_SHARD, 8))),
-                        List.of(new ItemStack(ten("gold_coin"), 3)),
+                        List.of(new ItemStack(ten("gold_coin"), 4)),
                         8.0, 5.0, 12 * DAY, 0, FactionTier.ALLIED, false,
                         List.of(new EnchantedReward(ten("high_magisteel_sword"), 1, List.of(
                                 new EnchantSpec(Enchantments.SHARPNESS, 4),
                                 new EnchantSpec(Enchantments.UNBREAKING, 3))))),
                 new DealSpec("ow_engineers", "Engineers Abroad",
                         new LendCitizens(Skill.Dexterity, 8, 2, 3 * DAY, 3),
-                        List.of(new ItemStack(Items.DIAMOND, 8), new ItemStack(ten("high_quality_magic_crystal"), 1),
-                                new ItemStack(ten("gold_coin"), 2)),
+                        List.of(new ItemStack(Items.DIAMOND, 10), new ItemStack(ten("high_quality_magic_crystal"), 1),
+                                new ItemStack(ten("gold_coin"), 3)),
                         8.0, 5.0, 3 * DAY, 0, FactionTier.ALLIED, false),
                 new DealSpec("ow_levy", "The Imperial Levy",
                         new SupplyItems(ten("low_magisteel_ingot"), 4),
-                        List.of(new ItemStack(ten("low_magisteel_nugget"), 6)),
+                        List.of(new ItemStack(ten("low_magisteel_nugget"), 6),
+                                new ItemStack(ten("medium_quality_magic_crystal"), 1),
+                                new ItemStack(ten("bronze_coin"), 15)),
                         4.0, 5.0, 4 * DAY, 0, FactionTier.NEUTRAL, false),
                 new DealSpec("ow_conscripts", "Arcane Conscripts",
                         new LendCitizens(Skill.Mana, 6, 2, 3 * DAY, 2),
@@ -1536,7 +1547,7 @@ public record DealSpec(
                                 potion("Imperial Stimulant", 0x2AA9E0,
                                         eff(net.minecraft.world.effect.MobEffects.MOVEMENT_SPEED, 1),
                                         eff(net.minecraft.world.effect.MobEffects.DIG_SPEED, 0)),
-                                new ItemStack(ten("silver_coin"), 8)),
+                                new ItemStack(ten("silver_coin"), 12)),
                         6.0, 5.0, 3 * DAY, 0, FactionTier.FRIENDLY, false),
                 // A New Type of Soldier — the Empire fields a magitech construct.
                 new DealSpec("ow_champion", "A New Type of Soldier",
@@ -1544,7 +1555,7 @@ public record DealSpec(
                                 new ItemStack(Items.AMETHYST_SHARD, 8),
                                 new ItemStack(ten("low_magisteel_ingot"), 4))),
                         List.of(new ItemStack(ten("low_magisteel_bone_golem"), 1),
-                                new ItemStack(ten("gold_coin"), 4)),
+                                new ItemStack(ten("gold_coin"), 5)),
                         9.0, 5.0, 12 * DAY, 0, FactionTier.ALLIED, false)));
 
         return Map.copyOf(map);
