@@ -40,6 +40,10 @@ Copy the relevant version's section into the CurseForge release notes on each up
   at least 4 races (needs the faction system turned on).
 
 ### Changed
+- **Declaring war on a faction now closes diplomacy with it.** The Rite of
+  Atonement is offered as the way back, instead of that faction staying locked
+  forever. If you already forged that faction's Covenant, your first conquest
+  gives extra loot in place of a second Covenant item.
 - **Conquest rewards were reworked.** Conquered factions now send 8–10 citizens
   of their own race (dwarves from Dwargon; goblins and lizardmen from the
   Jura-Tempest Federation). Your first conquest of a faction also gives its

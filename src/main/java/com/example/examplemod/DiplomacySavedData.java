@@ -233,6 +233,22 @@ class DiplomacySavedData extends SavedData {
         }
     }
 
+    /** Phase 4 (2026-09-26): has this player ever FORGED a Covenant with this
+     *  faction through diplomacy? Remembered permanently (a war later wipes the
+     *  relations state itself), so a conquest can tell it must not hand out a
+     *  second copy of the Covenant item. Stored in the claimed-gifts set under
+     *  a "covenant_earned:" prefix — it's the same "once ever, per player"
+     *  shape, and reusing it needs no new save format. */
+    private static final String COVENANT_EARNED_PREFIX = "covenant_earned:";
+
+    boolean hasEarnedCovenant(UUID player, String factionId) {
+        return hasClaimedGift(player, COVENANT_EARNED_PREFIX + factionId);
+    }
+
+    void markCovenantEarned(UUID player, String factionId) {
+        markGiftClaimed(player, COVENANT_EARNED_PREFIX + factionId);
+    }
+
     long getDragoNovaClaimMillis(UUID player) {
         Long ms = dragoNovaClaimMillis.get(player);
         return ms == null ? 0L : ms;

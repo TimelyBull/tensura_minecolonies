@@ -83,10 +83,23 @@ When you win, the settlement is sacked and you receive:
 skill. Conquering another settlement of a faction you've already beaten gives
 about half the citizens, coins, and goods, and 1 diplomacy-deal reward.
 
+If you already forged a Covenant with that faction through diplomacy before
+turning on it, you already own its Covenant item. Your first conquest gives you
+twice the diplomacy-deal rewards and 5 extra gold coins in place of a second
+copy.
+
 A conquered settlement becomes a permanent **ruin**: the buildings remain,
 the boss is gone, the garrison is cleared and won't return, and it can't be
 warred again. Conquest doesn't found a second colony — the rewards go to the
 colony you already have.
+
+## Declaring War Ends Diplomacy
+
+Declaring war on a faction **closes diplomacy with it**, whether you had
+relations or not. It won't trade deals, caravans, or buffs with you. The only
+way back is that faction's
+[Rite of Atonement](diplomacy.md#the-rite-of-atonement). It costs diamonds and
+your strongest named subordinate, and it reopens relations at low standing.
 
 ## Betrayal: Warring An Ally
 

@@ -1128,6 +1128,7 @@ public final class DiplomacyManager {
             // Milestone deals are now the COVENANT forges (the alliance
             // pact is a prompt; the mending rite bypasses this path).
             data.setState(player, faction.id(), RelationsState.COVENANT.id());
+            data.markCovenantEarned(player, faction.id());   // Phase 4: no duplicate item via conquest
             ServerPlayer covenantOnline = level.getServer().getPlayerList().getPlayer(player);
             if (covenantOnline != null) {
                 covenantOnline.sendSystemMessage(Component.literal(

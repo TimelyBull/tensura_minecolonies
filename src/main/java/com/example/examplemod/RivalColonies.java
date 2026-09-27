@@ -2625,6 +2625,16 @@ public final class RivalColonies {
             // collapse pass shatters any relations next tick (no new code).
             WorldReputationManager.modifyStanding(originLevel, player.getUUID(), factionEnum,
                     BETRAYAL_STANDING_CRASH, WorldRepReason.WAR_DECLARED);
+            // Phase 4 (2026-09-26): war formally CLOSES diplomacy with the
+            // faction. The standing crash alone left it locked with no way
+            // back; closing it makes the existing Rite of Atonement the one
+            // (costly) road home, the same as after the Orc Disaster.
+            if (!WorldReputationManager.isDiplomacyClosed(originLevel, player.getUUID(), factionEnum)) {
+                WorldReputationManager.closeDiplomacy(originLevel, player.getUUID(), factionEnum);
+                player.sendSystemMessage(Component.literal("War ends your relations with the "
+                        + factionEnum.displayName() + ". Only the Rite of Atonement can reopen them.")
+                        .withStyle(net.minecraft.ChatFormatting.RED));
+            }
             if (s.betrayalFactor > 1.0) {
                 player.sendSystemMessage(Component.literal("You turn on the "
                         + factionEnum.displayName() + " — they remember every kindness. "

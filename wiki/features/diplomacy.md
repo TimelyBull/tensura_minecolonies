@@ -257,8 +257,9 @@ Two things end relations:
 
 ### The Rite Of Atonement
 
-If a faction is pushed far enough that it refuses to deal with you at all, it
-offers one deal while in that state: the **Rite of Atonement**. It costs a
+If a faction refuses to deal with you at all (for example after you
+[declared war](warfare.md#declaring-war-ends-diplomacy) on it), it offers one
+deal while in that state: the **Rite of Atonement**. It costs a
 tribute of diamonds plus the sacrifice of your strongest named subordinate
 (the subordinate must be present). Completing it reopens relations at the
 lowest standing — you restart from near zero rather than recovering the prior

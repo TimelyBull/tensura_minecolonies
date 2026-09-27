@@ -78,7 +78,7 @@ public class WindowWarPicker extends AbstractWindowSkeleton {
         if (subtitle != null) {
             subtitle.setText(Component.literal(candidates.isEmpty()
                     ? "No subordinates at your side — summon some first."
-                    : "Pick up to " + cap + " subordinates to take into battle."));
+                    : "Up to " + cap + " subordinates. War ends all relations."));
             subtitle.setColors(TXT_GRAY);
         }
         this.confirmButton = findPaneOfTypeByID("confirm", Button.class);

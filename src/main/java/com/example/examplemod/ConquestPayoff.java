@@ -173,6 +173,10 @@ public final class ConquestPayoff {
     private static final int DEAL_REWARDS_FIRST = 3;
     private static final int DEAL_REWARDS_REPEAT = 1;
 
+    /** Phase 4 substitute for the Covenant item when the player already earned
+     *  it through diplomacy: double the deal rewards + this many extra gold coins. */
+    private static final int SUBSTITUTE_EXTRA_GOLD = 5;
+
     /** Coins for the chest by tier: {gold, silver}; halved on repeats. */
     private static int[] coinsFor(String factionId) {
         return switch (tierOf(factionId)) {
@@ -203,16 +207,32 @@ public final class ConquestPayoff {
         boolean first = !saved.hasConquered(player.getUUID(), s.factionId);
         saved.markConquered(player.getUUID(), s.factionId);
 
+        // Phase 4: a player who already FORGED this faction's Covenant through
+        // diplomacy (then betrayed it) already owns the item — the first
+        // conquest pays a bigger chest instead of a duplicate. The betrayal tier
+        // recorded at declare-war covers Covenants forged before this record
+        // existed.
+        boolean covenantAlreadyEarned =
+                DiplomacySavedData.get(level).hasEarnedCovenant(player.getUUID(), s.factionId)
+                        || "COVENANT".equals(s.betrayalTier);
+        boolean substitute = first && covenantAlreadyEarned;
+
         grantCitizenLevy(player, s, factionName, first);
         if (first) {
-            grantCovenantItem(player, s, factionName);
+            if (substitute) {
+                player.sendSystemMessage(Component.literal("You already hold the " + factionName
+                        + "'s Covenant treasure — their vaults pay out richer instead.")
+                        .withStyle(net.minecraft.ChatFormatting.GOLD));
+            } else {
+                grantCovenantItem(player, s, factionName);
+            }
             grantCovenantSkill(player, s, factionName);
         } else {
             player.sendSystemMessage(Component.literal("You have conquered the " + factionName
                     + " before — this victory pays a smaller haul.")
                     .withStyle(net.minecraft.ChatFormatting.GRAY));
         }
-        spawnLootChests(level, s, factionName, first);
+        spawnLootChests(level, s, factionName, first, substitute);
         convertToHusk(level, s);
 
         LOGGER.info("[TM] rival: payoff complete for settlement #{} ({}, {} conquest) — now a husk",
@@ -336,10 +356,12 @@ public final class ConquestPayoff {
 
     // --- 4. loot chest: coins + ordinary goods --------------------------
 
-    private static void spawnLootChests(ServerLevel level, Settlement s, String factionName, boolean first) {
+    private static void spawnLootChests(ServerLevel level, Settlement s, String factionName,
+                                        boolean first, boolean substitute) {
         List<ItemStack> loot = new ArrayList<>();
         int[] coins = coinsFor(s.factionId);
         int gold = first ? coins[0] : (coins[0] + 1) / 2;
+        if (substitute) gold += SUBSTITUTE_EXTRA_GOLD;
         int silver = first ? coins[1] : coins[1] / 2;
         addCoin(loot, "gold_coin", gold);
         addCoin(loot, "silver_coin", silver);
@@ -349,7 +371,9 @@ public final class ConquestPayoff {
         int take = Math.min(goods.size(), first ? GOODS_FIRST : GOODS_REPEAT);
         for (int i = 0; i < take; i++) loot.add(goods.get(i).copy());
 
-        addDealRewards(level, s.factionId, loot, first ? DEAL_REWARDS_FIRST : DEAL_REWARDS_REPEAT);
+        int dealRewards = first ? DEAL_REWARDS_FIRST : DEAL_REWARDS_REPEAT;
+        if (substitute) dealRewards *= 2;
+        addDealRewards(level, s.factionId, loot, dealRewards);
 
         if (loot.isEmpty()) {
             LOGGER.info("[TM] rival: {} conquest has no loot — no chest", s.factionId);
