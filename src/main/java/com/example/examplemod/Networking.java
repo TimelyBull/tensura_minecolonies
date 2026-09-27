@@ -1021,44 +1021,51 @@ public final class Networking {
 
         List<RosterEntry> entries = new ArrayList<>();
         for (RaceIdentitySavedData.RaceIdentity identity : saved.all()) {
-            // Filter: only identities owned by this player.
-            // ownerPlayerUUID is set at naming time from player.getUUID(), which
-            // also becomes IExistence.permanentOwner via Tensura's submitNaming —
-            // equivalent filters, but reading from our field avoids navigating
-            // the entity snapshot's ManasCoreStorage subtag.
-            if (identity.ownerPlayerUUID == null) continue;  // legacy / orphan
-            boolean owned = playerUUID.equals(identity.ownerPlayerUUID);
-            // Mind control: the CONTROLLER's roster gains the entry for the
-            // duration (marked, so they can tell it from their own). The
-            // OWNER's roster keeps showing it unmarked — the deceit is the
-            // point; their actions on it soft-fail server-side instead.
-            boolean controlling = TrnGate.espionage()
-                    && !owned && playerUUID.equals(identity.controlledByUUID);
-            // A permanently STOLEN subordinate stays visible to its EX-owner,
-            // marked — clicking it asks the current owner for leave.
-            boolean stolenFromViewer = TrnGate.espionage() && !owned && !controlling
-                    && playerUUID.equals(identity.previousOwnerUUID);
-            if (!owned && !controlling && !stolenFromViewer) continue;
+            try {
+                // Filter: only identities owned by this player.
+                // ownerPlayerUUID is set at naming time from player.getUUID(), which
+                // also becomes IExistence.permanentOwner via Tensura's submitNaming —
+                // equivalent filters, but reading from our field avoids navigating
+                // the entity snapshot's ManasCoreStorage subtag.
+                if (identity.ownerPlayerUUID == null) continue;  // legacy / orphan
+                boolean owned = playerUUID.equals(identity.ownerPlayerUUID);
+                // Mind control: the CONTROLLER's roster gains the entry for the
+                // duration (marked, so they can tell it from their own). The
+                // OWNER's roster keeps showing it unmarked — the deceit is the
+                // point; their actions on it soft-fail server-side instead.
+                boolean controlling = TrnGate.espionage()
+                        && !owned && playerUUID.equals(identity.controlledByUUID);
+                // A permanently STOLEN subordinate stays visible to its EX-owner,
+                // marked — clicking it asks the current owner for leave.
+                boolean stolenFromViewer = TrnGate.espionage() && !owned && !controlling
+                        && playerUUID.equals(identity.previousOwnerUUID);
+                if (!owned && !controlling && !stolenFromViewer) continue;
 
-            IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
-            ICitizenData cd = colony != null ? colony.getCitizenManager().getCivilian(identity.citizenId) : null;
-            String name = cd != null ? cd.getName() : "?";
-            byte controlByte = RosterEntry.CONTROL_NONE;
-            if (controlling) {
-                name = name + MindControlTracker.controlSuffix(sp.getServer(), identity);
-                controlByte = RosterEntry.CONTROL_BIT_CONTROLLED;
-                if (identity.planted)     controlByte |= RosterEntry.CONTROL_BIT_PLANTED;
-                if (identity.strikeArmed) controlByte |= RosterEntry.CONTROL_BIT_ARMED;
-                if (identity.stealing)    controlByte |= RosterEntry.CONTROL_BIT_STEALING;
-            } else if (stolenFromViewer) {
-                // Deliberately UNMARKED (user decision 2026-09-05) — the theft
-                // isn't advertised; the ex-owner discovers it through info
-                // skills or by clicking (which routes to the ask-permission
-                // flow). The bit still travels for any future client needs.
-                controlByte = RosterEntry.CONTROL_BIT_STOLEN;
+                IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
+                ICitizenData cd = colony != null ? colony.getCitizenManager().getCivilian(identity.citizenId) : null;
+                String name = cd != null ? cd.getName() : "?";
+                byte controlByte = RosterEntry.CONTROL_NONE;
+                if (controlling) {
+                    name = name + MindControlTracker.controlSuffix(sp.getServer(), identity);
+                    controlByte = RosterEntry.CONTROL_BIT_CONTROLLED;
+                    if (identity.planted)     controlByte |= RosterEntry.CONTROL_BIT_PLANTED;
+                    if (identity.strikeArmed) controlByte |= RosterEntry.CONTROL_BIT_ARMED;
+                    if (identity.stealing)    controlByte |= RosterEntry.CONTROL_BIT_STEALING;
+                } else if (stolenFromViewer) {
+                    // Deliberately UNMARKED (user decision 2026-09-05) — the theft
+                    // isn't advertised; the ex-owner discovers it through info
+                    // skills or by clicking (which routes to the ask-permission
+                    // flow). The bit still travels for any future client needs.
+                    controlByte = RosterEntry.CONTROL_BIT_STOLEN;
+                }
+                double ep = ExampleMod.readEPForRoster(sp, identity);
+                entries.add(new RosterEntry(identity.identityId, name, RosterEntry.encodeMode(identity.mode), ep, controlByte));
+            } catch (Throwable t) {
+                // One bad record must never blank the whole roster — skip just
+                // this row (e.g. a snapshot that can't be read) and keep going.
+                LOGGER.warn("[TM] roster: skipped identity {} — row build failed",
+                        identity.identityId, t);
             }
-            double ep = ExampleMod.readEPForRoster(sp, identity);
-            entries.add(new RosterEntry(identity.identityId, name, RosterEntry.encodeMode(identity.mode), ep, controlByte));
         }
 
         double magicule = ExampleMod.currentMagicule(sp);

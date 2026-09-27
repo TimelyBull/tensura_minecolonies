@@ -94,5 +94,5 @@
   "item.tensura_minecolonies.otherworld_codex.no_move_in": "Your town hall isn't letting new citizens move in.",
   "item.tensura_minecolonies.otherworld_codex.full": "Your colony has no room for another citizen.",
   "item.tensura_minecolonies.otherworld_codex.failed": "The summoning failed. Try again.",
-  "item.tensura_minecolonies.otherworld_codex.summoned": "The rite answers: %s has arrived in %s."
+  "item.tensura_minecolonies.otherworld_codex.summoned": "The rite answers: %s has arrived in %s. Find them in your roster (G)."
 }
