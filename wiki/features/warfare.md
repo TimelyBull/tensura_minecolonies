@@ -75,12 +75,13 @@ When you win, the settlement is sacked and you receive:
 - **The faction's Covenant item**: the same unique item its
   [Covenant deal](diplomacy.md) gives, handed straight to you.
 - **The faction's skill**: the same one its hardest diplomacy deal gives.
-- **A loot chest** at the settlement: coins (more from stronger factions) and a
-  few of that faction's everyday goods.
+- **A loot chest** at the settlement: coins (more from stronger factions), a
+  few of that faction's everyday goods, and 3 rewards from its diplomacy deals
+  (in varied amounts, with at most one weapon or other single item).
 
 **Only your first conquest of each faction** gives the Covenant item and the
 skill. Conquering another settlement of a faction you've already beaten gives
-about half the citizens, coins, and goods.
+about half the citizens, coins, and goods, and 1 diplomacy-deal reward.
 
 A conquered settlement becomes a permanent **ruin**: the buildings remain,
 the boss is gone, the garrison is cleared and won't return, and it can't be

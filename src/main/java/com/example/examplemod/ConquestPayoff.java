@@ -52,11 +52,12 @@ import java.util.UUID;
  *       (Future: faction-specific war trophies replace this — future-ideas.md.)</li>
  *   <li><b>The faction's skill — FIRST conquest only</b> — the same skill
  *       diplomacy grants, by force (idempotent).</li>
- *   <li><b>Loot chest</b> — STRUCTURED, not a lucky dip: coins sized to the
- *       faction's tier + a few ordinary themed goods ({@link #GOODS}). The
- *       diplomacy deals' best items are NO LONGER in the chest (the old
- *       draw-with-replacement from {@code factionRewardPool} could hand out
- *       several copies of a deal's top reward).</li>
+ *   <li><b>Loot chest</b> — coins sized to the faction's tier + a few
+ *       ordinary themed goods ({@link #GOODS}) + a few rewards from the
+ *       faction's diplomacy deal tables ({@link #addDealRewards}: no repeats,
+ *       amounts varied 50–100%, at most one unstackable item). The old
+ *       draw-WITH-replacement from {@code factionRewardPool} could hand out
+ *       several copies of a deal's top reward.</li>
  * </ol>
  *
  * <p>The boss's death during the assault already fired the Layer-1
@@ -163,6 +164,14 @@ public final class ConquestPayoff {
 
     private static final int GOODS_FIRST = 5;
     private static final int GOODS_REPEAT = 3;
+
+    /** How many rewards from the faction's diplomacy deal tables go in the
+     *  chest too (first / repeat conquest). Drawn WITHOUT repeats, each at a
+     *  random 50–100% of the deal's own amount, and at most ONE unstackable
+     *  item (a weapon, a schematic…) per chest, so a conquest can't hand out a
+     *  pile of the deals' best rewards. */
+    private static final int DEAL_REWARDS_FIRST = 3;
+    private static final int DEAL_REWARDS_REPEAT = 1;
 
     /** Coins for the chest by tier: {gold, silver}; halved on repeats. */
     private static int[] coinsFor(String factionId) {
@@ -340,6 +349,8 @@ public final class ConquestPayoff {
         int take = Math.min(goods.size(), first ? GOODS_FIRST : GOODS_REPEAT);
         for (int i = 0; i < take; i++) loot.add(goods.get(i).copy());
 
+        addDealRewards(level, s.factionId, loot, first ? DEAL_REWARDS_FIRST : DEAL_REWARDS_REPEAT);
+
         if (loot.isEmpty()) {
             LOGGER.info("[TM] rival: {} conquest has no loot — no chest", s.factionId);
             return;
@@ -355,6 +366,38 @@ public final class ConquestPayoff {
             container.setItem(placed++, stack);
         }
         LOGGER.info("[TM] rival: conquest loot — {} stacks in a chest at {}", placed, at);
+    }
+
+    /** A few rewards from the faction's diplomacy deals, amounts varied. */
+    private static void addDealRewards(ServerLevel level, String factionId, List<ItemStack> loot, int want) {
+        List<ItemStack> pool = new ArrayList<>();
+        java.util.Set<Item> seen = new java.util.HashSet<>();
+        for (ItemStack stack : DealSpec.factionRewardPool(factionId, level.registryAccess())) {
+            if (isCoin(stack) || !seen.add(stack.getItem())) continue;   // coins are paid separately; no repeats
+            pool.add(stack);
+        }
+        Collections.shuffle(pool, new java.util.Random(level.getRandom().nextLong()));
+        boolean unstackableTaken = false;
+        int added = 0;
+        for (ItemStack stack : pool) {
+            if (added >= want) break;
+            ItemStack give = stack.copy();
+            if (give.getMaxStackSize() == 1) {
+                if (unstackableTaken) continue;
+                unstackableTaken = true;
+            } else {
+                int full = give.getCount();
+                int min = Math.max(1, (full + 1) / 2);
+                give.setCount(min + level.getRandom().nextInt(full - min + 1));   // 50–100% of the deal amount
+            }
+            loot.add(give);
+            added++;
+        }
+    }
+
+    private static boolean isCoin(ItemStack stack) {
+        ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        return id.getNamespace().equals("tensura") && id.getPath().endsWith("_coin");
     }
 
     private static void addCoin(List<ItemStack> loot, String path, int count) {
