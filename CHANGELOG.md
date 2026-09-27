@@ -9,6 +9,10 @@ Copy the relevant version's section into the CurseForge release notes on each up
 ## [Unreleased]
 
 ### Added
+- **The Moderate Harlequin Alliance's Covenant now grants the Orb of
+  Domination.** Hang it on a hostile mob and it fights for you until it dies,
+  then the orb drops so you can use it again (needs the faction system turned
+  on).
 - **Eurazania's Covenant now grants the Pack Leader's Mark.** Mark a mob as prey
   for 60 seconds and your nearby subordinates hunt it, deal 50% more damage to
   it, and heal when it dies. It recharges in 15 minutes (needs the faction

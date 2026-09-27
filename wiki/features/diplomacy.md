@@ -119,6 +119,29 @@ You can have one mark at a time. Players, colony citizens, allied fighters, and
 your own subordinates and pets can't be marked. The mark only uses its charge
 when it lands, then recharges in 15 minutes (real time).
 
+### Souls For The Core (Moderate Harlequin Alliance)
+
+The Moderate Harlequin Alliance's Covenant deal completes when you kill 10
+villagers. The reward is the **Orb of Domination**, the pendant Clayman used
+on Milim. Right-click a hostile mob with it and the orb is hung on that mob,
+which then serves you until it dies:
+
+- It won't attack players, colony citizens, or anything you own.
+- It attacks whatever is attacking you, then whatever you attack, then the
+  nearest hostile mob.
+- With nothing to fight, it follows you. It teleports to you if it falls more
+  than 32 blocks behind.
+- It never despawns, and it keeps serving you after a restart.
+- A zombie that turns into a drowned (or a similar change) keeps the orb.
+
+When the mob dies, the orb drops where it fell. Dropped orbs never despawn.
+Killing your own puppet is how you get the orb back early.
+
+Only hostile mobs can take the orb: monsters, or any mob currently attacking
+you. The mob's EP must be at most half of yours, and it can't already have an
+owner. Bosses, raiders, rival garrison defenders, assassins, and goblins, orcs,
+lizardmen, dwarves, and otherworlders can't be dominated.
+
 ### The Trial Of Light & Dark (Luminous)
 
 Luminous's Covenant deal is a task, not a delivery. Accepting it gives you two

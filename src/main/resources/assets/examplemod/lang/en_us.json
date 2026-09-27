@@ -104,6 +104,16 @@
   "item.tensura_minecolonies.pack_mark.no_target": "Look at a mob to mark it.",
   "item.tensura_minecolonies.pack_mark.not_prey": "You can't mark your own side.",
   "item.tensura_minecolonies.pack_mark.marked": "%s is marked as prey. %s of your subordinates join the hunt for %s seconds.",
+  "item.tensura_minecolonies.orb_of_domination": "Orb of Domination",
+  "item.tensura_minecolonies.orb_of_domination.desc": "Right-click a hostile mob to hang the orb on it. It serves you until it dies, then the orb drops.",
+  "item.tensura_minecolonies.orb_of_domination.dominated": "%s now wears the Orb of Domination and serves you.",
+  "item.tensura_minecolonies.orb_of_domination.dropped": "Your puppet %s has died. The Orb of Domination lies where it fell.",
+  "item.tensura_minecolonies.orb_of_domination.not_hostile": "The orb only binds hostile mobs.",
+  "item.tensura_minecolonies.orb_of_domination.already": "That mob already wears an orb.",
+  "item.tensura_minecolonies.orb_of_domination.too_strong": "That one's will is too strong for the orb.",
+  "item.tensura_minecolonies.orb_of_domination.bound": "That mob is bound to another cause.",
+  "item.tensura_minecolonies.orb_of_domination.race": "That race joins through naming, not the orb.",
+  "item.tensura_minecolonies.orb_of_domination.owned": "That mob already has a master.",
   "item.tensura_minecolonies.holy_field_stone.raised": "A Holy Field rises. Enemies within are sealed for %s seconds.",
   "tensura_minecolonies.otherworlder.joined": "%s now serves you. Find them in your roster (G), where you can send them to your colony."
 }

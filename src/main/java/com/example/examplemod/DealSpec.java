@@ -385,10 +385,9 @@ public record DealSpec(
         map.put("clayman", new DealSpec("cov_clayman", "Souls for the Core",
                 new SlayEntities(java.util.Set.of("minecraft:villager"), 10,
                         "villagers (their souls feed the Charybdis core)"),
-                // INTERIM: + TR:N Investigator bonus (COVENANT_TRN_BONUS_SKILLS)
-                // — the puppeteers teach their craft; rank-1 on the espionage
-                // sight ladder.
-                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 1)),
+                // Real reward (2026-09-26): the Orb of Domination. (The TR:N
+                // Investigator bonus skill stays behind the dev gate.)
+                List.of(new ItemStack(ExampleMod.ORB_OF_DOMINATION.get())),
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         // Phase 1 (faction-rewards roadmap) — Leon + Eastern Empire were
         // raidable towns with NO Covenant milestone; add one each so their

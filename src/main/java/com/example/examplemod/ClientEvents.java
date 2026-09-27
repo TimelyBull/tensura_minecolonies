@@ -51,6 +51,11 @@ public final class ClientEvents {
         NeoForge.EVENT_BUS.addListener(RenderLivingEvent.Post.class,
                 AssassinClientHandler::onRenderLivingPost);
         NeoForge.EVENT_BUS.addListener(AssassinClientHandler::onClientLoggingOut);
+        // Orb of Domination — draw the pendant on dominated mobs.
+        Networking.dominatedClientHandler = OrbOfDominationClientHandler::onPayload;
+        NeoForge.EVENT_BUS.addListener(RenderLivingEvent.Post.class,
+                OrbOfDominationClientHandler::onRenderLivingPost);
+        NeoForge.EVENT_BUS.addListener(OrbOfDominationClientHandler::onClientLoggingOut);
         // Mind-control SUSPICION tell — faint "…?" over the local player's
         // own controlled/planted citizens, info-skill-gated. Mirror of the
         // assassin tell.

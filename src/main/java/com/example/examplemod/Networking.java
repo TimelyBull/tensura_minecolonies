@@ -173,6 +173,12 @@ public final class Networking {
                 SyncAssassinFlagPayload.CODEC,
                 Networking::onSyncAssassinFlag
         );
+        // Orb of Domination — which mobs wear the orb (pendant render).
+        registrar.playToClient(
+                SyncDominatedPayload.TYPE,
+                SyncDominatedPayload.CODEC,
+                Networking::onSyncDominated
+        );
         // Barrier Core menu — server opens/refreshes the menu with live
         // tank + layer state; client buttons fire actions back.
         registrar.playToClient(
@@ -675,6 +681,26 @@ public final class Networking {
 
     private static void onSyncAssassinFlag(SyncAssassinFlagPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> assassinFlagClientHandler.accept(payload));
+    }
+
+    /** S2C: this mob is (or is no longer) wearing the Orb of Domination. */
+    public record SyncDominatedPayload(UUID entityUuid, boolean dominated)
+            implements CustomPacketPayload {
+        public static final Type<SyncDominatedPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(ExampleMod.MODID, "sync_dominated"));
+        public static final StreamCodec<ByteBuf, SyncDominatedPayload> CODEC = StreamCodec.composite(
+                UUIDUtil.STREAM_CODEC, SyncDominatedPayload::entityUuid,
+                ByteBufCodecs.BOOL, SyncDominatedPayload::dominated,
+                SyncDominatedPayload::new
+        );
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    /** Client-side delegate for the dominated flag (server-safe default). */
+    public static Consumer<SyncDominatedPayload> dominatedClientHandler = payload -> { };
+
+    private static void onSyncDominated(SyncDominatedPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> dominatedClientHandler.accept(payload));
     }
 
     /** Client-side delegate for the barrier menu open/refresh. Installed

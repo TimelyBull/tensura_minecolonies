@@ -334,6 +334,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public static final DeferredItem<net.minecraft.world.item.Item> PACK_LEADERS_MARK =
             ITEMS.register("pack_leaders_mark",
                     () -> new PackLeadersMarkItem(new net.minecraft.world.item.Item.Properties()));
+    /** Moderate Harlequin Alliance (Clayman) Covenant reward — the Orb of
+     *  Domination: hang it on a hostile mob and it serves you until it dies,
+     *  then the orb drops. See OrbOfDominationItem. */
+    public static final DeferredItem<net.minecraft.world.item.Item> ORB_OF_DOMINATION =
+            ITEMS.register("orb_of_domination",
+                    () -> new OrbOfDominationItem(new net.minecraft.world.item.Item.Properties()));
     public static final DeferredItem<net.minecraft.world.item.Item> TWIN_GRAIL =
             ITEMS.register("twin_grail",
                     () -> new TwinGrailItem(new net.minecraft.world.item.Item.Properties()));
@@ -559,6 +565,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         output.accept(OTHERWORLD_CODEX.get());
                         output.accept(HOLY_FIELD_STONE.get());
                         output.accept(PACK_LEADERS_MARK.get());
+                        output.accept(ORB_OF_DOMINATION.get());
                         for (var weapon : MASTERWORK_WEAPONS) output.accept(weapon.get());
                     })
                     .build());
@@ -602,6 +609,14 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         NeoForge.EVENT_BUS.addListener(PackLeadersMarkItem::onEntityInteract);
         NeoForge.EVENT_BUS.addListener(PackLeadersMarkItem::onIncomingDamage);
         NeoForge.EVENT_BUS.addListener(PackLeadersMarkItem::onDeath);
+        // Orb of Domination (Clayman) — hang the orb on a hostile mob (before
+        // its own right-click), keep the puppet off its master's side, reload
+        // puppets, drop the orb on death, carry it through mob conversions.
+        NeoForge.EVENT_BUS.addListener(OrbOfDominationItem::onEntityInteract);
+        NeoForge.EVENT_BUS.addListener(OrbOfDominationItem::onChangeTarget);
+        NeoForge.EVENT_BUS.addListener(OrbOfDominationItem::onJoinLevel);
+        NeoForge.EVENT_BUS.addListener(OrbOfDominationItem::onDeath);
+        NeoForge.EVENT_BUS.addListener(OrbOfDominationItem::onConversion);
         // Seal of Ascension growth buff — ×1.5 EP gains while a subordinate ascends.
         TensuraEntityEvents.ATTRIBUTE_BASE_CHANGE_EVENT.register(SealOfAscensionItem::onAttributeBaseChange);
 
@@ -8483,6 +8498,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             TrialManager.tick(server);
             // Eurazania's Pack Leader's Mark — keep each pack hunting its prey.
             PackLeadersMarkItem.tick(server);
+            // Clayman's Orb of Domination — drive every loaded puppet.
+            OrbOfDominationItem.tick(server);
             // Otherworlder tame route — safety scan (the tame event covers most).
             if (now % 100 == 0) scanTamedOtherworlders(server);
             // Mind-control mirror — reconcile identity.controlledByUUID from
@@ -10105,6 +10122,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (sp.serverLevel() != null) {
             Assassins.resyncFlagOnTracking(sp, event.getTarget(), sp.serverLevel());
         }
+        // Orb of Domination pendant re-sync.
+        OrbOfDominationItem.resyncOnTracking(sp, event.getTarget());
 
         if (!(event.getTarget() instanceof AbstractEntityCitizen citizen)) return;
 
