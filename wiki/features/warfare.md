@@ -63,15 +63,24 @@ returned home on respawn/login and the garrison resets.
 
 When you win, the settlement is sacked and you receive:
 
-- **Citizens** — 10–20 faction-themed colonists added to your existing
-  colony, arriving trained in skills that fit the faction (Dwargon sends
-  Strength-heavy miners, the Jura-Tempest Federation sends Knowledge-heavy sages,
-  and so on). If your colony is at its housing cap, as many as fit are added and
-  the rest are noted.
-- **The faction's skill** — you're granted that faction's signature Tensura
-  skill, the same one its hardest [diplomacy](diplomacy.md) deal would give.
-- **Loot** — chests at the settlement, filled from that faction's own
-  reward pool.
+- **Citizens**: 8–10 citizens join your existing colony (10 from the strongest
+  factions, 8 from the weakest). They're the faction's own people:
+  - Dwargon sends dwarves.
+  - The Jura-Tempest Federation sends a mix of goblins and lizardmen.
+  - The human nations (Falmuth, Luminous, Leon, the Eastern Empire) send
+    colonists.
+
+  Each arrives trained in two skills that fit the faction. If your colony is at
+  its housing cap, as many as fit are added and the rest are noted.
+- **The faction's Covenant item**: the same unique item its
+  [Covenant deal](diplomacy.md) gives, handed straight to you.
+- **The faction's skill**: the same one its hardest diplomacy deal gives.
+- **A loot chest** at the settlement: coins (more from stronger factions) and a
+  few of that faction's everyday goods.
+
+**Only your first conquest of each faction** gives the Covenant item and the
+skill. Conquering another settlement of a faction you've already beaten gives
+about half the citizens, coins, and goods.
 
 A conquered settlement becomes a permanent **ruin**: the buildings remain,
 the boss is gone, the garrison is cleared and won't return, and it can't be

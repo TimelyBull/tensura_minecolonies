@@ -40,6 +40,11 @@ Copy the relevant version's section into the CurseForge release notes on each up
   at least 4 races (needs the faction system turned on).
 
 ### Changed
+- **Conquest rewards were reworked.** Conquered factions now send 8–10 citizens
+  of their own race (dwarves from Dwargon; goblins and lizardmen from the
+  Jura-Tempest Federation). Your first conquest of a faction also gives its
+  Covenant item. The loot chest now holds coins and everyday goods, and repeat
+  conquests of the same faction pay about half.
 - **Assassins learned to steal greatness — carefully.** The betrayer's
   boss form can now copy one ULTIMATE skill from its victim — but only if the body already commands an ultimate of
   its own. A lesser body cannot grasp what it takes.

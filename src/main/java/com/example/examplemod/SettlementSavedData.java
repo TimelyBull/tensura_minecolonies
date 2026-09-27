@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Storage for generated rival-faction {@link Settlement}s (rival-colony
@@ -39,7 +40,24 @@ class SettlementSavedData extends SavedData {
      *  NBT key kept as "spikePopulated" for backward-compat with existing saves. */
     private final java.util.Set<Long> populatedStarts = new java.util.HashSet<>();
 
+    /** Phase 2 (2026-09-26): which factions each player has ALREADY conquered
+     *  at least once — player UUID → faction ids. The first conquest of a
+     *  faction pays its Covenant item + skill and the full haul; repeats pay a
+     *  reduced haul only. */
+    private final Map<UUID, java.util.Set<String>> conqueredFactions = new HashMap<>();
+
     private SettlementSavedData() {}
+
+    boolean hasConquered(UUID player, String factionId) {
+        java.util.Set<String> set = conqueredFactions.get(player);
+        return set != null && set.contains(factionId);
+    }
+
+    void markConquered(UUID player, String factionId) {
+        if (conqueredFactions.computeIfAbsent(player, k -> new java.util.HashSet<>()).add(factionId)) {
+            setDirty();
+        }
+    }
 
     static SettlementSavedData get(ServerLevel anyLevel) {
         ServerLevel overworld = anyLevel.getServer().overworld();
@@ -183,6 +201,13 @@ class SettlementSavedData extends SavedData {
         ListTag missions = new ListTag();
         for (ScoutMission m : scoutMissions) missions.add(m.save());
         tag.put("scoutMissions", missions);
+        CompoundTag conquered = new CompoundTag();
+        for (Map.Entry<UUID, java.util.Set<String>> e : conqueredFactions.entrySet()) {
+            ListTag ids = new ListTag();
+            for (String f : e.getValue()) ids.add(net.minecraft.nbt.StringTag.valueOf(f));
+            conquered.put(e.getKey().toString(), ids);
+        }
+        tag.put("conqueredFactions", conquered);
         return tag;
     }
 
@@ -202,6 +227,16 @@ class SettlementSavedData extends SavedData {
         // saves — the removed Stage-0 scaffolding — is simply ignored.)
         for (long v : tag.getLongArray("spikePopulated")) {
             data.populatedStarts.add(v);
+        }
+        CompoundTag conquered = tag.getCompound("conqueredFactions");
+        for (String key : conquered.getAllKeys()) {
+            try {
+                UUID player = UUID.fromString(key);
+                ListTag ids = conquered.getList(key, Tag.TAG_STRING);
+                java.util.Set<String> set = new java.util.HashSet<>();
+                for (int k = 0; k < ids.size(); k++) set.add(ids.getString(k));
+                data.conqueredFactions.put(player, set);
+            } catch (IllegalArgumentException ignored) { }
         }
         ListTag missions = tag.getList("scoutMissions", Tag.TAG_COMPOUND);
         for (int i = 0; i < missions.size(); i++) {
