@@ -84,5 +84,15 @@
   "item.tensura_minecolonies.seal_of_ascension.tooltip_recharging": "Recharging — %s min",
   "item.tensura_minecolonies.seal_of_ascension.recharging": "The seal is still recharging (%s min).",
   "item.tensura_minecolonies.seal_of_ascension.not_yours": "The seal only answers for your own subordinates.",
-  "item.tensura_minecolonies.seal_of_ascension.used": "%s ascends — EP %s → %s. Its growth is quickened for %s minutes."
+  "item.tensura_minecolonies.seal_of_ascension.used": "%s ascends — EP %s → %s. Its growth is quickened for %s minutes.",
+  "item.tensura_minecolonies.otherworld_summoning_codex": "Otherworld Summoning Codex",
+  "item.tensura_minecolonies.otherworld_codex.desc": "Use to summon an otherworlder into your colony as a citizen.",
+  "item.tensura_minecolonies.otherworld_codex.tooltip_ready": "Ready",
+  "item.tensura_minecolonies.otherworld_codex.tooltip_recharging": "Recharging — %s min",
+  "item.tensura_minecolonies.otherworld_codex.recharging": "The codex is still recharging (%s min).",
+  "item.tensura_minecolonies.otherworld_codex.no_colony": "You need a colony to summon an otherworlder into.",
+  "item.tensura_minecolonies.otherworld_codex.no_move_in": "Your town hall isn't letting new citizens move in.",
+  "item.tensura_minecolonies.otherworld_codex.full": "Your colony has no room for another citizen.",
+  "item.tensura_minecolonies.otherworld_codex.failed": "The summoning failed. Try again.",
+  "item.tensura_minecolonies.otherworld_codex.summoned": "The rite answers: %s has arrived in %s."
 }

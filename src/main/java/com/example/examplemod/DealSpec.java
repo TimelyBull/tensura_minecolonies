@@ -396,11 +396,11 @@ public record DealSpec(
                         new ItemStack(Items.GOLD_BLOCK, 16),
                         new ItemStack(Items.BLAZE_ROD, 16),
                         new ItemStack(Items.NETHERITE_INGOT, 1))),
-                // INTERIM: with TR:N — a Scorch Nucleation Core (bottled fire,
-                // slots into weapons like an element core; unobtainable in
-                // survival otherwise). Without: the apple placeholder stands.
-                List.of(optionalItem("trnightmare:scorch_nucleation_core", 1,
-                        new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 3))),
+                // Real reward (2026-09-26): the Otherworld Summoning Codex —
+                // Leon's otherworld summoning rite; brings otherworlder
+                // citizens into the colony. (Replaced the TR:N Scorch
+                // Nucleation Core / apples interim.)
+                List.of(new ItemStack(ExampleMod.OTHERWORLD_CODEX.get())),
                 10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
         map.put("eastern_empire", new DealSpec("cov_eastern_empire", "The Imperial Compact",
                 new SupplyBundle(List.of(

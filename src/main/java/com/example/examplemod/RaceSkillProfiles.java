@@ -44,6 +44,7 @@ public final class RaceSkillProfiles {
     public static final RaceSkillProfile COLONIST = new RaceSkillProfile(new EnumMap<>(Skill.class));
     public static final RaceSkillProfile LIZARDMAN = new RaceSkillProfile(lizardmanBiases());
     public static final RaceSkillProfile DWARF = new RaceSkillProfile(dwarfBiases());
+    public static final RaceSkillProfile OTHERWORLDER = new RaceSkillProfile(otherworlderBiases());
 
     /**
      * ORC — tanky warrior. Strong in physical skills, weak in academic
@@ -127,6 +128,26 @@ public final class RaceSkillProfiles {
      * {@code citizenData}. Logs the before/after summary at INFO.
      * Returns silently if no profile is registered for the race.
      */
+    /** Otherworlders — the "unique colonists" (2026-09-26). Modern-world
+     *  know-how + a knack for magic: HIGH across the mental/magical skills,
+     *  mild on the physical ones, and — alone among the races — NO low
+     *  skill. ⚠ BALANCE GUESS; they are rare (naming or Leon's Codex only). */
+    private static EnumMap<Skill, SkillBias> otherworlderBiases() {
+        EnumMap<Skill, SkillBias> map = new EnumMap<>(Skill.class);
+        map.put(Skill.Adaptability, SkillBias.high());
+        map.put(Skill.Intelligence, SkillBias.high());
+        map.put(Skill.Knowledge,    SkillBias.high());
+        map.put(Skill.Creativity,   SkillBias.high());
+        map.put(Skill.Focus,        SkillBias.high());
+        map.put(Skill.Mana,         SkillBias.high());
+        map.put(Skill.Strength,     SkillBias.mild());
+        map.put(Skill.Athletics,    SkillBias.mild());
+        map.put(Skill.Stamina,      SkillBias.mild());
+        map.put(Skill.Agility,      SkillBias.mild());
+        map.put(Skill.Dexterity,    SkillBias.mild());
+        return map;
+    }
+
     public static void applyForRace(ICitizenData citizenData, Race race, RandomSource random) {
         if (race == null) return;
         ColonyMember member = ColonyMember.fromRace(race);
@@ -152,6 +173,7 @@ public final class RaceSkillProfiles {
             case COLONIST -> COLONIST;
             case LIZARDMAN -> LIZARDMAN;
             case DWARF -> DWARF;
+            case OTHERWORLDER -> OTHERWORLDER;
         };
     }
 

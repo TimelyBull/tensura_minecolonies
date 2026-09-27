@@ -4,9 +4,9 @@ You can name a Tensura monster and add it to your colony as a citizen.
 A named monster keeps one identity whether it's fighting at your side or
 working in your colony.
 
-## The Four Races
+## The Races
 
-Four Tensura races can be named and made into citizens. Each shifts specific
+Five Tensura races can be named and made into citizens. Each shifts specific
 MineColonies work skills by an exact amount:
 
 | Race | Appearance | Work-Skill Changes |
@@ -15,6 +15,7 @@ MineColonies work skills by an exact amount:
 | **Orc** | Orc model | Strength, Athletics, Stamina **+6 to +10**. Intelligence, Knowledge, Creativity **−5 to −1** |
 | **Lizardman** | Lizardman model | Agility, Dexterity, Focus, Mana **+6 to +10**. Strength, Stamina **−5 to −1** |
 | **Dwarf** | Dwarf model | Knowledge, Intelligence, Creativity **+6 to +10**. Athletics, Strength, Agility **−5 to −1** |
+| **Otherworlder** | That character's own look | Adaptability, Intelligence, Knowledge, Creativity, Focus, Mana **+6 to +10**. Strength, Athletics, Stamina, Agility, Dexterity **+2 to +4** |
 
 Each listed skill is nudged by a random amount inside its range, so citizens
 still vary. The change is applied **once**, at citizen creation, on top of
@@ -23,8 +24,28 @@ Normal skill progression continues afterward. Ordinary (non-Tensura) colonists
 get **no change**.
 
 Those skills matter most for orc labourers and guards, lizardman precision and
-magic jobs (lizardmen are the only race with a Mana bonus), and dwarf research
-and crafting.
+magic jobs, dwarf research and crafting, and otherworlders almost anywhere
+(they have no weak skill).
+
+### Otherworlders
+
+Otherworlders are the people Tensura summons from another world: Kirara
+Mizutani, Kyoya Tachibana, Shogo Taguchi, Mai Furuki, Mark Lauren, Shinji
+Tanimura, Shin Ryusei, and Folgen. Each one keeps that character's own look in
+your colony and fights with its own skills when summoned to your side.
+
+They join in only two ways:
+
+- **Naming** — name an otherworlder you command (for example, one called with
+  Tensura's Summon Otherworlder magic), like any other race.
+- **The Otherworld Summoning Codex** — Leon's Covenant reward. Using it brings a
+  random otherworlder to your town hall as a new citizen, named after its
+  character. It recharges in 2 hours of real time, and it won't work if your
+  colony is full or its town hall isn't letting new citizens move in.
+
+Otherworlders never arrive through envoys or immigration, and a child with an
+otherworlder parent is born an ordinary colonist. The same character can appear
+more than once.
 
 ## Race Colonies
 

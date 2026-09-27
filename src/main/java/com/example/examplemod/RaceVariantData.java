@@ -14,7 +14,8 @@ package com.example.examplemod;
  * by the race byte in {@link RaceTag#fromWire}.
  */
 public sealed interface RaceVariantData
-        permits GoblinVariantData, OrcVariantData, LizardmanVariantData, DwarfVariantData {
+        permits GoblinVariantData, OrcVariantData, LizardmanVariantData, DwarfVariantData,
+                OtherworlderVariantData {
 
     /** Race-specific wire encoding. Layout is private to the implementation. */
     byte[] encode();

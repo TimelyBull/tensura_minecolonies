@@ -158,6 +158,11 @@ public final class ClientEvents {
         NeoForge.EVENT_BUS.addListener(RenderLivingEvent.Pre.class,
                 LizardmanCitizenRenderHandler::onRenderLivingPre);
 
+        // OTHERWORLDER — shadow entity of the citizen's own character, drawn
+        // with the renderer Tensura registered for that type.
+        NeoForge.EVENT_BUS.addListener(RenderLivingEvent.Pre.class,
+                OtherworlderCitizenRenderHandler::onRenderLivingPre);
+
         // DWARF — same vanilla biped + PlayerModel overlay pattern as goblin.
         // SCALE = 0.5 is applied server-side at materialisation; the renderer
         // multiplies by entity.getScale() automatically.
@@ -213,6 +218,7 @@ public final class ClientEvents {
         // citizen UUID; same-tick cleanup keeps the pool bounded.
         OrcCitizenRenderHandler.removeForEntity(uuid);
         LizardmanCitizenRenderHandler.removeForEntity(uuid);
+        OtherworlderCitizenRenderHandler.removeForEntity(uuid);
     }
 
     private static void onClientLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
@@ -224,5 +230,6 @@ public final class ClientEvents {
         OrcCitizenRenderHandler.invalidate();
         LizardmanCitizenRenderHandler.invalidate();
         DwarfCitizenRenderHandler.invalidate();
+        OtherworlderCitizenRenderHandler.invalidate();
     }
 }

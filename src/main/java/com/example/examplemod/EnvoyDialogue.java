@@ -244,6 +244,7 @@ public final class EnvoyDialogue {
      */
     public static String conditionSnippet(ColonyMember member, EnvoyCondition condition) {
         return switch (member) {
+            case OTHERWORLDER -> null; // otherworlders never send envoys
             case GOBLIN -> switch (condition) {
                 case COUNT ->
                         "The goblins already at your side send back only happy words — "
@@ -343,6 +344,7 @@ public final class EnvoyDialogue {
             }
         }
         return switch (member) {
+            case OTHERWORLDER -> "The envoy nods and departs."; // unreachable: no otherworlder envoys
             case GOBLIN ->
                     "The goblin envoy bows again and again, beaming. \"Thank you, great one — thank you! We will not let you down!\" Goblins will make their way to your colony.";
             case ORC ->
@@ -386,6 +388,7 @@ public final class EnvoyDialogue {
             }
         }
         return switch (member) {
+            case OTHERWORLDER -> "The envoy nods and departs."; // unreachable: no otherworlder envoys
             case GOBLIN ->
                     "The goblin envoy's ears droop. They nod, downcast, and shuffle away.";
             case ORC ->

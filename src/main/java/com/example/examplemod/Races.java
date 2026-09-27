@@ -44,16 +44,34 @@ public final class Races {
             ResourceLocation.fromNamespaceAndPath("tensura", "orc_disaster")
     );
 
+    /** Registry paths of the eight otherworlder characters. */
+    private static final String[] OTHERWORLDER_PATHS = {
+            "kirara_mizutani", "kyoya_tachibana", "shogo_taguchi", "mai_furuki",
+            "mark_lauren", "shinji_tanimura", "shin_ryusei", "folgen"};
+
     static {
         register(Race.GOBLIN,    "tensura", "goblin");
         register(Race.ORC,       "tensura", "orc");
         register(Race.LIZARDMAN, "tensura", "lizardman");
         register(Race.DWARF,     "tensura", "dwarf");
+        // Otherworlders: ONE race, EIGHT entity types — Tensura's summonable
+        // otherworlders (its otherworlder_spawn_distribution data; Hinata and
+        // Shizu are story characters and excluded). The first registered is the
+        // canonical idFor(OTHERWORLDER); callers that create a specific
+        // character pass its type explicitly (see OTHERWORLDER_TYPES).
+        for (String path : OTHERWORLDER_PATHS) register(Race.OTHERWORLDER, "tensura", path);
+    }
+
+    /** The eight otherworlder character ids, in a stable order. */
+    public static java.util.List<ResourceLocation> otherworlderTypes() {
+        java.util.List<ResourceLocation> out = new java.util.ArrayList<>();
+        for (String path : OTHERWORLDER_PATHS) out.add(ResourceLocation.fromNamespaceAndPath("tensura", path));
+        return out;
     }
 
     private static void register(Race race, String namespace, String path) {
         ResourceLocation id = ResourceLocation.fromNamespaceAndPath(namespace, path);
-        IDS.put(race, id);
+        IDS.putIfAbsent(race, id);
         BY_ID.put(id, race);
     }
 

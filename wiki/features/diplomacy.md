@@ -83,6 +83,13 @@ Ascension**: use it on one of your subordinates to raise its EP by 25%, and for
 the next 30 minutes every EP gain it makes is 50% larger. The seal recharges
 in 45 minutes (real time, including while you're logged out).
 
+### Tribute To The Platinum Saber (Leon)
+
+Leon's Covenant deal is a delivery: 16 gold blocks, 16 blaze rods, and 1
+netherite ingot. The reward is the **Otherworld Summoning Codex**, which
+summons an otherworlder into your colony as a citizen (see
+[Races & Citizens](races-citizens.md#otherworlders)).
+
 ### The Trial Of Light & Dark (Luminous)
 
 Luminous's Covenant deal is a task, not a delivery. Accepting it gives you two

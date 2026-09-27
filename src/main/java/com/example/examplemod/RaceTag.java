@@ -53,6 +53,7 @@ public record RaceTag(UUID identityId, Race race, RaceVariantData variant, Strin
             case ORC       -> OrcVariantData.decode(encodedVariant);
             case LIZARDMAN -> LizardmanVariantData.decode(encodedVariant);
             case DWARF     -> DwarfVariantData.decode(encodedVariant);
+            case OTHERWORLDER -> OtherworlderVariantData.decode(encodedVariant);
         };
         return new RaceTag(identityId, race, variant, profession == null ? "" : profession);
     }
@@ -73,6 +74,7 @@ public record RaceTag(UUID identityId, Race race, RaceVariantData variant, Strin
             case ORC       -> OrcVariantData.DEFAULT;
             case LIZARDMAN -> LizardmanVariantData.DEFAULT;
             case DWARF     -> DwarfVariantData.DEFAULT;
+            case OTHERWORLDER -> OtherworlderVariantData.DEFAULT;
         };
         return new RaceTag(identityId, newRace, fresh, profession);
     }
@@ -95,6 +97,7 @@ public record RaceTag(UUID identityId, Race race, RaceVariantData variant, Strin
                         case ORC       -> OrcVariantData.decode(variantBytes);
                         case LIZARDMAN -> LizardmanVariantData.decode(variantBytes);
                         case DWARF     -> DwarfVariantData.decode(variantBytes);
+                        case OTHERWORLDER -> OtherworlderVariantData.decode(variantBytes);
                     };
                     // profession absent on legacy tags → "" (jobless).
                     String profession = tag.contains("profession")

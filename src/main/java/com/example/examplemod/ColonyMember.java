@@ -25,7 +25,10 @@ public enum ColonyMember {
     GOBLIN(1),
     ORC(2),
     LIZARDMAN(3),
-    DWARF(4);
+    DWARF(4),
+    /** Otherworlders — the "unique colonists". NOT an envoy / immigration /
+     *  birth race: never added to a colony's member set (see isEnvoyRace). */
+    OTHERWORLDER(5);
 
     private final int id;
 
@@ -57,6 +60,7 @@ public enum ColonyMember {
             case ORC -> Optional.of(Race.ORC);
             case LIZARDMAN -> Optional.of(Race.LIZARDMAN);
             case DWARF -> Optional.of(Race.DWARF);
+            case OTHERWORLDER -> Optional.of(Race.OTHERWORLDER);
         };
     }
 
@@ -66,6 +70,14 @@ public enum ColonyMember {
             case ORC -> ORC;
             case LIZARDMAN -> LIZARDMAN;
             case DWARF -> DWARF;
+            case OTHERWORLDER -> OTHERWORLDER;
         };
+    }
+
+    /** False for OTHERWORLDER — the one member that never arrives through the
+     *  colony race system (envoys, immigration, spawn-race draws, birth). They
+     *  join only by naming or the Otherworld Summoning Codex. */
+    public boolean isEnvoyRace() {
+        return this != OTHERWORLDER;
     }
 }

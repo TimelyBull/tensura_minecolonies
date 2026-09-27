@@ -1,6 +1,14 @@
 {
   "replace": false,
   "values": [
-    "tensura:dwarf"
+    "tensura:dwarf",
+    "tensura:kirara_mizutani",
+    "tensura:kyoya_tachibana",
+    "tensura:shogo_taguchi",
+    "tensura:mai_furuki",
+    "tensura:mark_lauren",
+    "tensura:shinji_tanimura",
+    "tensura:shin_ryusei",
+    "tensura:folgen"
   ]
 }

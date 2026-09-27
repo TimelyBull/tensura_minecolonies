@@ -276,6 +276,10 @@ public class ColonyRaceConfigSavedData extends SavedData {
 
     /** Add a member; returns true if the set actually changed. */
     public boolean addMember(int colonyId, ColonyMember member) {
+        // Otherworlders are never a spawn/immigration/envoy race — they join
+        // only by naming or Leon's Codex. Refusing here keeps them out of
+        // pickRandomMember, free immigration, and the envoy scheduler.
+        if (!member.isEnvoyRace()) return false;
         EnumSet<ColonyMember> stored = membersByColony.computeIfAbsent(
                 colonyId, k -> EnumSet.noneOf(ColonyMember.class));
         boolean changed = stored.add(member);

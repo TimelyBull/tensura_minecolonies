@@ -315,6 +315,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public static final DeferredItem<net.minecraft.world.item.Item> SEAL_OF_ASCENSION =
             ITEMS.register("seal_of_ascension",
                     () -> new SealOfAscensionItem(new net.minecraft.world.item.Item.Properties()));
+    /** Leon Covenant reward — the Otherworld Summoning Codex: summons one of
+     *  Tensura's otherworlders into your colony as an OTHERWORLDER citizen
+     *  (2 h real-time cooldown). See OtherworldSummoningCodexItem. */
+    public static final DeferredItem<net.minecraft.world.item.Item> OTHERWORLD_CODEX =
+            ITEMS.register("otherworld_summoning_codex",
+                    () -> new OtherworldSummoningCodexItem(new net.minecraft.world.item.Item.Properties()));
     public static final DeferredItem<net.minecraft.world.item.Item> TWIN_GRAIL =
             ITEMS.register("twin_grail",
                     () -> new TwinGrailItem(new net.minecraft.world.item.Item.Properties()));
@@ -537,6 +543,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         output.accept(TRIAL_CHALICE.get());
                         output.accept(TWIN_GRAIL.get());
                         output.accept(SEAL_OF_ASCENSION.get());
+                        output.accept(OTHERWORLD_CODEX.get());
                         for (var weapon : MASTERWORK_WEAPONS) output.accept(weapon.get());
                     })
                     .build());
@@ -1424,7 +1431,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     private static ColonyMember memberOfCitizen(ServerLevel level, int colonyId, ICitizenData citizen) {
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
         RaceIdentitySavedData.RaceIdentity id = saved.getByColonyAndCitizen(colonyId, citizen.getId());
-        return id == null ? ColonyMember.COLONIST : ColonyMember.fromRace(id.race);
+        if (id == null) return ColonyMember.COLONIST;
+        // Otherworlders are summoned, not born — their children are colonists.
+        if (id.race == Race.OTHERWORLDER) return ColonyMember.COLONIST;
+        return ColonyMember.fromRace(id.race);
     }
 
     /**
@@ -1457,7 +1467,16 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      */
     static void mintRaceCitizen(ServerLevel level, IColony colony,
                                 ICitizenData child, Race race, boolean asBaby) {
-        ResourceLocation typeId = Races.idFor(race);
+        mintRaceCitizen(level, colony, child, race, asBaby, null);
+    }
+
+    /** As above, but with an explicit entity type — needed for OTHERWORLDER,
+     *  whose one race spans eight character types (null = the race's default
+     *  type, the only case for every other race). */
+    static void mintRaceCitizen(ServerLevel level, IColony colony,
+                                ICitizenData child, Race race, boolean asBaby,
+                                @org.jetbrains.annotations.Nullable ResourceLocation typeOverride) {
+        ResourceLocation typeId = typeOverride != null ? typeOverride : Races.idFor(race);
         EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(typeId);
         if (type == null) {
             LOGGER.error("[TM] race growth: EntityType '{}' for race {} not registered — child {} left vanilla",
@@ -1602,6 +1621,32 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         } catch (Throwable t) {
             LOGGER.error("[TM] spawnColonyMember: failed to spawn {} into colony {}",
                     member, colony.getID(), t);
+            return null;
+        }
+    }
+
+    /**
+     * Leon's Otherworld Summoning Codex — bring one otherworlder CHARACTER into
+     * {@code colony} as a grown OTHERWORLDER race citizen, at the town hall,
+     * named after the character. Same shape as {@link #spawnColonyMember} (a
+     * fresh civilian converted by {@link #mintRaceCitizen} with a hidden body of
+     * that character). Callers must check move-in + capacity first. Returns the
+     * new citizen, or null on failure.
+     */
+    static ICitizenData summonOtherworlderCitizen(ServerLevel level, IColony colony,
+                                                  ResourceLocation characterType, String displayName) {
+        try {
+            ICitizenData data = colony.getCitizenManager().createAndRegisterCivilianData();
+            mintRaceCitizen(level, colony, data, Race.OTHERWORLDER, false, characterType);
+            data.setIsChild(false);
+            data.setName(displayName);
+            net.minecraft.core.BlockPos pos = colony.getServerBuildingManager().hasTownHall()
+                    ? colony.getServerBuildingManager().getTownHall().getPosition()
+                    : colony.getCenter();
+            colony.getCitizenManager().spawnOrCreateCitizen(data, level, pos);
+            return data;
+        } catch (Throwable t) {
+            LOGGER.error("[TM] codex: failed to summon {} into colony {}", characterType, colony.getID(), t);
             return null;
         }
     }
@@ -1831,6 +1876,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (config.acceptedEnvoys(colonyId).contains(member)) return false;     // already accepted
         long now = level.getGameTime();
         return switch (member) {
+            // Otherworlders never arrive by envoy — only naming or Leon's Codex.
+            case OTHERWORLDER -> false;
             case COLONIST -> {
                 long created = config.getColonyCreationTick(colonyId, now);
                 long killReset = config.getColonistKillResetTick(colonyId, Long.MIN_VALUE);
@@ -2906,6 +2953,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         Race killedRace = Races.of(killedType);
         if (killedRace == null) return;
         ColonyMember killedMember = ColonyMember.fromRace(killedRace);
+        // Otherworlders have no envoy unlock condition to reset.
+        if (!killedMember.isEnvoyRace()) return;
 
         // Resolve the killer to a player. Walks through projectile sources
         // so a player who shot a goblin with an arrow still gets credit.
@@ -5776,6 +5825,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // each race logs its own fingerprint instead of forcing
             // goblin-shaped fields onto the wire.
             String variantFingerprint = switch (variant) {
+                case OtherworlderVariantData w -> "ow/" + w.typeId();
                 case GoblinVariantData g -> String.format(
                         "g%d/s%d/f%d/h%d/hc%s/b%s/evo%d",
                         g.gender(), g.skin(), g.face(), g.hair(),
@@ -9005,6 +9055,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             case ORC       -> captureOrcVariant(mob);
             case LIZARDMAN -> captureLizardmanVariant(mob);
             case DWARF     -> captureDwarfVariant(mob);
+            // An otherworlder's look IS its entity type (one type per character).
+            case OTHERWORLDER -> new OtherworlderVariantData(
+                    BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).toString());
         };
     }
 
@@ -9041,6 +9094,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 case OrcVariantData o       -> applyOrcVariant(mob, o);
                 case LizardmanVariantData l -> applyLizardmanVariant(mob, l);
                 case DwarfVariantData d     -> applyDwarfVariant(mob, d);
+                case OtherworlderVariantData w -> { } // skin is fixed by the entity type
             }
         } catch (Throwable t) {
             LOGGER.warn("[TM] variant apply: failed for entity {} (race={}) — leaving NBT-restored values",
@@ -9963,6 +10017,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             case ORC       -> OrcVariantData.DEFAULT;
             case LIZARDMAN -> LizardmanVariantData.DEFAULT;
             case DWARF     -> DwarfVariantData.DEFAULT;
+            // Recover the character from the stored body's entity id.
+            case OTHERWORLDER -> identity.entitySnapshot != null
+                    && identity.entitySnapshot.getString("id").contains(":")
+                    ? new OtherworlderVariantData(identity.entitySnapshot.getString("id"))
+                    : OtherworlderVariantData.DEFAULT;
         };
         return RaceTag.of(identity.identityId, identity.race, fresh);
     }

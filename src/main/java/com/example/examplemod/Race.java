@@ -15,7 +15,13 @@ public enum Race {
     GOBLIN(0),
     ORC(1),
     LIZARDMAN(2),
-    DWARF(3);
+    DWARF(3),
+    /** Otherworlders (2026-09-26): Tensura's summonable otherworld humans —
+     *  EIGHT entity types (one per character) share this ONE race; the
+     *  specific character lives in {@link OtherworlderVariantData}. They join
+     *  only by naming or Leon's Otherworld Summoning Codex — never by envoy,
+     *  immigration, or birth. See Races.OTHERWORLDER_TYPES. */
+    OTHERWORLDER(4);
 
     private final int id;
 
@@ -35,6 +41,7 @@ public enum Race {
             case ORC -> LIZARDMAN;
             case LIZARDMAN -> DWARF;
             case DWARF -> GOBLIN;
+            case OTHERWORLDER -> GOBLIN;
         };
     }
 
