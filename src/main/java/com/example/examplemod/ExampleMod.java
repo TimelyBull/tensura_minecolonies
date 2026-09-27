@@ -573,6 +573,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         // Tensura uses Architectury's event system — register via .register(), NOT @SubscribeEvent.
         TensuraEntityEvents.NAMING_EVENT.register(this::onRaceNamed);
+        // Otherworlders join by being TAMED (Summon Otherworlder / the Codex).
+        TensuraEntityEvents.POST_TAME_EVENT.register((tamed, tamer) -> {
+            if (tamed.level() instanceof ServerLevel lvl && tamer instanceof ServerPlayer sp) {
+                tryAdoptTamedOtherworlder(lvl, tamed, sp.getUUID(), sp);
+            }
+        });
         // Seal of Ascension — use it on a subordinate WITHOUT opening the
         // subordinate's inventory (fires before the mob's own right-click).
         NeoForge.EVENT_BUS.addListener(SealOfAscensionItem::onEntityInteract);
@@ -1467,16 +1473,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      */
     static void mintRaceCitizen(ServerLevel level, IColony colony,
                                 ICitizenData child, Race race, boolean asBaby) {
-        mintRaceCitizen(level, colony, child, race, asBaby, null);
-    }
-
-    /** As above, but with an explicit entity type — needed for OTHERWORLDER,
-     *  whose one race spans eight character types (null = the race's default
-     *  type, the only case for every other race). */
-    static void mintRaceCitizen(ServerLevel level, IColony colony,
-                                ICitizenData child, Race race, boolean asBaby,
-                                @org.jetbrains.annotations.Nullable ResourceLocation typeOverride) {
-        ResourceLocation typeId = typeOverride != null ? typeOverride : Races.idFor(race);
+        ResourceLocation typeId = Races.idFor(race);
         EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(typeId);
         if (type == null) {
             LOGGER.error("[TM] race growth: EntityType '{}' for race {} not registered — child {} left vanilla",
@@ -1625,29 +1622,68 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
     }
 
+    // ------------------------------------------------------------------
+    // Otherworlders join by TAMING, never by naming (2026-09-26, developer).
+    // Tensura's Summon Otherworlder spell (and Leon's Codex, which reproduces
+    // it) tames the character to the player; that tame is what registers it
+    // as the player's subordinate — in the G roster, sendable to the colony
+    // like any race. Otherworlders are NOT in can_be_named, so they can't be
+    // named or renamed at all.
+    // ------------------------------------------------------------------
+
     /**
-     * Leon's Otherworld Summoning Codex — bring one otherworlder CHARACTER into
-     * {@code colony} as a grown OTHERWORLDER race citizen, at the town hall,
-     * named after the character. Same shape as {@link #spawnColonyMember} (a
-     * fresh civilian converted by {@link #mintRaceCitizen} with a hidden body of
-     * that character). Callers must check move-in + capacity first. Returns the
-     * new citizen, or null on failure.
+     * Register a tamed otherworlder as {@code owner}'s subordinate (SUBORDINATE
+     * identity + citizen record, via the shared naming intake — but keeping the
+     * character's own name). Called from Tensura's POST_TAME_EVENT, the
+     * per-5-second safety scan, and the Codex. Returns true if it registered.
+     *
+     * <p>Refuses anything that isn't plainly the owner's own new otherworlder:
+     * already registered / queued, an envoy, a rival garrison member or marked
+     * faction boss, a mob under a mind-control effect (charming someone ELSE's
+     * otherworlder must never make it yours), or one with a different
+     * permanent owner.
      */
-    static ICitizenData summonOtherworlderCitizen(ServerLevel level, IColony colony,
-                                                  ResourceLocation characterType, String displayName) {
-        try {
-            ICitizenData data = colony.getCitizenManager().createAndRegisterCivilianData();
-            mintRaceCitizen(level, colony, data, Race.OTHERWORLDER, false, characterType);
-            data.setIsChild(false);
-            data.setName(displayName);
-            net.minecraft.core.BlockPos pos = colony.getServerBuildingManager().hasTownHall()
-                    ? colony.getServerBuildingManager().getTownHall().getPosition()
-                    : colony.getCenter();
-            colony.getCitizenManager().spawnOrCreateCitizen(data, level, pos);
-            return data;
-        } catch (Throwable t) {
-            LOGGER.error("[TM] codex: failed to summon {} into colony {}", characterType, colony.getID(), t);
-            return null;
+    static boolean tryAdoptTamedOtherworlder(ServerLevel level, LivingEntity mob, UUID owner,
+                                             @org.jetbrains.annotations.Nullable ServerPlayer notify) {
+        if (owner == null || !mob.isAlive()) return false;
+        if (Races.of(mob.getType()) != Race.OTHERWORLDER) return false;
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
+        if (saved.getByMobUUID(mob.getUUID()) != null) return false;
+        for (RaceIdentitySavedData.PendingRaceMob queued : saved.getPending()) {
+            if (mob.getUUID().equals(queued.mobEntityUUID)) return false;
+        }
+        if (mob.hasData(Attachments.ENVOY_TAG.get())
+                || mob.hasData(Attachments.GARRISON_TAG.get())
+                || mob.hasData(Attachments.FACTION_MARK.get())) return false;
+        if (mob.hasEffect(io.github.manasmods.tensura.registry.effect.TensuraMobEffects.MIND_CONTROL)) return false;
+        ExistenceStorage ex = readExistence(mob);
+        if (ex != null && ex.getPermanentOwner() != null && !owner.equals(ex.getPermanentOwner())) return false;
+
+        applyAutoNaming(mob, null, owner);   // claims permanent ownership; sets NO name
+        String name = mob.getName().getString();
+        intakeNamedRaceMob(level, mob, name, owner, Race.OTHERWORLDER);
+        if (notify != null) {
+            notify.sendSystemMessage(net.minecraft.network.chat.Component.translatable(
+                    "tensura_minecolonies.otherworlder.joined", name)
+                    .withStyle(ChatFormatting.GOLD));
+        }
+        LOGGER.info("[TM] otherworlder: {} tamed by {} registered as a subordinate", name, owner);
+        return true;
+    }
+
+    /** Safety net for the tame route: every 5 s, register any tamed otherworlder
+     *  near an online player that the POST_TAME_EVENT didn't catch. */
+    static void scanTamedOtherworlders(MinecraftServer server) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            ServerLevel level = player.serverLevel();
+            UUID me = player.getUUID();
+            for (net.minecraft.world.entity.Mob mob : level.getEntitiesOfClass(
+                    net.minecraft.world.entity.Mob.class, player.getBoundingBox().inflate(64),
+                    m -> m.isAlive() && Races.of(m.getType()) == Race.OTHERWORLDER
+                            && m instanceof ISubordinate
+                            && me.equals(SubordinateHelper.getSubordinateOwnerUUID(m)))) {
+                tryAdoptTamedOtherworlder(level, mob, me, player);
+            }
         }
     }
 
@@ -8293,8 +8329,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      *  SPACE variant. Tracks it for {@link #CIRCLE_DURATION_TICKS}-tick
      *  auto-discard via the ServerTickEvent.Post handler. */
     private static void spawnSwapCircle(ServerLevel level, LivingEntity caster, Vec3 pos) {
+        spawnMagicCircle(level, caster, pos, MagicCircleVariant.SPACE);
+    }
+
+    /** A spinning Tensura magic circle of {@code variant} at {@code pos}, auto-
+     *  discarded after CIRCLE_DURATION_TICKS (shared with the swap visuals). */
+    static void spawnMagicCircle(ServerLevel level, LivingEntity caster, Vec3 pos,
+                                 MagicCircleVariant variant) {
         MagicCircle circle = new MagicCircle(level, caster);
-        circle.setVariant(MagicCircleVariant.SPACE);
+        circle.setVariant(variant);
         circle.setSpinning(true);
         circle.setSize(CIRCLE_SIZE);          // inherited from TensuraProjectile
         circle.refreshDimensions();           // recompute bounding box for the new size
@@ -8415,6 +8458,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // Luminous's Covenant trial — poll the "Show of Faith" flock for
             // villagers reaching Master (+ bred children), fill the holy chalice.
             TrialManager.tick(server);
+            // Otherworlder tame route — safety scan (the tame event covers most).
+            if (now % 100 == 0) scanTamedOtherworlders(server);
             // Mind-control mirror — reconcile identity.controlledByUUID from
             // each live subordinate's Tensura temporaryOwner (charm / TR:N
             // domination skills), and silently return control-parked citizens

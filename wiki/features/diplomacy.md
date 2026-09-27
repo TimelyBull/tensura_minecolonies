@@ -87,8 +87,8 @@ in 45 minutes (real time, including while you're logged out).
 
 Leon's Covenant deal is a delivery: 16 gold blocks, 16 blaze rods, and 1
 netherite ingot. The reward is the **Otherworld Summoning Codex**, which
-summons an otherworlder into your colony as a citizen (see
-[Races & Citizens](races-citizens.md#otherworlders)).
+summons an otherworlder to your side as your subordinate; you can then send it
+to your colony (see [Races & Citizens](races-citizens.md#otherworlders)).
 
 ### The Trial Of Light & Dark (Luminous)
 

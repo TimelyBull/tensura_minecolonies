@@ -6,8 +6,9 @@ working in your colony.
 
 ## The Races
 
-Five Tensura races can be named and made into citizens. Each shifts specific
-MineColonies work skills by an exact amount:
+Five Tensura races can become citizens: goblins, orcs, lizardmen, and dwarves
+by being named, and otherworlders by being tamed (see below). Each shifts
+specific MineColonies work skills by an exact amount:
 
 | Race | Appearance | Work-Skill Changes |
 |---|---|---|
@@ -34,18 +35,20 @@ Mizutani, Kyoya Tachibana, Shogo Taguchi, Mai Furuki, Mark Lauren, Shinji
 Tanimura, Shin Ryusei, and Folgen. Each one keeps that character's own look in
 your colony and fights with its own skills when summoned to your side.
 
-They join in only two ways:
+Otherworlders can't be named. Instead, any otherworlder you **tame** becomes
+your subordinate and appears in your roster (G), where you can send it to your
+colony like any other race. There are two ways to get one:
 
-- **Naming** — name an otherworlder you command (for example, one called with
-  Tensura's Summon Otherworlder magic), like any other race.
-- **The Otherworld Summoning Codex** — Leon's Covenant reward. Using it brings a
-  random otherworlder to your town hall as a new citizen, named after its
-  character. It recharges in 2 hours of real time, and it won't work if your
-  colony is full or its town hall isn't letting new citizens move in.
+- **Tensura's Summon Otherworlder magic** — the otherworlder it summons is tamed
+  to you.
+- **The Otherworld Summoning Codex** — Leon's Covenant reward. It performs the
+  same summoning rite, with no magicule cost and no chance of failure, and
+  recharges in 2 hours of real time.
 
-Otherworlders never arrive through envoys or immigration, and a child with an
-otherworlder parent is born an ordinary colonist. The same character can appear
-more than once.
+Charming or controlling someone else's otherworlder, or one guarding a rival
+settlement, does not make it yours. Otherworlders never arrive through envoys
+or immigration, and a child with an otherworlder parent is born an ordinary
+colonist. The same character can appear more than once.
 
 ## Race Colonies
 

@@ -11,11 +11,12 @@ Copy the relevant version's section into the CurseForge release notes on each up
 ### Added
 - **Otherworlders can now join your colony.** Tensura's summoned otherworlders
   (Kirara, Kyoya, Shogo, Mai, Mark Lauren, Shinji, Shin Ryusei, and Folgen) are a
-  new citizen race with strong work skills and no weak one. Name one you command
-  to add it, or use Leon's new Covenant reward.
-- **Leon's Covenant now grants the Otherworld Summoning Codex.** Using it brings
-  a random otherworlder to your town hall as a new citizen; it recharges in 2
-  hours (needs the faction system turned on).
+  new citizen race with strong work skills and no weak one. Any otherworlder you
+  tame appears in your roster (G) and can be sent to your colony; they can't be
+  named.
+- **Leon's Covenant now grants the Otherworld Summoning Codex.** It performs the
+  Summon Otherworlder rite with no cost or failure, and recharges in 2 hours
+  (needs the faction system turned on).
 - **The Jura-Tempest Federation's Covenant now grants the Seal of Ascension.**
   Use it on one of your subordinates to raise its EP by a quarter and speed up
   its EP growth by half for 30 minutes; it recharges in 45 minutes. The
