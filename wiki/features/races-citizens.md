@@ -41,7 +41,7 @@ colony like any other race. There are two ways to get one:
 
 - **Tensura's Summon Otherworlder magic** — the otherworlder it summons is tamed
   to you.
-- **The Otherworld Summoning Codex** — Leon's Covenant reward. It performs the
+- **The Otherworlder Summoning Codex** — Leon's Covenant reward. It performs the
   same summoning rite, with no magicule cost and no chance of failure, and
   recharges in 2 hours of real time.
 

@@ -315,7 +315,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public static final DeferredItem<net.minecraft.world.item.Item> SEAL_OF_ASCENSION =
             ITEMS.register("seal_of_ascension",
                     () -> new SealOfAscensionItem(new net.minecraft.world.item.Item.Properties()));
-    /** Leon Covenant reward — the Otherworld Summoning Codex: summons one of
+    /** Leon Covenant reward — the Otherworlder Summoning Codex: summons one of
      *  Tensura's otherworlders into your colony as an OTHERWORLDER citizen
      *  (2 h real-time cooldown). See OtherworldSummoningCodexItem. */
     public static final DeferredItem<net.minecraft.world.item.Item> OTHERWORLD_CODEX =

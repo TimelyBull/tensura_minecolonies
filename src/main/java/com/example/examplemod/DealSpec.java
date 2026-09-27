@@ -397,7 +397,7 @@ public record DealSpec(
                         new ItemStack(Items.GOLD_BLOCK, 16),
                         new ItemStack(Items.BLAZE_ROD, 16),
                         new ItemStack(Items.NETHERITE_INGOT, 1))),
-                // Real reward (2026-09-26): the Otherworld Summoning Codex —
+                // Real reward (2026-09-26): the Otherworlder Summoning Codex —
                 // Leon's otherworld summoning rite; brings otherworlder
                 // citizens into the colony. (Replaced the TR:N Scorch
                 // Nucleation Core / apples interim.)

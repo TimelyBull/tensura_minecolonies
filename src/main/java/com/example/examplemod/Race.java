@@ -19,7 +19,7 @@ public enum Race {
     /** Otherworlders (2026-09-26): Tensura's summonable otherworld humans —
      *  EIGHT entity types (one per character) share this ONE race; the
      *  specific character lives in {@link OtherworlderVariantData}. They join
-     *  only by naming or Leon's Otherworld Summoning Codex — never by envoy,
+     *  only by naming or Leon's Otherworlder Summoning Codex — never by envoy,
      *  immigration, or birth. See Races.OTHERWORLDER_TYPES. */
     OTHERWORLDER(4);
 

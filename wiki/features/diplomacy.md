@@ -86,7 +86,7 @@ in 45 minutes (real time, including while you're logged out).
 ### Tribute To The Platinum Saber (Leon)
 
 Leon's Covenant deal is a delivery: 16 gold blocks, 16 blaze rods, and 1
-netherite ingot. The reward is the **Otherworld Summoning Codex**, which
+netherite ingot. The reward is the **Otherworlder Summoning Codex**, which
 summons an otherworlder to your side as your subordinate; you can then send it
 to your colony (see [Races & Citizens](races-citizens.md#otherworlders)).
 

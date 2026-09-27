@@ -30,7 +30,7 @@ Copy the relevant version's section into the CurseForge release notes on each up
   new citizen race with strong work skills and no weak one. Any otherworlder you
   tame appears in your roster (G) and can be sent to your colony; they can't be
   named.
-- **Leon's Covenant now grants the Otherworld Summoning Codex.** It performs the
+- **Leon's Covenant now grants the Otherworlder Summoning Codex.** It performs the
   Summon Otherworlder rite with no cost or failure, and recharges in 2 hours
   (needs the faction system turned on).
 - **The Jura-Tempest Federation's Covenant now grants the Seal of Ascension.**

@@ -37,7 +37,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * The Otherworld Summoning Codex — Leon's Covenant reward (2026-09-26,
+ * The Otherworlder Summoning Codex — Leon's Covenant reward (2026-09-26,
  * developer design).
  *
  * <p>Reproduces Tensura's own Summon Otherworlder spell as an item (the spell's

@@ -76,7 +76,7 @@ public enum ColonyMember {
 
     /** False for OTHERWORLDER — the one member that never arrives through the
      *  colony race system (envoys, immigration, spawn-race draws, birth). They
-     *  join only by naming or the Otherworld Summoning Codex. */
+     *  join only by naming or the Otherworlder Summoning Codex. */
     public boolean isEnvoyRace() {
         return this != OTHERWORLDER;
     }
