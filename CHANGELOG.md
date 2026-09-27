@@ -9,6 +9,10 @@ Copy the relevant version's section into the CurseForge release notes on each up
 ## [Unreleased]
 
 ### Added
+- **The Eastern Empire's Covenant now grants the Imperial Garrison Charter.**
+  Use it inside your colony and its guards, present and future, permanently
+  gain more health, armor, knockback resistance, and damage (needs the faction
+  system turned on).
 - **The Moderate Harlequin Alliance's Covenant now grants the Orb of
   Domination.** Hang it on a hostile mob and it fights for you until it dies,
   then the orb drops so you can use it again (needs the faction system turned

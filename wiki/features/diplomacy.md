@@ -142,6 +142,22 @@ you. The mob's EP must be at most half of yours, and it can't already have an
 owner. Bosses, raiders, rival garrison defenders, assassins, and goblins, orcs,
 lizardmen, dwarves, and otherworlders can't be dominated.
 
+### The Imperial Compact (Eastern Empire)
+
+The Eastern Empire's Covenant deal is a delivery: 4 diamond blocks, 32 amethyst
+shards, and 16 redstone blocks. The reward is the **Imperial Garrison
+Charter**. Right-click it while standing inside a colony you own. The charter
+is used up, and from then on every guard in that colony (knights, archers,
+and druids) has:
+
+- +50% max health
+- +4 armor and +2 armor toughness
+- +50% knockback resistance
+- 25% more damage (melee, arrows, and druid attacks)
+
+The bonus is permanent and covers guards you hire later. A guard who is fired
+or changes jobs loses it. Each colony can hold one charter.
+
 ### The Trial Of Light & Dark (Luminous)
 
 Luminous's Covenant deal is a task, not a delivery. Accepting it gives you two

@@ -408,8 +408,9 @@ public record DealSpec(
                         new ItemStack(Items.DIAMOND_BLOCK, 4),
                         new ItemStack(Items.AMETHYST_SHARD, 32),
                         new ItemStack(Items.REDSTONE_BLOCK, 16))),
-                // INTERIM: + TR:N Processor bonus (COVENANT_TRN_BONUS_SKILLS).
-                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),
+                // Real reward (2026-09-26): the Imperial Garrison Charter. (The
+                // TR:N Processor bonus skill stays behind the dev gate.)
+                List.of(new ItemStack(ExampleMod.IMPERIAL_CHARTER.get())),
                 10.0, 0.0, 20 * DAY, 0, FactionTier.ALLIED, true));
         return Map.copyOf(map);
     }

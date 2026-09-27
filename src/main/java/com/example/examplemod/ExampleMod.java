@@ -340,6 +340,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public static final DeferredItem<net.minecraft.world.item.Item> ORB_OF_DOMINATION =
             ITEMS.register("orb_of_domination",
                     () -> new OrbOfDominationItem(new net.minecraft.world.item.Item.Properties()));
+    /** Eastern Empire Covenant reward — the Imperial Garrison Charter: use it
+     *  in your colony to permanently drill its guards (+50% health, +4 armor,
+     *  +2 toughness, +0.5 knockback resist, ×1.25 damage). See ImperialCharterItem. */
+    public static final DeferredItem<net.minecraft.world.item.Item> IMPERIAL_CHARTER =
+            ITEMS.register("imperial_garrison_charter",
+                    () -> new ImperialCharterItem(new net.minecraft.world.item.Item.Properties()));
     public static final DeferredItem<net.minecraft.world.item.Item> TWIN_GRAIL =
             ITEMS.register("twin_grail",
                     () -> new TwinGrailItem(new net.minecraft.world.item.Item.Properties()));
@@ -566,6 +572,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         output.accept(HOLY_FIELD_STONE.get());
                         output.accept(PACK_LEADERS_MARK.get());
                         output.accept(ORB_OF_DOMINATION.get());
+                        output.accept(IMPERIAL_CHARTER.get());
                         for (var weapon : MASTERWORK_WEAPONS) output.accept(weapon.get());
                     })
                     .build());
@@ -617,6 +624,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         NeoForge.EVENT_BUS.addListener(OrbOfDominationItem::onJoinLevel);
         NeoForge.EVENT_BUS.addListener(OrbOfDominationItem::onDeath);
         NeoForge.EVENT_BUS.addListener(OrbOfDominationItem::onConversion);
+        // Imperial Garrison Charter (Eastern Empire) — chartered guards hit harder.
+        NeoForge.EVENT_BUS.addListener(ImperialCharterItem::onIncomingDamage);
         // Seal of Ascension growth buff — ×1.5 EP gains while a subordinate ascends.
         TensuraEntityEvents.ATTRIBUTE_BASE_CHANGE_EVENT.register(SealOfAscensionItem::onAttributeBaseChange);
 
@@ -8500,6 +8509,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             PackLeadersMarkItem.tick(server);
             // Clayman's Orb of Domination — drive every loaded puppet.
             OrbOfDominationItem.tick(server);
+            // Eastern Empire's Imperial Garrison Charter — keep chartered
+            // colonies' guards drilled (new hires, respawned bodies).
+            if (now % (ImperialCharterItem.REAPPLY_SECONDS * 20L) == 0) ImperialCharterItem.tick(server);
             // Otherworlder tame route — safety scan (the tame event covers most).
             if (now % 100 == 0) scanTamedOtherworlders(server);
             // Mind-control mirror — reconcile identity.controlledByUUID from
