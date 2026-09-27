@@ -361,8 +361,9 @@ public record DealSpec(
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         map.put("falmuth", new DealSpec("cov_falmuth", "Prove Your Might",
                 new SlayEntities(java.util.Set.of("minecraft:wither"), 1, "the Wither"),
-                // INTERIM: + TR:N Maximum Will bonus (COVENANT_TRN_BONUS_SKILLS).
-                List.of(new ItemStack(Items.ENCHANTED_GOLDEN_APPLE, 2)),
+                // Real reward (2026-09-26): the Holy Field Stone. (The TR:N
+                // Maximum Will bonus skill stays behind the dev gate.)
+                List.of(new ItemStack(ExampleMod.HOLY_FIELD_STONE.get())),
                 10.0, 0.0, 30 * DAY, 0, FactionTier.ALLIED, true));
         map.put("eurazania", new DealSpec("cov_carrion", "The Great Hunt",
                 new SlayEntities(java.util.Set.of("minecraft:wither", "minecraft:warden",

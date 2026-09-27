@@ -9,6 +9,10 @@ Copy the relevant version's section into the CurseForge release notes on each up
 ## [Unreleased]
 
 ### Added
+- **Falmuth's Covenant now grants the Holy Field Stone.** Using it raises a
+  holy field for 30 seconds; enemies inside can't use skills or magic and take
+  holy damage, while you, your subordinates, and your citizens are unaffected.
+  It recharges in 30 minutes (needs the faction system turned on).
 - **Otherworlders can now join your colony.** Tensura's summoned otherworlders
   (Kirara, Kyoya, Shogo, Mai, Mark Lauren, Shinji, Shin Ryusei, and Folgen) are a
   new citizen race with strong work skills and no weak one. Any otherworlder you

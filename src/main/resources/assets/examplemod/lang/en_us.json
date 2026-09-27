@@ -91,5 +91,11 @@
   "item.tensura_minecolonies.otherworld_codex.tooltip_recharging": "Recharging — %s min",
   "item.tensura_minecolonies.otherworld_codex.recharging": "The codex is still recharging (%s min).",
   "item.tensura_minecolonies.otherworld_codex.failed": "The summoning failed. Try again.",
+  "item.tensura_minecolonies.holy_field_stone": "Holy Field Stone",
+  "item.tensura_minecolonies.holy_field_stone.desc": "Raises a holy field for 30 seconds. Enemies inside can't use skills or magic and take holy damage. Your side is unaffected.",
+  "item.tensura_minecolonies.holy_field_stone.tooltip_ready": "Ready",
+  "item.tensura_minecolonies.holy_field_stone.tooltip_recharging": "Recharging — %s min",
+  "item.tensura_minecolonies.holy_field_stone.recharging": "The stone is still recharging (%s min).",
+  "item.tensura_minecolonies.holy_field_stone.raised": "A Holy Field rises. Enemies within are sealed for %s seconds.",
   "tensura_minecolonies.otherworlder.joined": "%s now serves you. Find them in your roster (G), where you can send them to your colony."
 }

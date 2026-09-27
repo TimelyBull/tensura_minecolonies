@@ -90,6 +90,18 @@ netherite ingot. The reward is the **Otherworld Summoning Codex**, which
 summons an otherworlder to your side as your subordinate; you can then send it
 to your colony (see [Races & Citizens](races-citizens.md#otherworlders)).
 
+### Prove Your Might (Falmuth)
+
+Falmuth's Covenant deal completes when you kill the Wither. The reward is the
+**Holy Field Stone**. Using it raises a holy field with a 12-block radius
+around where you stand, lasting 30 seconds. Enemies inside get Anti-Skill and
+Anti-Magic (they can't use skills or cast spells) and take 1 heart of holy
+damage per second. Enemies are hostile monsters, raiders, rival garrison
+defenders, and any mob attacking you or your subordinates. You, other players,
+your subordinates and pets, colony citizens, and allied fighters are never
+affected, even if you or they are monsters. The stone recharges in 30 minutes
+(real time).
+
 ### The Trial Of Light & Dark (Luminous)
 
 Luminous's Covenant deal is a task, not a delivery. Accepting it gives you two

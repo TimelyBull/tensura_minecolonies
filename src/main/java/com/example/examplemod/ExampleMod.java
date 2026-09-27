@@ -321,6 +321,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public static final DeferredItem<net.minecraft.world.item.Item> OTHERWORLD_CODEX =
             ITEMS.register("otherworld_summoning_codex",
                     () -> new OtherworldSummoningCodexItem(new net.minecraft.world.item.Item.Properties()));
+    /** Falmuth Covenant reward — the Holy Field Stone: raises a 30 s field
+     *  that seals enemies' skills and magic (Anti-Skill + Anti-Magic) and
+     *  burns them with holy damage; your side is untouched (30 min real-time
+     *  cooldown). See HolyFieldStoneItem. */
+    public static final DeferredItem<net.minecraft.world.item.Item> HOLY_FIELD_STONE =
+            ITEMS.register("holy_field_stone",
+                    () -> new HolyFieldStoneItem(new net.minecraft.world.item.Item.Properties()));
     public static final DeferredItem<net.minecraft.world.item.Item> TWIN_GRAIL =
             ITEMS.register("twin_grail",
                     () -> new TwinGrailItem(new net.minecraft.world.item.Item.Properties()));
@@ -544,6 +551,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         output.accept(TWIN_GRAIL.get());
                         output.accept(SEAL_OF_ASCENSION.get());
                         output.accept(OTHERWORLD_CODEX.get());
+                        output.accept(HOLY_FIELD_STONE.get());
                         for (var weapon : MASTERWORK_WEAPONS) output.accept(weapon.get());
                     })
                     .build());
@@ -8429,6 +8437,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // Drago Nova charge-up ritual — EVERY tick (needs per-tick smoothness for
         // the rising orb + converging particles). Cheap early-return when idle.
         DragoNovaItem.tickCharges(server);
+        // Falmuth's Holy Field Stone — draw raised fields every 10 ticks
+        // (the seal + holy damage pulse once a second inside).
+        if (now % 10 == 0) HolyFieldStoneItem.tick(server);
 
         // Stage 3a — envoy scheduler fires every ENVOY_SCHEDULER_PERIOD_TICKS
         // (currently 1 s). Cheap per call; the day-based gates inside the
