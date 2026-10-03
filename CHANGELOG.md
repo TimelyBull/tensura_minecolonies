@@ -65,6 +65,19 @@ Copy the relevant version's section into the CurseForge release notes on each up
   costly summon or send no longer appears for plain Sage holders.
 
 ### Fixed
+- **Race citizens no longer appear as a human colonist for a moment when they
+  arrive.** A newly arrived goblin, orc, lizardman, or dwarf citizen now looks
+  like its race from the first instant.
+- **Newcomers no longer turn up already named.** A goblin, orc, lizardman, or
+  dwarf that wanders in, or is sent by an envoy, now arrives at your town hall
+  as a wild, unnamed one for you to name, instead of joining as a citizen with
+  a random human name. Citizens that already arrived keep their current name.
+- **Newcomers drawn to your colony are no longer unhappy about being named.**
+  Wild ones that arrive at your town hall join without the happiness penalty.
+  Monsters you find and name yourself still have it.
+- **Wild newcomers no longer pile up at the town hall.** A colony now attracts
+  at most three of a race, counting the ones you have named and the ones still
+  waiting to be named.
 - **Race citizens no longer randomly turn human on servers with more than one
   colony.** A citizen death in one colony could wipe the record of a citizen in
   another. Citizens already turned human by this cannot be restored, but it

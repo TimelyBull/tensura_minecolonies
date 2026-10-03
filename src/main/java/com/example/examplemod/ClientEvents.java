@@ -174,6 +174,12 @@ public final class ClientEvents {
         NeoForge.EVENT_BUS.addListener(RenderLivingEvent.Pre.class,
                 DwarfCitizenRenderHandler::onRenderLivingPre);
 
+        // Unnamed race citizens (grown immigrants the player has not named
+        // yet) show NO nameplate. Covers the races drawn directly on the
+        // citizen body (goblin, dwarf); the orc / lizardman handlers do the
+        // same on their stand-in mob.
+        NeoForge.EVENT_BUS.addListener(ClientEvents::onRenderNameTag);
+
         // Cleanup hooks: drop the mirror entry when an entity leaves the
         // client world (chunk unload, discard, dimension change), and wipe
         // the whole map on disconnect so a relog or world-switch starts
@@ -211,6 +217,19 @@ public final class ClientEvents {
         // drains buffered presses if multiple landed in one tick.
         while (OPEN_ROSTER.consumeClick()) {
             PacketDistributor.sendToServer(new Networking.RequestRosterPayload());
+        }
+    }
+
+    /** Hide the nameplate of a race citizen that is still unnamed — its
+     *  citizen name is only the race placeholder (see {@link UnnamedCitizens}).
+     *  Everything else (plain colonists, named race citizens, other mobs) is
+     *  left exactly as it was. */
+    private static void onRenderNameTag(net.neoforged.neoforge.client.event.RenderNameTagEvent event) {
+        if (!(event.getEntity() instanceof com.minecolonies.api.entity.citizen.AbstractEntityCitizen citizen)) return;
+        RaceTag tag = RaceTagClientStore.get(citizen.getUUID());
+        if (tag == null) return;                       // not a race citizen
+        if (UnnamedCitizens.nameplateOrNull(citizen, tag.race()) == null) {
+            event.setCanRender(net.neoforged.neoforge.common.util.TriState.FALSE);
         }
     }
 

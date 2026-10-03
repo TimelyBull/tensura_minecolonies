@@ -881,7 +881,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // levelUp) continues normally from the biased values; the bias
         // does NOT disable progression.
         RaceSkillProfiles.applyForRace(citizenData, race, serverLevel.getRandom());
-        applyNamedAcquisitionPenalty(citizenData);
+        // Mobs this mod spawned for the colony are exempt from the naming penalty.
+        if (!isPenaltyFreeSettler(entity)) {
+            applyNamedAcquisitionPenalty(citizenData);
+        }
 
         LOGGER.info("[TM] CitizenData created: id={} colony='{}' count={}",
                 citizenData.getId(), colony.getName(),
@@ -959,7 +962,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         LOGGER.info("[TM] naming: '{}' was already citizen {} (identity {}) — renamed to '{}', no new citizen created",
                 oldName, identity.citizenId, identity.identityId, newName);
         if (player instanceof ServerPlayer sp) {
-            sendAdvisoryNotice(sp, oldName + " is already one of your citizens — renamed to " + newName + ".");
+            // An unnamed citizen (race placeholder name) is being named for the
+            // first time — "renamed" would read oddly for it.
+            if (UnnamedCitizens.isPlaceholderName(identity.race, oldName)) {
+                sendAdvisoryNotice(sp, "Your citizen is now named " + newName + ".");
+            } else {
+                sendAdvisoryNotice(sp, oldName + " is already one of your citizens — renamed to " + newName + ".");
+            }
         }
     }
 
@@ -1142,7 +1151,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // semantically equivalent to "named-then-immediately-promoted",
             // so we want the same starting bias.
             RaceSkillProfiles.applyForRace(citizenData, p.race, serverLevel.getRandom());
-            applyNamedAcquisitionPenalty(citizenData);
+            if (!isPenaltyFreeSettler(goblin)) {
+                applyNamedAcquisitionPenalty(citizenData);
+            }
             colony.getTravellingManager().startTravellingTo(
                     citizenData, goblin.blockPosition(), Integer.MAX_VALUE);
 
@@ -1337,8 +1348,105 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         //    so this is a no-op-on-buildings — and clears any work orders).
         colony.getCitizenManager().removeCivilian(citizenData);
 
-        // 3. Spawn the wild unnamed race-mob at the captured position.
-        spawnWildRaceMob(serverLevel, spawnPos, race, colony.getName());
+        // 3. Spawn the wild unnamed race-mob at the captured position — but
+        //    only while this race is under the shared arrival cap (named
+        //    citizens + unnamed settlers still waiting nearby). MineColonies
+        //    keeps retrying this initial-settler path for as long as the colony
+        //    has fewer than its initial citizens, and wild mobs are not
+        //    citizens, so without the cap it produced a new wild goblin every
+        //    ~76 seconds for as long as the player left them unnamed.
+        spawnWildSettler(serverLevel, colony, race, spawnPos, true);
+    }
+
+    // ------------------------------------------------------------------
+    // Wild settlers — the ONE way a race arrives at a colony on its own.
+    //
+    // Used by all three arrival paths: the initial-settler replacement
+    // above, free immigration (tryImmigration) and the envoy drop-in. Each
+    // spawns a wild, UNNAMED race mob near the town hall; it becomes a
+    // citizen only when the player names it.
+    //
+    // THE SHARED CAP. For one race at one colony:
+    //
+    //     named citizens of that race
+    //   + unnamed settlers of that race still waiting near the town hall
+    //   must be below RACE_ARRIVAL_CAP (3) for another one to arrive.
+    //
+    // Because every path counts the same two things, they cannot stack: three
+    // goblins waiting unnamed means nobody else comes until one is named,
+    // dies, or wanders off. A settler that strays further than
+    // SETTLER_COUNT_RADIUS from the town hall stops counting.
+    // ------------------------------------------------------------------
+
+    /** A race stops receiving free arrivals at this many (named + waiting). */
+    static final int RACE_ARRIVAL_CAP = 3;
+    /** Unnamed settlers further than this from the town hall no longer count
+     *  as "waiting" (they wandered off). Blocks. */
+    private static final int SETTLER_COUNT_RADIUS = 64;
+    /** Settlers are asked to stay within this distance of the town hall.
+     *  Best effort: Tensura's own AI may not always honour it, which is why
+     *  the count above also checks distance. Blocks. */
+    private static final int SETTLER_ROAM_RADIUS = 24;
+
+    /** How many unnamed settlers of {@code race}, spawned for this colony, are
+     *  alive and still within {@link #SETTLER_COUNT_RADIUS} of its town hall. */
+    static int countWaitingSettlers(ServerLevel level, IColony colony, Race race) {
+        if (!colony.getServerBuildingManager().hasTownHall()) return 0;
+        net.minecraft.core.BlockPos townHall =
+                colony.getServerBuildingManager().getTownHall().getPosition();
+        int colonyId = colony.getID();
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
+        net.minecraft.world.phys.AABB area =
+                new net.minecraft.world.phys.AABB(townHall).inflate(SETTLER_COUNT_RADIUS);
+        int waiting = 0;
+        for (net.minecraft.world.entity.Mob mob
+                : level.getEntitiesOfClass(net.minecraft.world.entity.Mob.class, area)) {
+            if (!mob.isAlive()) continue;
+            if (!mob.hasData(Attachments.SETTLER_TAG.get())) continue;
+            if (mob.getData(Attachments.SETTLER_TAG.get()).colonyId() != colonyId) continue;
+            if (Races.of(mob.getType()) != race) continue;
+            // Already named → it is a citizen now and is counted as one.
+            if (saved.getByMobUUID(mob.getUUID()) != null) continue;
+            waiting++;
+        }
+        return waiting;
+    }
+
+    /** Named citizens of {@code race} plus its unnamed settlers still waiting
+     *  nearby — the number the shared arrival cap is checked against. */
+    static int countRacePresence(ServerLevel level, IColony colony, Race race) {
+        return countColonyMember(level, colony, ColonyMember.fromRace(race))
+                + countWaitingSettlers(level, colony, race);
+    }
+
+    /**
+     * Spawn one wild, unnamed settler of {@code race} for {@code colony} at
+     * {@code spawnPos}. With {@code respectCap} the spawn is skipped when the
+     * race is already at {@link #RACE_ARRIVAL_CAP}; the envoy drop-in passes
+     * false because that arrival was promised by the envoy.
+     * Returns true if a settler was spawned.
+     */
+    static boolean spawnWildSettler(ServerLevel level, IColony colony, Race race,
+                                    net.minecraft.core.BlockPos spawnPos, boolean respectCap) {
+        if (respectCap) {
+            int present = countRacePresence(level, colony, race);
+            if (present >= RACE_ARRIVAL_CAP) {
+                LOGGER.info("[TM] race spawn: colony '{}' already has {} {} (named + waiting, cap {}) — no settler spawned",
+                        colony.getName(), present, race, RACE_ARRIVAL_CAP);
+                return false;
+            }
+        }
+        return spawnWildRaceMob(level, spawnPos, race, colony);
+    }
+
+    /** A safe standing spot beside the colony's town hall (the town hall
+     *  block itself is solid), or null if the colony has no town hall. */
+    private static net.minecraft.core.BlockPos settlerSpawnPos(ServerLevel level, IColony colony) {
+        if (!colony.getServerBuildingManager().hasTownHall()) return null;
+        net.minecraft.core.BlockPos townHall =
+                colony.getServerBuildingManager().getTownHall().getPosition();
+        net.minecraft.core.BlockPos safe = EntityUtils.getSpawnPoint(level, townHall);
+        return safe != null ? safe : townHall.above();
     }
 
     /**
@@ -1352,23 +1460,24 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      * fields (gender, skin, face, hair, colours, clothing). Skipping
      * it would spawn identical default-appearance mobs every time.
      */
-    private static void spawnWildRaceMob(ServerLevel serverLevel,
-                                         net.minecraft.core.BlockPos spawnPos,
-                                         Race race,
-                                         String colonyName) {
+    private static boolean spawnWildRaceMob(ServerLevel serverLevel,
+                                            net.minecraft.core.BlockPos spawnPos,
+                                            Race race,
+                                            IColony colony) {
+        String colonyName = colony.getName();
         ResourceLocation typeId = Races.idFor(race);
         EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(typeId);
         if (type == null) {
             LOGGER.error("[TM] race spawn: EntityType '{}' for race {} not registered — aborting",
                     typeId, race);
-            return;
+            return false;
         }
 
         Entity created = type.create(serverLevel);
         if (!(created instanceof net.minecraft.world.entity.Mob mob)) {
             LOGGER.error("[TM] race spawn: factory for '{}' returned {} (not a Mob) — aborting",
                     typeId, created != null ? created.getClass().getName() : "null");
-            return;
+            return false;
         }
 
         mob.moveTo(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5,
@@ -1384,6 +1493,17 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 null
         );
 
+        // Mark it as this colony's settler so countWaitingSettlers can find it.
+        mob.setData(Attachments.SETTLER_TAG.get(), new SettlerTag(colony.getID()));
+
+        // Ask it to stay near the town hall (same call the envoys use). Best
+        // effort only — the arrival cap also checks distance.
+        if (mob instanceof net.minecraft.world.entity.PathfinderMob pathfinder
+                && colony.getServerBuildingManager().hasTownHall()) {
+            pathfinder.restrictTo(colony.getServerBuildingManager().getTownHall().getPosition(),
+                    SETTLER_ROAM_RADIUS);
+        }
+
         boolean added = serverLevel.addFreshEntity(mob);
         if (added) {
             LOGGER.info("[TM] race spawn: '{}' wild mob spawned for colony '{}' at {} (uuid={})",
@@ -1392,6 +1512,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             LOGGER.warn("[TM] race spawn: addFreshEntity returned false for {} at {}",
                     typeId, spawnPos);
         }
+        return added;
     }
 
     /**
@@ -1568,6 +1689,17 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
         applyAutoNaming(mob, asBaby ? child.getName() : null, owner);
 
+        // A grown arrival must also LOOK unnamed in the colony. MineColonies
+        // gives every new citizen record a random human name the moment it is
+        // created, and that name was showing over the goblin's head and in
+        // the roster (the "goblins spawn already named" report). Replace it
+        // with the race placeholder ("Goblin"); see UnnamedCitizens for how
+        // that placeholder doubles as the "not named yet" marker. The body
+        // has not spawned yet, so it picks this name up when it does.
+        if (!asBaby) {
+            child.setName(UnnamedCitizens.placeholderName(race));
+        }
+
         // Capture the randomised appearance + a full entity snapshot (with the
         // "id" field — goblin.save(tag) writes it) for later summon/send.
         RaceVariantData variant = captureRaceVariant(mob, race);
@@ -1618,16 +1750,19 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     }
 
     // ------------------------------------------------------------------
-    // Race-citizen intake that is NOT reproduction — envoy seeds + ongoing
-    // free immigration. Both mint a GROWN race citizen with a body at the
-    // town hall, the same shape /racegrow force uses.
+    // Race intake that is NOT reproduction — envoy drop-ins + ongoing free
+    // immigration. Since 2026-10-03 a RACE arrives as a wild, unnamed settler
+    // the player must name (spawnWildSettler); only a plain COLONIST still
+    // arrives as a finished citizen (spawnColonyMember).
     // ------------------------------------------------------------------
 
-    /** Per-race population floor free immigration fills each colony's races to. */
-    private static final int IMMIGRATION_RACE_FLOOR = 3;
-    /** Minimum gap between free-immigration arrivals at one colony. Keeps them
-     *  a trickle rather than a burst. ⚠ tunable. */
-    private static final long IMMIGRATION_COOLDOWN_TICKS = 2400L;   // ~2 in-game hours
+    /** Per-race population floor free immigration fills each colony's races
+     *  to. The same number as the shared arrival cap, by design. */
+    private static final int IMMIGRATION_RACE_FLOOR = RACE_ARRIVAL_CAP;
+    /** How often a colony is CHECKED for immigration, and so also the minimum
+     *  gap between arrivals. 6000 ticks = 5 real minutes = a quarter of a
+     *  Minecraft day. ⚠ tunable. */
+    private static final long IMMIGRATION_COOLDOWN_TICKS = 6000L;
 
     /**
      * Spawn a GROWN citizen of {@code member} into {@code colony}, with a body
@@ -1769,10 +1904,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     }
 
     /**
-     * Ongoing free immigration — citizens wander in and join, no Tavern hire.
-     * Runs once per scheduler tick per colony (subject to a per-colony cooldown)
-     * and, for a colony that has any race UNDER the {@link #IMMIGRATION_RACE_FLOOR}
-     * of 3, spawns ONE grown citizen of a chosen race.
+     * Ongoing free immigration — newcomers wander in, no Tavern hire.
+     * Checked once per {@link #IMMIGRATION_COOLDOWN_TICKS} per colony and, for a
+     * colony that has any race UNDER the {@link #IMMIGRATION_RACE_FLOOR} of 3
+     * (named citizens + unnamed settlers waiting nearby), brings ONE newcomer
+     * of a chosen race: a wild, unnamed settler for a race, a finished citizen
+     * for a plain COLONIST.
      *
      * <p>Which race (user rule, 2026-07-22): among the eligible races (those
      * below the floor), a 2/3 chance to bring in the LEAST-represented one and a
@@ -1798,12 +1935,21 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         long now = level.getGameTime();
         long last = config.getLastImmigrationTick(colonyId, Long.MIN_VALUE);
         if (last != Long.MIN_VALUE && now - last < IMMIGRATION_COOLDOWN_TICKS) return;
+        // Start the timer on every CHECK, not only when someone arrives, so the
+        // counting below (which scans nearby mobs) runs once per cooldown
+        // instead of once a second while nobody is eligible.
+        config.setLastImmigrationTick(colonyId, now);
 
-        // Eligible = races currently below the floor, with their counts.
+        // Eligible = races currently below the floor, with their counts. A
+        // race's count is its named citizens PLUS its unnamed settlers still
+        // waiting near the town hall (the shared arrival cap).
         java.util.EnumMap<ColonyMember, Integer> counts = new java.util.EnumMap<>(ColonyMember.class);
         int minCount = Integer.MAX_VALUE;
         for (ColonyMember m : members) {
-            int c = countColonyMember(level, colony, m);
+            java.util.Optional<Race> memberRace = m.toRace();
+            int c = memberRace.isPresent()
+                    ? countRacePresence(level, colony, memberRace.get())
+                    : countColonyMember(level, colony, m);
             if (c < IMMIGRATION_RACE_FLOOR) {
                 counts.put(m, c);
                 minCount = Math.min(minCount, c);
@@ -1823,10 +1969,19 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 ? others.get(rnd.nextInt(others.size()))
                 : fewest.get(rnd.nextInt(fewest.size()));
 
-        ICitizenData joined = spawnColonyMember(level, colony, chosen);
-        if (joined != null) {
-            config.setLastImmigrationTick(colonyId, now);
-            LOGGER.info("[TM] immigration: a {} joined colony {} ('{}') (had {} of that race)",
+        // A race arrives as a wild, unnamed settler the player must name. A
+        // plain COLONIST cannot be "named into" the colony, so it still arrives
+        // as a finished MineColonies citizen.
+        java.util.Optional<Race> chosenRace = chosen.toRace();
+        boolean arrived;
+        if (chosenRace.isPresent()) {
+            net.minecraft.core.BlockPos pos = settlerSpawnPos(level, colony);
+            arrived = pos != null && spawnWildSettler(level, colony, chosenRace.get(), pos, true);
+        } else {
+            arrived = spawnColonyMember(level, colony, chosen) != null;
+        }
+        if (arrived) {
+            LOGGER.info("[TM] immigration: a {} arrived at colony {} ('{}') (had {} of that race, named + waiting)",
                     chosen, colonyId, colony.getName(), counts.get(chosen));
         }
     }
@@ -2318,6 +2473,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         } catch (Throwable t) {
             LOGGER.warn("[TM] auto-naming failed for '{}' (owner {})", name, ownerUUID, t);
         }
+    }
+
+    /** True if {@code mob} is a wild settler this mod spawned for a colony
+     *  (initial settler, immigrant or envoy drop-in — see {@link SettlerTag}).
+     *  Those join WITHOUT the named-citizen happiness penalty (developer's
+     *  rule, 2026-10-03); only mobs the player finds and names, and bred
+     *  babies, get it. */
+    static boolean isPenaltyFreeSettler(Entity mob) {
+        return mob != null && mob.hasData(Attachments.SETTLER_TAG.get());
     }
 
     static void applyNamedAcquisitionPenalty(ICitizenData citizenData) {
@@ -4390,14 +4554,26 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (accepted) {
             config.addMember(colony.getID(), tag.member());
             config.markEnvoyAccepted(colony.getID(), tag.member());
-            // Seed exactly ONE grown citizen of the accepted race right away, so
-            // the diplomacy actually shows up in the colony instead of only
-            // enabling future spawns. Ongoing supply then comes from immigration
-            // (up to 3 of the race) and from births once there's a breeding pair.
-            ICitizenData seeded = spawnColonyMember(level, colony, tag.member());
-            if (seeded != null) {
-                LOGGER.info("[TM] envoy seed: one {} joined colony {} ('{}') citizen {}",
-                        tag.member(), colony.getID(), colony.getName(), seeded.getId());
+            // Bring exactly ONE of the accepted race right away, so the
+            // diplomacy actually shows up at the colony instead of only
+            // enabling future spawns. A race arrives as a wild, UNNAMED settler
+            // at the town hall for the player to name (the cap is skipped — this
+            // arrival was promised by the envoy); a COLONIST arrives as a
+            // finished citizen. Ongoing supply then comes from immigration (up
+            // to 3 of the race) and from births once there's a breeding pair.
+            java.util.Optional<Race> seedRace = tag.member().toRace();
+            if (seedRace.isPresent()) {
+                net.minecraft.core.BlockPos seedPos = settlerSpawnPos(level, colony);
+                if (seedPos != null && spawnWildSettler(level, colony, seedRace.get(), seedPos, false)) {
+                    LOGGER.info("[TM] envoy seed: one unnamed {} arrived at colony {} ('{}')",
+                            tag.member(), colony.getID(), colony.getName());
+                }
+            } else {
+                ICitizenData seeded = spawnColonyMember(level, colony, tag.member());
+                if (seeded != null) {
+                    LOGGER.info("[TM] envoy seed: one {} joined colony {} ('{}') citizen {}",
+                            tag.member(), colony.getID(), colony.getName(), seeded.getId());
+                }
             }
             entity.setData(Attachments.ENVOY_TAG.get(), tag.withState(EnvoyTag.State.ACCEPTED));
             entity.discard();
@@ -7570,7 +7746,17 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         //     your named subordinate instead of a nameless wild mob; for a
         //     hand-named one it is a no-op (Tensura already set exactly these).
         //     It also repairs citizens minted before auto-naming existed.
-        applyAutoNaming(goblin, citizenData.getName(), identity.ownerPlayerUUID);
+        //
+        //     EXCEPT an UNNAMED citizen (a grown immigrant / envoy seed the
+        //     player has not named yet): its citizen name is only the race
+        //     placeholder, so passing it here would turn "Goblin" into a real
+        //     Tensura name and block the naming menu. Pass null instead —
+        //     ownership is still claimed, no name is set, and the player can
+        //     name the mob. Naming it then renames the citizen
+        //     (renameExistingCitizen), which ends the unnamed state.
+        String citizenName = citizenData.getName();
+        boolean stillUnnamed = UnnamedCitizens.isPlaceholderName(identity.race, citizenName);
+        applyAutoNaming(goblin, stillUnnamed ? null : citizenName, identity.ownerPlayerUUID);
 
         // 4. CRITICAL — regenerate UUID. The tag carries the OLD goblin's UUID;
         //    if we kept it, the reverse map would still point at a stale identity
@@ -10054,20 +10240,28 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         if (!(event.getEntity() instanceof AbstractEntityCitizen citizen)) return;
 
-        // The body must already be linked to its CitizenData to know which
-        // identity it is. On a colony-driven respawn (spawnOrCreateCivilian)
-        // this is set before the entity is added, so this handler works. BUT on
-        // a chunk-NBT relog the entity joins FIRST and MineColonies only links
-        // the CitizenData later, during the AI initialize() tick — so here
-        // getCitizenData() is null and we skip. That reload case is covered by
-        // the per-second reconcile pass (tickReconcileRaceTags), which resolves
-        // the body the registration-gated way. This handler is kept as a
-        // zero-latency fast path for the spawn case where it CAN run.
-        ICitizenData citizenData = citizen.getCitizenData();
-        if (citizenData == null) return;
-        int citizenId = citizenData.getId();
-        int colonyId = citizenData.getColony() != null ? citizenData.getColony().getID() : -1;
-        if (colonyId < 0) return;
+        // Work out WHICH citizen this body is from the two ids stored on the
+        // body itself — NOT from getCitizenData(). MineColonies only links the
+        // CitizenData AFTER addFreshEntity() returns, and this event fires
+        // INSIDE addFreshEntity(), so getCitizenData() is always null here for
+        // a fresh spawn. The citizen id and colony id, however, are written
+        // onto the body BEFORE it is added (CitizenManager.spawnCitizenOnPosition)
+        // and are restored from NBT before a chunk reload joins it.
+        //
+        // Stamping here matters for what the player SEES: this event runs
+        // before the body is announced to any client, so the race tag is
+        // already on the body when tracking starts and onStartTracking sends
+        // it straight after the spawn packet. Without it the client drew the
+        // plain MineColonies colonist until the once-a-second reconcile pass
+        // caught up (the 2026-10-01 "vanilla render first" report).
+        //
+        // Ids <= 0 mean "not a colony citizen yet" (and tavern visitors use
+        // negative ids), so those are skipped. The reconcile pass
+        // (tickReconcileRaceTags) stays as the safety net.
+        int citizenId = citizen.getCivilianID();
+        int colonyId = citizen.getCitizenColonyHandler() != null
+                ? citizen.getCitizenColonyHandler().getColonyId() : 0;
+        if (citizenId <= 0 || colonyId <= 0) return;
 
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(serverLevel);
         RaceIdentitySavedData.RaceIdentity identity =
@@ -10150,20 +10344,23 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
 
         // Option D (zero-flicker) — the body lacks the tag. If a player starts
-        // tracking it and it's a known IN_COLONY race-citizen whose body has
-        // ticked enough to be colony-linked, re-stamp right now instead of
-        // waiting up to a second for the reconcile pass. Same null-guard: if the
-        // CitizenData isn't linked yet, skip and let the reconcile pass handle
-        // it. Idempotent + mode-guarded, same as the reconcile pass.
+        // tracking it and it's a known IN_COLONY race-citizen, re-stamp right
+        // now instead of waiting up to a second for the reconcile pass. Like
+        // onEntityJoinLevel, this identifies the citizen from the ids stored
+        // on the body (not getCitizenData(), which is still null when tracking
+        // starts during a fresh spawn). Idempotent + mode-guarded, same as the
+        // reconcile pass.
         if (sp.serverLevel() == null) return;
-        ICitizenData cd = citizen.getCitizenData();
-        if (cd == null || cd.getColony() == null) return;
+        int citizenId = citizen.getCivilianID();
+        int colonyId = citizen.getCitizenColonyHandler() != null
+                ? citizen.getCitizenColonyHandler().getColonyId() : 0;
+        if (citizenId <= 0 || colonyId <= 0) return;
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(sp.serverLevel());
         RaceIdentitySavedData.RaceIdentity identity =
-                saved.getByColonyAndCitizen(cd.getColony().getID(), cd.getId());
+                saved.getByColonyAndCitizen(colonyId, citizenId);
         if (identity == null || identity.mode != RaceIdentitySavedData.Mode.IN_COLONY) return;
         applyRaceTagToCitizen(citizen, rebuildRaceTag(identity, citizen), saved, identity);
         LOGGER.info("[TM] FIX2D: re-stamped race tag on start-tracking for citizen {} (identity {} race={})",
-                cd.getId(), identity.identityId, identity.race);
+                citizenId, identity.identityId, identity.race);
     }
 }

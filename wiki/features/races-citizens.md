@@ -73,17 +73,25 @@ your subordinates from birth. Naming stays for monsters you bring in yourself.
 
 ### New Residents Arrive On Their Own
 
-Two things bring more of a race in without you naming anything:
+Two things bring more of a race to your town hall without you going to find
+one:
 
-- **Accepting an envoy** brings **one** grown citizen of that race into your
-  colony immediately.
-- **Wanderers drift in and settle.** While your colony has fewer than **three**
-  of a race, one occasionally arrives and joins — no Tavern, no payment, at most
-  one per colony every couple of in-game hours. Two times out of three it's the
-  race you have **fewest** of. The other third is a random one of your other
-  under-three races — so races fill out evenly. Once a race reaches three it
-  stops. Beyond that they come from births (and the Tavern). Colonists count as
-  a race here too.
+- **Accepting an envoy** brings **one** of that race to your town hall
+  immediately.
+- **Wanderers drift in.** While your colony has fewer than **three** of a race,
+  one occasionally arrives at the town hall — no Tavern, no payment, at most
+  one per colony every 5 minutes. Two times out of three it's the race you have
+  **fewest** of. The other third is a random one of your other under-three
+  races — so races fill out evenly.
+
+These newcomers arrive **wild and unnamed**. They wait near the town hall and
+become citizens when you **name** them, like any monster you bring in yourself.
+
+The limit of three counts the ones you have named **plus** the unnamed ones
+still waiting within 64 blocks of the town hall. If three are waiting, no more
+come until you name one or one is lost. Past three, a race grows by births (and
+the Tavern). Human colonists count as a race here too, and they still arrive as
+ordinary citizens.
 
 ## Two Roles: At Your Side Vs. In The Colony
 

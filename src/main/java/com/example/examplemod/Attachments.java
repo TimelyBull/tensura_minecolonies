@@ -148,6 +148,18 @@ public final class Attachments {
                             .serialize(ColonyDefenderTag.SERIALIZER)
                             .build());
 
+    /**
+     * Settler marker — see {@link SettlerTag}. Stamped on the wild, unnamed
+     * race mobs this mod spawns for a colony (initial settlers, immigrants,
+     * envoy drop-ins) so the colony can count the ones still waiting to be
+     * named. Default null → {@code hasData(...)} is the authoritative check.
+     */
+    public static final Supplier<AttachmentType<SettlerTag>> SETTLER_TAG =
+            ATTACHMENTS.register("settler_tag",
+                    () -> AttachmentType.<SettlerTag>builder(() -> null)
+                            .serialize(SettlerTag.SERIALIZER)
+                            .build());
+
     private Attachments() {}
 
     public static void register(IEventBus modBus) {

@@ -129,9 +129,8 @@ public final class LizardmanCitizenRenderHandler {
         }
         l.tickCount = citizen.tickCount;
 
-        l.setCustomName(citizen.getCustomName() != null
-                ? citizen.getCustomName()
-                : citizen.getName());
+        // No nameplate while the citizen is still unnamed (race placeholder).
+        l.setCustomName(UnnamedCitizens.nameplateOrNull(citizen, Race.LIZARDMAN));
 
         // Equipment slots — Tensura's LizardmanRenderer reads slot items
         // for armor and held weapons just like OrcRenderer does. Mirror

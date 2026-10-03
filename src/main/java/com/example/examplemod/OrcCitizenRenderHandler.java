@@ -193,10 +193,10 @@ public final class OrcCitizenRenderHandler {
         orc.tickCount = citizen.tickCount;
 
         // Nameplate — citizen's display name copied onto the shadow each
-        // frame; GeckoLib's default name-tag rendering picks it up.
-        orc.setCustomName(citizen.getCustomName() != null
-                ? citizen.getCustomName()
-                : citizen.getName());
+        // frame; GeckoLib's default name-tag rendering picks it up. An
+        // UNNAMED citizen (race placeholder name) gets no name at all, so
+        // no nameplate is drawn until the player names it.
+        orc.setCustomName(UnnamedCitizens.nameplateOrNull(citizen, Race.ORC));
 
         // Equipment slots — Tensura's OrcRenderer$1 is a GeckoLib
         // ItemArmorGeoLayer that reads from the entity's HEAD/CHEST/LEGS/FEET
