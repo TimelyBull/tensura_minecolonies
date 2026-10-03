@@ -3701,11 +3701,23 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
                     // IDEMPOTENT — already has its tag (normal case once stamped):
                     // do nothing, never clobber.
-                    if (citizen.hasData(Attachments.RACE_TAG.get())) continue;
+                    if (!citizen.hasData(Attachments.RACE_TAG.get())) {
+                        applyRaceTagToCitizen(citizen, rebuildRaceTag(identity, citizen), saved, identity);
+                        LOGGER.info("[TM] FIX2B: reconcile re-stamped race tag on citizen {} (identity {} race={})",
+                                identity.citizenId, identity.identityId, identity.race);
+                    }
 
-                    applyRaceTagToCitizen(citizen, rebuildRaceTag(identity, citizen), saved, identity);
-                    LOGGER.info("[TM] FIX2B: reconcile re-stamped race tag on citizen {} (identity {} race={})",
-                            identity.citizenId, identity.identityId, identity.race);
+                    // Same story for the stats: a blank rebuilt body has
+                    // Tensura's 100-EP defaults, so refill it from the mob
+                    // snapshot. Idempotent — a body that already carries its
+                    // stats is left alone.
+                    if (!citizenBodyHasSyncedStats(citizen)
+                            && restoreStatsOntoFreshCitizenBody(level, identity, citizen)) {
+                        ExistenceStorage restored = readExistence(citizen);
+                        LOGGER.info("[TM] FIX2B: reconcile restored stats on rebuilt citizen {} (identity {}) — EP now {}",
+                                identity.citizenId, identity.identityId,
+                                restored == null ? 0.0 : restored.getEP());
+                    }
                 } catch (Throwable t) {
                     LOGGER.warn("[TM] FIX2B: reconcile pass error for identity {}",
                             identity.identityId, t);
@@ -3928,6 +3940,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 if (citEx != null) {
                     copyStats(mobEx, citEx);
                     copyHealthAbsolute(boostedMob, citizen);
+                    markCitizenStatsSynced(citizen);
                 }
             } catch (Throwable t) {
                 LOGGER.warn("[TM] festival EP gift: failed pushing to live citizen {}",
@@ -6136,6 +6149,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             ExistenceStorage dstExist = readExistence(citizenBody);
             if (srcExist != null && dstExist != null) {
                 copyStats(srcExist, dstExist);
+                markCitizenStatsSynced(citizenBody);
                 LOGGER.info("[TM] send: stats copied goblin → citizen (aura {} magicule {} SH {} soul {})",
                         dstExist.getAura(), dstExist.getMagicule(),
                         dstExist.getSpiritualHealth(), dstExist.getSoulPoints());
@@ -7790,7 +7804,15 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         //     the snapshot's stale IExistence values that the NBT reconstruction
         //     just restored. Must happen BEFORE addFreshEntity so the first
         //     client sync carries the right values.
-        if (citizenBodyOpt.isPresent()) {
+        //
+        //     Skipped when the citizen body is a blank one MineColonies built to
+        //     replace the original and the once-a-second reconcile pass has not
+        //     refilled it yet: its 100-EP defaults must never overwrite the
+        //     snapshot (see restoreStatsOntoFreshCitizenBody).
+        if (citizenBodyOpt.isPresent() && !citizenBodyHasSyncedStats(citizenBodyOpt.get())) {
+            LOGGER.info("[TM] summon: citizen {} body is a blank rebuild — keeping snapshot's stats and HP",
+                    identity.citizenId);
+        } else if (citizenBodyOpt.isPresent()) {
             LivingEntity citizenBody = citizenBodyOpt.get();
             // The goblin already has its race-tier max-energy attributes from
             // the NBT reconstruction — no boost needed on the destination here.
@@ -9805,6 +9827,68 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         }
 
         dst.markDirty();
+    }
+
+    // ------------------------------------------------------------------
+    // Fresh-body stat restore — a rebuilt citizen body must not lose its EP
+    // ------------------------------------------------------------------
+    //
+    // A race citizen's EP lives on its CITIZEN BODY while it is in the colony,
+    // but MineColonies replaces that body with a brand-new blank one whenever
+    // its respawn pass finds the old one missing (CitizenManager
+    // .spawnCitizenOnPosition → EntityType.create(level), no saved data). A
+    // blank body has Tensura's defaults: 50 aura + 50 magicule = 100 EP. The
+    // next summon then copied that 100 EP over the good values in the mob
+    // snapshot — a permanent loss (user report 2026-10-03).
+    //
+    // The mob snapshot (identity.entitySnapshot) is the durable copy of the
+    // stats, so a fresh body is simply refilled from it.
+
+    /** Key in the citizen body's persistent NBT: "this body already carries its
+     *  subordinate's stats". Saved with the entity, so a body that comes back
+     *  from a normal chunk reload keeps it; a blank rebuilt body does not. */
+    private static final String STATS_SYNCED_KEY = "tm_stats_synced";
+
+    private static void markCitizenStatsSynced(LivingEntity citizenBody) {
+        citizenBody.getPersistentData().putBoolean(STATS_SYNCED_KEY, true);
+    }
+
+    /** True when this citizen body is carrying its subordinate's stats; false
+     *  when it is a blank body MineColonies built to replace the old one. */
+    private static boolean citizenBodyHasSyncedStats(LivingEntity citizenBody) {
+        if (citizenBody.getPersistentData().getBoolean(STATS_SYNCED_KEY)) return true;
+        // Bodies sent before the marker existed have no key. The max-pool
+        // boost the send path adds is the tell for those — a blank body has
+        // no such modifier.
+        AttributeInstance maxAura = citizenBody.getAttribute(TensuraAttributes.MAX_AURA);
+        if (maxAura != null && maxAura.hasModifier(SWAP_ENERGY_BOOST_ID)) return true;
+        AttributeInstance maxMagicule = citizenBody.getAttribute(TensuraAttributes.MAX_MAGICULE);
+        return maxMagicule != null && maxMagicule.hasModifier(SWAP_ENERGY_BOOST_ID);
+    }
+
+    /**
+     * Refill a blank citizen body from the identity's mob snapshot: the same
+     * bump-max-then-copy the send path does, with a transient mob rebuilt from
+     * the snapshot (never added to the world) standing in for the live mob.
+     *
+     * @return true if the stats were restored; false if the snapshot could not
+     *         be read (the body stays unmarked, so summon keeps the snapshot's
+     *         stats instead of copying this body's defaults).
+     */
+    private static boolean restoreStatsOntoFreshCitizenBody(ServerLevel level,
+            RaceIdentitySavedData.RaceIdentity identity, LivingEntity citizenBody) {
+        if (identity.entitySnapshot == null) return false;
+        java.util.Optional<Entity> created = EntityType.create(identity.entitySnapshot, level);
+        if (created.isEmpty() || !(created.get() instanceof LivingEntity snapshotMob)) return false;
+        ExistenceStorage mobEx = readExistence(snapshotMob);
+        ExistenceStorage citEx = readExistence(citizenBody);
+        if (mobEx == null || citEx == null) return false;
+
+        bumpBodyMaxAttributes(citizenBody, snapshotMob);
+        copyStats(mobEx, citEx);
+        copyHealthAbsolute(snapshotMob, citizenBody);
+        markCitizenStatsSynced(citizenBody);
+        return true;
     }
 
     /** ResourceLocation we use to track the swap-side energy-attribute modifiers

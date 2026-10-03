@@ -65,6 +65,9 @@ Copy the relevant version's section into the CurseForge release notes on each up
   costly summon or send no longer appears for plain Sage holders.
 
 ### Fixed
+- **Subordinates living in your colony no longer drop to about 100 EP.** A
+  citizen could lose its EP while in the colony and stay that way after being
+  summoned back. Subordinates that already lost their EP are not restored.
 - **Race citizens no longer appear as a human colonist for a moment when they
   arrive.** A newly arrived goblin, orc, lizardman, or dwarf citizen now looks
   like its race from the first instant.
