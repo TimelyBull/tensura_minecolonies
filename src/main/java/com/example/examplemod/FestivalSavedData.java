@@ -88,6 +88,14 @@ public class FestivalSavedData extends SavedData {
         return offsets.getOrDefault(colonyId, Map.of());
     }
 
+    /** A citizen is gone (died / removed). MineColonies hands its NUMBER to the
+     *  next citizen, who must not inherit the "+X" display or have the bonus
+     *  subtracted from skills it never had boosted on a later reset. */
+    public void clearCitizen(int colonyId, int citizenId) {
+        Map<Integer, Map<Integer, Integer>> colony = offsets.get(colonyId);
+        if (colony != null && colony.remove(citizenId) != null) setDirty();
+    }
+
     /** Drop all recorded offsets + the done/pending flags for a colony
      *  (the caller subtracts the offsets from the citizens first). */
     public void clearColony(int colonyId) {

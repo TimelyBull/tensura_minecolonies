@@ -120,5 +120,6 @@
   "item.tensura_minecolonies.imperial_charter.already": "This colony already holds an Imperial Charter.",
   "item.tensura_minecolonies.imperial_charter.signed": "%s now holds the Imperial Garrison Charter. %s guards are drilled to imperial standard, and every future guard will be too.",
   "item.tensura_minecolonies.holy_field_stone.raised": "A Holy Field rises. Enemies within are sealed for %s seconds.",
-  "tensura_minecolonies.otherworlder.joined": "%s now serves you. Find them in your roster (G), where you can send them to your colony."
+  "tensura_minecolonies.otherworlder.joined": "%s now serves you. Find them in your roster (G), where you can send them to your colony.",
+  "tensura_minecolonies.otherworlder.waiting": "%s now serves you. They will join your colony once you found one."
 }

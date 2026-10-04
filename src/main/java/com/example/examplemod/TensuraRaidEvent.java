@@ -261,6 +261,12 @@ public class TensuraRaidEvent implements IColonyRaidEvent {
                 raidBar.removePlayer(player);
             }
         }
+        // Players who left this dimension or respawned (a NEW player object)
+        // are no longer in level.players(), so the loop above never removes
+        // them and the bar stayed on their screen.
+        for (ServerPlayer shown : new java.util.ArrayList<>(raidBar.getPlayers())) {
+            if (shown.isRemoved() || shown.level() != level) raidBar.removePlayer(shown);
+        }
     }
 
     void clearRaidBar() {

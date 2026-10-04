@@ -234,6 +234,10 @@ public final class ClientEvents {
     }
 
     private static void onEntityLeaveLevel(EntityLeaveLevelEvent event) {
+        // In single-player this event also fires on the SERVER thread for the
+        // server's levels; the stores below are plain maps owned by the render
+        // thread, so only the client's own level may touch them.
+        if (!event.getLevel().isClientSide()) return;
         // Cheap: hashmap remove on every entity-leave. Could narrow to
         // AbstractEntityCitizen, but the cost difference is negligible.
         java.util.UUID uuid = event.getEntity().getUUID();

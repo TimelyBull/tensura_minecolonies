@@ -1528,14 +1528,26 @@ public class BarrierBlockEntity extends BlockEntity {
     private static void pushFromShell(Mob mob, Vec3 center, double R,
                                       double dx, double dy, double dz, double dist) {
         double target = R + 0.25;
-        double hd = Math.sqrt(dx * dx + dz * dz);
-        if (hd < 1e-3) {
-            // Mob ~directly above/below the core — nudge out along +X so it
-            // isn't left stuck inside; still no vertical movement.
-            mob.setPos(center.x + target, mob.getY(), mob.getZ());
+        // How far out, HORIZONTALLY, the sphere's surface is at the mob's own
+        // height. The field is a sphere, so that is less than the full radius
+        // anywhere above or below the centre. Pushing to the full radius
+        // regardless (the old behaviour) threw a mob that touched the field
+        // high up or deep underground many blocks sideways, through terrain.
+        double h2 = target * target - dy * dy;
+        if (h2 <= 0) {
+            // Above the top or below the bottom of the sphere at this height —
+            // already outside; nothing to move.
         } else {
-            mob.setPos(center.x + (dx / hd) * target, mob.getY(),
-                    center.z + (dz / hd) * target);
+            double h = Math.sqrt(h2);
+            double hd = Math.sqrt(dx * dx + dz * dz);
+            if (hd < 1e-3) {
+                // Mob ~directly above/below the core — nudge out along +X so it
+                // isn't left stuck inside; still no vertical movement.
+                mob.setPos(center.x + h, mob.getY(), mob.getZ());
+            } else if (hd < h) {
+                mob.setPos(center.x + (dx / hd) * h, mob.getY(),
+                        center.z + (dz / hd) * h);
+            }
         }
         Vec3 vel = mob.getDeltaMovement();
         mob.setDeltaMovement(0, Math.min(0, vel.y), 0);

@@ -497,6 +497,11 @@ public final class Assassins {
             if (near && !bar.getPlayers().contains(player)) bar.addPlayer(player);
             else if (!near && bar.getPlayers().contains(player)) bar.removePlayer(player);
         }
+        // Players who left this dimension or respawned (a new player object)
+        // are not in mobLevel.players() any more — drop them from the bar.
+        for (ServerPlayer shown : new ArrayList<>(bar.getPlayers())) {
+            if (shown.isRemoved() || shown.level() != mobLevel) bar.removePlayer(shown);
+        }
     }
 
     // ------------------------------------------------------------------

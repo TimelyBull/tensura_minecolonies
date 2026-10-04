@@ -146,6 +146,20 @@ Copy the relevant version's section into the CurseForge release notes on each up
   you could swallow it, cancelling the blast and leaving a usable Drago Nova
   behind. The blast now always goes off, and an orb left floating by a game
   closed mid-charge is removed when the area loads.
+- **The barrier no longer throws mobs sideways through terrain.** A mob that
+  touched the field high up or deep underground was moved out to the field's
+  full width; it is now moved only as far as the wall at its own height.
+- **A failed send no longer duplicates the subordinate's gear** when you try
+  again.
+- **Masterwork weapons kept on death are no longer lost** if the game closes
+  before you respawn.
+- **Goblin, lizardman, and dwarf citizen shops restock once each dawn,** not
+  once per dimension, so price changes from heavy trading now carry over.
+- **Smaller fixes:** the Imperial Garrison Charter no longer fully heals a
+  guard whenever it reloads; raid and assassin boss bars clear when you change
+  dimension or respawn; a tamed otherworlder's message now says when it is
+  waiting for you to found a colony; a dead citizen's Harvest Festival bonus
+  no longer passes to the next citizen.
 - **Mobs named before you had a colony are no longer forgotten** if they were
   out of range when you founded it. They join once you are near them again.
 - **Raiders no longer appear inside a barrier that covers the whole colony.**

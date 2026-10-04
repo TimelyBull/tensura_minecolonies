@@ -169,12 +169,18 @@ public class ImperialCharterItem extends Item {
 
     private static void addBuffs(AbstractEntityCitizen body) {
         boolean newlyBuffed = !hasCharter(body);
+        // The buffs are transient, so every rebuilt body (chunk reload, relog,
+        // MineColonies respawn) is "newly buffed" again. Keep the guard at the
+        // same FRACTION of its health rather than refilling it — a full heal
+        // here gave every wounded guard a free heal whenever its chunk reloaded.
+        float healthFraction = body.getMaxHealth() > 0 ? body.getHealth() / body.getMaxHealth() : 1f;
         set(body, Attributes.MAX_HEALTH, HEALTH_ID, HEALTH_BONUS_PERCENT / 100.0,
                 AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
         set(body, Attributes.ARMOR, ARMOR_ID, ARMOR_BONUS, AttributeModifier.Operation.ADD_VALUE);
         set(body, Attributes.ARMOR_TOUGHNESS, TOUGHNESS_ID, TOUGHNESS_BONUS, AttributeModifier.Operation.ADD_VALUE);
         set(body, Attributes.KNOCKBACK_RESISTANCE, KNOCKBACK_ID, KNOCKBACK_RESIST, AttributeModifier.Operation.ADD_VALUE);
-        if (newlyBuffed) body.setHealth(body.getMaxHealth());   // fresh recruits start at the new full health
+        // A full-health recruit stays at (the new, higher) full health.
+        if (newlyBuffed) body.setHealth(Math.max(1f, healthFraction * body.getMaxHealth()));
     }
 
     private static void removeBuffs(AbstractEntityCitizen body) {

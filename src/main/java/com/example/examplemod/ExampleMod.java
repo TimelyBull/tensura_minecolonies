@@ -1968,13 +1968,25 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         applyAutoNaming(mob, null, owner);   // claims permanent ownership; sets NO name
         String name = mob.getName().getString();
         intakeNamedRaceMob(level, mob, name, owner, Race.OTHERWORLDER);
-        if (notify != null) {
+        // Intake can register it, queue it (the owner has no colony yet) or
+        // refuse it — say what actually happened.
+        boolean registered = saved.getByMobUUID(mob.getUUID()) != null;
+        boolean queued = false;
+        if (!registered) {
+            for (RaceIdentitySavedData.PendingRaceMob waiting : saved.getPending()) {
+                if (mob.getUUID().equals(waiting.mobEntityUUID)) { queued = true; break; }
+            }
+        }
+        if (notify != null && (registered || queued)) {
             notify.sendSystemMessage(net.minecraft.network.chat.Component.translatable(
-                    "tensura_minecolonies.otherworlder.joined", name)
+                    registered ? "tensura_minecolonies.otherworlder.joined"
+                               : "tensura_minecolonies.otherworlder.waiting", name)
                     .withStyle(ChatFormatting.GOLD));
         }
-        LOGGER.info("[TM] otherworlder: {} tamed by {} registered as a subordinate", name, owner);
-        return true;
+        LOGGER.info("[TM] otherworlder: {} tamed by {} — {}", name, owner,
+                registered ? "registered as a subordinate"
+                        : queued ? "queued until the owner has a colony" : "not registered");
+        return registered || queued;
     }
 
     /** Safety net for the tame route: every 5 s, register any tamed otherworlder
@@ -3579,6 +3591,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 // silently broken.
                 if (identity.mode != RaceIdentitySavedData.Mode.IN_COLONY) continue;
                 if (identity.entitySnapshot == null) continue;
+                // Once per dawn, not once per DIMENSION. This loop runs for
+                // every dimension whose day rolled over, and the Nether and
+                // End share the overworld's clock; snapshots are not tied to a
+                // dimension, so each was restocked three or more times. The
+                // repeats also pushed each trade's demand down, wiping the
+                // price rises a busy shop had earned.
+                if (level.dimension() != Level.OVERWORLD) continue;
                 if (activeTradeIdentities.contains(identity.identityId)) {
                     // Trade in progress — the close hook will persist
                     // the merchant's CURRENT state, which would clobber
@@ -6030,6 +6049,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 // "new citizen took their job and can't be recalled" ghost.
                 colony.getTravellingManager().finishTravellingFor(citizenData);
                 colony.getCitizenManager().removeCivilian(citizenData);
+                FestivalSavedData.get(serverLevel).clearCitizen(colony.getID(), identity.citizenId);
                 LOGGER.info("[TM] death(A): citizen {} removed from '{}' — colony now {} citizens",
                         identity.citizenId, colony.getName(),
                         colony.getCitizenManager().getCurrentCitizenCount());
@@ -6056,6 +6076,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         int citizenId = event.getCitizen().getId();
         IColony colony = event.getColony();
         if (!(colony.getWorld() instanceof ServerLevel serverLevel)) return;
+
+        // Any citizen, ours or not: its festival skill bonus record goes with it.
+        FestivalSavedData.get(serverLevel).clearCitizen(colony.getID(), citizenId);
 
         RaceIdentitySavedData saved = RaceIdentitySavedData.get(serverLevel);
         // Colony-aware lookup. Citizen numbers repeat across colonies (every
@@ -6241,6 +6264,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // Defensive — we already checked above, but the Optional could
             // race to empty if MineColonies' internals clear it. Treat as
             // chunk-not-loaded.
+            clearCitizenInventory(citizenData.getInventory()); // undo step 5 — see the rollback below
             sendAdvisoryNotice(triggeringPlayer, citizenData.getName() +
                     " couldn't reach the colony — there may be no clear space near the town hall.");
             colony.getTravellingManager().startTravellingTo(citizenData, townHallPos, Integer.MAX_VALUE);
@@ -6376,10 +6400,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // discard the body, re-suppress respawn via travelling, advise
             // the player. CitizenData stays valid (count unchanged); the
             // identity is preserved; the goblin is still at the player's
-            // side (we haven't discarded it yet). Items have already been
-            // copied into citizenData.getInventory() at step 5 — they'll
-            // come back to the goblin on a successful retry via the same
-            // transfer-citizen-to-goblin path used by summon.
+            // side (we haven't discarded it yet) and still holds its own
+            // items. Step 5 put COPIES of them in the citizen's inventory;
+            // take those out again, or the retry copies them a second time
+            // into the next free slots and the citizen ends up with two of
+            // everything. (The inventory is otherwise empty here: an away
+            // citizen has no body to collect anything, and a summon empties it.)
+            clearCitizenInventory(citizenData.getInventory());
             citizenBody.discard();
             colony.getTravellingManager().startTravellingTo(
                     citizenData, townHallPos, Integer.MAX_VALUE);
@@ -8926,35 +8953,52 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         return true;
     }
 
-    /** Masterwork soulbound (20+ mastered skills): items kept on death, held
-     *  here between death and respawn, keyed by player UUID. */
-    private static final java.util.Map<java.util.UUID, java.util.List<net.minecraft.world.item.ItemStack>>
-            MASTERWORK_SOULBOUND = new java.util.HashMap<>();
+    /** Masterwork soulbound (20+ mastered skills): items kept on death are
+     *  stored under this key in the player's PERSISTED data between death and
+     *  respawn. That data is saved with the player and copied to the new body
+     *  by the game itself, so the items survive the server stopping (or the
+     *  player logging out) while they are on the death screen — a plain
+     *  in-memory map lost them. */
+    private static final String SOULBOUND_KEY = "tm_masterwork_soulbound";
 
     @SubscribeEvent
     public void onMasterworkDrops(net.neoforged.neoforge.event.entity.living.LivingDropsEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer sp)) return;
         if (MasterworkItem.masteredCount(sp) < MasterworkItem.SOULBOUND_MASTERED) return;
-        java.util.List<net.minecraft.world.item.ItemStack> keep = new java.util.ArrayList<>();
+        net.minecraft.nbt.ListTag keep = new net.minecraft.nbt.ListTag();
         event.getDrops().removeIf(itemEntity -> {
             if (itemEntity.getItem().getItem() instanceof MasterworkItem) {
-                keep.add(itemEntity.getItem().copy());
+                keep.add(itemEntity.getItem().save(sp.registryAccess()));
                 return true;
             }
             return false;
         });
-        if (!keep.isEmpty()) MASTERWORK_SOULBOUND.put(sp.getUUID(), keep);
+        if (keep.isEmpty()) return;
+        CompoundTag root = sp.getPersistentData();
+        CompoundTag persisted = root.getCompound(net.minecraft.world.entity.player.Player.PERSISTED_NBT_TAG);
+        // Append: an earlier death's items may still be waiting.
+        net.minecraft.nbt.ListTag waiting = persisted.getList(SOULBOUND_KEY, net.minecraft.nbt.Tag.TAG_COMPOUND);
+        waiting.addAll(keep);
+        persisted.put(SOULBOUND_KEY, waiting);
+        root.put(net.minecraft.world.entity.player.Player.PERSISTED_NBT_TAG, persisted);
     }
 
     @SubscribeEvent
     public void onMasterworkClone(net.neoforged.neoforge.event.entity.player.PlayerEvent.Clone event) {
         if (!event.isWasDeath()) return;
-        java.util.List<net.minecraft.world.item.ItemStack> keep =
-                MASTERWORK_SOULBOUND.remove(event.getOriginal().getUUID());
-        if (keep == null) return;
         net.minecraft.world.entity.player.Player np = event.getEntity();
-        for (net.minecraft.world.item.ItemStack s : keep) {
-            if (!np.getInventory().add(s)) np.drop(s, false);
+        // The persisted data has already been copied onto the new body.
+        CompoundTag persisted = np.getPersistentData()
+                .getCompound(net.minecraft.world.entity.player.Player.PERSISTED_NBT_TAG);
+        if (!persisted.contains(SOULBOUND_KEY, net.minecraft.nbt.Tag.TAG_LIST)) return;
+        net.minecraft.nbt.ListTag waiting = persisted.getList(SOULBOUND_KEY, net.minecraft.nbt.Tag.TAG_COMPOUND);
+        persisted.remove(SOULBOUND_KEY);
+        for (int i = 0; i < waiting.size(); i++) {
+            net.minecraft.world.item.ItemStack stack = net.minecraft.world.item.ItemStack
+                    .parse(np.registryAccess(), waiting.getCompound(i))
+                    .orElse(net.minecraft.world.item.ItemStack.EMPTY);
+            if (stack.isEmpty()) continue;
+            if (!np.getInventory().add(stack)) np.drop(stack, false);
         }
     }
 
@@ -10750,7 +10794,6 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         lastRestockDayPerDim.clear();
         TRANSIENT_MERCHANTS.clear();
         GRAIL_NIGHT_BLESSING.clear();
-        MASTERWORK_SOULBOUND.clear();
 
         Assassins.resetSessionState();
         BarrierBlockEntity.resetSessionState();
