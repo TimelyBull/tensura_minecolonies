@@ -84,6 +84,16 @@ Copy the relevant version's section into the CurseForge release notes on each up
   could inherit the old one's accepted envoys, citizen races, and Imperial
   Charter. Subordinates that were out with you when the colony was deleted
   join your next colony.
+- **A subordinate that dies in another dimension no longer returns as a human
+  colonist.** Dying away from the colony's dimension (the Nether, for example)
+  left its citizen record behind. The same fix stops an assassin from striking
+  in another dimension while its citizen body stays in the colony.
+- **The barrier's Demon Lord magicule bonus no longer pays out on magicule you
+  take from the barrier,** and no longer pays a lump sum when you walk back
+  into the field.
+- **Barrier damage is no longer repaired for free when the area reloads.**
+  Broken and damaged sections stay as they were after a relog or after you
+  leave and come back.
 - **Mobs named before you had a colony are no longer forgotten** if they were
   out of range when you founded it. They join once you are near them again.
 - **Raiders no longer appear inside a barrier that covers the whole colony.**

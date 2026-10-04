@@ -5905,8 +5905,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 entityUUID, event.getEntity().getName().getString(),
                 identity.citizenId, identity.colonyId);
 
-        IColony colony = IColonyManager.getInstance()
-                .getColonyByWorld(identity.colonyId, serverLevel);
+        // The colony is looked up in EVERY dimension, not just the one the mob
+        // died in. A subordinate that followed its owner into the Nether died
+        // there with its colony in the overworld; the old same-level lookup
+        // found nothing, the identity was dropped, and the citizen record
+        // stayed behind to be released later as a plain human colonist.
+        IColony colony = findIdentityColony(serverLevel.getServer(), identity);
         if (colony != null) {
             ICitizenData citizenData = colony.getCitizenManager().getCivilian(identity.citizenId);
             if (citizenData != null) {
@@ -8992,6 +8996,36 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                         p.identityId(), t);
             }
         }
+    }
+
+    /**
+     * The colony an identity's citizen belongs to, searched across every
+     * dimension. Use this whenever the code is NOT already standing in the
+     * colony's own level (a mob dying, an owner being attacked elsewhere).
+     *
+     * <p>Colony numbers repeat between dimensions, so more than one colony can
+     * match. The best match wins: one that really has this citizen number
+     * counts most, then one owned by the identity's owner.</p>
+     *
+     * @return the colony, or null if no loaded dimension has one with this id
+     */
+    static IColony findIdentityColony(MinecraftServer server,
+                                      RaceIdentitySavedData.RaceIdentity identity) {
+        IColony best = null;
+        int bestScore = -1;
+        for (ServerLevel level : server.getAllLevels()) {
+            IColony candidate = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
+            if (candidate == null) continue;
+            int score = 0;
+            if (candidate.getCitizenManager().getCivilian(identity.citizenId) != null) score += 2;
+            if (identity.ownerPlayerUUID != null
+                    && identity.ownerPlayerUUID.equals(candidate.getPermissions().getOwner())) score += 1;
+            if (score > bestScore) {
+                best = candidate;
+                bestScore = score;
+            }
+        }
+        return best;
     }
 
     /**

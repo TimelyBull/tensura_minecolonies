@@ -189,6 +189,10 @@ public class BarrierBlockEntity extends BlockEntity {
      *  first barrier to process a player consumes the natural-gain delta;
      *  others see none. */
     private static final java.util.Map<UUID, Double> DL_MAGICULE_BASELINE = new ConcurrentHashMap<>();
+    /** Game tick each baseline was last refreshed. A baseline older than one
+     *  tick means the player was outside every buffed field in between, so it
+     *  is re-seeded without paying a bonus on what they gained while away. */
+    private static final java.util.Map<UUID, Long> DL_MAGICULE_BASELINE_TICK = new ConcurrentHashMap<>();
 
     // ------------------------------------------------------------------
     // Colony core networks — cores claimed by the same colony form ONE
@@ -1175,6 +1179,10 @@ public class BarrierBlockEntity extends BlockEntity {
         if (removed <= 0) return 0;
         exist.setMagicule(cur + removed);
         exist.markDirty();
+        // Magicule taken out of the barrier is not natural regeneration: move
+        // the Demon-Lord buff's baseline up with it, or the buff would pay 10%
+        // on every withdrawal (take, put back, repeat = free magicule).
+        DL_MAGICULE_BASELINE.computeIfPresent(player.getUUID(), (id, old) -> cur + removed);
         return removed;
     }
 
@@ -1531,7 +1539,10 @@ public class BarrierBlockEntity extends BlockEntity {
             ExistenceStorage exist = ExampleMod.readExistence(player);
             if (exist == null) continue;
             double cur = exist.getMagicule();
-            Double prev = DL_MAGICULE_BASELINE.get(player.getUUID());
+            long now = serverLevel.getGameTime();
+            Long seenAt = DL_MAGICULE_BASELINE_TICK.put(player.getUUID(), now);
+            boolean continuous = seenAt != null && now - seenAt <= 1;
+            Double prev = continuous ? DL_MAGICULE_BASELINE.get(player.getUUID()) : null;
             if (prev != null && cur > prev) {
                 double gain = cur - prev;
                 double bonus = gain * DL_MAGICULE_REGEN_BONUS;
@@ -1618,6 +1629,10 @@ public class BarrierBlockEntity extends BlockEntity {
         storageBonus = tag.getDouble("storageBonus");
         poolStoredCache = tag.contains("poolStored")
                 ? tag.getDouble("poolStored") : storedMagicule;
+        // A field that was up when saved is still up. Leaving this false made
+        // the first tick after every chunk load look like "refuelled after a
+        // collapse" and reset every damaged section to full for free.
+        fieldWasUp = poolStoredCache > 0;
         activeLayers = tag.contains("activeLayers") ? Math.max(1,
                 Math.min(MAX_LAYERS, tag.getInt("activeLayers"))) : 1;
         layerSetterUuid = tag.hasUUID("layerSetter") ? tag.getUUID("layerSetter") : null;

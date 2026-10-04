@@ -283,7 +283,10 @@ public final class Assassins {
                                  ServerPlayer owner,
                                  AssassinSavedData data) {
         RaceIdentitySavedData identities = RaceIdentitySavedData.get(level);
-        IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
+        // `level` is where the OWNER is, which need not be the colony's
+        // dimension — search them all, or the citizen body is left standing
+        // in the colony while its assassin body appears beside the owner.
+        IColony colony = ExampleMod.findIdentityColony(level.getServer(), identity);
         String name = "The Assassin";
 
         LivingEntity mob;
@@ -291,15 +294,19 @@ public final class Assassins {
             // Discard the citizen body; suppress MC's respawn loop; rebuild
             // the Tensura body from the snapshot BEHIND the player (no
             // circles, no cost — assassins don't announce themselves).
-            if (colony != null) {
-                ICitizenData cd = colony.getCitizenManager().getCivilian(identity.citizenId);
-                if (cd != null) {
-                    name = cd.getName();
-                    cd.getEntity().ifPresent(Entity::discard);
-                    colony.getTravellingManager().startTravellingTo(
-                            cd, colony.getCenter(), Integer.MAX_VALUE);
-                }
+            ICitizenData cd = colony == null ? null
+                    : colony.getCitizenManager().getCivilian(identity.citizenId);
+            if (cd == null) {
+                // No citizen to take the place of — striking anyway would put
+                // a second body in the world. Wait for the next window.
+                LOGGER.warn("[TM] assassin: citizen {} of colony {} not found for {} — strike postponed",
+                        identity.citizenId, identity.colonyId, identity.identityId);
+                return;
             }
+            name = cd.getName();
+            cd.getEntity().ifPresent(Entity::discard);
+            colony.getTravellingManager().startTravellingTo(
+                    cd, colony.getCenter(), Integer.MAX_VALUE);
             Entity created = EntityType.create(identity.entitySnapshot, level).orElse(null);
             if (!(created instanceof LivingEntity living)) {
                 LOGGER.warn("[TM] assassin: snapshot reconstruction failed for {}", identity.identityId);
