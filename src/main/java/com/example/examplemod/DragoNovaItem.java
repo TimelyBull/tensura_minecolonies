@@ -76,14 +76,14 @@ public class DragoNovaItem extends Item {
     private static final class Charge {
         final UUID caster;
         final ResourceKey<Level> dimension;
-        final ItemEntity orb;
+        final net.minecraft.world.entity.Entity orb;
         final double x, baseY, z;
         final boolean lethal;
         /** Blast damage this charge will deal — the flat item value, or a bigger
          *  weapon-scaled one when fired by the Absolute Annihilator. */
         final float damage;
         int ticks;
-        Charge(UUID caster, ResourceKey<Level> dimension, ItemEntity orb,
+        Charge(UUID caster, ResourceKey<Level> dimension, net.minecraft.world.entity.Entity orb,
                double x, double baseY, double z, boolean lethal, float damage) {
             this.caster = caster; this.dimension = dimension; this.orb = orb;
             this.x = x; this.baseY = baseY; this.z = z; this.lethal = lethal;
@@ -128,7 +128,7 @@ public class DragoNovaItem extends Item {
 
     /**
      * Begin the charge-up ritual instead of detonating instantly: spawn a
-     * floating Drago Nova orb (a no-gravity, un-pickable {@link ItemEntity})
+     * floating Drago Nova orb (a display-only entity — see {@link #spawnOrb})
      * that rises while blue particles stream inward and a bubble swells around
      * it, then detonates at the top of the rise. Driven by {@link #tickCharges}.
      */
@@ -147,20 +147,68 @@ public class DragoNovaItem extends Item {
         double x = user.getX();
         double baseY = user.getY() + 0.6;   // starts around waist height
         double z = user.getZ();
-        ItemEntity orb = new ItemEntity(level, x, baseY, z,
-                new ItemStack(ExampleMod.DRAGO_NOVA.get()));
-        orb.setNoGravity(true);
-        orb.setDeltaMovement(Vec3.ZERO);
-        orb.setNeverPickUp();
-        orb.setUnlimitedLifetime();
-        orb.setInvulnerable(true);
-        level.addFreshEntity(orb);
+        net.minecraft.world.entity.Entity orb = spawnOrb(level, x, baseY, z);
+        if (orb == null) {
+            ExampleMod.LOGGER.warn("[TM] drago nova: could not create the charge orb — charging without it");
+        }
         ACTIVE_CHARGES.add(new Charge(user.getUUID(), level.dimension(), orb, x, baseY, z,
                 lethalToUser, damage));
         level.playSound(null, user.blockPosition(), SoundEvents.CONDUIT_ACTIVATE,
                 SoundSource.PLAYERS, 2.0f, 0.7f);
         ExampleMod.LOGGER.info("[TM] drago nova: charge begun by {} (lethal {})",
                 user.getGameProfile().getName(), lethalToUser);
+    }
+
+    /** Scoreboard-style entity tag on the charge orb, so a leftover one (the
+     *  game closed mid-charge) can be recognised and removed when it loads. */
+    static final String ORB_TAG = "tm_drago_nova_orb";
+
+    /**
+     * The floating orb: a vanilla ITEM DISPLAY entity showing a Drago Nova.
+     *
+     * <p>It used to be a real dropped item marked "never pick up". That mark
+     * only stops players — a hopper under the caster swallowed the orb, which
+     * cancelled the blast and left a real, usable Drago Nova in the hopper
+     * (free from the Absolute Annihilator, every cooldown). A display entity
+     * is not an item: nothing can collect it, push it or hurt it.</p>
+     *
+     * <p>Display entities keep their settings private, so they are set the
+     * way a {@code /summon} command would: through the entity's NBT.</p>
+     */
+    private static net.minecraft.world.entity.Entity spawnOrb(ServerLevel level, double x, double y, double z) {
+        net.minecraft.world.entity.Display.ItemDisplay orb =
+                net.minecraft.world.entity.EntityType.ITEM_DISPLAY.create(level);
+        if (orb == null) return null;
+        orb.setPos(x, y, z);
+        net.minecraft.nbt.CompoundTag tag = orb.saveWithoutId(new net.minecraft.nbt.CompoundTag());
+        tag.put("item", new ItemStack(ExampleMod.DRAGO_NOVA.get()).save(level.registryAccess()));
+        tag.putString("item_display", "ground");   // sized like a dropped item
+        tag.putString("billboard", "center");      // always faces the viewer
+        tag.putInt("teleport_duration", 2);        // smooth the per-tick rise
+        net.minecraft.nbt.CompoundTag bright = new net.minecraft.nbt.CompoundTag();
+        bright.putInt("sky", 15);
+        bright.putInt("block", 15);
+        tag.put("brightness", bright);             // glows in the dark
+        orb.load(tag);
+        orb.addTag(ORB_TAG);
+        level.addFreshEntity(orb);
+        return orb;
+    }
+
+    /**
+     * Remove an orb left behind by a charge that never finished (the game was
+     * closed during the 2.5 s charge-up): both the new display orb and the old
+     * dropped-item orb from before this change. Called from
+     * ExampleMod.onEntityJoinLevel for entities loaded from disk — a charge
+     * never survives a restart, so any orb loading in is a leftover.
+     */
+    static boolean isLeftoverOrb(net.minecraft.world.entity.Entity entity) {
+        if (entity.getTags().contains(ORB_TAG)) return true;
+        // The pre-change orb: an invulnerable, weightless Drago Nova item that
+        // nobody can pick up. No normally dropped item has all four.
+        return entity instanceof ItemEntity item
+                && item.isNoGravity() && item.isInvulnerable() && item.hasPickUpDelay()
+                && item.getItem().getItem() instanceof DragoNovaItem;
     }
 
     /**
@@ -185,7 +233,7 @@ public class DragoNovaItem extends Item {
         while (it.hasNext()) {
             Charge c = it.next();
             ServerLevel level = server.getLevel(c.dimension);
-            if (level == null || c.orb == null || !c.orb.isAlive()) {
+            if (level == null) {
                 if (c.orb != null) c.orb.discard();
                 it.remove();
                 continue;
@@ -194,9 +242,10 @@ public class DragoNovaItem extends Item {
             double progress = Math.min(1.0, c.ticks / (double) CHARGE_TICKS);
             double orbY = c.baseY + ORB_RISE * progress;
             // Pin the orb to its rising point — no drift, no gravity.
-            c.orb.setPos(c.x, orbY, c.z);
-            c.orb.setDeltaMovement(Vec3.ZERO);
-            c.orb.setNoGravity(true);
+            // The orb is only a picture. If something removed it, the charge
+            // carries on and still detonates — losing the picture must never
+            // cancel the blast (that was the hopper trick).
+            if (c.orb != null && !c.orb.isRemoved()) c.orb.setPos(c.x, orbY, c.z);
             spawnChargeParticles(level, c.x, orbY, c.z, progress);
             if (c.ticks % 12 == 0) {
                 level.playSound(null, BlockPos.containing(c.x, orbY, c.z),
@@ -204,7 +253,7 @@ public class DragoNovaItem extends Item {
                         1.2f, 0.5f + 0.8f * (float) progress);
             }
             if (c.ticks >= CHARGE_TICKS) {
-                c.orb.discard();
+                if (c.orb != null) c.orb.discard();
                 ServerPlayer caster = server.getPlayerList().getPlayer(c.caster);
                 blast(level, caster, c.lethal, c.x, orbY, c.z, c.damage);
                 it.remove();

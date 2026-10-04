@@ -142,6 +142,10 @@ Copy the relevant version's section into the CurseForge release notes on each up
   taken at the moment of the kill, so EP you earn afterwards is yours in full,
   and it is returned when the assassin dies. Only the colony's owner can be
   stolen from, and a full character reset cancels it.
+- **The Drago Nova's charging orb can no longer be collected.** A hopper under
+  you could swallow it, cancelling the blast and leaving a usable Drago Nova
+  behind. The blast now always goes off, and an orb left floating by a game
+  closed mid-charge is removed when the area loads.
 - **Mobs named before you had a colony are no longer forgotten** if they were
   out of range when you founded it. They join once you are near them again.
 - **Raiders no longer appear inside a barrier that covers the whole colony.**

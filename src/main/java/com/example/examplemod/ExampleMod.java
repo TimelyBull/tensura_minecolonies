@@ -10781,6 +10781,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             LOGGER.warn("[TM] raid: leftover-raider sweep threw", t);
         }
 
+        // A Drago Nova charge orb saved mid-charge is only a leftover picture.
+        if (event.loadedFromDisk() && DragoNovaItem.isLeftoverOrb(event.getEntity())) {
+            event.setCanceled(true);
+            return;
+        }
+
         // Settlers and envoys lose their roam restriction on every reload.
         try {
             reapplyTetherOnLoad(serverLevel, event.getEntity());
