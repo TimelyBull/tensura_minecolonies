@@ -326,13 +326,15 @@ public class BarrierBlockEntity extends BlockEntity {
     /** Smallest radius the field can be dialled down to. */
     public static final double MIN_RADIUS = 8.0;
     /** Radius a core BEYOND the field-driving one adds, PER TIER — so an extra
-     *  tier-1/2/3/4 core is worth 2/4/6/8 blocks. Building a bigger core is
-     *  therefore worth more than building another small one. (User-specified,
-     *  2026-07-22.) */
-    public static final double RADIUS_PER_EXTRA_CORE_TIER = 2.0;
-    /** Absolute ceiling however many cores are built — bounds the per-second
-     *  collision sweep and the sphere render. ⚠ BALANCE GUESS. */
-    public static final double RADIUS_HARD_CAP = 128.0;
+     *  tier-1/2/3/4 core is worth 4/8/12/16 blocks. Building a bigger core is
+     *  therefore worth more than building another small one. (User-specified;
+     *  doubled from 2 on 2026-10-03 so the raised cap is reachable.) */
+    public static final double RADIUS_PER_EXTRA_CORE_TIER = 4.0;
+    /** Absolute ceiling however many cores are built — bounds the per-tick
+     *  collision sweep and the sphere render. Raised from 128 on 2026-10-03
+     *  (a default MineColonies colony can reach ~320 blocks from its centre).
+     *  ⚠ BALANCE GUESS. */
+    public static final double RADIUS_HARD_CAP = 256.0;
     /** One click of the size buttons, in blocks. */
     public static final double RADIUS_STEP = 4.0;
 
@@ -456,7 +458,7 @@ public class BarrierBlockEntity extends BlockEntity {
      *
      * <p>Worked example at the default sizes: a lone tier-1 core at radius 16
      * pays 26/s, a tier-4 at radius 60 pays 70/s, and that same tier-4 dialled
-     * out to the 128 cap pays 138/s. Three layers at radius 60 pay 225/s.</p>
+     * out to the 256 cap pays 266/s. Three layers at radius 60 pay 225/s.</p>
      */
     public double getUpkeepPerSecond() {
         double total = 0.0;

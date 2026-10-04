@@ -40,6 +40,10 @@ Copy the relevant version's section into the CurseForge release notes on each up
   at least 4 races (needs the faction system turned on).
 
 ### Changed
+- **Barriers can now grow to 256 blocks, and extra cores add twice as much.**
+  The size ceiling was 128. Each extra core now adds 4 blocks per tier (4 to 16)
+  instead of 2. Existing barriers keep their size until you change it in the
+  core menu.
 - **Diplomacy deals were re-priced to match each faction's strength.** Leon,
   Milim, and the Eastern Empire pay more; Luminous's tithes ask for about half
   as much; and Eurazania's "A Proper Den" now asks for more materials.
@@ -65,6 +69,9 @@ Copy the relevant version's section into the CurseForge release notes on each up
   costly summon or send no longer appears for plain Sage holders.
 
 ### Fixed
+- **Raiders no longer appear inside a barrier that covers the whole colony.**
+- **A large barrier's wall no longer vanishes when you stand far from the core
+  block.**
 - **Subordinates living in your colony no longer drop to about 100 EP.** A
   citizen could lose its EP while in the colony and stay that way after being
   summoned back. Subordinates that already lost their EP are not restored.

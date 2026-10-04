@@ -129,6 +129,10 @@ public final class TensuraRaids {
     /** Claim radius assumed when the border march finds no claimed chunk
      *  at all (shouldn't happen for a real colony). */
     static final int EDGE_SPAWN_ASSUMED_CLAIM = 80;
+    /** When a fallback spawn point lands inside a fueled barrier, how many
+     *  16-block steps further out it may be pushed looking for open ground.
+     *  40 × 16 = 640 blocks, enough to clear the largest barrier. */
+    static final int EDGE_SPAWN_BARRIER_STEPS = 40;
     // ------------------------------------------------------------------
     // Orc Disaster — the first lore-event ENCOUNTER (the raid-engine
     // plug-in behind LoreEvents' EncounterFactory seam). Constants per
@@ -786,11 +790,15 @@ public final class TensuraRaids {
      * always extend beyond the buildings themselves, so a border-plus-
      * margin point can never be inside the built-up area.
      *
-     * <p>Several random bearings are tried so open water or a barrier
-     * field on one side doesn't force a bad spot. Preference order:
-     * dry land outside any barrier → water outside any barrier → the
-     * last barrier-covered candidate (only reachable if fueled barriers
-     * cover the entire perimeter, which real barrier radii can't).
+     * <p>A barrier can be bigger than the colony's claim (a large field
+     * around a small colony covers the whole border), so a candidate that
+     * lands inside a fueled barrier is pushed further out along the same
+     * bearing, 16 blocks at a time, until it is clear of the field.
+     *
+     * <p>Several random bearings are tried so open water on one side
+     * doesn't force a bad spot. Preference order: dry land outside any
+     * barrier → water outside any barrier → the last barrier-covered
+     * candidate (only if the outward push ran out of steps).
      */
     private static BlockPos computeEdgeSpawnPos(ServerLevel level, IColony colony) {
         BlockPos center = colony.getCenter();
@@ -819,6 +827,16 @@ public final class TensuraRaids {
             // hall; if the march found nothing this bearing is broken
             // (e.g. center oddly placed) — assume a modest claim instead.
             int radius = (boundary >= 16 ? boundary : EDGE_SPAWN_ASSUMED_CLAIM) + EDGE_SPAWN_MARGIN;
+
+            // Inside a barrier? Step outward along this bearing until clear.
+            // (Checked on plain x/z first so we only look up the surface —
+            // which loads the chunk — for the point we will actually use.)
+            for (int step = 0; step < EDGE_SPAWN_BARRIER_STEPS; step++) {
+                double px = center.getX() + dx * radius + 0.5;
+                double pz = center.getZ() + dz * radius + 0.5;
+                if (!isInsideFueledBarrier(level, px, pz)) break;
+                radius += 16;
+            }
 
             BlockPos surface = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE,
                     new BlockPos(center.getX() + (int) Math.round(dx * radius), 0,

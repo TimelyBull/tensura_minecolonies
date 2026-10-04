@@ -47,8 +47,16 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
 
     /** Texture tiling: one repeat per this many blocks. */
     private static final float TILE_SIZE = 0.5f;
-    /** Sub-grid per logical section, for sphere roundness (state stays 24). */
+    /** Sub-grid per logical section, for sphere roundness (state stays 24).
+     *  This is the MINIMUM — big spheres use more, see {@link #subdivFor}. */
     private static final int SUBDIV = 3;
+    /** Most sub-quads per section side, however big the sphere. */
+    private static final int MAX_SUBDIV = 8;
+    /** One extra sub-quad per this many blocks of radius, so a large sphere
+     *  stays round instead of showing flat panels. */
+    private static final float SUBDIV_BLOCKS_PER_STEP = 20f;
+    /** How far OUTSIDE the outermost wall the sphere is still drawn. */
+    private static final double VIEW_DISTANCE_BEYOND_WALL = 256.0;
     private static final int FULL_BRIGHT = 0xF000F0;
 
     /** Per-tier wall tint (index = tier − 1): T1 blue, T2 green, T3 magenta,
@@ -91,6 +99,7 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
         // pool 0).
         for (int layer = 0; layer < be.getActiveLayers(); layer++) {
             float r = (float) be.getLayerRadius(layer);
+            int subdiv = subdivFor(r);
 
             for (int face = 0; face < BarrierBlockEntity.SECTION_FACES; face++) {
                 for (int cu = 0; cu < BarrierBlockEntity.SECTION_GRID; cu++) {
@@ -103,24 +112,33 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
                         // Cell tangent-param range within [-1,1].
                         float a0 = cu == 0 ? -1f : 0f, a1 = cu == 0 ? 0f : 1f;
                         float b0 = cv == 0 ? -1f : 0f, b1 = cv == 0 ? 0f : 1f;
-                        renderPatch(vc, pose, face, r, cx, cy, cz, a0, a1, b0, b1, alpha);
+                        renderPatch(vc, pose, face, r, cx, cy, cz, a0, a1, b0, b1, alpha, subdiv);
                     }
                 }
             }
         }
     }
 
-    /** Render one logical section (cube-face cell) as a SUBDIV×SUBDIV grid of
+    /** Sub-quads per section side for a sphere of radius {@code r}: the
+     *  original {@link #SUBDIV} up to radius 60, then one more per
+     *  {@link #SUBDIV_BLOCKS_PER_STEP} blocks, capped at {@link #MAX_SUBDIV}. */
+    private static int subdivFor(float r) {
+        int wanted = (int) Math.ceil(r / SUBDIV_BLOCKS_PER_STEP);
+        return Math.max(SUBDIV, Math.min(MAX_SUBDIV, wanted));
+    }
+
+    /** Render one logical section (cube-face cell) as a subdiv×subdiv grid of
      *  sphere-projected quads, both windings. */
     private static void renderPatch(VertexConsumer vc, Matrix4f pose, int face, float r,
                                     float cx, float cy, float cz,
-                                    float a0, float a1, float b0, float b1, float alpha) {
-        for (int i = 0; i < SUBDIV; i++) {
-            float sa0 = a0 + (a1 - a0) * (i / (float) SUBDIV);
-            float sa1 = a0 + (a1 - a0) * ((i + 1) / (float) SUBDIV);
-            for (int j = 0; j < SUBDIV; j++) {
-                float sb0 = b0 + (b1 - b0) * (j / (float) SUBDIV);
-                float sb1 = b0 + (b1 - b0) * ((j + 1) / (float) SUBDIV);
+                                    float a0, float a1, float b0, float b1, float alpha,
+                                    int subdiv) {
+        for (int i = 0; i < subdiv; i++) {
+            float sa0 = a0 + (a1 - a0) * (i / (float) subdiv);
+            float sa1 = a0 + (a1 - a0) * ((i + 1) / (float) subdiv);
+            for (int j = 0; j < subdiv; j++) {
+                float sb0 = b0 + (b1 - b0) * (j / (float) subdiv);
+                float sb1 = b0 + (b1 - b0) * ((j + 1) / (float) subdiv);
 
                 Vec3 p00 = onSphere(face, sa0, sb0, r, cx, cy, cz);
                 Vec3 p10 = onSphere(face, sa1, sb0, r, cx, cy, cz);
@@ -173,9 +191,16 @@ public class BarrierFieldRenderer implements BlockEntityRenderer<BarrierBlockEnt
         return true;
     }
 
+    /**
+     * Minecraft's default test measures from the CORE BLOCK, but the sphere is
+     * centred on the town hall and the core can sit anywhere in the colony —
+     * so a big field went invisible to a player on the far side of it. Measure
+     * from the field centre instead, and allow for the sphere's own radius.
+     */
     @Override
-    public int getViewDistance() {
-        return 256; // tier-4 spheres reach ~70 blocks out
+    public boolean shouldRender(BarrierBlockEntity be, Vec3 cameraPos) {
+        double reach = be.getEffectiveRadius() + VIEW_DISTANCE_BEYOND_WALL;
+        return Vec3.atCenterOf(be.getFieldCenter()).closerThan(cameraPos, reach);
     }
 
     @Override

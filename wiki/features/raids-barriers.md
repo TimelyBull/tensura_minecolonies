@@ -88,13 +88,16 @@ plus a bonus for every OTHER core in the colony based on that core's tier:
 
 | Extra core | Adds |
 |---|---|
-| Tier 1 | +2 blocks |
-| Tier 2 | +4 blocks |
-| Tier 3 | +6 blocks |
-| Tier 4 | +8 blocks |
+| Tier 1 | +4 blocks |
+| Tier 2 | +8 blocks |
+| Tier 3 | +12 blocks |
+| Tier 4 | +16 blocks |
 
 So one tier-4 core alone tops out at 60. Add four more tier-4 cores and it
-reaches 92. There is a hard ceiling of **128** whatever you build.
+reaches 124. There is a hard ceiling of **256** whatever you build.
+
+A very large barrier only draws while the core block is within your render
+distance. The protection works either way.
 
 Set it in the core menu with the **FIELD SIZE** row: `-` and `+` move it 4
 blocks at a time, `MIN` and `MAX` jump to the ends of the range, and the bar
@@ -196,7 +199,8 @@ Some examples of what that means for a full tank:
 | Tier 1, default size 16 | 26/s | about an hour |
 | Tier 4, default size 60 | 70/s | about an hour |
 | Tier 4, shrunk to 8 | 18/s | about four hours |
-| Tier 4, at the 128 ceiling | 138/s | about half an hour |
+| Tier 4, grown to 128 | 138/s | about half an hour |
+| Tier 4, at the 256 ceiling | 266/s | about fifteen minutes |
 | Tier 4 at 60, three layers | 225/s | about twenty minutes |
 
 Repairing broken panels costs fuel on top of that. If the pool runs dry the
