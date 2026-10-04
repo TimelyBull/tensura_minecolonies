@@ -253,7 +253,7 @@ public final class LoreEvents {
     static void onPotentialLeadBossDeath(ServerLevel level, LivingDeathEvent deathEvent) {
         LivingEntity victim = deathEvent.getEntity();
         if (!victim.hasData(Attachments.RAID_TAG.get())) return;
-        RaidTag tag = victim.getData(Attachments.RAID_TAG.get());
+        RaidTag tag = victim.getExistingDataOrNull(Attachments.RAID_TAG.get());
         if (tag == null) return;
         IColony colony = IColonyManager.getInstance().getColonyByWorld(tag.colonyId(), level);
         if (colony == null) return;

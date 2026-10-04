@@ -2089,8 +2089,8 @@ public final class RivalColonies {
         if (attacker == null || victim == null || attacker == victim) return false;
         if (!victim.hasData(Attachments.GARRISON_TAG.get())
                 || !attacker.hasData(Attachments.GARRISON_TAG.get())) return false;
-        GarrisonTag av = attacker.getData(Attachments.GARRISON_TAG.get());
-        GarrisonTag vv = victim.getData(Attachments.GARRISON_TAG.get());
+        GarrisonTag av = attacker.getExistingDataOrNull(Attachments.GARRISON_TAG.get());
+        GarrisonTag vv = victim.getExistingDataOrNull(Attachments.GARRISON_TAG.get());
         return av != null && vv != null && av.settlementId() == vv.settlementId();
     }
 
@@ -2104,7 +2104,7 @@ public final class RivalColonies {
     static void onGarrisonMobDeath(ServerLevel level, LivingEntity victim,
                                    net.minecraft.world.damagesource.DamageSource source) {
         if (!victim.hasData(Attachments.GARRISON_TAG.get())) return;
-        GarrisonTag tag = victim.getData(Attachments.GARRISON_TAG.get());
+        GarrisonTag tag = victim.getExistingDataOrNull(Attachments.GARRISON_TAG.get());
         if (tag == null) return;
         SettlementSavedData data = SettlementSavedData.get(level);
         Settlement s = data.get(tag.settlementId());

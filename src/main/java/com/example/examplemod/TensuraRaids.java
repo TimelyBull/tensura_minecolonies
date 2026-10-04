@@ -706,7 +706,7 @@ public final class TensuraRaids {
     static void sweepOrphanRaiderOnJoin(ServerLevel level, Entity entity) {
         if (SPAWNING_RAIDER) return; // our own spawn in progress — not a straggler
         if (!entity.hasData(Attachments.RAID_TAG.get())) return;
-        RaidTag tag = entity.getData(Attachments.RAID_TAG.get());
+        RaidTag tag = entity.getExistingDataOrNull(Attachments.RAID_TAG.get());
         IColony colony = IColonyManager.getInstance().getColonyByWorld(tag.colonyId(), level);
         if (colony != null) {
             for (IColonyEvent event : colony.getEventManager().getEvents().values()) {
@@ -1064,7 +1064,7 @@ public final class TensuraRaids {
         AABB box = new AABB(colony.getCenter()).inflate(ALLY_ADOPT_RADIUS);
         for (Mob m : level.getEntitiesOfClass(Mob.class, box,
                 m -> m.isAlive() && m.hasData(Attachments.ALLY_TAG.get()))) {
-            AllyTag tag = m.getData(Attachments.ALLY_TAG.get());
+            AllyTag tag = m.getExistingDataOrNull(Attachments.ALLY_TAG.get());
             if (tag != null && tag.colonyId() == colony.getID() && tag.eventId() == mcEventId) {
                 uuids.add(m.getUUID());
             }
@@ -1451,7 +1451,7 @@ public final class TensuraRaids {
     /** Raid-mob death bookkeeping — called from ExampleMod.onLivingDeath. */
     static void onRaidMobDeath(ServerLevel level, LivingEntity victim) {
         if (!victim.hasData(Attachments.RAID_TAG.get())) return;
-        RaidTag tag = victim.getData(Attachments.RAID_TAG.get());
+        RaidTag tag = victim.getExistingDataOrNull(Attachments.RAID_TAG.get());
         if (tag == null) return;
         IColony colony = IColonyManager.getInstance().getColonyByWorld(tag.colonyId(), level);
         if (colony == null) return;

@@ -697,7 +697,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             if (proposed.hasData(Attachments.RAID_TAG.get())) {
                 allowed = true; // an active raider — always fair game
             } else {
-                ColonyDefenderTag dtag = defender.getData(Attachments.COLONY_DEFENDER.get());
+                ColonyDefenderTag dtag = defender.getExistingDataOrNull(Attachments.COLONY_DEFENDER.get());
                 IColony defColony = defender.level() instanceof ServerLevel sl
                         ? IColonyManager.getInstance().getColonyByWorld(dtag.colonyId(), sl)
                         : null;
@@ -992,7 +992,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // colonist envoys.
         if (event.getTarget().hasData(Attachments.ENVOY_TAG.get())
                 && event.getEntity() instanceof ServerPlayer sp) {
-            EnvoyTag tag = event.getTarget().getData(Attachments.ENVOY_TAG.get());
+            EnvoyTag tag = event.getTarget().getExistingDataOrNull(Attachments.ENVOY_TAG.get());
             if (tag != null && tag.state() == EnvoyTag.State.ALIVE) {
                 event.setCanceled(true);
                 event.setCancellationResult(net.minecraft.world.InteractionResult.SUCCESS);
@@ -1011,7 +1011,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // vanilla villager trade screen.
         if (event.getTarget().hasData(Attachments.FACTION_ENVOY.get())
                 && event.getEntity() instanceof ServerPlayer fsp) {
-            FactionEnvoyTag ftag = event.getTarget().getData(Attachments.FACTION_ENVOY.get());
+            FactionEnvoyTag ftag = event.getTarget().getExistingDataOrNull(Attachments.FACTION_ENVOY.get());
             if (ftag != null && fsp.getUUID().equals(ftag.targetPlayer())) {
                 event.setCanceled(true);
                 event.setCancellationResult(net.minecraft.world.InteractionResult.SUCCESS);
@@ -1439,7 +1439,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 : level.getEntitiesOfClass(net.minecraft.world.entity.Mob.class, area)) {
             if (!mob.isAlive()) continue;
             if (!mob.hasData(Attachments.SETTLER_TAG.get())) continue;
-            if (mob.getData(Attachments.SETTLER_TAG.get()).colonyId() != colonyId) continue;
+            if (mob.getExistingDataOrNull(Attachments.SETTLER_TAG.get()).colonyId() != colonyId) continue;
             if (Races.of(mob.getType()) != race) continue;
             // Already named → it is a citizen now and is counted as one.
             if (saved.getByMobUUID(mob.getUUID()) != null) continue;
@@ -3358,7 +3358,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 net.minecraft.world.entity.Entity envoy = level.getEntity(active);
                 if (envoy != null && !envoy.isRemoved()
                         && envoy.hasData(Attachments.ENVOY_TAG.get())) {
-                    EnvoyTag tag = envoy.getData(Attachments.ENVOY_TAG.get());
+                    EnvoyTag tag = envoy.getExistingDataOrNull(Attachments.ENVOY_TAG.get());
                     if (tag != null && tag.member() == killedMember
                             && tag.state() == EnvoyTag.State.ALIVE) {
                         // Visual: same poof effect as accept/decline.
@@ -3808,7 +3808,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         net.minecraft.resources.ResourceLocation profKey = none ? null
                 : net.minecraft.core.registries.BuiltInRegistries.VILLAGER_PROFESSION.getKey(prof);
         String profId = profKey == null ? "" : profKey.toString();
-        RaceTag tag = citizen.getData(Attachments.RACE_TAG.get());
+        RaceTag tag = citizen.getExistingDataOrNull(Attachments.RACE_TAG.get());
         if (tag != null) {
             RaceTag updated = tag.withProfession(profId);
             // FIX 2: keep the durable snapshot in sync with the cosmetic change.
@@ -4374,7 +4374,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             sendAdvisoryNotice(player, "That isn't a citizen.");
             return;
         }
-        RaceTag tag = citizen.getData(Attachments.RACE_TAG.get());
+        RaceTag tag = citizen.getExistingDataOrNull(Attachments.RACE_TAG.get());
         if (tag == null) {
             sendAdvisoryNotice(player, "That citizen has no race identity.");
             return;
@@ -4551,7 +4551,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             sendAdvisoryNotice(player, "That envoy is no longer here.");
             return;
         }
-        EnvoyTag tag = entity.getData(Attachments.ENVOY_TAG.get());
+        EnvoyTag tag = entity.getExistingDataOrNull(Attachments.ENVOY_TAG.get());
         if (tag == null || tag.state() != EnvoyTag.State.ALIVE) {
             sendAdvisoryNotice(player, "That envoy has already moved on.");
             return;
@@ -5738,7 +5738,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // when the guard's colony can't be resolved (favour the ally). A
         // confirmed OTHER colony's guards (id mismatch) may still target it.
         if (isAlly) {
-            AllyTag tag = target.getData(Attachments.ALLY_TAG.get());
+            AllyTag tag = target.getExistingDataOrNull(Attachments.ALLY_TAG.get());
             if (tag != null && (colony == null || colony.getID() == tag.colonyId())) {
                 event.setCanceled(true);
                 return;
@@ -5748,7 +5748,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // (2) Colony defender — the defended colony's guards must never attack
         // the body defending them. Same same-colony / unresolvable rule.
         if (isDefender) {
-            ColonyDefenderTag dtag = target.getData(Attachments.COLONY_DEFENDER.get());
+            ColonyDefenderTag dtag = target.getExistingDataOrNull(Attachments.COLONY_DEFENDER.get());
             if (dtag != null && (colony == null || colony.getID() == dtag.colonyId())) {
                 event.setCanceled(true);
                 return;
@@ -7411,7 +7411,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         // Read → flip → write the attachment, then broadcast the new tag to
         // every player tracking the entity so client mirrors update at once.
-        RaceTag current = body.getData(Attachments.RACE_TAG.get());
+        RaceTag current = body.getExistingDataOrNull(Attachments.RACE_TAG.get());
         if (current == null) {
             src.sendFailure(Component.literal(
                     "citizen '" + name + "' has no race tag attached (legacy spawn?)"));
@@ -7845,10 +7845,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (citizenBodyOpt.isPresent()
                 && citizenBodyOpt.get() instanceof LivingEntity citizenForSkin
                 && citizenForSkin.hasData(Attachments.RACE_TAG.get())) {
-            RaceTag srcTag = citizenForSkin.getData(Attachments.RACE_TAG.get());
-            applyVariantToMob(goblin, srcTag);
-            LOGGER.info("[TM] summon: applied citizen RaceTag variant onto wild mob (race={})",
-                    srcTag.race());
+            RaceTag srcTag = citizenForSkin.getExistingDataOrNull(Attachments.RACE_TAG.get());
+            if (srcTag != null) {
+                applyVariantToMob(goblin, srcTag);
+                LOGGER.info("[TM] summon: applied citizen RaceTag variant onto wild mob (race={})",
+                        srcTag.race());
+            }
         }
 
         // 3c. Age sync — the CITIZEN's child flag is the source of truth.
@@ -10662,8 +10664,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (!(event.getTarget() instanceof AbstractEntityCitizen citizen)) return;
 
         // Race-tag re-sync (worker races).
-        if (citizen.hasData(Attachments.RACE_TAG.get())) {
-            RaceTag tag = citizen.getData(Attachments.RACE_TAG.get());
+        RaceTag tag = citizen.getExistingDataOrNull(Attachments.RACE_TAG.get());
+        if (tag != null) {
             PacketDistributor.sendToPlayer(sp,
                     Networking.SyncRaceTagPayload.of(citizen.getUUID(), tag));
             LOGGER.info("[TM] tracking: re-synced race tag to {} for citizen entity {} (identity {})",

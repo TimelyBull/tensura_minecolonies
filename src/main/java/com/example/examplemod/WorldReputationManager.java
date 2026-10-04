@@ -254,7 +254,7 @@ public final class WorldReputationManager {
     @Nullable
     public static FactionMarkTag getMark(LivingEntity entity) {
         return entity.hasData(Attachments.FACTION_MARK.get())
-                ? entity.getData(Attachments.FACTION_MARK.get()) : null;
+                ? entity.getExistingDataOrNull(Attachments.FACTION_MARK.get()) : null;
     }
 
     /**

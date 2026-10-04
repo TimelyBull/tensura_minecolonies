@@ -18,6 +18,13 @@ import java.util.function.Supplier;
  * Default value supplier returns {@code null}, so {@code hasData()} is
  * the authoritative presence check.
  *
+ * <p>⚠ RULE: read these with {@code getExistingDataOrNull(...)}, NEVER
+ * {@code getData(...)}. NeoForge's {@code getData} STORES the default when the
+ * attachment is missing — here that plants a null entry, after which
+ * {@code hasData()} answers true, the body is never re-stamped, and saving the
+ * entity fails inside the serializer. Applies to every attachment in this
+ * class (all use a null default).</p>
+ *
  * Note: the underlying registry path is intentionally kept as
  * {@code "goblin_tag"} for backward compatibility with existing world
  * saves that already have attachments under that key. Renaming the

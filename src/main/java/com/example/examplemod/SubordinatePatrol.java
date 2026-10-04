@@ -278,7 +278,7 @@ public final class SubordinatePatrol {
         // the patrol stance and carry on. A patroller OUTSIDE the festival's
         // range (still wandering, not asleep) is untouched by Tensura and keeps
         // patrolling. The pause is persisted on the order (reload-safe).
-        PatrolOrder current = mob.getData(Attachments.PATROL_ORDER.get());
+        PatrolOrder current = mob.getExistingDataOrNull(Attachments.PATROL_ORDER.get());
         boolean festival = isFestivalActive(mob, sub);
         if (festival) {
             if (current.festivalPaused()) return;                  // still paused
@@ -334,7 +334,7 @@ public final class SubordinatePatrol {
 
         // Resolve the pinned colony up front — the tether/recall below needs it
         // even while the mob is in combat.
-        PatrolOrder order = mob.getData(Attachments.PATROL_ORDER.get());
+        PatrolOrder order = mob.getExistingDataOrNull(Attachments.PATROL_ORDER.get());
         if (!level.dimension().equals(order.dimensionKey())) return;
         IColony colony = IColonyManager.getInstance().getColonyByWorld(order.colonyId(), level);
         if (colony == null) return; // colony deleted / not loaded — idle, keep order
@@ -587,7 +587,7 @@ public final class SubordinatePatrol {
      * distance away from the colony it's meant to defend.
      */
     public static boolean isPatrolTargetAllowed(Mob mob, LivingEntity candidate) {
-        PatrolOrder order = mob.getData(Attachments.PATROL_ORDER.get());
+        PatrolOrder order = mob.getExistingDataOrNull(Attachments.PATROL_ORDER.get());
         if (order == null) return true;
         if (!(mob.level() instanceof ServerLevel level)) return true;
         if (!level.dimension().equals(order.dimensionKey())) return false;

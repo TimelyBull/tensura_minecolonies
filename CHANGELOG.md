@@ -94,6 +94,12 @@ Copy the relevant version's section into the CurseForge release notes on each up
 - **Barrier damage is no longer repaired for free when the area reloads.**
   Broken and damaged sections stay as they were after a relog or after you
   leave and come back.
+- **Opening the trade tab on a citizen with no race no longer corrupts that
+  citizen.** It could stop the citizen from saving and from being shown
+  correctly to other players until the next restart.
+- **The Rite of Atonement now removes the sacrificed subordinate completely**
+  when it is performed away from the colony's dimension; the citizen could
+  return as a colonist (needs the faction system turned on).
 - **Mobs named before you had a colony are no longer forgotten** if they were
   out of range when you founded it. They join once you are near them again.
 - **Raiders no longer appear inside a barrier that covers the whole colony.**

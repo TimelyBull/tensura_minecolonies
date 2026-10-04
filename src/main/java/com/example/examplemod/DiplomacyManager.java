@@ -650,7 +650,7 @@ public final class DiplomacyManager {
         ServerLevel level = player.serverLevel();
         Entity entity = level.getEntity(entityId);
         if (entity == null || !entity.hasData(Attachments.FACTION_ENVOY.get())) return;
-        FactionEnvoyTag tag = entity.getData(Attachments.FACTION_ENVOY.get());
+        FactionEnvoyTag tag = entity.getExistingDataOrNull(Attachments.FACTION_ENVOY.get());
         if (tag == null || !player.getUUID().equals(tag.targetPlayer())) return;
         BossFaction faction = BossFaction.byId(tag.factionId());
 
@@ -1054,29 +1054,41 @@ public final class DiplomacyManager {
     private static String sacrificeIdentity(ServerLevel level,
                                             RaceIdentitySavedData.RaceIdentity identity) {
         String name = "Your subordinate";
-        // The citizen body (IN_COLONY).
-        IColony colony = IColonyManager.getInstance().getColonyByWorld(identity.colonyId, level);
+        // The citizen body (IN_COLONY). Searched across every dimension: the
+        // rite can be performed away from the colony's own dimension, and a
+        // same-level lookup left the citizen record behind to come back later
+        // as a plain colonist.
+        IColony colony = ExampleMod.findIdentityColony(level.getServer(), identity);
         if (colony != null) {
             ICitizenData citizen = colony.getCitizenManager().getCivilian(identity.citizenId);
             if (citizen != null) {
                 name = citizen.getName();
                 citizen.getEntity().ifPresent(entity -> {
-                    level.sendParticles(ParticleTypes.POOF,
+                    ((ServerLevel) entity.level()).sendParticles(ParticleTypes.POOF,
                             entity.getX(), entity.getY() + entity.getBbHeight() / 2.0, entity.getZ(),
                             32, 0.4, 0.6, 0.4, 0.03);
                     entity.discard();
                 });
+                // A subordinate's citizen is "travelling" forever, and that
+                // entry is stored by citizen NUMBER, which MineColonies reuses
+                // at once — clear it first or the next citizen inherits it.
+                colony.getTravellingManager().finishTravellingFor(citizen);
                 colony.getCitizenManager().removeCivilian(citizen);
             }
         }
-        // The wild body (SUBORDINATE).
+        // The wild body (SUBORDINATE) — it may be in a different dimension
+        // from the player.
         if (identity.mobEntityUUID != null) {
-            net.minecraft.world.entity.Entity mob = level.getEntity(identity.mobEntityUUID);
+            net.minecraft.world.entity.Entity mob = null;
+            for (ServerLevel candidate : level.getServer().getAllLevels()) {
+                mob = candidate.getEntity(identity.mobEntityUUID);
+                if (mob != null) break;
+            }
             if (mob != null && !mob.isRemoved()) {
                 if (mob.hasCustomName() && mob.getCustomName() != null) {
                     name = mob.getCustomName().getString();
                 }
-                level.sendParticles(ParticleTypes.POOF,
+                ((ServerLevel) mob.level()).sendParticles(ParticleTypes.POOF,
                         mob.getX(), mob.getY() + mob.getBbHeight() / 2.0, mob.getZ(),
                         32, 0.4, 0.6, 0.4, 0.03);
                 mob.discard();

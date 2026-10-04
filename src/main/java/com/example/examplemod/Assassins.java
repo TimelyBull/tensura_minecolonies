@@ -434,7 +434,7 @@ public final class Assassins {
         }
         if (mob == null) return; // unloaded — bar waits; death is handled by the hook
 
-        AssassinTag tag = mob.getData(Attachments.ASSASSIN_TAG.get());
+        AssassinTag tag = mob.getExistingDataOrNull(Attachments.ASSASSIN_TAG.get());
 
         // Town-hall tether — the assassin haunts the colony rather than
         // chasing across the world (the patrol-recall pattern). Beyond
@@ -492,7 +492,7 @@ public final class Assassins {
 
     static void onAssassinDeath(ServerLevel level, LivingEntity victim) {
         if (!victim.hasData(Attachments.ASSASSIN_TAG.get())) return;
-        AssassinTag tag = victim.getData(Attachments.ASSASSIN_TAG.get());
+        AssassinTag tag = victim.getExistingDataOrNull(Attachments.ASSASSIN_TAG.get());
         if (tag == null) return;
         ServerBossEvent bar = bossBars.remove(victim.getUUID());
         if (bar != null) bar.removeAllPlayers();
@@ -558,7 +558,7 @@ public final class Assassins {
 
     static void onSuccessfulAssassination(ServerLevel level, LivingEntity assassin,
                                           ServerPlayer victim) {
-        AssassinTag tag = assassin.getData(Attachments.ASSASSIN_TAG.get());
+        AssassinTag tag = assassin.getExistingDataOrNull(Attachments.ASSASSIN_TAG.get());
         if (tag == null || tag.hasStolen()) return; // steal once
 
         // ---- EP THEFT: half of base max EP = half magicule + half aura
