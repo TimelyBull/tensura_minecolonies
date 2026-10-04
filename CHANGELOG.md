@@ -77,7 +77,11 @@ Copy the relevant version's section into the CurseForge release notes on each up
   summoned back. Subordinates that already lost their EP are not restored.
 - **Race citizens no longer appear as a human colonist for a moment when they
   arrive.** A newly arrived goblin, orc, lizardman, or dwarf citizen now looks
-  like its race from the first instant.
+  like its race from the first instant. This also covers a citizen brought
+  back with Recall.
+  - Not changed: after you return from far away, a citizen can stand frozen
+    with the name `entity.minecolonies.citizen` and then vanish until
+    recalled. That comes from MineColonies, not this mod.
 - **Newcomers no longer turn up already named.** A goblin, orc, lizardman, or
   dwarf that wanders in, or is sent by an envoy, now arrives at your town hall
   as a wild, unnamed one for you to name, instead of joining as a citizen with
