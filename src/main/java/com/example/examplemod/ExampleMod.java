@@ -670,6 +670,35 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     // ------------------------------------------------------------------
     // Subordinate vs. own-colony-citizen target veto
     // ------------------------------------------------------------------
+    /**
+     * Is this goblin / lizardman an ENEMY of the subordinate's side? Used to
+     * lift the "never attack the friendly races" rule for the ones that are
+     * actually fighting us. Our own side is never an enemy, whatever it is
+     * targeting (two of the owner's subordinates bumping into each other must
+     * not start a fight).
+     */
+    private static boolean isHostileRaceMob(LivingEntity subordinate, LivingEntity proposed, UUID ownerUuid) {
+        if (ownerUuid.equals(SubordinateHelper.getSubordinateOwnerUUID(proposed))) return false;
+        if (proposed.hasData(Attachments.ALLY_TAG.get())) return false;
+        if (proposed.hasData(Attachments.ENVOY_TAG.get())) return false;
+        if (proposed.hasData(Attachments.SETTLER_TAG.get())) return false;
+
+        if (proposed.hasData(Attachments.RAID_TAG.get())) return true;
+        if (proposed.hasData(Attachments.GARRISON_TAG.get())) return true;
+        if (proposed.hasData(Attachments.ASSASSIN_TAG.get())) return true;
+
+        // Anything currently attacking the owner, the owner's subordinates, or
+        // a colony citizen.
+        if (proposed instanceof net.minecraft.world.entity.Mob mob && mob.getTarget() != null) {
+            LivingEntity victim = mob.getTarget();
+            return victim == subordinate
+                    || ownerUuid.equals(victim.getUUID())
+                    || ownerUuid.equals(SubordinateHelper.getSubordinateOwnerUUID(victim))
+                    || victim instanceof AbstractEntityCitizen;
+        }
+        return false;
+    }
+
     private static EventResult onSubordinateChangeTarget(LivingEntity entity, Changeable<LivingEntity> target) {
         if (entity.level().isClientSide()) return EventResult.pass();
         if (!(entity instanceof ISubordinate)) return EventResult.pass();
@@ -715,13 +744,18 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (proposed instanceof AbstractEntityCitizen) return EventResult.interruptFalse();
 
         // (2) Never target friendly Tensura races. Goblins and lizardmen are
-        // spared unconditionally; orcs are spared only when NOT hostile to the
-        // player (a tamed / allied orc is a subordinate, not an enemy). A wild
-        // orc falls through and may be targeted, so the patrol still fights
-        // hostile orcs. Orc lord / disaster extend OrcEntity, so the same rule
-        // covers them.
+        // spared UNLESS they are clearly an enemy (a raider, a rival garrison
+        // defender, an assassin, or one that is attacking our side) — wild
+        // ones are what the player names, and unnamed settlers are wild too,
+        // so "not tamed" must not be enough to attack them. Orcs are spared
+        // only when NOT hostile to the player (a tamed / allied orc is a
+        // subordinate, not an enemy). A wild orc falls through and may be
+        // targeted, so the patrol still fights hostile orcs. Orc lord /
+        // disaster extend OrcEntity, so the same rule covers them.
         if (proposed instanceof GoblinEntity || proposed instanceof LizardmanEntity) {
-            return EventResult.interruptFalse();
+            if (!isHostileRaceMob(entity, proposed, ownerUuid)) {
+                return EventResult.interruptFalse();
+            }
         }
         if (proposed instanceof OrcEntity orc) {
             boolean friendly = orc.isTame() || entity.isAlliedTo(orc);

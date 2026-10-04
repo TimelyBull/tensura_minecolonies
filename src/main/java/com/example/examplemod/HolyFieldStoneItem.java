@@ -157,11 +157,43 @@ public class HolyFieldStoneItem extends Item {
         AABB box = new AABB(f.center(), f.center()).inflate(RADIUS, RADIUS * 0.5, RADIUS);
         for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, box,
                 x -> x.isAlive() && x.position().distanceTo(f.center()) <= RADIUS)) {
-            if (!isEnemy(e, f.owner())) continue;
+            if (!isFieldEnemy(e, f.owner())) continue;
             e.addEffect(new MobEffectInstance(TensuraMobEffects.ANTI_SKILL, SEAL_EFFECT_TICKS, 0, false, true));
             e.addEffect(new MobEffectInstance(TensuraMobEffects.ANTI_MAGIC, SEAL_EFFECT_TICKS, 0, false, true));
             e.hurt(holy, HOLY_DAMAGE_PER_SECOND);
         }
+    }
+
+    /**
+     * Who the Holy Field seals: everything {@link #isEnemy} accepts, PLUS wild
+     * Tensura monsters and anything attacking a colony citizen.
+     *
+     * <p>{@code isEnemy} recognises a hostile mob by vanilla's {@code Enemy}
+     * marker, which no Tensura entity carries — so on its own the field
+     * skipped every wild Tensura monster that was not already attacking the
+     * user. Tensura registers its monsters in the MONSTER category; that is
+     * the test here. The nameable races (goblin, orc, lizardman, dwarf) are in
+     * that category too but are the player's future citizens, so they only
+     * count when they are attacking our side. Anything another player owns is
+     * left alone.</p>
+     *
+     * <p>Kept separate from {@code isEnemy} on purpose: the Orb of Domination
+     * uses that one to pick a puppet's targets, and this wider rule has not
+     * been checked against it.</p>
+     */
+    static boolean isFieldEnemy(LivingEntity e, UUID owner) {
+        if (isEnemy(e, owner)) return true;
+        if (e instanceof Player || e instanceof AbstractEntityCitizen) return false;
+        if (e.hasData(Attachments.ALLY_TAG.get()) || e.hasData(Attachments.ENVOY_TAG.get())
+                || e.hasData(Attachments.SETTLER_TAG.get())) return false;
+        // Owned by anyone (the user's own were already excluded by isEnemy's
+        // checks; this covers other players' subordinates and pets).
+        if (SubordinateHelper.getSubordinateOwnerUUID(e) != null) return false;
+        if (e instanceof TamableAnimal t && t.getOwnerUUID() != null) return false;
+
+        if (e instanceof Mob m && m.getTarget() instanceof AbstractEntityCitizen) return true;
+        return e.getType().getCategory() == net.minecraft.world.entity.MobCategory.MONSTER
+                && Races.of(e.getType()) == null;
     }
 
     /** Only the user's enemies are sealed — never their own side, never players. */

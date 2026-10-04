@@ -100,6 +100,15 @@ Copy the relevant version's section into the CurseForge release notes on each up
 - **The Rite of Atonement now removes the sacrificed subordinate completely**
   when it is performed away from the colony's dimension; the citizen could
   return as a colonist (needs the faction system turned on).
+- **Subordinates now fight goblins and lizardmen that are attacking you.**
+  They refused to target either race at all, so they stood still against
+  raiders, enemy garrisons, and assassins of those races. Wild and unnamed
+  ones that leave you alone are still spared.
+- **The Holy Field Stone now affects wild Tensura monsters.** It only reached
+  raiders, garrisons, and mobs already attacking you. Wild goblins, orcs,
+  lizardmen, and dwarves are still left alone unless they attack your side.
+- **The Twin Grail's day face no longer removes your buffs.** It cleanses
+  negative effects only, as its tooltip says.
 - **Mobs named before you had a colony are no longer forgotten** if they were
   out of range when you founded it. They join once you are near them again.
 - **Raiders no longer appear inside a barrier that covers the whole colony.**

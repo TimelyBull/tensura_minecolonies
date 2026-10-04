@@ -60,7 +60,14 @@ public class TwinGrailItem extends Item {
         boolean day = serverLevel.isDay();
         if (day) {
             // Holy face — heal, cleanse, and bless.
-            sp.removeAllEffects();
+            // Negative effects only — removeAllEffects() also stripped the
+            // player's own buffs (alliance buffs, potions, barrier blessings).
+            for (MobEffectInstance active : new java.util.ArrayList<>(sp.getActiveEffects())) {
+                if (active.getEffect().value().getCategory()
+                        == net.minecraft.world.effect.MobEffectCategory.HARMFUL) {
+                    sp.removeEffect(active.getEffect());
+                }
+            }
             sp.heal(sp.getMaxHealth());
             sp.addEffect(new MobEffectInstance(MobEffects.REGENERATION, DAY_BUFF_TICKS, 1));
             sp.addEffect(new MobEffectInstance(MobEffects.ABSORPTION, DAY_BUFF_TICKS, 1));
