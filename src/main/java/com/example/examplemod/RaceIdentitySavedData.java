@@ -195,7 +195,7 @@ public class RaceIdentitySavedData extends SavedData {
             this.colonyId         = colonyId;
             this.mobEntityUUID    = mobEntityUUID;
             this.mode             = mode;
-            this.entitySnapshot   = entitySnapshot;
+            this.entitySnapshot   = cleanSnapshot(entitySnapshot);
             this.ownerPlayerUUID  = ownerPlayerUUID;
             this.race             = race;
         }
@@ -557,8 +557,33 @@ public class RaceIdentitySavedData extends SavedData {
     }
 
     public void updateEntitySnapshot(RaceIdentity identity, CompoundTag snapshot) {
-        identity.entitySnapshot = snapshot;
+        identity.entitySnapshot = cleanSnapshot(snapshot);
         setDirty();
+    }
+
+    /** Persistent-data key the body-swap sink animation writes on a body
+     *  while it is being lowered (see ExampleMod.markSinking). */
+    public static final String SINK_RESTORE_KEY = "tm_sink_restore";
+
+    /**
+     * Strip the swap animation's TEMPORARY state out of a body snapshot.
+     *
+     * <p>A body is made invulnerable while it sinks into its magic circle, and
+     * the send path snapshots it in exactly that state. Minecraft saves the
+     * invulnerable flag with the entity, so every body later rebuilt from that
+     * snapshot came back unkillable unless the rise animation happened to clear
+     * it (raid defenders are rebuilt without the animation). No identity body
+     * is ever meant to be invulnerable, so the flag is simply never stored.
+     * Every snapshot write goes through here, and so does loading an old save,
+     * which repairs snapshots that already carry the flag.</p>
+     */
+    static CompoundTag cleanSnapshot(CompoundTag snapshot) {
+        if (snapshot == null) return null;
+        snapshot.remove("Invulnerable");
+        if (snapshot.contains("NeoForgeData", net.minecraft.nbt.Tag.TAG_COMPOUND)) {
+            snapshot.getCompound("NeoForgeData").remove(SINK_RESTORE_KEY);
+        }
+        return snapshot;
     }
 
     /** FIX 2 — store the last-known serialized RaceTag so a body MineColonies

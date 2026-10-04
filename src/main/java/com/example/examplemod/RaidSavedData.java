@@ -54,6 +54,11 @@ class RaidSavedData extends SavedData {
         setDirty();
     }
 
+    /** Colony deleted — its number will be reused, so drop its cooldown. */
+    void clearColony(int colonyId) {
+        if (lastRaidResolveTick.remove(colonyId) != null) setDirty();
+    }
+
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         ListTag list = new ListTag();

@@ -152,7 +152,9 @@ public class ExampleMod {
                                UUID expectedGoblinUUID,
                                double magiculePaid,
                                long executeAtTick,
-                               Vec3 materializePos) {}
+                               Vec3 materializePos,
+                               UUID dissolveBodyUUID,
+                               ResourceKey<Level> dissolveDim) {}
 
     /** Queued linear Y-axis animation with X/Z locked to a fixed position.
      *  Each tick: setPos(lockX, interpolatedY, lockZ), deltaMovement zeroed,
@@ -1087,8 +1089,8 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
     /**
      * Promote every still-alive pending goblin into a real CitizenData when
-     * the first colony is created. Goblins whose entity died before the
-     * colony existed are silently dropped (stale entries cleaned).
+     * the first colony is created. A goblin that isn't loaded right now
+     * stays in the pool and is promoted later (tickPendingPromotion).
      *
      * Single-colony assumption: all pending → this newly-created colony.
      * Multi-colony future would need a per-pending colony assignment policy
@@ -1129,58 +1131,92 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // hall on shared servers.
             if (newOwner == null || !newOwner.equals(p.ownerPlayerUUID)) continue;
 
-            // Stale check: drop pending entry if the goblin entity is gone.
-            LivingEntity goblin = findLivingEntityAcrossLevels(server, p.mobEntityUUID);
-            if (goblin == null) {
-                LOGGER.info("[TM] pending '{}': goblin {} no longer alive — discarding stale entry",
-                        p.name, p.mobEntityUUID);
-                saved.removePending(p);
-                continue;
-            }
-            if (saved.getByMobUUID(goblin.getUUID()) != null) {
-                LOGGER.info("[TM] pending '{}': goblin {} already has an identity — dropping the pending entry",
-                        p.name, p.mobEntityUUID);
-                saved.removePending(p);
-                continue;
-            }
-
-            // Same promotion path as a normal naming-with-colony.
-            ICitizenData citizenData = colony.getCitizenManager().createAndRegisterCivilianData();
-            citizenData.setName(p.name);
-            // Apply race skill profile here too — pending-pool drain is
-            // semantically equivalent to "named-then-immediately-promoted",
-            // so we want the same starting bias.
-            RaceSkillProfiles.applyForRace(citizenData, p.race, serverLevel.getRandom());
-            if (!isPenaltyFreeSettler(goblin)) {
-                applyNamedAcquisitionPenalty(citizenData);
-            }
-            colony.getTravellingManager().startTravellingTo(
-                    citizenData, goblin.blockPosition(), Integer.MAX_VALUE);
-
-            RaceIdentitySavedData.RaceIdentity identity = new RaceIdentitySavedData.RaceIdentity(
-                    p.identityId,                                   // reuse the stable id from pending
-                    citizenData.getId(),
-                    colony.getID(),
-                    p.mobEntityUUID,
-                    RaceIdentitySavedData.Mode.SUBORDINATE,
-                    null,                                           // entitySnapshot — populated immediately below
-                    p.ownerPlayerUUID,                              // propagate from pending entry
-                    p.race                                          // propagate race so renderer picks correctly
-            );
-            saved.addIdentity(identity);
-            // Capture the snapshot now from the live body (the goblin is
-            // guaranteed loaded here — findLivingEntityAcrossLevels above found
-            // it), so it's recoverable even if it vanishes before its first send.
-            captureSnapshotFromLiveMob(saved, identity, goblin);
-            saved.removePending(p);
-
-            LOGGER.info("[TM] pending '{}' promoted: citizen id={} race={} in '{}' (now {} citizens)",
-                    p.name, citizenData.getId(), p.race, colony.getName(),
-                    colony.getCitizenManager().getCurrentCitizenCount());
+            promotePending(serverLevel, colony, saved, p);
         }
 
         // After drain: now open the picker.
         openPickerForNewColony(serverLevel, colony);
+    }
+
+    /**
+     * Turn one pending-pool entry into a citizen of {@code colony} (the same
+     * promotion a normal naming-with-colony does). Does nothing if the mob
+     * isn't loaded right now.
+     *
+     * <p>"Not loaded" almost always means its chunk is unloaded, NOT that it
+     * died — a death removes the entry itself (removePendingByMobUUID in
+     * onLivingDeath). So the entry is KEPT and {@link #tickPendingPromotion}
+     * retries it; dropping it here used to forget every named mob the player
+     * had left out of range when they founded the colony.</p>
+     *
+     * @return true if the entry was resolved (promoted or found redundant)
+     */
+    private static boolean promotePending(ServerLevel serverLevel, IColony colony,
+                                          RaceIdentitySavedData saved,
+                                          RaceIdentitySavedData.PendingRaceMob p) {
+        LivingEntity goblin = findLivingEntityAcrossLevels(serverLevel.getServer(), p.mobEntityUUID);
+        if (goblin == null) return false;
+        if (saved.getByMobUUID(goblin.getUUID()) != null) {
+            LOGGER.info("[TM] pending '{}': goblin {} already has an identity — dropping the pending entry",
+                    p.name, p.mobEntityUUID);
+            saved.removePending(p);
+            return true;
+        }
+
+        // Same promotion path as a normal naming-with-colony.
+        ICitizenData citizenData = colony.getCitizenManager().createAndRegisterCivilianData();
+        citizenData.setName(p.name);
+        // Apply race skill profile here too — pending-pool drain is
+        // semantically equivalent to "named-then-immediately-promoted",
+        // so we want the same starting bias.
+        RaceSkillProfiles.applyForRace(citizenData, p.race, serverLevel.getRandom());
+        if (!isPenaltyFreeSettler(goblin)) {
+            applyNamedAcquisitionPenalty(citizenData);
+        }
+        colony.getTravellingManager().startTravellingTo(
+                citizenData, goblin.blockPosition(), Integer.MAX_VALUE);
+
+        RaceIdentitySavedData.RaceIdentity identity = new RaceIdentitySavedData.RaceIdentity(
+                p.identityId,                                   // reuse the stable id from pending
+                citizenData.getId(),
+                colony.getID(),
+                p.mobEntityUUID,
+                RaceIdentitySavedData.Mode.SUBORDINATE,
+                null,                                           // entitySnapshot — populated immediately below
+                p.ownerPlayerUUID,                              // propagate from pending entry
+                p.race                                          // propagate race so renderer picks correctly
+        );
+        saved.addIdentity(identity);
+        // Capture the snapshot now from the live body (it is loaded — found
+        // above), so it's recoverable even if it vanishes before its first send.
+        captureSnapshotFromLiveMob(saved, identity, goblin);
+        saved.removePending(p);
+
+        LOGGER.info("[TM] pending '{}' promoted: citizen id={} race={} in '{}' (now {} citizens)",
+                p.name, citizenData.getId(), p.race, colony.getName(),
+                colony.getCitizenManager().getCurrentCitizenCount());
+        return true;
+    }
+
+    /**
+     * Retry pass for pending mobs that were not loaded when their owner's
+     * colony was founded: once the mob is loaded and the owner has a colony,
+     * promote it. The pool is normally empty, so this costs nothing.
+     */
+    private static void tickPendingPromotion(MinecraftServer server) {
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(server.overworld());
+        if (saved.getPending().isEmpty()) return;
+        for (RaceIdentitySavedData.PendingRaceMob p : new ArrayList<>(saved.getPending())) {
+            if (p.ownerPlayerUUID == null) continue;
+            IColony colony = IColonyManager.getInstance()
+                    .getIColonyByOwner(server.overworld(), p.ownerPlayerUUID);
+            if (colony == null || !(colony.getWorld() instanceof ServerLevel colonyLevel)) continue;
+            try {
+                promotePending(colonyLevel, colony, saved, p);
+            } catch (Throwable t) {
+                LOGGER.warn("[TM] pending '{}': promotion threw — will retry", p.name, t);
+            }
+        }
     }
 
     /**
@@ -5190,20 +5226,88 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         return 1;
     }
 
-    /** Stage B cleanup — drop the colony's race entry when MC deletes
-     *  the colony so a future re-creation under the same id starts
-     *  fresh. */
+    /**
+     * Colony-deleted cleanup. MineColonies gives a deleted colony's NUMBER to
+     * the next colony founded, and almost everything we store is keyed by that
+     * number — so anything left behind is inherited by a stranger: new human
+     * citizens stamped as the old colony's goblins, races "already accepted",
+     * the arrival cap already full, a free Imperial Charter. Clear all of it.
+     *
+     * <p>Race citizens: a citizen living in the colony is deleted with it, so
+     * its identity is dropped. A citizen that is out as a SUBORDINATE still
+     * has a living mob, so it goes back to the pending pool — the same pool
+     * that holds mobs named before any colony exists — and joins its owner's
+     * next colony.</p>
+     */
     private void onColonyDeleted(ColonyDeletedModEvent event) {
         IColony colony = event.getColony();
         if (!(colony.getWorld() instanceof ServerLevel serverLevel)) return;
+        int colonyId = colony.getID();
+
+        // The charter store is keyed by dimension + number, so it is always
+        // safe to clear.
+        ImperialCharterItem.onColonyDeleted(serverLevel, colonyId);
+
+        // Everything else is keyed by the number ALONE, and colony numbers are
+        // only unique within a dimension. If another dimension has a colony
+        // with this same number we cannot tell whose data is whose, so leave
+        // it alone rather than wipe a living colony's citizens.
+        for (ServerLevel other : serverLevel.getServer().getAllLevels()) {
+            if (other == serverLevel) continue;
+            if (IColonyManager.getInstance().getColonyByWorld(colonyId, other) != null) {
+                LOGGER.warn("[TM] colony '{}' (id {}) deleted, but {} also has a colony with id {} — "
+                        + "leaving the shared race data in place", colony.getName(), colonyId,
+                        other.dimension().location(), colonyId);
+                return;
+            }
+        }
+
         ColonyRaceConfigSavedData config = ColonyRaceConfigSavedData.get(serverLevel);
-        config.clearMembers(colony.getID());
-        config.clearPending(colony.getID());
-        // Reputation cleanup — a re-created colony under the same id
-        // starts back at the neutral default.
-        ReputationManager.onColonyDeleted(serverLevel, colony.getID());
-        LOGGER.info("[TM] colony '{}' deleted — cleared its race config entry",
-                colony.getName());
+
+        // The envoy waiting at the town hall has nobody left to talk to.
+        UUID envoyUuid = config.getActiveEnvoyUuid(colonyId);
+        if (envoyUuid != null) {
+            net.minecraft.world.entity.Entity envoy = serverLevel.getEntity(envoyUuid);
+            if (envoy != null && !envoy.isRemoved()) envoy.discard();
+        }
+        config.clearColony(colonyId);
+
+        ReputationManager.onColonyDeleted(serverLevel, colonyId);
+        RaidSavedData.get(serverLevel).clearColony(colonyId);
+        AssassinSavedData.get(serverLevel).clearColony(colonyId);
+        FestivalSavedData.get(serverLevel).clearColony(colonyId);
+
+        RaceIdentitySavedData saved = RaceIdentitySavedData.get(serverLevel);
+        int dropped = 0;
+        int toPending = 0;
+        for (RaceIdentitySavedData.RaceIdentity identity : new ArrayList<>(saved.all())) {
+            if (identity.colonyId != colonyId) continue;
+            boolean away = identity.mode == RaceIdentitySavedData.Mode.SUBORDINATE
+                    && identity.mobEntityUUID != null;
+            String name = null;
+            if (away) {
+                ICitizenData data = colony.getCitizenManager().getCivilian(identity.citizenId);
+                if (data != null) name = data.getName();
+                if (name == null) {
+                    LivingEntity mob = findLivingEntityAcrossLevels(
+                            serverLevel.getServer(), identity.mobEntityUUID);
+                    if (mob != null && mob.hasCustomName()) name = mob.getCustomName().getString();
+                }
+                if (name == null) name = "Subordinate";
+            }
+            saved.removeIdentity(identity);
+            if (away) {
+                saved.addPending(new RaceIdentitySavedData.PendingRaceMob(
+                        identity.identityId, name, identity.mobEntityUUID,
+                        identity.ownerPlayerUUID, identity.race));
+                toPending++;
+            } else {
+                dropped++;
+            }
+        }
+        LOGGER.info("[TM] colony '{}' (id {}) deleted — cleared its race data; {} citizen identities "
+                + "dropped, {} away subordinates returned to the pending pool",
+                colony.getName(), colonyId, dropped, toPending);
     }
 
     /**
@@ -6308,7 +6412,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // path lands.
         event.getDispatcher().register(
                 Commands.literal("raceflip")
-                        .requires(src -> src.hasPermission(0))
+                        .requires(src -> src.hasPermission(2))
                         .then(Commands.argument("name", StringArgumentType.greedyString())
                                 .executes(this::handleRaceFlipCommand))
         );
@@ -6320,7 +6424,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         //   /setcolonyrace list                          — show current set
         event.getDispatcher().register(
                 Commands.literal("setcolonyrace")
-                        .requires(src -> src.hasPermission(0))
+                        .requires(src -> src.hasPermission(2))
                         .then(Commands.literal("add")
                                 .then(Commands.argument("member", StringArgumentType.word())
                                         .executes(ctx -> handleColonyMemberMutate(ctx, true))))
@@ -6344,7 +6448,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         //                      visual confirmation of a baby race-citizen).
         event.getDispatcher().register(
                 Commands.literal("racegrow")
-                        .requires(src -> src.hasPermission(0))
+                        .requires(src -> src.hasPermission(2))
                         .executes(ctx -> handleRaceGrowCommand(ctx, false))
                         .then(Commands.literal("force")
                                 .executes(ctx -> handleRaceGrowCommand(ctx, true)))
@@ -6354,7 +6458,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // town hall. Removed when the scheduler lands in Stage 3.
         event.getDispatcher().register(
                 Commands.literal("spawnenvoy")
-                        .requires(src -> src.hasPermission(0))
+                        .requires(src -> src.hasPermission(2))
                         .then(Commands.argument("member", StringArgumentType.word())
                                 .executes(this::handleSpawnEnvoyCommand))
         );
@@ -6368,14 +6472,14 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // and report every gate decision + spawn outcome in chat.
         event.getDispatcher().register(
                 Commands.literal("envoyforce")
-                        .requires(src -> src.hasPermission(0))
+                        .requires(src -> src.hasPermission(2))
                         .executes(this::handleEnvoyForceCommand)
         );
         // Stage 3a debug — reset the 3-day envoy cooldown so the next
         // scheduler tick is unblocked.
         event.getDispatcher().register(
                 Commands.literal("envoyresetcooldown")
-                        .requires(src -> src.hasPermission(0))
+                        .requires(src -> src.hasPermission(2))
                         .executes(this::handleEnvoyResetCooldownCommand)
         );
         // Raid v1 debug — force-start a raid at the player's colony NOW
@@ -7018,19 +7122,22 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         return 1;
     }
 
-    /** Resolve the player's colony for /setcolonyrace, using the same
-     *  "owner first, then first colony in level" fallback as onRaceNamed.
-     *  Returns null with an error already sent if neither yields a colony. */
+    /** Resolve the colony a colony command acts on: the player's OWN colony,
+     *  or — for an operator who owns none — the colony they are standing in.
+     *  Never an arbitrary colony: the old "first colony in the dimension"
+     *  fallback let a player with no colony run these commands against
+     *  someone else's. Returns null with an error already sent if neither
+     *  yields a colony. */
     private static IColony resolveCommandColony(CommandSourceStack src, ServerPlayer player) {
         ServerLevel level = player.serverLevel();
         IColonyManager colonyManager = IColonyManager.getInstance();
         IColony colony = colonyManager.getIColonyByOwner(level, player);
-        if (colony == null) {
-            List<IColony> all = colonyManager.getColonies(level);
-            colony = all.isEmpty() ? null : all.get(0);
+        if (colony == null && src.hasPermission(2)) {
+            colony = colonyManager.getColonyByPosFromWorld(level, player.blockPosition());
         }
         if (colony == null) {
-            src.sendFailure(Component.literal("no colony found — create one first"));
+            src.sendFailure(Component.literal("no colony found — create one first"
+                    + " (operators can also stand inside the colony to act on)"));
         }
         return colony;
     }
@@ -8461,16 +8568,21 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // delay so it visually falls through its circle into the ground. Set
         // invulnerable to block suffocation damage. Lock X/Z so the body's
         // AI can't walk it out of the circle while the sink is in progress.
+        // The body's own level, not the player's: a body reached in another
+        // dimension must be animated (and later put back) where it really is.
+        ResourceKey<Level> dissolveDim = target.level().dimension();
+        markSinking(target);
         target.setInvulnerable(true);
         double sinkStartY = target.getY();
         double sinkLockX  = target.getX();
         double sinkLockZ  = target.getZ();
         pendingVerticalMovements.add(new VerticalMovement(
-                target.getUUID(), level.dimension(),
+                target.getUUID(), dissolveDim,
                 sinkLockX, sinkLockZ,
                 sinkStartY, sinkStartY - SINK_DEPTH,
                 now, now + SWAP_DELAY_TICKS,
-                false /* body gets discarded at execute; no need to clear invuln */));
+                false /* a successful swap discards the body; an aborted one is
+                         put back by restoreSunkBody */));
 
         // Queue the swap to execute after the delay
         pendingSwaps.add(new PendingSwap(
@@ -8480,7 +8592,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 identity.mobEntityUUID,
                 magiculePaid,
                 now + SWAP_DELAY_TICKS,
-                materializePos));
+                materializePos,
+                target.getUUID(),
+                dissolveDim));
         LOGGER.info("[TM] swap: queued for execution in {} ticks (paid={} magicule, dissolve sink {}→{})",
                 SWAP_DELAY_TICKS, magiculePaid, sinkStartY, sinkStartY - SINK_DEPTH);
     }
@@ -8752,6 +8866,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             tickReputationDrift(server);
             // Push the away-subordinate id set so the hiring window can gray
             // those citizens out. Silent when nothing changed.
+            // Pending-pool mobs that were unloaded when their owner's colony
+            // was founded join it once they load.
+            tickPendingPromotion(server);
             SubordinateJobGuard.tickSyncToClients(server);
             // Suspicion nameplate flags — controlled/planted citizens flagged
             // to their OWNER's client (info-skill-gated render). Diff-based.
@@ -8858,7 +8975,93 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 LOGGER.error("[TM] swap: executePendingSwap threw (identity {}) — skipped to "
                         + "protect the server tick", p.identityId(), t);
             }
+            // A swap that went through has discarded the sunk body. If the body
+            // is still here the swap was aborted (player logged out, state
+            // changed, no town hall, the summon rolled back, ...), so put it
+            // back on the surface and give it its vulnerability back.
+            try {
+                ServerLevel bodyLevel = server.getLevel(p.dissolveDim());
+                net.minecraft.world.entity.Entity body = bodyLevel == null ? null
+                        : bodyLevel.getEntity(p.dissolveBodyUUID());
+                if (body != null && !body.isRemoved() && restoreSunkBody(body)) {
+                    LOGGER.info("[TM] swap: aborted for identity {} — body {} put back where it stood",
+                            p.identityId(), p.dissolveBodyUUID());
+                }
+            } catch (Throwable t) {
+                LOGGER.warn("[TM] swap: could not put the sunk body back (identity {})",
+                        p.identityId(), t);
+            }
         }
+    }
+
+    /**
+     * Note on the body WHERE it stood and whether it was invulnerable, just
+     * before the sink animation lowers it into the ground and makes it
+     * invulnerable. Stored in the entity's own saved data, so it survives a
+     * chunk unload or a game restart in the middle of the animation.
+     */
+    private static void markSinking(LivingEntity body) {
+        // Already sinking (a second swap queued for the same body): keep the
+        // first note — it holds the real standing position.
+        if (body.getPersistentData().contains(RaceIdentitySavedData.SINK_RESTORE_KEY)) return;
+        CompoundTag note = new CompoundTag();
+        note.putDouble("x", body.getX());
+        note.putDouble("y", body.getY());
+        note.putDouble("z", body.getZ());
+        note.putBoolean("invulnerable", body.isInvulnerable());
+        body.getPersistentData().put(RaceIdentitySavedData.SINK_RESTORE_KEY, note);
+    }
+
+    /**
+     * Undo the sink animation on a body whose swap never happened: move it
+     * back to where it stood and restore its old invulnerable setting.
+     *
+     * @return true if the body carried a sink note and was put back
+     */
+    private static boolean restoreSunkBody(net.minecraft.world.entity.Entity body) {
+        CompoundTag data = body.getPersistentData();
+        if (!data.contains(RaceIdentitySavedData.SINK_RESTORE_KEY, net.minecraft.nbt.Tag.TAG_COMPOUND)) {
+            return false;
+        }
+        CompoundTag note = data.getCompound(RaceIdentitySavedData.SINK_RESTORE_KEY);
+        data.remove(RaceIdentitySavedData.SINK_RESTORE_KEY);
+        body.setPos(note.getDouble("x"), note.getDouble("y"), note.getDouble("z"));
+        body.setDeltaMovement(Vec3.ZERO);
+        body.fallDistance = 0f;
+        body.setInvulnerable(note.getBoolean("invulnerable"));
+        return true;
+    }
+
+    /**
+     * Repair a body that loads in still carrying swap-animation state nobody
+     * is going to finish: the game was closed or the chunk unloaded partway
+     * through a sink or rise. Two cases:
+     * <ul>
+     *   <li>it has a sink note and no swap is queued for it — put it back;</li>
+     *   <li>it is one of our race bodies, is invulnerable, and no animation is
+     *       running for it — clear the flag (also heals bodies left
+     *       invulnerable by versions before this fix).</li>
+     * </ul>
+     */
+    private static void healStrandedSwapBody(ServerLevel level, net.minecraft.world.entity.Entity body) {
+        UUID uuid = body.getUUID();
+        for (PendingSwap p : pendingSwaps) {
+            if (uuid.equals(p.dissolveBodyUUID())) return; // sink in progress
+        }
+        if (restoreSunkBody(body)) {
+            LOGGER.info("[TM] swap: body {} loaded mid-sink with no swap queued — put back", uuid);
+            return;
+        }
+        if (!body.isInvulnerable()) return;
+        for (VerticalMovement m : pendingVerticalMovements) {
+            if (uuid.equals(m.entityUUID())) return; // rise in progress
+        }
+        boolean ours = body instanceof AbstractEntityCitizen
+                ? body.hasData(Attachments.RACE_TAG.get())
+                : RaceIdentitySavedData.get(level).getByMobUUID(uuid) != null;
+        if (!ours) return;
+        body.setInvulnerable(false);
+        LOGGER.info("[TM] swap: body {} loaded invulnerable with no animation running — cleared", uuid);
     }
 
     /**
@@ -10320,6 +10523,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             TensuraRaids.sweepOrphanRaiderOnJoin(serverLevel, event.getEntity());
         } catch (Throwable t) {
             LOGGER.warn("[TM] raid: leftover-raider sweep threw", t);
+        }
+
+        // A body saved partway through a swap animation — see the method.
+        try {
+            healStrandedSwapBody(serverLevel, event.getEntity());
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] swap: stranded-body repair threw", t);
         }
 
         if (!(event.getEntity() instanceof AbstractEntityCitizen citizen)) return;

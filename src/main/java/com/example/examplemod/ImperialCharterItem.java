@@ -225,6 +225,11 @@ public class ImperialCharterItem extends Item {
     // Which colonies hold a charter (overworld SavedData)
     // ------------------------------------------------------------------
 
+    /** Colony-deleted cleanup, called from ExampleMod.onColonyDeleted. */
+    static void onColonyDeleted(ServerLevel level, int colonyId) {
+        Data.get(level).clearColony(level.dimension(), colonyId);
+    }
+
     /** NBT: {@code chartered: ["minecraft:overworld|3", …]} — dimension + colony id,
      *  because MineColonies colony ids are only unique within a dimension. */
     static final class Data extends SavedData {
@@ -247,6 +252,11 @@ public class ImperialCharterItem extends Item {
 
         void charter(net.minecraft.resources.ResourceKey<Level> dim, int colonyId) {
             if (chartered.add(key(dim, colonyId))) setDirty();
+        }
+
+        /** Colony deleted — its number will be reused by the next colony. */
+        void clearColony(net.minecraft.resources.ResourceKey<Level> dim, int colonyId) {
+            if (chartered.remove(key(dim, colonyId))) setDirty();
         }
 
         @Override

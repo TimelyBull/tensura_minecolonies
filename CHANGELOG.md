@@ -40,6 +40,10 @@ Copy the relevant version's section into the CurseForge release notes on each up
   at least 4 races (needs the faction system turned on).
 
 ### Changed
+- **The testing commands now need operator permission.** `/setcolonyrace`,
+  `/racegrow`, `/raceflip`, `/spawnenvoy`, `/envoyforce`, and
+  `/envoyresetcooldown` could be run by any player, and by a player with no
+  colony against someone else's.
 - **Barriers can now grow to 256 blocks, and extra cores add twice as much.**
   The size ceiling was 128. Each extra core now adds 4 blocks per tier (4 to 16)
   instead of 2. Existing barriers keep their size until you change it in the
@@ -69,6 +73,19 @@ Copy the relevant version's section into the CurseForge release notes on each up
   costly summon or send no longer appears for plain Sage holders.
 
 ### Fixed
+- **Subordinates sent home from the roster no longer come back unkillable.**
+  Citizens defending in their monster form during a raid could not be damaged.
+  Existing worlds repair themselves.
+- **A cancelled send or summon no longer leaves the body stuck in the ground.**
+  If the swap is called off (for example you log out during the two-second
+  animation), the body returns to where it stood. Bodies already stuck are
+  made vulnerable again when they next load.
+- **Deleting a colony now clears its race data.** A colony founded afterwards
+  could inherit the old one's accepted envoys, citizen races, and Imperial
+  Charter. Subordinates that were out with you when the colony was deleted
+  join your next colony.
+- **Mobs named before you had a colony are no longer forgotten** if they were
+  out of range when you founded it. They join once you are near them again.
 - **Raiders no longer appear inside a barrier that covers the whole colony.**
 - **A large barrier's wall no longer vanishes when you stand far from the core
   block.**

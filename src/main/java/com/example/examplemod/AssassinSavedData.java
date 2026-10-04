@@ -115,6 +115,14 @@ class AssassinSavedData extends SavedData {
         }
     }
 
+    /** Colony deleted — its number will be reused, so the next colony must not
+     *  start cold-shouldered or with its one assassin already spent. */
+    void clearColony(int colonyId) {
+        boolean changed = coldShoulder.remove(colonyId);
+        changed |= assassinChosen.remove(colonyId);
+        if (changed) setDirty();
+    }
+
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         ListTag entries = new ListTag();

@@ -345,6 +345,31 @@ public class ColonyRaceConfigSavedData extends SavedData {
         }
     }
 
+    /**
+     * Forget EVERYTHING stored for one colony. Called when MineColonies
+     * deletes the colony: it hands the freed colony number to the next colony
+     * founded, which would otherwise inherit the old one's accepted envoys,
+     * age, cooldowns and kill-gate baselines. The per-PLAYER flags (bosses
+     * defeated, envoys seen, ...) are about the player, not the colony, and
+     * stay.
+     */
+    public void clearColony(int colonyId) {
+        membersByColony.remove(colonyId);
+        pendingChoice.remove(colonyId);
+        acceptedEnvoys.remove(colonyId);
+        colonyCreationTick.remove(colonyId);
+        lastEnvoyResolveTick.remove(colonyId);
+        lastImmigrationTick.remove(colonyId);
+        activeEnvoyUuid.remove(colonyId);
+        colonistKillResetTick.remove(colonyId);
+        goblinNamedBaseline.remove(colonyId);
+        orcCitizenSnapshot.remove(colonyId);
+        lizardmanCitizenSnapshot.remove(colonyId);
+        dwarfCitizenSnapshot.remove(colonyId);
+        lastOwnerDeathTick.remove(colonyId);
+        setDirty();
+    }
+
     public Set<Integer> pendingColonies() {
         return java.util.Collections.unmodifiableSet(pendingChoice);
     }
