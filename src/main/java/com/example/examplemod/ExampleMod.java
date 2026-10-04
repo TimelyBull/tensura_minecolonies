@@ -3060,6 +3060,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         // Just-prestiged is an assassin vulnerability window — the player
         // is at their weakest right after a full reset.
         Assassins.markPrestiged(player);
+        Assassins.onCharacterReset(player);
 
         // Tensura "prestige" reset — a RESET_ALL character reset scroll also
         // resets the Harvest Festival bonus on every colony the player owns:
@@ -5572,6 +5573,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     public void onPlayerRespawn(net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerRespawnEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer sp)) return;
         RivalColonies.onPlayerReturn(sp);
+        // An assassin's EP theft is a pair of attribute modifiers, and a death
+        // respawn drops modifiers — put it back on the new body.
+        Assassins.reapplyTheft(sp);
     }
 
     /**

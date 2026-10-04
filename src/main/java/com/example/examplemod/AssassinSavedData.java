@@ -42,6 +42,8 @@ class AssassinSavedData extends SavedData {
     /** Colonies that have already CHOSEN their assassin — once marked,
      *  the colony never breeds another (defused, slain, or otherwise). */
     private final Set<Integer> assassinChosen = new HashSet<>();
+    /** Victim → {stolen max magicule, stolen max aura}; see {@link #getTheft}. */
+    private final Map<UUID, double[]> stolenFrom = new HashMap<>();
 
     private AssassinSavedData() {}
 
@@ -115,6 +117,29 @@ class AssassinSavedData extends SavedData {
         }
     }
 
+    /**
+     * The amounts an assassin took from this player: {maxMagicule, maxAura},
+     * or null if nothing is outstanding. Kept here because the theft itself
+     * is a pair of attribute modifiers on the player, and Minecraft does not
+     * carry modifiers over a death respawn — without this record the theft
+     * vanished the moment the victim respawned.
+     */
+    double[] getTheft(UUID victim) {
+        return stolenFrom.get(victim);
+    }
+
+    void setTheft(UUID victim, double magicule, double aura) {
+        stolenFrom.put(victim, new double[] {magicule, aura});
+        setDirty();
+    }
+
+    /** @return true if there was a theft on record */
+    boolean clearTheft(UUID victim) {
+        boolean had = stolenFrom.remove(victim) != null;
+        if (had) setDirty();
+        return had;
+    }
+
     /** Colony deleted — its number will be reused, so the next colony must not
      *  start cold-shouldered or with its one assassin already spent. */
     void clearColony(int colonyId) {
@@ -155,6 +180,15 @@ class AssassinSavedData extends SavedData {
             chosen.add(e);
         }
         tag.put("assassinChosen", chosen);
+        ListTag thefts = new ListTag();
+        for (Map.Entry<UUID, double[]> e : stolenFrom.entrySet()) {
+            CompoundTag t = new CompoundTag();
+            t.putUUID("victim", e.getKey());
+            t.putDouble("magicule", e.getValue()[0]);
+            t.putDouble("aura", e.getValue()[1]);
+            thefts.add(t);
+        }
+        tag.put("thefts", thefts);
         return tag;
     }
 
@@ -189,6 +223,15 @@ class AssassinSavedData extends SavedData {
             ListTag chosen = tag.getList("assassinChosen", Tag.TAG_COMPOUND);
             for (int i = 0; i < chosen.size(); i++) {
                 data.assassinChosen.add(chosen.getCompound(i).getInt("colonyId"));
+            }
+        }
+        if (tag.contains("thefts", Tag.TAG_LIST)) {
+            ListTag thefts = tag.getList("thefts", Tag.TAG_COMPOUND);
+            for (int i = 0; i < thefts.size(); i++) {
+                CompoundTag t = thefts.getCompound(i);
+                if (!t.hasUUID("victim")) continue;
+                data.stolenFrom.put(t.getUUID("victim"),
+                        new double[] {t.getDouble("magicule"), t.getDouble("aura")});
             }
         }
         return data;

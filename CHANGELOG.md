@@ -137,6 +137,11 @@ Copy the relevant version's section into the CurseForge release notes on each up
 - **Unnamed settlers and waiting envoys stay near the town hall after a
   reload.** They wandered off freely, and each settler that strayed was
   replaced by a new one.
+- **An assassin that kills you now really takes half your maximum EP until you
+  slay it.** The loss disappeared when you respawned. It is a fixed amount
+  taken at the moment of the kill, so EP you earn afterwards is yours in full,
+  and it is returned when the assassin dies. Only the colony's owner can be
+  stolen from, and a full character reset cancels it.
 - **Mobs named before you had a colony are no longer forgotten** if they were
   out of range when you founded it. They join once you are near them again.
 - **Raiders no longer appear inside a barrier that covers the whole colony.**

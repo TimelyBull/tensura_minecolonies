@@ -575,6 +575,10 @@ public final class Assassins {
                                           ServerPlayer victim) {
         AssassinTag tag = assassin.getExistingDataOrNull(Attachments.ASSASSIN_TAG.get());
         if (tag == null || tag.hasStolen()) return; // steal once
+        // Only from the colony owner it turned on. The reclaim on the boss's
+        // death goes to that same player, so a theft from anyone else (a friend
+        // helping in the fight) could never be given back.
+        if (!victim.getUUID().equals(tag.targetPlayer())) return;
 
         // ---- EP THEFT: half of base max EP = half magicule + half aura
         // (getBaseMaxEP is literally their sum). Negative stable-id
@@ -587,22 +591,16 @@ public final class Assassins {
                     .getBaseMaxMagicule(victim) * EP_STEAL_FRACTION;
             stolenAura = io.github.manasmods.tensura.util.EnergyHelper
                     .getBaseMaxAura(victim) * EP_STEAL_FRACTION;
-            applyAdd(victim,
-                    io.github.manasmods.tensura.registry.attribute.TensuraAttributes.MAX_MAGICULE,
-                    THEFT_MAGICULE_ID, -stolenMagicule);
-            applyAdd(victim,
-                    io.github.manasmods.tensura.registry.attribute.TensuraAttributes.MAX_AURA,
-                    THEFT_AURA_ID, -stolenAura);
-            // Clamp currents to the new maxes (cost-gate idiom); keep
-            // magicule ≥ 1 so the Sleep Mode pipeline never fires.
-            ExistenceStorage victimExist = ExampleMod.readExistence(victim);
-            if (victimExist != null) {
-                double maxMag = io.github.manasmods.tensura.util.EnergyHelper.getMaxMagicule(victim);
-                double maxAura = io.github.manasmods.tensura.util.EnergyHelper.getMaxAura(victim);
-                victimExist.setMagicule(Math.max(1.0, Math.min(victimExist.getMagicule(), maxMag)));
-                victimExist.setAura(Math.max(0.0, Math.min(victimExist.getAura(), maxAura)));
-                victimExist.markDirty();
-            }
+            // Record the amounts FIRST. The victim is dying as this runs, and
+            // a death respawn keeps attribute base values but drops every
+            // modifier — so the modifiers applied below die with this body
+            // and onPlayerRespawn puts them back from this record.
+            //
+            // The amounts are FIXED numbers (half of what the victim had at
+            // this moment), not a percentage: whatever EP the victim earns
+            // afterwards is theirs in full.
+            AssassinSavedData.get(level).setTheft(victim.getUUID(), stolenMagicule, stolenAura);
+            applyTheft(victim, stolenMagicule, stolenAura);
             // The assassin GAINS what was taken, pools refilled — its
             // casting (below) runs on your stolen magicule.
             applyAdd(assassin,
@@ -725,10 +723,73 @@ public final class Assassins {
                 AttributeModifier.Operation.ADD_VALUE));
     }
 
+    /** Put the theft on a player body: the two negative max-EP modifiers
+     *  (fixed amounts, stable ids — re-applying replaces, never stacks), then
+     *  pull the current pools down to the new maximums. */
+    private static void applyTheft(ServerPlayer victim, double stolenMagicule, double stolenAura) {
+        applyAdd(victim,
+                io.github.manasmods.tensura.registry.attribute.TensuraAttributes.MAX_MAGICULE,
+                THEFT_MAGICULE_ID, -stolenMagicule);
+        applyAdd(victim,
+                io.github.manasmods.tensura.registry.attribute.TensuraAttributes.MAX_AURA,
+                THEFT_AURA_ID, -stolenAura);
+        // Clamp currents to the new maxes (cost-gate idiom); keep
+        // magicule ≥ 1 so the Sleep Mode pipeline never fires.
+        ExistenceStorage victimExist = ExampleMod.readExistence(victim);
+        if (victimExist != null) {
+            double maxMag = io.github.manasmods.tensura.util.EnergyHelper.getMaxMagicule(victim);
+            double maxAura = io.github.manasmods.tensura.util.EnergyHelper.getMaxAura(victim);
+            victimExist.setMagicule(Math.max(1.0, Math.min(victimExist.getMagicule(), maxMag)));
+            victimExist.setAura(Math.max(0.0, Math.min(victimExist.getAura(), maxAura)));
+            victimExist.markDirty();
+        }
+    }
+
+    /**
+     * The victim has a new body (respawned) or has just logged in: if an
+     * assassin's theft is still outstanding, make sure it is on this body.
+     * Safe to call any number of times.
+     */
+    static void reapplyTheft(ServerPlayer player) {
+        double[] theft = AssassinSavedData.get(player.serverLevel()).getTheft(player.getUUID());
+        if (theft == null) return;
+        try {
+            applyTheft(player, theft[0], theft[1]);
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] assassin: could not re-apply the theft to {}", player.getName().getString(), t);
+        }
+    }
+
+    /**
+     * The player wiped their character (a full reset scroll). Their EP starts
+     * over, so the old theft no longer describes anything: drop it, quietly.
+     * Otherwise a fixed amount sized for their OLD power would sit on a fresh
+     * character, and killing the boss later would hand that amount back.
+     */
+    static void onCharacterReset(ServerPlayer player) {
+        if (!AssassinSavedData.get(player.serverLevel()).clearTheft(player.getUUID())) return;
+        try {
+            AttributeInstance mag = player.getAttribute(
+                    io.github.manasmods.tensura.registry.attribute.TensuraAttributes.MAX_MAGICULE);
+            AttributeInstance aura = player.getAttribute(
+                    io.github.manasmods.tensura.registry.attribute.TensuraAttributes.MAX_AURA);
+            if (mag != null) mag.removeModifier(THEFT_MAGICULE_ID);
+            if (aura != null) aura.removeModifier(THEFT_AURA_ID);
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] assassin: could not clear the theft on reset for {}",
+                    player.getName().getString(), t);
+        }
+        LOGGER.info("[TM] assassin: {} reset their character — outstanding EP theft dropped",
+                player.getName().getString());
+    }
+
     /** Reclaim: strip the theft modifiers off the player — full
      *  restoration. Called on boss death (online) or next login. */
     static void reclaimPower(ServerPlayer player) {
-        boolean removed = false;
+        // Forget the theft too, or the next respawn would put it straight back.
+        // (Also covers a victim who is dead-but-not-respawned when the boss
+        // falls: no modifiers on that body, but the record is what matters.)
+        boolean removed = AssassinSavedData.get(player.serverLevel()).clearTheft(player.getUUID());
         try {
             AttributeInstance mag = player.getAttribute(
                     io.github.manasmods.tensura.registry.attribute.TensuraAttributes.MAX_MAGICULE);
@@ -761,6 +822,7 @@ public final class Assassins {
             data.setPendingReclaim(player.getUUID(), false);
             reclaimPower(player);
         }
+        reapplyTheft(player);
     }
 
     // ------------------------------------------------------------------
