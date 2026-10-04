@@ -156,6 +156,12 @@ public final class Assassins {
         return prest != null && now - prest <= EVENT_WINDOW_TICKS;
     }
 
+    /** Has this identity manifested as the assassin boss (still alive)? Such a
+     *  body is no longer the player's or the colony's to command. */
+    static boolean isActiveAssassin(ServerLevel level, UUID identityId) {
+        return AssassinSavedData.get(level).getState(identityId) == AssassinSavedData.STATE_ACTIVE;
+    }
+
     static boolean isColdShouldered(ServerLevel level, int colonyId) {
         return AssassinSavedData.get(level).isColdShouldered(colonyId);
     }
@@ -350,6 +356,15 @@ public final class Assassins {
         // hostile lock, bar, cold shoulder.
         mob.setData(Attachments.ASSASSIN_TAG.get(),
                 new AssassinTag(identity.identityId, identity.colonyId, owner.getUUID()));
+        // It may have been DEFENDING the colony in this body when it turned
+        // (a raid place-swap). It defends nothing now: drop the defender role,
+        // or the raid pass keeps steering it onto raiders and, when the raid
+        // ends, swaps the boss back into a citizen — no death, so the colony
+        // would stay cold-shouldered for good.
+        if (identity.defendingColony) {
+            identities.setDefendingColony(identity, false);
+        }
+        mob.removeData(Attachments.COLONY_DEFENDER.get());
         // Sentient driver (replaces the assassin autocaster) — drives the
         // assassin's learned active skills, including the ones it COPIES from
         // the player on a successful kill. Granted once here; it auto-drives

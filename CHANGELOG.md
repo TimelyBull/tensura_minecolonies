@@ -118,6 +118,15 @@ Copy the relevant version's section into the CurseForge release notes on each up
   Setting the time backwards no longer counts as a new day either.
 - **Only a colony's own members can use its barrier core menu.** Other players
   could drain or shrink it. A core outside any colony is open to everyone.
+- **A citizen that turns assassin while defending in a raid stays an assassin.**
+  It was turned back into a citizen when the raid ended, leaving the colony
+  shunned with no assassin left to defeat. A manifested assassin can also no
+  longer be sent home from the roster.
+- **Goblin and dwarf citizens no longer turn invisible if their look fails to
+  load.** They fall back to the plain colonist look instead.
+- **The Orb of Domination is no longer lost when its puppet vanishes without
+  dying,** such as when the world is switched to Peaceful. The orb drops where
+  the puppet was (needs the faction system turned on).
 - **Mobs named before you had a colony are no longer forgotten** if they were
   out of range when you founded it. They join once you are near them again.
 - **Raiders no longer appear inside a barrier that covers the whole colony.**

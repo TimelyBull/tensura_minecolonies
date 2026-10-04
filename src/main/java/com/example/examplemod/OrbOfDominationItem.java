@@ -92,6 +92,9 @@ public class OrbOfDominationItem extends Item {
 
     /** Loaded puppets: mob UUID → its dimension. */
     private static final Map<UUID, ResourceKey<Level>> PUPPETS = new HashMap<>();
+    /** Old bodies whose orb was just moved onto the mob they converted into —
+     *  read (and cleared) by the deferred check in {@link #onLeaveLevel}. */
+    private static final java.util.Set<UUID> CARRIED_OVER = new java.util.HashSet<>();
 
     public OrbOfDominationItem(Properties properties) {
         super(properties.stacksTo(1).rarity(Rarity.EPIC).fireResistant());
@@ -297,22 +300,58 @@ public class OrbOfDominationItem extends Item {
     public static void onDeath(LivingDeathEvent event) {
         LivingEntity dead = event.getEntity();
         if (!(dead.level() instanceof ServerLevel level) || ownerOf(dead) == null) return;
+        UUID owner = ownerOf(dead);
         dead.getPersistentData().remove(TAG_DOMINATED_BY);
         PUPPETS.remove(dead.getUUID());
         syncFlag(dead, false);
+        dropOrb(level, dead.getX(), dead.getY(), dead.getZ(), owner, dead.getName());
+    }
 
-        ItemEntity drop = new ItemEntity(level, dead.getX(), dead.getY() + 0.5, dead.getZ(),
+    /**
+     * The puppet is removed WITHOUT dying — the world was switched to Peaceful
+     * (which discards hostile mobs, and a puppet is not "tamed"), or a command
+     * or another mod discarded it. No death event fires for that, so the orb
+     * used to vanish with the mob. Drop it here instead.
+     *
+     * <p>Only a real removal counts: a chunk unloading or a dimension change
+     * also takes the mob out of the level, with the orb still on it.</p>
+     */
+    public static void onLeaveLevel(net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent event) {
+        if (!(event.getLevel() instanceof ServerLevel level)) return;
+        if (!(event.getEntity() instanceof LivingEntity gone)) return;
+        if (gone.getRemovalReason() != Entity.RemovalReason.DISCARDED) return;
+        UUID owner = ownerOf(gone);
+        if (owner == null) return;   // not a puppet, or it died (tag already cleared)
+
+        UUID goneId = gone.getUUID();
+        double x = gone.getX(), y = gone.getY(), z = gone.getZ();
+        Component name = gone.getName();
+        // Decide a moment later, not here. A CONVERSION (zombie → drowned)
+        // also discards the old body, and its event — which moves the orb to
+        // the new body — only fires after this one; dropping now would hand
+        // out a second orb. The tag is left on the old body so onConversion
+        // can still read it. Deferring also keeps the item spawn out of the
+        // level's own entity-removal bookkeeping.
+        level.getServer().tell(new net.minecraft.server.TickTask(level.getServer().getTickCount(), () -> {
+            PUPPETS.remove(goneId);
+            if (CARRIED_OVER.remove(goneId)) return;   // the orb moved to the converted mob
+            dropOrb(level, x, y, z, owner, name);
+        }));
+    }
+
+    /** Put the orb on the ground where its puppet was and tell the owner. */
+    private static void dropOrb(ServerLevel level, double x, double y, double z, UUID owner, Component puppetName) {
+        ItemEntity drop = new ItemEntity(level, x, y + 0.5, z,
                 new ItemStack(ExampleMod.ORB_OF_DOMINATION.get()));
         drop.setUnlimitedLifetime();          // never despawns — it's a Covenant relic
         drop.setDefaultPickUpDelay();
         level.addFreshEntity(drop);
-        level.sendParticles(ParticleTypes.WITCH, dead.getX(), dead.getY() + 1.0, dead.getZ(), 20, 0.3, 0.4, 0.3, 0.05);
+        level.sendParticles(ParticleTypes.WITCH, x, y + 1.0, z, 20, 0.3, 0.4, 0.3, 0.05);
 
-        UUID owner = SubordinateHelper.getSubordinateOwnerUUID(dead);
         ServerPlayer player = owner == null ? null : level.getServer().getPlayerList().getPlayer(owner);
         if (player != null) {
             player.sendSystemMessage(Component.translatable("item.tensura_minecolonies.orb_of_domination.dropped",
-                    dead.getName()).withStyle(ChatFormatting.DARK_PURPLE));
+                    puppetName).withStyle(ChatFormatting.DARK_PURPLE));
         }
     }
 
@@ -327,6 +366,7 @@ public class OrbOfDominationItem extends Item {
         ExistenceStorage ex = ExampleMod.readExistence(to);
         if (ex != null) { ex.setTemporaryOwner(owner); ex.markDirty(); }
         from.getPersistentData().remove(TAG_DOMINATED_BY);   // so the old body's removal drops nothing
+        CARRIED_OVER.add(from.getUUID());                      // …including the deferred onLeaveLevel check
         PUPPETS.remove(from.getUUID());
         PUPPETS.put(to.getUUID(), level.dimension());
         syncFlag(to, true);
@@ -361,5 +401,6 @@ public class OrbOfDominationItem extends Item {
      *  one world into the next one opened in the same game session. */
     static void resetSessionState() {
         PUPPETS.clear();
+        CARRIED_OVER.clear();
     }
 }

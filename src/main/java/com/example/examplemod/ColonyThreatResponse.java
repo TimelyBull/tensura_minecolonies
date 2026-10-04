@@ -109,6 +109,8 @@ public final class ColonyThreatResponse {
                 if (raided && swapEnabled) {
                     List<Mob> raiders = scanRaiders(level, colony);
                     for (RaceIdentitySavedData.RaceIdentity id : ids) {
+                        // The assassin boss is nobody's defender.
+                        if (Assassins.isActiveAssassin(level, id.identityId)) continue;
                         if (id.defendingColony
                                 && id.mode == RaceIdentitySavedData.Mode.SUBORDINATE) {
                             // Already fighting — keep it tagged + on a raider.
@@ -127,6 +129,8 @@ public final class ColonyThreatResponse {
                     // Threat over (or the feature is disabled) — bring every
                     // defender home.
                     for (RaceIdentitySavedData.RaceIdentity id : ids) {
+                        // Never swap the assassin boss back into a citizen.
+                        if (Assassins.isActiveAssassin(level, id.identityId)) continue;
                         if (id.defendingColony) {
                             ExampleMod.defenseSwapToColony(level, saved, id);
                         }

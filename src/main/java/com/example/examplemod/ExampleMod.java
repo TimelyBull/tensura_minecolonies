@@ -625,6 +625,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         NeoForge.EVENT_BUS.addListener(OrbOfDominationItem::onChangeTarget);
         NeoForge.EVENT_BUS.addListener(OrbOfDominationItem::onJoinLevel);
         NeoForge.EVENT_BUS.addListener(OrbOfDominationItem::onDeath);
+        NeoForge.EVENT_BUS.addListener(OrbOfDominationItem::onLeaveLevel);
         NeoForge.EVENT_BUS.addListener(OrbOfDominationItem::onConversion);
         // Imperial Garrison Charter (Eastern Empire) — chartered guards hit harder.
         NeoForge.EVENT_BUS.addListener(ImperialCharterItem::onIncomingDamage);
@@ -8141,6 +8142,12 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             } else {
                 sendAdvisoryNotice(player, "That citizen isn't yours.");
             }
+            return;
+        }
+        // Assassin gate — once it has manifested as the boss it no longer
+        // answers to its owner; "sending it home" would dismiss the fight.
+        if (Assassins.isActiveAssassin(player.serverLevel(), identityId)) {
+            sendAdvisoryNotice(player, "They no longer answer to you.");
             return;
         }
         // Envoy gate — a subordinate away on (or returning from) an envoy

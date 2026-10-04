@@ -49,10 +49,15 @@ public final class DwarfCitizenRenderHandler {
         // which fires RenderLivingEvent.Pre again for the same entity.
         if (event.getRenderer() instanceof DwarfCitizenRenderer) return;
 
-        event.setCanceled(true);
-
         DwarfCitizenRenderer r = renderer();
-        if (r == null) return;
+        if (r == null) {
+            // Our renderer could not be built. Fall back to MineColonies' own
+            // render for the rest of the session — cancelling the event and
+            // drawing nothing left every such citizen invisible.
+            disabled = true;
+            return;
+        }
+        event.setCanceled(true);
 
         float partialTick = event.getPartialTick();
         float entityYaw = Mth.rotLerp(partialTick, citizen.yBodyRotO, citizen.yBodyRot);
@@ -117,7 +122,7 @@ public final class DwarfCitizenRenderHandler {
             // Latch it, or the next frame re-attempts the build and re-logs
             // the stack trace — every frame, for every dwarf citizen.
             buildFailed = true;
-            LOGGER.error("[TM] failed to build dwarf renderer — tagged citizens will not render this session", t);
+            LOGGER.error("[TM] failed to build dwarf renderer — tagged citizens fall back to the plain colonist look this session", t);
         }
         return renderer;
     }

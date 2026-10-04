@@ -82,13 +82,18 @@ public final class GoblinCitizenRenderHandler {
         // already ours, this is the inner fire — let it proceed normally.
         if (event.getRenderer() instanceof GoblinCitizenRenderer) return;
 
+        GoblinCitizenRenderer r = renderer();
+        if (r == null) {
+            // Our renderer could not be built. Fall back to MineColonies' own
+            // render for the rest of the session — cancelling the event and
+            // drawing nothing left every such citizen invisible.
+            disabled = true;
+            return;
+        }
         // Cancel BEFORE rendering — if our render below throws, we still
         // skip MC's default render. Better to flash an invisible body for
         // one frame than to double-render or NPE during MC's pipeline.
         event.setCanceled(true);
-
-        GoblinCitizenRenderer r = renderer();
-        if (r == null) return; // cache build failed (logged once); skip frame
 
         float partialTick = event.getPartialTick();
 
@@ -163,7 +168,7 @@ public final class GoblinCitizenRenderHandler {
             // every frame, for every goblin citizen. The comment claimed "log
             // once"; nothing enforced it.
             buildFailed = true;
-            LOGGER.error("[TM] failed to build goblin renderer — tagged citizens will not render this session", t);
+            LOGGER.error("[TM] failed to build goblin renderer — tagged citizens fall back to the plain colonist look this session", t);
         }
         return renderer;
     }
