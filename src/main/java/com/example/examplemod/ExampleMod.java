@@ -1452,8 +1452,11 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
     /** A race stops receiving free arrivals at this many (named + waiting). */
     static final int RACE_ARRIVAL_CAP = 3;
     /** Unnamed settlers further than this from the town hall no longer count
-     *  as "waiting" (they wandered off). Blocks. */
-    private static final int SETTLER_COUNT_RADIUS = 64;
+     *  as "waiting" (they wandered off). Blocks. Well beyond the roam radius:
+     *  a settler that stops counting is REPLACED by a new arrival and wild
+     *  race mobs never despawn, so a tight radius filled the area with
+     *  permanent mobs one wanderer at a time. */
+    private static final int SETTLER_COUNT_RADIUS = 128;
     /** Settlers are asked to stay within this distance of the town hall.
      *  Best effort: Tensura's own AI may not always honour it, which is why
      *  the count above also checks distance. Blocks. */
@@ -1479,8 +1482,62 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             // Already named → it is a citizen now and is counted as one.
             if (saved.getByMobUUID(mob.getUUID()) != null) continue;
             waiting++;
+            // Strayed well past its roam area — walk it home so it does not
+            // drift out of the counted area altogether.
+            if (mob.blockPosition().distSqr(townHall) > (SETTLER_ROAM_RADIUS * 1.5) * (SETTLER_ROAM_RADIUS * 1.5)) {
+                tetherTo(mob, townHall, SETTLER_ROAM_RADIUS, true);
+            }
         }
         return waiting;
+    }
+
+    /**
+     * Keep a mob near {@code home}: set its roam restriction and, if asked,
+     * start it walking back now.
+     *
+     * <p>The roam restriction is NOT saved with the mob — it is gone after any
+     * chunk unload or restart — so it is re-applied when a settler or envoy
+     * loads back in (see {@link #reapplyTetherOnLoad}).</p>
+     */
+    private static void tetherTo(net.minecraft.world.entity.Mob mob, BlockPos home, int radius, boolean walkHomeNow) {
+        if (mob instanceof net.minecraft.world.entity.PathfinderMob pathfinder) {
+            pathfinder.restrictTo(home, radius);
+        }
+        if (!walkHomeNow) return;
+        try {
+            // Tensura mobs are brain-driven; a mob without this memory ignores it.
+            mob.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET,
+                    new net.minecraft.world.entity.ai.memory.WalkTarget(home, 1.0f, 8));
+        } catch (Throwable ignored) { }
+        mob.getNavigation().moveTo(home.getX() + 0.5, home.getY(), home.getZ() + 0.5, 1.0);
+    }
+
+    /**
+     * An unnamed settler or a waiting envoy has loaded back in: give it its
+     * roam restriction again. Without this both wandered freely after the
+     * first reload — an envoy (invulnerable, never despawns) could leave the
+     * town hall for good while still being the colony's one active envoy.
+     */
+    private static void reapplyTetherOnLoad(ServerLevel level, net.minecraft.world.entity.Entity entity) {
+        if (!(entity instanceof net.minecraft.world.entity.Mob mob)) return;
+        int colonyId;
+        int radius;
+        SettlerTag settler = mob.getExistingDataOrNull(Attachments.SETTLER_TAG.get());
+        EnvoyTag envoy = mob.getExistingDataOrNull(Attachments.ENVOY_TAG.get());
+        if (envoy != null && envoy.state() == EnvoyTag.State.ALIVE) {
+            colonyId = envoy.colonyId();
+            radius = ENVOY_ROAM_RADIUS;
+        } else if (settler != null) {
+            // A named settler is a subordinate now and goes where its owner does.
+            if (RaceIdentitySavedData.get(level).getByMobUUID(mob.getUUID()) != null) return;
+            colonyId = settler.colonyId();
+            radius = SETTLER_ROAM_RADIUS;
+        } else {
+            return;
+        }
+        IColony colony = IColonyManager.getInstance().getColonyByWorld(colonyId, level);
+        if (colony == null || !colony.getServerBuildingManager().hasTownHall()) return;
+        tetherTo(mob, colony.getServerBuildingManager().getTownHall().getPosition(), radius, false);
     }
 
     /** Named citizens of {@code race} plus its unnamed settlers still waiting
@@ -1569,10 +1626,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         // Ask it to stay near the town hall (same call the envoys use). Best
         // effort only — the arrival cap also checks distance.
-        if (mob instanceof net.minecraft.world.entity.PathfinderMob pathfinder
-                && colony.getServerBuildingManager().hasTownHall()) {
-            pathfinder.restrictTo(colony.getServerBuildingManager().getTownHall().getPosition(),
-                    SETTLER_ROAM_RADIUS);
+        if (colony.getServerBuildingManager().hasTownHall()) {
+            tetherTo(mob, colony.getServerBuildingManager().getTownHall().getPosition(),
+                    SETTLER_ROAM_RADIUS, false);
         }
 
         boolean added = serverLevel.addFreshEntity(mob);
@@ -2300,7 +2356,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         UUID dyingUuid = dyingPlayer.getUUID();
         ColonyRaceConfigSavedData config = ColonyRaceConfigSavedData.get(level);
         long now = level.getGameTime();
-        for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
+        for (IColony colony : allColonies(level.getServer())) {
             UUID owner = colony.getPermissions().getOwner();
             if (owner == null || !owner.equals(dyingUuid)) continue;
             config.setLastOwnerDeathTick(colony.getID(), now);
@@ -3012,9 +3068,10 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         try {
             FestivalSavedData fest = FestivalSavedData.get(level);
             int reset = 0;
-            for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
+            for (IColony colony : allColonies(level.getServer())) {
                 if (uuid.equals(colony.getPermissions().getOwner())) {
-                    HarvestFestival.resetColony(level, colony, fest);
+                    ServerLevel colonyLevel = colony.getWorld() instanceof ServerLevel cl ? cl : level;
+                    HarvestFestival.resetColony(colonyLevel, colony, fest);
                     reset++;
                 }
             }
@@ -3290,7 +3347,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         long now = level.getGameTime();
 
         // For every colony the killer owns, apply the reset.
-        for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
+        for (IColony colony : allColonies(level.getServer())) {
             UUID ownerUuid = colony.getPermissions().getOwner();
             if (ownerUuid == null || !ownerUuid.equals(killerUuid)) continue;
             int colonyId = colony.getID();
@@ -3902,7 +3959,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         FestivalSavedData fest = FestivalSavedData.get(level);
         UUID owner = player.getUUID();
         java.util.List<Networking.FestivalBonusEntry> entries = new java.util.ArrayList<>();
-        for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
+        for (IColony colony : allColonies(level.getServer())) {
             if (!owner.equals(colony.getPermissions().getOwner())) continue;
             int colonyId = colony.getID();
             for (var citizenEntry : fest.offsetsForColony(colonyId).entrySet()) {
@@ -7573,6 +7630,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
 
         List<RaceIdentitySavedData.RaceIdentity> recoverable = new ArrayList<>();
         List<RaceIdentitySavedData.RaceIdentity> identityOnly = new ArrayList<>();
+        // Mob not found, but its last known area is not loaded — it may simply
+        // be standing there. Never touched; only reported.
+        List<RaceIdentitySavedData.RaceIdentity> unchecked = new ArrayList<>();
         for (RaceIdentitySavedData.RaceIdentity id : saved.all()) {
             if (id.mode != RaceIdentitySavedData.Mode.SUBORDINATE) continue;
             if (!player.getUUID().equals(id.ownerPlayerUUID)) continue;
@@ -7588,13 +7648,40 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             boolean displaced = id.mobEntityUUID != null
                     && saved.getByMobUUID(id.mobEntityUUID) != id;
             if (mob != null && !displaced) continue; // live subordinate — not orphaned
+            // "Not found" only proves the mob is gone if the place it was last
+            // seen is loaded. A subordinate left on Stay / Wander / Patrol, or
+            // in another dimension, sits in an unloaded chunk; restoring it as
+            // a colonist would leave TWO bodies (and unlink the real one).
+            if (!displaced && mayBeUnloaded(server, id)) {
+                unchecked.add(id);
+                continue;
+            }
             if (id.entitySnapshot != null) recoverable.add(id);
             else identityOnly.add(id);
         }
 
-        if (recoverable.isEmpty() && identityOnly.isEmpty()) {
+        if (!unchecked.isEmpty()) {
+            final int n = unchecked.size();
             src.sendSuccess(() -> Component.literal(
-                    "No orphaned subordinates found — all your named subordinates are accounted for.")
+                    n + " subordinate(s) could not be checked — the area they were last seen in is "
+                    + "not loaded, so they are probably still there. They are left alone. Go to them, "
+                    + "or use the roster to call them, then run this again:")
+                    .withStyle(ChatFormatting.YELLOW), false);
+            for (RaceIdentitySavedData.RaceIdentity id : unchecked) {
+                final String nm = resolveOrphanName(cm, level, id);
+                final BlockPos at = snapshotPosition(id.entitySnapshot);
+                final ServerLevel where = snapshotDimension(server, id.entitySnapshot);
+                src.sendSuccess(() -> Component.literal("    " + nm + " — last seen at "
+                        + at.getX() + " " + at.getY() + " " + at.getZ() + " in "
+                        + where.dimension().location())
+                        .withStyle(ChatFormatting.GRAY), false);
+            }
+        }
+
+        if (recoverable.isEmpty() && identityOnly.isEmpty()) {
+            src.sendSuccess(() -> Component.literal(unchecked.isEmpty()
+                    ? "No orphaned subordinates found — all your named subordinates are accounted for."
+                    : "No other orphaned subordinates found.")
                     .withStyle(ChatFormatting.GREEN), false);
             return 1;
         }
@@ -7647,7 +7734,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             int purged = 0, skipped = 0;
             for (RaceIdentitySavedData.RaceIdentity id : identityOnly) {
                 try {
-                    IColony colony = cm.getColonyByWorld(id.colonyId, level);
+                    IColony colony = findIdentityColony(server, id);
                     if (colony != null) {
                         ICitizenData cd = colony.getCitizenManager().getCivilian(id.citizenId);
                         if (cd != null) {
@@ -7687,7 +7774,7 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         int restored = 0, skipped = 0;
         for (RaceIdentitySavedData.RaceIdentity id : recoverable) {
             try {
-                IColony colony = cm.getColonyByWorld(id.colonyId, level);
+                IColony colony = findIdentityColony(server, id);
                 if (colony == null) { skipped++; continue; }      // fail safe — keep record
                 ICitizenData cd = colony.getCitizenManager().getCivilian(id.citizenId);
                 if (cd == null) { skipped++; continue; }          // fail safe — keep record
@@ -7727,10 +7814,37 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         return 1;
     }
 
+    /**
+     * Could this subordinate's mob still exist in a chunk that just isn't
+     * loaded? True when the snapshot records where it was last seen and any
+     * chunk of the 3×3 around that spot has no entities loaded. (3×3 because
+     * the snapshot can be a few seconds old — the mob may have stepped over a
+     * chunk border before its chunk unloaded.)
+     *
+     * <p>A snapshot with no position or no dimension stamp is from before
+     * stamping existed: the mob has not been loaded since, and there is
+     * nowhere to look, so it is treated as checkable-and-gone as before.</p>
+     */
+    private static boolean mayBeUnloaded(MinecraftServer server, RaceIdentitySavedData.RaceIdentity id) {
+        ServerLevel where = snapshotDimension(server, id.entitySnapshot);
+        BlockPos at = snapshotPosition(id.entitySnapshot);
+        if (where == null || at == null) return false;
+        int cx = net.minecraft.core.SectionPos.blockToSectionCoord(at.getX());
+        int cz = net.minecraft.core.SectionPos.blockToSectionCoord(at.getZ());
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (!where.areEntitiesLoaded(net.minecraft.world.level.ChunkPos.asLong(cx + dx, cz + dz))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     /** Best-effort display name for an orphaned identity's citizen. */
     private static String resolveOrphanName(IColonyManager cm, ServerLevel level,
                                             RaceIdentitySavedData.RaceIdentity id) {
-        IColony c = cm.getColonyByWorld(id.colonyId, level);
+        IColony c = findIdentityColony(level.getServer(), id);
         if (c == null) return "citizen#" + id.citizenId;
         ICitizenData cd = c.getCitizenManager().getCivilian(id.citizenId);
         return cd != null ? cd.getName() : "citizen#" + id.citizenId;
@@ -9058,6 +9172,21 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
      *
      * @return the colony, or null if no loaded dimension has one with this id
      */
+    /**
+     * Every colony in every dimension. Use this for anything that applies to
+     * "all colonies a player owns": {@code getColonies(level)} only returns
+     * the colonies of ONE dimension, so a pass driven by where the player
+     * happens to be (died in the Nether, used a scroll in the End) silently
+     * skipped their overworld colony.
+     */
+    static List<IColony> allColonies(MinecraftServer server) {
+        List<IColony> all = new ArrayList<>();
+        for (ServerLevel level : server.getAllLevels()) {
+            all.addAll(IColonyManager.getInstance().getColonies(level));
+        }
+        return all;
+    }
+
     static IColony findIdentityColony(MinecraftServer server,
                                       RaceIdentitySavedData.RaceIdentity identity) {
         IColony best = null;
@@ -10646,6 +10775,13 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             TensuraRaids.sweepOrphanRaiderOnJoin(serverLevel, event.getEntity());
         } catch (Throwable t) {
             LOGGER.warn("[TM] raid: leftover-raider sweep threw", t);
+        }
+
+        // Settlers and envoys lose their roam restriction on every reload.
+        try {
+            reapplyTetherOnLoad(serverLevel, event.getEntity());
+        } catch (Throwable t) {
+            LOGGER.warn("[TM] tether: re-apply on load threw", t);
         }
 
         // A body saved partway through a swap animation — see the method.

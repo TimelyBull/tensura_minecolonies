@@ -73,16 +73,19 @@ public final class HarvestFestival {
     }
 
     private static void runFestival(ServerPlayer host, boolean withEpGift) {
-        ServerLevel level = host.serverLevel();
-        FestivalSavedData fest = FestivalSavedData.get(level);
+        ServerLevel hostLevel = host.serverLevel();
+        FestivalSavedData fest = FestivalSavedData.get(hostLevel);
         UUID hostId = host.getUUID();
         double playerEP = ExampleMod.playerEP(host);
 
         int owned = 0, prestige = 0, gifted = 0;
-        for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
+        // Every dimension: the awakening can happen while the host is away from
+        // the colony's own dimension.
+        for (IColony colony : ExampleMod.allColonies(host.getServer())) {
             if (!hostId.equals(colony.getPermissions().getOwner())) continue;
             owned++;
             int colonyId = colony.getID();
+            ServerLevel level = colony.getWorld() instanceof ServerLevel cl ? cl : hostLevel;
             try {
                 // Skill prestige: once per colony.
                 if (!fest.isDone(colonyId)) {
@@ -100,7 +103,7 @@ public final class HarvestFestival {
             }
         }
         LOGGER.info("[TM] festival: {} owned colony(ies) in {} — skill-prestige applied to {}, EP-gifted {} citizen(s) (epGift={}, playerEP {})",
-                owned, level.dimension().location(), prestige, gifted, withEpGift, playerEP);
+                owned, "all dimensions", prestige, gifted, withEpGift, playerEP);
         // Sync the (possibly new) skill bonuses to the owner's client for the "+X" UI.
         ExampleMod.sendFestivalBonus(host);
     }

@@ -127,6 +127,16 @@ Copy the relevant version's section into the CurseForge release notes on each up
 - **The Orb of Domination is no longer lost when its puppet vanishes without
   dying,** such as when the world is switched to Peaceful. The orb drops where
   the puppet was (needs the faction system turned on).
+- **`/recoverorphans` no longer duplicates a subordinate that is only out of
+  range.** One left on Stay, Wander, or Patrol in an unloaded area was treated
+  as lost and restored as a second body. It is now left alone and listed with
+  where it was last seen.
+- **Dying, killing a race's member, the reset scroll, and the Harvest Festival
+  now reach your colony from any dimension.** They did nothing if you were in
+  the Nether or another dimension at the time.
+- **Unnamed settlers and waiting envoys stay near the town hall after a
+  reload.** They wandered off freely, and each settler that strayed was
+  replaced by a new one.
 - **Mobs named before you had a colony are no longer forgotten** if they were
   out of range when you founded it. They join once you are near them again.
 - **Raiders no longer appear inside a barrier that covers the whole colony.**

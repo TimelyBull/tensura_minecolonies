@@ -451,7 +451,11 @@ public class RaceIdentitySavedData extends SavedData {
      */
     public void updateMobUUID(RaceIdentity identity, UUID newMobUUID) {
         if (identity.mobEntityUUID != null) {
-            mobUUIDToIdentityId.remove(identity.mobEntityUUID);
+            // Two-argument remove: only drop the index entry if it is THIS
+            // identity's. A legacy "displaced" record shares its mob UUID with
+            // the identity that really owns the mob; removing unconditionally
+            // unlinked that rightful owner.
+            mobUUIDToIdentityId.remove(identity.mobEntityUUID, identity.identityId);
         }
         identity.mobEntityUUID = newMobUUID;
         if (newMobUUID != null) {
@@ -551,7 +555,8 @@ public class RaceIdentitySavedData extends SavedData {
     public void removeIdentity(RaceIdentity identity) {
         byIdentityId.remove(identity.identityId);
         if (identity.mobEntityUUID != null) {
-            mobUUIDToIdentityId.remove(identity.mobEntityUUID);
+            // Only this identity's own entry — see updateMobUUID.
+            mobUUIDToIdentityId.remove(identity.mobEntityUUID, identity.identityId);
         }
         setDirty();
     }
