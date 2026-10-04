@@ -8,6 +8,8 @@ Copy the relevant version's section into the CurseForge release notes on each up
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-10-04
+
 ### Added
 - **The Eastern Empire's Covenant now grants the Imperial Garrison Charter.**
   Use it inside your colony and its guards, present and future, permanently
