@@ -152,7 +152,10 @@ and have to break through.
 The barrier runs on magicule:
 
 - **Right-click** with an empty hand to open its menu (move your own magicule
-  in or out, set the layer count, show or hide the walls).
+  in or out, set the layer count, show or hide the walls). A core inside a
+  colony can only be operated by players that colony lets into its buildings
+  (the owner and officers by default) and by server operators. A core outside
+  any colony can be used by anyone.
 - **Right-click** with Tensura magic crystals to add fixed amounts (low /
   medium / high quality add increasing amounts).
 
@@ -179,7 +182,7 @@ Raising the **third layer** also grants a buff inside the barrier, depending
 on which title the raiser holds:
 
 - **True Demon Lord:** players inside regenerate their own magicule **10%
-  faster**.
+  faster**. Magicule you take out of the barrier does not count.
 - **True Hero:** citizens inside receive **Regeneration II** and **Absorption**
   (extra hearts), on any core tier.
 

@@ -42,11 +42,21 @@ active, that colony's citizens won't trade or assist through the mod's menus.
 If the assassin **kills you**, it steals from you:
 
 - **Half your EP** — taken from your maximum magicule and aura, and given to
-  the assassin (so it fights using your stolen power). Your skills are
+  the assassin (so it fights using your stolen power). The loss is a fixed
+  amount, half of what you had when it killed you: it stays through later
+  deaths and relogs, and EP you earn afterwards is not reduced. Your skills are
   **copied** to it (you keep your own). Resistances and passives it copies
   work automatically, and it actively casts a selection of offensive skills.
 - **Reclaim:** kill the assassin boss and your stolen EP returns in full. If
   you were offline when it died, the reclaim applies on your next login.
+
+Only the colony's owner is stolen from; another player it kills loses nothing.
+Using a full character reset scroll cancels the theft, and nothing is returned
+afterwards.
+
+Once it has turned, the assassin no longer answers to you: it can't be sent
+home from the roster, and if it was defending the colony in a raid it stops
+fighting raiders.
 
 Both the assassin and the citizen it came from are gone once the assassin is
 killed.

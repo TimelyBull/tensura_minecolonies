@@ -88,7 +88,7 @@ These newcomers arrive **wild and unnamed**. They wait near the town hall and
 become citizens when you **name** them, like any monster you bring in yourself.
 
 The limit of three counts the ones you have named **plus** the unnamed ones
-still waiting within 64 blocks of the town hall. If three are waiting, no more
+still waiting within 128 blocks of the town hall. If three are waiting, no more
 come until you name one or one is lost. Past three, a race grows by births (and
 the Tavern). Human colonists count as a race here too, and they still arrive as
 ordinary citizens.
@@ -119,6 +119,13 @@ home. You never have to unassign anything before summoning someone. A hut can't
 in the hut's hiring list, marked **Subordinate Mode**, while ones serving in the
 colony read **Colonist Mode**. You can still fire a resident who is out with
 you, straight from the hut.
+
+**Naming a monster before you have a colony.** It waits and joins your colony
+when you found one. If it is out of range at that moment, it joins once you are
+near it again.
+
+**If a colony is deleted**, the citizens living in it are gone with it. Named
+monsters that were out at your side stay yours and join your next colony.
 
 **Before removing the mod**, send every subordinate home from the roster. A
 subordinate out at your side is a citizen with no body, and without the mod

@@ -24,7 +24,7 @@ These force or inspect systems for testing.
 | `/diplomacy open <faction>` | ✅ | Force-open relations with a faction. |
 | `/diplomacy offers` | ✅ | Force-refresh a faction's deal offers. |
 | `/diplomacy reply <faction>` | ✅ | Force the pending envoy reply. |
-| `/recoverorphans [confirm\|purge]` | ✅ | Reconcile named subordinates that lost their colony link (dry-run by default: `confirm` restores them, `purge` deletes them). |
+| `/recoverorphans [confirm\|purge]` | ✅ | Reconcile named subordinates that lost their colony link (dry-run by default: `confirm` restores them, `purge` deletes them). A subordinate whose last known area is not loaded is listed with its coordinates and left alone. |
 | `/festival run` | ✅ | Run the [Harvest Festival](../features/harvest-festival.md) on your colony. |
 | `/festival reset` | ✅ | Prestige-reset your colony (removes the festival's skill bonus so it can be earned again). |
 | `/tensuraraid` | ✅ | Start a [raid](../features/raids-barriers.md) on your colony now. |

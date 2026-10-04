@@ -96,10 +96,12 @@ Falmuth's Covenant deal completes when you kill the Wither. The reward is the
 **Holy Field Stone**. Using it raises a holy field with a 12-block radius
 around where you stand, lasting 30 seconds. Enemies inside get Anti-Skill and
 Anti-Magic (they can't use skills or cast spells) and take 1 heart of holy
-damage per second. Enemies are hostile monsters, raiders, rival garrison
-defenders, and any mob attacking you or your subordinates. You, other players,
-your subordinates and pets, colony citizens, and allied fighters are never
-affected, even if you or they are monsters. The stone recharges in 30 minutes
+damage per second. Enemies are hostile monsters (including wild Tensura
+monsters), raiders, rival garrison defenders, and any mob attacking you, your
+subordinates, or a colony citizen. Wild goblins, orcs, lizardmen, and dwarves
+are left alone unless they attack your side. You, other players, anyone's
+subordinates and pets, colony citizens, unnamed settlers, and allied fighters
+are never affected, even if you or they are monsters. The stone recharges in 30 minutes
 (real time).
 
 ### The Great Hunt (Eurazania)
@@ -135,6 +137,8 @@ which then serves you until it dies:
 - A zombie that turns into a drowned (or a similar change) keeps the orb.
 
 When the mob dies, the orb drops where it fell. Dropped orbs never despawn.
+The orb also drops if the mob is removed without dying, such as when the world
+is switched to Peaceful.
 Killing your own puppet is how you get the orb back early.
 
 Only hostile mobs can take the orb: monsters, or any mob currently attacking

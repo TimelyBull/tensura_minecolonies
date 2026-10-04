@@ -81,9 +81,8 @@ Copy the relevant version's section into the CurseForge release notes on each up
   animation), the body returns to where it stood. Bodies already stuck are
   made vulnerable again when they next load.
 - **Deleting a colony now clears its race data.** A colony founded afterwards
-  could inherit the old one's accepted envoys, citizen races, and Imperial
-  Charter. Subordinates that were out with you when the colony was deleted
-  join your next colony.
+  could inherit the old one's accepted envoys and citizen races. Subordinates
+  that were out with you when the colony was deleted join your next colony.
 - **A subordinate that dies in another dimension no longer returns as a human
   colonist.** Dying away from the colony's dimension (the Nether, for example)
   left its citizen record behind. The same fix stops an assassin from striking
@@ -104,9 +103,6 @@ Copy the relevant version's section into the CurseForge release notes on each up
   They refused to target either race at all, so they stood still against
   raiders, enemy garrisons, and assassins of those races. Wild and unnamed
   ones that leave you alone are still spared.
-- **The Holy Field Stone now affects wild Tensura monsters.** It only reached
-  raiders, garrisons, and mobs already attacking you. Wild goblins, orcs,
-  lizardmen, and dwarves are still left alone unless they attack your side.
 - **The Twin Grail's day face no longer removes your buffs.** It cleanses
   negative effects only, as its tooltip says.
 - **The hiring window no longer loses its Subordinate Mode labels after you
@@ -124,9 +120,6 @@ Copy the relevant version's section into the CurseForge release notes on each up
   longer be sent home from the roster.
 - **Goblin and dwarf citizens no longer turn invisible if their look fails to
   load.** They fall back to the plain colonist look instead.
-- **The Orb of Domination is no longer lost when its puppet vanishes without
-  dying,** such as when the world is switched to Peaceful. The orb drops where
-  the puppet was (needs the faction system turned on).
 - **`/recoverorphans` no longer duplicates a subordinate that is only out of
   range.** One left on Stay, Wander, or Patrol in an unloaded area was treated
   as lost and restored as a second body. It is now left alone and listed with
@@ -155,11 +148,9 @@ Copy the relevant version's section into the CurseForge release notes on each up
   before you respawn.
 - **Goblin, lizardman, and dwarf citizen shops restock once each dawn,** not
   once per dimension, so price changes from heavy trading now carry over.
-- **Smaller fixes:** the Imperial Garrison Charter no longer fully heals a
-  guard whenever it reloads; raid and assassin boss bars clear when you change
-  dimension or respawn; a tamed otherworlder's message now says when it is
-  waiting for you to found a colony; a dead citizen's Harvest Festival bonus
-  no longer passes to the next citizen.
+- **Smaller fixes:** raid and assassin boss bars clear when you change
+  dimension or respawn, and a dead citizen's Harvest Festival bonus no longer
+  passes to the next citizen.
 - **Mobs named before you had a colony are no longer forgotten** if they were
   out of range when you founded it. They join once you are near them again.
 - **Raiders no longer appear inside a barrier that covers the whole colony.**
