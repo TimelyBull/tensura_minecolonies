@@ -2949,7 +2949,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         for (ServerLevel level : server.getAllLevels()) {
             long day = level.getDayTime() / 24_000L;
             Long prev = lastDriftDay.put(level.dimension(), day);
-            if (prev == null || prev.longValue() == day) continue; // first observation / same day
+            // First observation, same day, or the clock went BACKWARDS
+            // (/time set): only a later day counts as a new day.
+            if (prev == null || day <= prev.longValue()) continue;
 
             for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
                 try {
@@ -3471,8 +3473,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
                 lastRestockDayPerDim.put(level.dimension(), currentDay);
                 continue;
             }
-            if (currentDay == lastDay) continue;
             lastRestockDayPerDim.put(level.dimension(), currentDay);
+            // Same day, or the clock went backwards (/time set) — no restock.
+            if (currentDay <= lastDay) continue;
 
             RaceIdentitySavedData saved = RaceIdentitySavedData.get(level);
             int restockedLive = 0;
@@ -5450,6 +5453,9 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
         if (!(event.getEntity() instanceof ServerPlayer sp)) return;
         ServerLevel level = sp.serverLevel();
         ColonyRaceConfigSavedData config = ColonyRaceConfigSavedData.get(level);
+
+        // Their client's away-subordinate list is empty — resend it.
+        SubordinateJobGuard.onPlayerJoined();
 
         // Assassin v2 — apply an EP reclaim owed while the player was
         // offline (the boss died without them).
@@ -10579,6 +10585,46 @@ public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBloc
             LOGGER.warn("[TM] FIX2: could not persist race-tag snapshot for identity {}",
                     identity.identityId, t);
         }
+    }
+
+    /**
+     * The server (in single-player: the world) has stopped. Everything the mod
+     * keeps in static fields describes THAT world — queued swaps, the day each
+     * dimension was last processed, active Holy Fields and prey marks, boss
+     * bars. Static fields outlive the world, so without this a second world
+     * opened in the same game session inherited them: a "new day" fired at
+     * once (reputation drift, an assassin determination day, a shop restock),
+     * a Holy Field kept running, a queued swap refunded magicule.
+     *
+     * <p>Anything that must survive a restart is in SavedData, not here.</p>
+     */
+    @SubscribeEvent
+    public void onServerStopped(net.neoforged.neoforge.event.server.ServerStoppedEvent event) {
+        pendingCircles.clear();
+        pendingReaches.clear();
+        pendingSwaps.clear();
+        pendingVerticalMovements.clear();
+        lastDriftDay.clear();
+        recentCitizenHits.clear();
+        recentBossHits.clear();
+        lastRestockDayPerDim.clear();
+        TRANSIENT_MERCHANTS.clear();
+        GRAIL_NIGHT_BLESSING.clear();
+        MASTERWORK_SOULBOUND.clear();
+
+        Assassins.resetSessionState();
+        BarrierBlockEntity.resetSessionState();
+        DiplomacyManager.resetSessionState();
+        DragoNovaItem.resetSessionState();
+        HolyFieldStoneItem.resetSessionState();
+        MasterworkItem.resetSessionState();
+        MindControlTracker.resetSessionState();
+        OrbOfDominationItem.resetSessionState();
+        PackLeadersMarkItem.resetSessionState();
+        RivalColonies.resetSessionState();
+        SubordinateJobGuard.resetSessionState();
+        TensuraRaids.resetSessionState();
+        LOGGER.info("[TM] server stopped — in-memory session state cleared");
     }
 
     @SubscribeEvent

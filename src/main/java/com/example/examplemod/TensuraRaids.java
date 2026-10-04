@@ -1481,4 +1481,16 @@ public final class TensuraRaids {
             player.sendSystemMessage(message);
         }
     }
+
+    /** Forget everything this class keeps in memory about the running world.
+     *  Called when the server stops (ExampleMod.onServerStopped): these fields
+     *  are static, so in single-player they would otherwise carry over from
+     *  one world into the next one opened in the same game session. */
+    static void resetSessionState() {
+        MC_RAID_ALLIES.clear();
+        ACTIVE_BARRIERS.clear();
+        lastDayPhase.clear();
+        PENDING_STRAGGLERS.clear();
+        SPAWNING_RAIDER = false;
+    }
 }

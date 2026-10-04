@@ -109,6 +109,15 @@ Copy the relevant version's section into the CurseForge release notes on each up
   lizardmen, and dwarves are still left alone unless they attack your side.
 - **The Twin Grail's day face no longer removes your buffs.** It cleanses
   negative effects only, as its tooltip says.
+- **The hiring window no longer loses its Subordinate Mode labels after you
+  rejoin a server.** Away subordinates showed as hireable and had no Fire
+  button until something in the colony changed.
+- **Opening a second world in the same game session no longer carries things
+  over from the first.** A new day could fire at once (reputation drift, a
+  shop restock), and an active Holy Field or Twin Grail blessing kept running.
+  Setting the time backwards no longer counts as a new day either.
+- **Only a colony's own members can use its barrier core menu.** Other players
+  could drain or shrink it. A core outside any colony is open to everyone.
 - **Mobs named before you had a colony are no longer forgotten** if they were
   out of range when you founded it. They join once you are near them again.
 - **Raiders no longer appear inside a barrier that covers the whole colony.**

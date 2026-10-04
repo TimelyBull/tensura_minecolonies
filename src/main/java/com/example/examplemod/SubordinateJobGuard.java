@@ -122,9 +122,22 @@ public final class SubordinateJobGuard {
      * empty and needs everything), which is what {@code lastPlayerCount} is
      * watching for.</p>
      */
+    /**
+     * A player just joined: their client starts with an empty store, so make
+     * the next pass resend every colony. Counting players alone misses a join
+     * that leaves the count unchanged — the same player rejoining an otherwise
+     * empty server (1 → 0 → 1), or one leaving as another arrives.
+     */
+    public static void onPlayerJoined() {
+        lastPlayerCount = -1;
+    }
+
     public static void tickSyncToClients(MinecraftServer server) {
         int online = server.getPlayerList().getPlayerCount();
-        if (online == 0) return;
+        if (online == 0) {
+            lastPlayerCount = 0; // so the next arrival is seen as a change
+            return;
+        }
         boolean forceAll = online != lastPlayerCount;
         lastPlayerCount = online;
 
@@ -174,5 +187,14 @@ public final class SubordinateJobGuard {
                 }
             }
         }
+    }
+
+    /** Forget everything this class keeps in memory about the running world.
+     *  Called when the server stops (ExampleMod.onServerStopped): these fields
+     *  are static, so in single-player they would otherwise carry over from
+     *  one world into the next one opened in the same game session. */
+    static void resetSessionState() {
+        LAST_SENT.clear();
+        lastPlayerCount = -1;
     }
 }

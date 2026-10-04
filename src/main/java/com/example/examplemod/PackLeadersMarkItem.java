@@ -307,4 +307,12 @@ public class PackLeadersMarkItem extends Item {
     private static long minutesLeft(long readyAt, long now) {
         return Math.max(1, (readyAt - now + 59_999L) / 60_000L);
     }
+
+    /** Forget everything this class keeps in memory about the running world.
+     *  Called when the server stops (ExampleMod.onServerStopped): these fields
+     *  are static, so in single-player they would otherwise carry over from
+     *  one world into the next one opened in the same game session. */
+    static void resetSessionState() {
+        MARKS.clear();
+    }
 }

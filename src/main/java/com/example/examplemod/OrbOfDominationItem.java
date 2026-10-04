@@ -354,4 +354,12 @@ public class OrbOfDominationItem extends Item {
         tooltip.add(Component.translatable("item.tensura_minecolonies.orb_of_domination.desc")
                 .withStyle(ChatFormatting.GRAY));
     }
+
+    /** Forget everything this class keeps in memory about the running world.
+     *  Called when the server stops (ExampleMod.onServerStopped): these fields
+     *  are static, so in single-player they would otherwise carry over from
+     *  one world into the next one opened in the same game session. */
+    static void resetSessionState() {
+        PUPPETS.clear();
+    }
 }

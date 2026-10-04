@@ -1168,6 +1168,22 @@ public class BarrierBlockEntity extends BlockEntity {
         return accepted;
     }
 
+    /**
+     * May this player operate the core's menu? A core inside a colony belongs
+     * to that colony: only players the colony lets into its buildings (owner,
+     * officers — MineColonies' ACCESS_HUTS permission) and server operators
+     * may. A core outside any colony has no owner and anyone may use it.
+     */
+    public boolean mayOperate(ServerPlayer player) {
+        if (level == null) return false;
+        if (player.hasPermissions(2)) return true;
+        com.minecolonies.api.colony.IColony colony = com.minecolonies.api.colony.IColonyManager
+                .getInstance().getColonyByPosFromWorld(level, worldPosition);
+        if (colony == null) return true;
+        return colony.getPermissions().hasPermission(player,
+                com.minecolonies.api.colony.permissions.Action.ACCESS_HUTS);
+    }
+
     public double withdrawToPlayer(Player player, double amount) {
         ExistenceStorage exist = ExampleMod.readExistence(player);
         if (exist == null) return 0;
@@ -1692,5 +1708,15 @@ public class BarrierBlockEntity extends BlockEntity {
             if (network != null) network.remove(worldPosition);
         }
         super.setRemoved();
+    }
+
+    /** Forget everything this class keeps in memory about the running world.
+     *  Called when the server stops (ExampleMod.onServerStopped): these fields
+     *  are static, so in single-player they would otherwise carry over from
+     *  one world into the next one opened in the same game session. */
+    static void resetSessionState() {
+        DL_MAGICULE_BASELINE.clear();
+        DL_MAGICULE_BASELINE_TICK.clear();
+        COLONY_CORE_NETWORKS.clear();
     }
 }

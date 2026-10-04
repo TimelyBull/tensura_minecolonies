@@ -377,4 +377,12 @@ public class MasterworkItem extends SwordItem {
                 || e.hasData(Attachments.ALLY_TAG.get())
                 || e.hasData(Attachments.RACE_TAG.get());
     }
+
+    /** Forget everything this class keeps in memory about the running world.
+     *  Called when the server stops (ExampleMod.onServerStopped): these fields
+     *  are static, so in single-player they would otherwise carry over from
+     *  one world into the next one opened in the same game session. */
+    static void resetSessionState() {
+        MASTERED_CACHE.clear();
+    }
 }

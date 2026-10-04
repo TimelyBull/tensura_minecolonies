@@ -247,6 +247,10 @@ public final class ClientEvents {
 
     private static void onClientLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         RaceTagClientStore.clearAll();
+        // These mirror one server's colonies by colony/citizen number; the
+        // next world or server reuses the same numbers for different citizens.
+        SubordinateClientStore.clear();
+        FestivalBonusClientStore.clear();
         // Drop the cached goblin renderer too — its Context references the
         // outgoing world's resource manager and baked models. Next session
         // will rebuild lazily against fresh ones.

@@ -1776,4 +1776,17 @@ final class MindControlTracker {
         }
         return "Your subordinate";
     }
+
+    /** Forget everything this class keeps in memory about the running world.
+     *  Called when the server stops (ExampleMod.onServerStopped): these fields
+     *  are static, so in single-player they would otherwise carry over from
+     *  one world into the next one opened in the same game session. */
+    static void resetSessionState() {
+        ACTIVE_STRIKES.clear();
+        PENDING_TELLS.clear();
+        TELLS_SENT.clear();
+        SUSPICION_SENT.clear();
+        LAST_STEAL.clear();
+        PENDING_REQUESTS.clear();
+    }
 }

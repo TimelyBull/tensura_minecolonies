@@ -133,6 +133,12 @@ public class BarrierBlock extends BaseEntityBlock {
                 || !(player instanceof net.minecraft.server.level.ServerPlayer sp)) {
             return InteractionResult.PASS;
         }
+        if (!barrier.mayOperate(sp)) {
+            sp.displayClientMessage(net.minecraft.network.chat.Component.literal(
+                    "This barrier core belongs to another colony.")
+                    .withStyle(net.minecraft.ChatFormatting.RED), true);
+            return InteractionResult.CONSUME;
+        }
         Networking.sendBarrierMenuTo(sp, barrier);
         return InteractionResult.CONSUME;
     }

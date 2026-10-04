@@ -50,6 +50,10 @@ public final class AssassinClientHandler {
 
     public static void onClientLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         FLAGGED.clear();
+        // The cache is stamped with the old world's game time; a world with a
+        // lower clock would never refresh it.
+        greatSageCache = false;
+        greatSageCacheTime = Long.MIN_VALUE;
     }
 
     private static boolean localPlayerHasGreatSage() {

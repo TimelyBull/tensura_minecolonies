@@ -745,6 +745,10 @@ public final class Networking {
             // for a block; standard interaction distance applies.
             if (payload.pos().distToCenterSqr(sp.position()) > 8 * 8) return;
             if (!(level.getBlockEntity(payload.pos()) instanceof BarrierBlockEntity clicked)) return;
+            // The menu normally only opens for someone allowed to use the core
+            // (BarrierBlock.useWithoutItem), but this packet can be sent
+            // without the menu — check again here.
+            if (!clicked.mayOperate(sp)) return;
             // Actions apply to the network primary when the clicked core is a
             // linked secondary (one shared barrier per colony network).
             BarrierBlockEntity be = clicked.resolveMenuTarget();

@@ -69,6 +69,8 @@ public final class SuspicionClientHandler {
 
     public static void onClientLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         FLAGGED.clear();
+        infoSkillCache = false;
+        infoSkillCacheTime = Long.MIN_VALUE;
     }
 
     private static boolean localPlayerHasInfoSkill() {
