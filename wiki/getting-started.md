@@ -41,6 +41,8 @@ identity — its name, progress, and type carry across. See
 1. **Found a colony** the normal MineColonies way.
 2. **Name a Tensura monster** — a goblin, orc, dwarf, or lizardman — using
    Tensura's naming. A named monster becomes one of your subordinates.
+   (Otherworlders can't be named; one you tame joins your roster the same
+   way.)
 3. **Send it to your colony** to add it as a citizen, or keep it at your
    side. Use the roster (press `G`) to manage your named monsters and move
    them between roles.

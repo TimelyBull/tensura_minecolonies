@@ -1,8 +1,8 @@
 # Tensura × MineColonies
 
 A NeoForge mod that integrates **Tensura: Reincarnated** with
-**MineColonies**. Tensura monsters (goblins, orcs, dwarves, lizardmen) can
-join your colony as citizens, and the Tensura world's factions track their
+**MineColonies**. Tensura monsters (goblins, orcs, dwarves, lizardmen) and
+otherworlders can join your colony as citizens, and the Tensura world's factions track their
 standing with you and can be allied with or attacked.
 
 ## Core Concept: Two Bodies, One Identity
@@ -24,8 +24,9 @@ type carry across.
 
 -   :material-account-group: **Races & Citizens**
 
-    Name a goblin, orc, dwarf, or lizardman to add it to your colony as a
-    citizen. Each race has its own appearance and starting work-skill bias.
+    Name a goblin, orc, dwarf, or lizardman, or tame an otherworlder, to add
+    it to your colony as a citizen. Each race has its own appearance and
+    starting work-skill bias.
 
     [:octicons-arrow-right-24: Races & Citizens](features/races-citizens.md)
 

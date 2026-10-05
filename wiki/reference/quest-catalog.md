@@ -17,8 +17,8 @@ Most deals ask for one of these:
 
 Two more asks are uncommon:
 
-- **Population** — reach a citizen count (only the Jura-Tempest Federation's
-  Covenant capstone).
+- **A colony of many races** — reach 25 citizens from at least 4 races (only
+  the Jura-Tempest Federation's Covenant capstone).
 - **Win a war** — the Moderate Harlequin Alliance's top-tier deal, cleared
   through the [Warfare](../features/warfare.md) system.
 
@@ -54,8 +54,8 @@ grants a **signature Tensura skill** (the same skill you'd get by
   the **Alliance**.
 - **Covenant milestone** — a unique deal that unlocks at the **Covenant**
   standing threshold. Completing it forms the Covenant and grants the
-  faction's unique reward (see [Diplomacy](../features/diplomacy.md) for
-  examples).
+  faction's unique reward (see
+  [Diplomacy](../features/diplomacy.md#relationship-tiers) for the full list).
 
 ## Who Offers What
 

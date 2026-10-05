@@ -78,7 +78,7 @@ any standing, so a relationship that has slipped can always be worked back up.
 
 The Jura-Tempest Federation's Covenant deal completes when your colony has at
 least 25 citizens from at least 4 different races (colonists, goblins, orcs,
-lizardmen, dwarves). It has no deadline. The reward is the **Seal of
+lizardmen, dwarves, otherworlders). It has no deadline. The reward is the **Seal of
 Ascension**: use it on one of your subordinates to raise its EP by 25%, and for
 the next 30 minutes every EP gain it makes is 50% larger. The seal recharges
 in 45 minutes (real time, including while you're logged out).
@@ -227,19 +227,34 @@ Relations progress through three tiers, each unlocking more.
 
     The top tier. After Alliance, standing rises slowly toward a Covenant
     threshold. Crossing it unlocks the faction's unique **milestone deal**.
-    Completing it forms the Covenant and grants that faction's unique reward,
-    for example:
+    Completing it forms the Covenant and grants that faction's unique reward:
 
     - **Dwargon** — a daily generator of industrial goods, plus a masterwork
       forging recipe.
     - **Milim** — the **Absolute Annihilator**, a custom growing hammer, for
       slaying the Warden (also grants her Strength skill), plus a **Drago Nova**
       blast you can claim about once an hour.
-    - **Luminous** — the **Twin Grail**, from her Trial of Light & Dark
-      (below), plus starter elemental spirits (only if you have none).
-    - **Falmuth** — stronger faction reinforcements during raids.
-    - **Moderate Harlequin Alliance** — advance notice of incoming raids, and
-      a tame Orc Disaster to kill without penalty.
+    - **Luminous** — the **Twin Grail**, from her
+      [Trial of Light & Dark](#the-trial-of-light-dark-luminous), plus starter
+      elemental spirits (only if you have none).
+    - **Jura-Tempest Federation** — the **Seal of Ascension**: +25% EP for one
+      subordinate and faster EP growth for 30 minutes
+      ([details](#a-nation-of-many-peoples-jura-tempest-federation)).
+    - **Leon** — the **Otherworlder Summoning Codex**: summons an otherworlder
+      as your subordinate ([details](#tribute-to-the-platinum-saber-leon)).
+    - **Falmuth** — the **Holy Field Stone**: a 30-second field that blocks
+      enemy skills and magic ([details](#prove-your-might-falmuth)), plus
+      stronger faction reinforcements during raids.
+    - **Eurazania** — the **Pack Leader's Mark**: marks a mob as prey for your
+      subordinates ([details](#the-great-hunt-eurazania)).
+    - **Moderate Harlequin Alliance** — the **Orb of Domination**: makes a
+      hostile mob serve you until it dies
+      ([details](#souls-for-the-core-moderate-harlequin-alliance)), plus
+      advance notice of incoming raids, and a tame Orc Disaster to kill
+      without penalty.
+    - **Eastern Empire** — the **Imperial Garrison Charter**: permanently
+      strengthens one colony's guards
+      ([details](#the-imperial-compact-eastern-empire)).
 
     Covenant also reduces supply-deal costs and increases raid reinforcements.
 
