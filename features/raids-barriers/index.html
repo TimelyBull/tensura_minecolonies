@@ -1417,24 +1417,26 @@ plus a bonus for every OTHER core in the colony based on that core's tier:</p>
 <tbody>
 <tr>
 <td>Tier 1</td>
-<td>+2 blocks</td>
-</tr>
-<tr>
-<td>Tier 2</td>
 <td>+4 blocks</td>
 </tr>
 <tr>
+<td>Tier 2</td>
+<td>+8 blocks</td>
+</tr>
+<tr>
 <td>Tier 3</td>
-<td>+6 blocks</td>
+<td>+12 blocks</td>
 </tr>
 <tr>
 <td>Tier 4</td>
-<td>+8 blocks</td>
+<td>+16 blocks</td>
 </tr>
 </tbody>
 </table>
 <p>So one tier-4 core alone tops out at 60. Add four more tier-4 cores and it
-reaches 92. There is a hard ceiling of <strong>128</strong> whatever you build.</p>
+reaches 124. There is a hard ceiling of <strong>256</strong> whatever you build.</p>
+<p>A very large barrier only draws while the core block is within your render
+distance. The protection works either way.</p>
 <p>Set it in the core menu with the <strong>FIELD SIZE</strong> row: <code>-</code> and <code>+</code> move it 4
 blocks at a time, <code>MIN</code> and <code>MAX</code> jump to the ends of the range, and the bar
 shows where you are within it. A smaller field costs less fuel. A larger one
@@ -1517,7 +1519,10 @@ and have to break through.</p>
 <p>The barrier runs on magicule:</p>
 <ul>
 <li><strong>Right-click</strong> with an empty hand to open its menu (move your own magicule
-  in or out, set the layer count, show or hide the walls).</li>
+  in or out, set the layer count, show or hide the walls). A core inside a
+  colony can only be operated by players that colony lets into its buildings
+  (the owner and officers by default) and by server operators. A core outside
+  any colony can be used by anyone.</li>
 <li><strong>Right-click</strong> with Tensura magic crystals to add fixed amounts (low /
   medium / high quality add increasing amounts).</li>
 </ul>
@@ -1539,7 +1544,7 @@ ongoing magicule upkeep from the fuel pool.</p>
 on which title the raiser holds:</p>
 <ul>
 <li><strong>True Demon Lord:</strong> players inside regenerate their own magicule <strong>10%
-  faster</strong>.</li>
+  faster</strong>. Magicule you take out of the barrier does not count.</li>
 <li><strong>True Hero:</strong> citizens inside receive <strong>Regeneration II</strong> and <strong>Absorption</strong>
   (extra hearts), on any core tier.</li>
 </ul>
@@ -1575,9 +1580,14 @@ are bigger, so each one costs a little more than the last.</p>
 <td>about four hours</td>
 </tr>
 <tr>
-<td>Tier 4, at the 128 ceiling</td>
+<td>Tier 4, grown to 128</td>
 <td>138/s</td>
 <td>about half an hour</td>
+</tr>
+<tr>
+<td>Tier 4, at the 256 ceiling</td>
+<td>266/s</td>
+<td>about fifteen minutes</td>
 </tr>
 <tr>
 <td>Tier 4 at 60, three layers</td>

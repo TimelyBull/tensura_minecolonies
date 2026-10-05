@@ -1146,7 +1146,7 @@ for testing. <strong>Operator commands</strong> are marked — they need permiss
 <tr>
 <td><code>/recoverorphans [confirm\|purge]</code></td>
 <td>✅</td>
-<td>Reconcile named subordinates that lost their colony link (dry-run by default: <code>confirm</code> restores them, <code>purge</code> deletes them).</td>
+<td>Reconcile named subordinates that lost their colony link (dry-run by default: <code>confirm</code> restores them, <code>purge</code> deletes them). A subordinate whose last known area is not loaded is listed with its coordinates and left alone.</td>
 </tr>
 <tr>
 <td><code>/festival run</code></td>
@@ -1227,7 +1227,10 @@ for testing. <strong>Operator commands</strong> are marked — they need permiss
 </table>
 <p>There are also envoy-system utility commands (<code>/spawnenvoy</code>, <code>/envoystate</code>,
 <code>/envoyforce</code>, <code>/envoyresetcooldown</code>) and race utilities (<code>/summongoblin</code>,
-<code>/raceflip</code>, <code>/setcolonyrace</code>, <code>/racegrow</code>) used mainly for testing.
+<code>/raceflip</code>, <code>/setcolonyrace</code>, <code>/racegrow</code>) used mainly for testing. All of
+these need operator permission except <code>/envoystate</code> and <code>/summongoblin</code>. They
+act on your own colony; an operator who owns no colony can stand inside one to
+act on it.
 <code>/racegrow</code> grows one new resident in your colony immediately (add <code>force</code> to
 skip the housing requirements), for checking that a race colony raises children
 of its own race.</p>
